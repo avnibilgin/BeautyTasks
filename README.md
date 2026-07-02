@@ -5,10 +5,9 @@ native UI, no plugin dependencies.
 
 ## Theming
 
-BeautyTasks is fully themeable through CSS custom properties. By default the semantic
-colors **follow your Obsidian theme** (`--color-red`, `--color-orange`, `--color-blue`,
-`--color-purple`), so the plugin adapts automatically to whatever theme you use. Every
-value has a hardcoded fallback, so it also looks right on themes without those variables.
+BeautyTasks is fully themeable through CSS custom properties. It ships with a built-in
+color palette (separate values for dark and light mode, defined on `.theme-dark` /
+`.theme-light`). Everything is overridable, so you can adapt it to any theme.
 
 There are two ways to customize the colors:
 

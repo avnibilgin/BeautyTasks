@@ -16,7 +16,7 @@ settings:
     default: false
   - id: bt-colors-heading
     title: Colors
-    description: Semantic colors used across BeautyTasks (these also drive icon colors). Defaults follow your Obsidian theme.
+    description: Semantic colors used across BeautyTasks (these also drive icon colors).
     type: heading
     level: 2
     collapsed: true
@@ -24,62 +24,62 @@ settings:
     title: Overdue
     type: variable-themed-color
     format: hex
-    default-light: '#e05c4a'
-    default-dark: '#e05c4a'
+    default-light: '#E45649'
+    default-dark: '#E06C75'
   - id: bt-add
     title: Add button (+)
     type: variable-themed-color
     format: hex
-    default-light: '#e05c4a'
-    default-dark: '#e05c4a'
+    default-light: '#C15B34'
+    default-dark: '#D19A66'
   - id: bt-today
     title: Due today
     type: variable-themed-color
     format: hex
-    default-light: '#f97316'
-    default-dark: '#f97316'
+    default-light: '#C18401'
+    default-dark: '#E5C07B'
   - id: bt-recur
     title: Recurring
     type: variable-themed-color
     format: hex
-    default-light: '#ec4899'
-    default-dark: '#ec4899'
+    default-light: '#0997B3'
+    default-dark: '#56B6C2'
   - id: bt-label
     title: Labels
     type: variable-themed-color
     format: hex
-    default-light: '#a855f7'
-    default-dark: '#a855f7'
+    default-light: '#A626A4'
+    default-dark: '#C678DD'
   - id: bt-prio-1
     title: Priority 1 (highest)
     type: variable-themed-color
     format: hex
-    default-light: '#ef4444'
-    default-dark: '#ef4444'
+    default-light: '#E45649'
+    default-dark: '#E06C75'
   - id: bt-prio-2
     title: Priority 2 (high)
     type: variable-themed-color
     format: hex
-    default-light: '#f59e0b'
-    default-dark: '#f59e0b'
+    default-light: '#C15B34'
+    default-dark: '#D19A66'
   - id: bt-prio-3
     title: Priority 3 (medium)
     type: variable-themed-color
     format: hex
-    default-light: '#3b82f6'
-    default-dark: '#3b82f6'
+    default-light: '#4078F2'
+    default-dark: '#61AFEF'
   - id: bt-sched
     title: Deadline / scheduled
     type: variable-themed-color
     format: hex
-    default-light: '#6c7079'
-    default-dark: '#9099a3'
+    default-light: '#0997B3'
+    default-dark: '#56B6C2'
   - id: bt-attach
     title: Attachments
     type: variable-themed-color
     format: hex
-    default-light: '#6c7079'
-    default-dark: '#9099a3'
+    default-light: '#8C8F96'
+    default-dark: '#828997'
   - id: bt-nav-icons-heading
     title: Sidebar icons
     description: Colors of the left sidebar icons. Boards are individual; Labels / Areas / Projects each share one color (a per-item frontmatter color still wins).
@@ -90,101 +90,120 @@ settings:
     title: Search
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#4078F2'
+    default-dark: '#61AFEF'
   - id: bt-nav-inbox
     title: Inbox
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#0997B3'
+    default-dark: '#56B6C2'
   - id: bt-nav-heute
     title: Today
     type: variable-themed-color
     format: hex
-    default-light: '#f97316'
-    default-dark: '#f97316'
+    default-light: '#C18401'
+    default-dark: '#E5C07B'
   - id: bt-nav-demnaechst
     title: Upcoming
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#C15B34'
+    default-dark: '#D19A66'
   - id: bt-nav-wiederkehrend
     title: Recurring
     type: variable-themed-color
     format: hex
-    default-light: '#ec4899'
-    default-dark: '#ec4899'
+    default-light: '#0997B3'
+    default-dark: '#56B6C2'
   - id: bt-nav-erledigt
     title: Done
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#50A14F'
+    default-dark: '#98C379'
   - id: bt-nav-manage
     title: ListManager
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#8C8F96'
+    default-dark: '#828997'
   - id: bt-nav-label
     title: Labels (all)
     type: variable-themed-color
     format: hex
-    default-light: '#a855f7'
-    default-dark: '#a855f7'
+    default-light: '#A626A4'
+    default-dark: '#C678DD'
   - id: bt-nav-area
     title: Areas (all)
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#4078F2'
+    default-dark: '#61AFEF'
   - id: bt-nav-project
     title: Projects (all)
     type: variable-themed-color
     format: hex
-    default-light: '#383a42'
-    default-dark: '#dcddde'
+    default-light: '#C18401'
+    default-dark: '#E5C07B'
 
 */
 
-/* Semantik-Farben & Trennlinien als überschreibbare Variablen. Auf `body` (niedrige
-   Spezifität), damit Style Settings, Theme oder Snippet sie überschreiben können.
-   Defaults folgen dem Obsidian-Theme (var(--color-*)) mit Hex-Fallback (= bisheriges
-   BeautyTasks-Aussehen), sodass sich die Farben automatisch ans Theme anpassen. */
+/* Basis-Variablen (theme-neutral): Kopplungs-Aliase, Trennlinien, Lightbox-Overlay.
+   Die Semantik-FARBEN stehen theme-spezifisch weiter unten (.theme-dark/.theme-light).
+   Alles auf niedriger Spezifität, damit Style Settings, Theme oder Snippet überschreiben. */
 body {
-  --bt-overdue: var(--color-red, #e05c4a);
-  /* „+"-Buttons (Add task/project/subtask, „+" in den Sektions-Headern) – eigene Farbe,
-     NICHT an --bt-overdue gekoppelt. Default ist derselbe Rot-Ton, aber unabhängig. */
-  --bt-add: var(--color-red, #e05c4a);
-  /* Heute/Wiederkehrend/Labels: feste Farben (aus den Sidebar-Wünschen übernommen). Die
-     Sidebar-Icons erben diese unten als Default (Konsistenz), bleiben aber übersteuerbar. */
-  --bt-today: #f97316;
-  --bt-recur: #ec4899;
-  --bt-label: #a855f7;
-  --bt-prio-1: var(--color-red, #ef4444);      /* höchste – rot */
-  --bt-prio-2: var(--color-orange, #f59e0b);   /* hoch – orange */
-  --bt-prio-3: var(--color-blue, #3b82f6);     /* mittel – blau */
-  --bt-sched: var(--text-muted);               /* Geplant/Deadline (dezent) */
-  --bt-attach: var(--text-muted);              /* Anhänge/Kommentar-Büroklammer (dezent) */
-  /* Seitenleisten-Icon-Farben – Default = Textfarbe (monochrom wie bisher), themebar. */
-  --bt-nav-search: var(--text-normal);
-  --bt-nav-inbox: var(--text-normal);
-  --bt-nav-heute: var(--bt-today);              /* folgt der Chip-Farbe (B); übersteuerbar */
-  --bt-nav-demnaechst: var(--text-normal);
-  --bt-nav-wiederkehrend: var(--bt-recur);      /* folgt der Chip-Farbe (B) */
-  --bt-nav-erledigt: var(--text-normal);
-  --bt-nav-manage: var(--text-normal);
-  --bt-nav-label: var(--bt-label);              /* folgt der Chip-Farbe (B) */
-  --bt-nav-area: var(--text-normal);
-  --bt-nav-project: var(--text-normal);
+  /* Sidebar-Icons mit Chip-Gegenstück erben dessen Farbe (Kopplung B; übersteuerbar). */
+  --bt-nav-heute: var(--bt-today);
+  --bt-nav-wiederkehrend: var(--bt-recur);
+  --bt-nav-label: var(--bt-label);
   --bt-line: rgba(255, 255, 255, 0.1);
   --bt-line-faint: rgba(255, 255, 255, 0.05);
   /* Lightbox-Overlay-Steuerelemente (dunkler Bild-Backdrop, theme-unabhängig hell) */
   --bt-overlay-fg: var(--text-on-accent);
   --bt-overlay-bg: rgba(255, 255, 255, 0.12);
   --bt-overlay-bg-hover: rgba(255, 255, 255, 0.25);
+}
+
+/* Standard-Farbkonstellation (fest verbaut). Theme-spezifisch. Style Settings hat höhere
+   Spezifität (.theme-dark.css-settings-manager) und übersteuert diese Defaults weiterhin. */
+.theme-dark {
+  --bt-overdue: #E06C75;
+  --bt-add: #D19A66;
+  --bt-today: #E5C07B;
+  --bt-recur: #56B6C2;
+  --bt-label: #C678DD;
+  --bt-prio-1: #E06C75;
+  --bt-prio-2: #D19A66;
+  --bt-prio-3: #61AFEF;
+  --bt-sched: #56B6C2;
+  --bt-attach: #828997;
+  --bt-nav-search: #61AFEF;
+  --bt-nav-inbox: #56B6C2;
+  --bt-nav-demnaechst: #D19A66;
+  --bt-nav-erledigt: #98C379;
+  --bt-nav-manage: #828997;
+  --bt-nav-area: #61AFEF;
+  --bt-nav-project: #E5C07B;
+}
+.theme-light {
+  --bt-overdue: #E45649;
+  --bt-add: #C15B34;
+  --bt-today: #C18401;
+  --bt-recur: #0997B3;
+  --bt-label: #A626A4;
+  --bt-prio-1: #E45649;
+  --bt-prio-2: #C15B34;
+  --bt-prio-3: #4078F2;
+  --bt-sched: #0997B3;
+  --bt-attach: #8C8F96;
+  --bt-nav-search: #4078F2;
+  --bt-nav-inbox: #0997B3;
+  --bt-nav-demnaechst: #C15B34;
+  --bt-nav-erledigt: #50A14F;
+  --bt-nav-manage: #8C8F96;
+  --bt-nav-area: #4078F2;
+  --bt-nav-project: #C18401;
 }
 
 /* „Monochrome"-Toggle (Style Settings, class-toggle `bt-monochrome`): alle Semantik-Farben
@@ -464,6 +483,8 @@ body {
 .bt-nav-label .bt-nav-ic { color: var(--bt-nav-label); }
 .bt-nav-area .bt-nav-ic { color: var(--bt-nav-area); }
 .bt-nav-project .bt-nav-ic { color: var(--bt-nav-project); }
+/* Bereich-Icon (circle-small) als gefüllten Punkt darstellen. */
+.bt-nav-area .bt-nav-ic svg { fill: currentColor; }
 .bt-nav-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bt-nav-count { color: var(--text-muted); font-size: 0.82em; flex-shrink: 0; }
 /* Sichtbarer Tastatur-Fokus (Regel 40) – nur bei Keyboard-Fokus, nicht bei Maus. */
@@ -475,7 +496,7 @@ body {
 .bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
 .bt-nav-head-toggle {
   flex: 1; min-width: 0; cursor: pointer;
-  font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+  font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
 }
 .bt-nav-head-toggle:hover { color: var(--text-normal); }
 .bt-nav-head-lbl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1326,8 +1326,8 @@ function allProjItems(app) {
       name: f.basename,
       path: f.path,
       type,
-      // Bereiche haben immer das Area-Icon (circle), unabhängig vom alten icon-Frontmatter
-      // -> beim Umwandeln Projekt↔Bereich ändert sich das Nav-Icon mit. Projekte: icon o. Default.
+      // Bereiche immer circle-small (per CSS gefüllt), unabhängig vom icon-Frontmatter.
+      // Projekte: eigenes icon-Frontmatter respektieren, sonst Default „folder".
       icon: type === "area" ? "circle-small" : typeof fm?.icon === "string" && fm.icon ? fm.icon : "folder",
       color: typeof fm?.color === "string" ? fm.color : null,
       hidden: !!fm?.nav_hidden,
