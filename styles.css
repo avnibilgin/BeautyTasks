@@ -1,0 +1,641 @@
+/* BeautyTasks – Plugin-Styles. Eigene .bt-*-Klassen, optisch 1:1 zum bisherigen
+   BeautyTasks (Werte/Icon-Masken aus Tasks-Style.css übernommen). */
+
+/* Marken-/Semantik-Farben & Trennlinien als überschreibbare Variablen. Defaults =
+   exaktes BeautyTasks-Aussehen (auf dunkles Theme abgestimmt); Theme-/Snippet-Autoren
+   können sie überschreiben. Auf den Plugin-Wurzeln definiert (nicht global). */
+.bt-view, .bt-task-modal, .bt-pop, .bt-nav {
+  --bt-overdue: #e05c4a;
+  --bt-today: #e8924a;
+  --bt-recur: #3b82f6;
+  --bt-label: #b9a8e8;
+  --bt-prio-1: #ef4444;   /* höchste – rot */
+  --bt-prio-2: #f59e0b;   /* hoch – orange */
+  --bt-prio-3: #3b82f6;   /* mittel – blau */
+  --bt-line: rgba(255, 255, 255, 0.1);
+  --bt-line-faint: rgba(255, 255, 255, 0.05);
+  /* Lightbox-Overlay-Steuerelemente (dunkler Bild-Backdrop, theme-unabhängig hell) */
+  --bt-overlay-fg: var(--text-on-accent);
+  --bt-overlay-bg: rgba(255, 255, 255, 0.12);
+  --bt-overlay-bg-hover: rgba(255, 255, 255, 0.25);
+}
+
+/* Kompletten Pane-Header-Balken ausblenden (nur diese View; der Tab bleibt).
+   Die Seite hat eine eigene Überschrift, der Header-Balken wäre redundant. */
+.workspace-leaf-content[data-type="beautytasks-main"] .view-header { display: none; }
+
+/* Aufgaben-Suche (FuzzySuggestModal, außerhalb der View – eigene bt-search-*-Klassen). */
+.bt-search-item { display: flex; flex-direction: column; gap: 2px; }
+.bt-search-title { color: var(--text-normal); }
+.bt-search-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; font-size: 0.8em; color: var(--text-muted); }
+.bt-search-tag.is-done { color: var(--text-faint); }
+
+.bt-view {
+  padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
+  overflow-y: auto;
+}
+/* Inhalt zentriert auf Lesebreite (wie das alte BeautyTasks). WICHTIG: der seitliche
+   Abstand wird über die SIZER-BREITE geregelt, nicht über Padding – denn bei einem
+   zentrierten Sizer heben sich Padding und Auto-Margin gegenseitig auf (= kein Effekt).
+   min(Lesebreite, 100% − 2·40px) garantiert auch bei schmalem Fenster ≥ 40px Rand. */
+.bt-view .bt-sizer {
+  max-width: min(var(--file-line-width, 700px), calc(100% - 80px));
+  margin-left: auto;
+  margin-right: auto;
+}
+.bt-view h1 {
+  margin: 6px 0 2px;
+  font-size: 1.7em; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15;
+  color: var(--text-normal);
+}
+
+/* Board-Kopfzeile: „+ Add task" links, dezenter ListManager-Link rechts. */
+.bt-board-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 14px; }
+.bt-board-bar .bt-add { margin: 0; }   /* Abstand kommt von der Bar */
+.bt-board-link {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  color: var(--text-muted); font-size: var(--font-ui-small); cursor: pointer;
+}
+.bt-board-link:hover { color: var(--text-normal); }
+.bt-board-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; border-radius: 4px; }
+.bt-board-link-ic { display: inline-flex; flex-shrink: 0; }
+.bt-board-link-ic svg { width: 16px; height: 16px; }
+
+/* „+ Aufgabe hinzufügen" */
+.bt-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 20px 0 14px;
+  color: var(--text-muted);
+  /* Textgröße 1:1 zum alten BeautyTasks (Meta-Bind-Button erbte den Obsidian-
+     Button-Default). Das Plus bleibt unberührt, da .bt-add-icon fix 16px ist. */
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+.bt-add:hover { color: var(--text-normal); }
+.bt-add-icon {
+  width: 16px; height: 16px; flex-shrink: 0;
+  background-color: var(--bt-overdue);   /* nur die Plus-Farbe: rot */
+  -webkit-mask: var(--bt-plus) center / contain no-repeat;
+  mask: var(--bt-plus) center / contain no-repeat;
+}
+
+.bt-empty { color: var(--text-muted); font-size: 0.92em; margin: 4px 0 8px; }
+
+/* ── Aufgaben-Modal (Todoist-Stil, 1:1 zu BeautyTasks) ── */
+.bt-task-modal { width: 800px; max-width: 92vw; }
+.bt-task-modal .bt-titel {
+  width: 100%; border: none; background: transparent;
+  font-size: 1.25em; font-weight: 600; color: var(--text-normal);
+  padding: 4px 0 2px; box-shadow: none;
+}
+.bt-task-modal .bt-titel::placeholder { color: var(--text-faint); font-weight: 600; }
+.bt-task-modal .bt-titel:focus { box-shadow: none; outline: none; }
+
+.bt-task-modal .bt-beschr {
+  width: 100%; border: none; background: transparent; resize: none;
+  font-family: inherit; font-size: 0.95em; line-height: 1.4; color: var(--text-normal);
+  padding: 2px 0; margin-top: 2px; box-shadow: none; overflow: hidden;
+  min-height: 24px; max-height: 200px;
+}
+.bt-task-modal .bt-beschr::placeholder { color: var(--text-faint); }
+.bt-task-modal .bt-beschr:focus { box-shadow: none; outline: none; }
+
+.bt-task-modal .bt-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0;
+  padding-bottom: 14px; border-bottom: 1px solid var(--background-modifier-border);
+}
+.bt-task-modal .bt-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 9px;
+  border: 1px solid var(--background-modifier-border); border-radius: 6px;
+  background: transparent; color: var(--text-muted); font-size: 0.85em; cursor: pointer; box-shadow: none;
+}
+.bt-task-modal .bt-chip:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-task-modal .bt-chip.is-set { color: var(--text-normal); border-color: var(--interactive-accent); }
+.bt-task-modal .bt-chip-ic { display: inline-flex; }
+.bt-task-modal .bt-chip-ic svg { width: 15px; height: 15px; }
+.bt-task-modal .bt-chip-lbl { white-space: nowrap; }
+.bt-task-modal .bt-chip-sep { color: var(--text-muted); }
+.bt-task-modal .bt-chip-x { display: inline-flex; opacity: 0.5; margin-left: 1px; }
+.bt-task-modal .bt-chip-x svg { width: 13px; height: 13px; }
+.bt-task-modal .bt-chip-x:hover { opacity: 1; }
+
+.bt-task-modal .bt-details-bar { display: flex; align-items: center; gap: 12px; min-height: 24px; margin: 0 0 12px; }
+.bt-task-modal .bt-details-toggle {
+  background: transparent; border: none; box-shadow: none;
+  color: var(--text-muted); cursor: pointer; font-size: 0.85em; padding: 2px 0;
+}
+.bt-task-modal .bt-details-toggle:hover { color: var(--text-normal); }
+.bt-task-modal .bt-add-subtask { display: inline-flex; align-items: center; color: var(--bt-overdue); }
+.bt-task-modal .bt-add-subtask:hover { color: var(--bt-overdue); opacity: 0.8; }
+.bt-task-modal .bt-delete-task { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--bt-overdue); }
+.bt-task-modal .bt-delete-task:hover { color: var(--bt-overdue); opacity: 0.8; }
+.bt-task-modal .bt-del-ic { display: inline-flex; }
+.bt-task-modal .bt-del-ic svg { width: 14px; height: 14px; }
+
+/* Details = Kommentar-Log (Timeline + Composer) – portiert aus Tasks-Style.css .am-log-* */
+.bt-task-modal .bt-details { margin: 0 0 12px; }
+.bt-task-modal .bt-log { margin-top: 8px; }
+.bt-task-modal .bt-log-list { max-height: 260px; overflow-y: auto; padding: 2px 2px 2px 16px; position: relative; }
+.bt-task-modal .bt-log-list::before {            /* durchgehende Timeline-Linie */
+  content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px;
+  width: 2px; background: var(--background-modifier-border);
+}
+.bt-task-modal .bt-log-entry { position: relative; padding: 5px 0 9px 14px; }
+.bt-task-modal .bt-log-entry::before {           /* Punkt auf der Linie */
+  content: ""; position: absolute; left: -13px; top: 9px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--interactive-accent); box-shadow: 0 0 0 2px var(--background-primary);
+}
+.bt-task-modal .bt-log-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.bt-task-modal .bt-log-ts { font-size: 0.72em; font-weight: 600; letter-spacing: 0.02em; color: var(--text-accent, var(--interactive-accent)); }
+.bt-task-modal .bt-log-content { font-size: 0.9em; line-height: 1.45; color: var(--text-normal); }
+.bt-task-modal .bt-log-content > :first-child { margin-top: 0; }
+.bt-task-modal .bt-log-content > :last-child { margin-bottom: 0; }
+.bt-task-modal .bt-log-content img { max-width: 180px; max-height: 140px; border-radius: 8px; margin: 4px 0; cursor: zoom-in; }
+.bt-task-modal .bt-log-actions { flex: 0 0 auto; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.bt-task-modal .bt-log-entry:hover .bt-log-actions { opacity: 1; }
+.bt-task-modal .bt-log-act {
+  padding: 1px; border-radius: 5px; cursor: pointer; color: var(--text-muted);
+  background: transparent; box-shadow: none; display: inline-flex; align-items: center;
+  height: auto; min-height: 0; line-height: 1;
+}
+.bt-task-modal .bt-log-act:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-task-modal .bt-log-act .svg-icon { width: 14px; height: 14px; }
+.bt-task-modal .bt-log-edit { width: 100%; resize: vertical; min-height: 48px; font-size: 0.9em; }
+.bt-task-modal .bt-log-edit-acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+.bt-task-modal .bt-log-edit-btn { font-size: 0.82em; padding: 3px 10px; }
+.bt-task-modal .bt-log-composer {
+  display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.bt-task-modal .bt-log-input { flex: 1; resize: none; min-height: 34px; max-height: 220px; font-size: 0.9em; line-height: 1.4; }
+/* Dezenter Fokus statt Obsidians grellem Akzent-Glow – wie die übrigen Felder. */
+.bt-task-modal .bt-log-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
+.bt-task-modal .bt-log-input.bt-drop { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px var(--interactive-accent) inset; }
+.bt-task-modal .bt-log-composer-actions { display: flex; gap: 4px; }
+.bt-task-modal .bt-log-attach, .bt-task-modal .bt-log-add {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+}
+.bt-task-modal .bt-log-add { background: var(--interactive-accent); color: var(--text-on-accent); }
+.bt-task-modal .bt-log-add:hover { background: var(--interactive-accent-hover); }
+.bt-task-modal .bt-log-attach { color: var(--text-muted); }
+.bt-task-modal .bt-log-attach:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+
+.bt-task-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.bt-task-modal .bt-projekt {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
+  border: 1px solid var(--background-modifier-border); border-radius: 6px;
+  background: transparent; color: var(--text-normal); font-size: 0.88em; cursor: pointer; box-shadow: none;
+}
+.bt-task-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
+.bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car { display: inline-flex; }
+.bt-task-modal .bt-projekt-ic svg { width: 15px; height: 15px; }
+.bt-task-modal .bt-projekt-car { opacity: 0.6; }
+.bt-task-modal .bt-projekt-car svg { width: 14px; height: 14px; }
+.bt-task-modal .bt-actions { display: inline-flex; gap: 8px; }
+
+
+/* Popover (Chip-Picker) */
+.bt-pop {
+  position: fixed; z-index: var(--layer-menu, 9999); min-width: 190px; max-height: 320px; overflow-y: auto;
+  padding: 5px; background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border); border-radius: 8px;
+  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.4));
+}
+.bt-pop .bt-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px; cursor: pointer; font-size: 0.88em; color: var(--text-normal); }
+.bt-pop .bt-row:hover, .bt-pop .bt-row.is-active { background: var(--background-modifier-hover); }
+.bt-pop .bt-row-ic { display: inline-flex; }
+.bt-pop .bt-row-ic svg { width: 15px; height: 15px; }
+.bt-pop-input {
+  width: 100%; margin: 2px 0 6px; padding: 5px 7px; border-radius: 5px;
+  border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal);
+}
+
+/* ── Datums-Picker (Eingabe + Schnellzeilen + Monatskalender) ── */
+/* Feste Breite: verhindert, dass die (breite) Dauer-Zeile das Popover verbreitert und
+   damit die aspect-ratio-Kalenderzellen aufbläht. */
+.bt-pop.bt-date { width: 268px; max-height: 560px; overflow-y: auto; }
+.bt-pop .bt-date-input {
+  width: 100%; box-sizing: border-box; margin: 1px 0 6px; padding: 6px 8px; font-size: 0.88em;
+  color: var(--text-normal); background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border); border-radius: 5px;
+}
+.bt-pop .bt-date-input::placeholder { color: var(--text-faint); }
+.bt-pop .bt-date-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
+.bt-pop .bt-date-input.is-invalid { border-color: var(--text-error); }
+.bt-pop .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-pop .bt-date-hint { padding-left: 10px; color: var(--text-faint); font-size: 0.9em; white-space: nowrap; }
+
+/* Label-Picker (Eingabe + Liste mit rechtsbündiger Häkchen-Box) */
+.bt-pop.bt-tags { min-width: 240px; }
+.bt-pop.bt-tags .bt-tag-add { width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 5px 7px; border-radius: 5px; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); }
+.bt-pop.bt-tags .bt-tag-list { max-height: 220px; overflow-y: auto; }
+.bt-pop .bt-tag-row { gap: 0; }
+.bt-pop .bt-tag-row .bt-row-ic { margin-right: -1px; transform: translateY(-1px); }
+.bt-pop .bt-tag-row .bt-row-ic svg { width: 14px; height: 14px; }
+.bt-pop .bt-tag-row.is-active { background: transparent; }
+.bt-pop .bt-tag-row:hover { background: var(--background-modifier-hover); }
+.bt-pop .bt-tag-box {
+  margin-left: 8px; width: 17px; height: 17px; flex-shrink: 0;
+  border: 1px solid var(--background-modifier-border); border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.bt-pop .bt-tag-row.is-active .bt-tag-box { background: var(--interactive-accent); border-color: var(--interactive-accent); }
+.bt-pop .bt-tag-box svg { width: 12px; height: 12px; color: var(--text-on-accent); }
+
+/* Gruppen-Überschrift + Aktion-Zeilen (Projekt-Picker) */
+.bt-pop .bt-pop-head { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 8px 8px 3px; }
+.bt-pop .bt-row-action .bt-row-lbl, .bt-pop .bt-row-action .bt-row-ic { color: var(--interactive-accent); }
+
+/* ── Linke Navigation ── */
+.bt-nav { padding: 6px 6px 16px; }
+.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
+.bt-nav-item:hover { background: var(--background-modifier-hover); }
+.bt-nav-item.is-active { background: var(--background-modifier-hover); font-weight: 600; }
+.bt-nav-ic { display: inline-flex; flex-shrink: 0; }
+.bt-nav-ic svg { width: 16px; height: 16px; }
+.bt-nav-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-nav-count { color: var(--text-muted); font-size: 0.82em; flex-shrink: 0; }
+/* Sichtbarer Tastatur-Fokus (Regel 40) – nur bei Keyboard-Fokus, nicht bei Maus. */
+.bt-nav-item:focus-visible,
+.bt-nav-head-toggle:focus-visible,
+.bt-nav-head-add:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
+
+/* Abschnittsüberschrift: Label links (füllt die Zeile), „+" (nur bei Hover) und Chevron rechts. */
+.bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
+.bt-nav-head-toggle {
+  flex: 1; min-width: 0; cursor: pointer;
+  font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+}
+.bt-nav-head-toggle:hover { color: var(--text-normal); }
+.bt-nav-head-lbl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-nav-head-add {
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  padding: 1px; border-radius: var(--radius-s); cursor: pointer; opacity: 0;
+  color: var(--bt-overdue);   /* dasselbe Rot wie das „+" bei „Add task" */
+}
+/* „+" erscheint nur beim Hover der Überschriftenzeile – oder bei Tastatur-Fokus (A11y). */
+.bt-nav-head:hover .bt-nav-head-add,
+.bt-nav-head-add:focus-visible { opacity: 1; }
+.bt-nav-head-add:hover { background: var(--background-modifier-hover); }
+.bt-nav-head-add svg { width: 14px; height: 14px; }
+/* Chevron ganz rechts, grob über der Badge-Spalte der Einträge. */
+/* Chevron: gleiche Farbe wie das Label, aber leicht dezenter (etwas geringere Deckkraft). */
+.bt-nav-head-chevron { display: inline-flex; align-items: center; flex-shrink: 0; cursor: pointer; color: var(--text-muted); opacity: 0.7; }
+.bt-nav-head-chevron:hover { color: var(--text-normal); opacity: 1; }
+.bt-nav-head-chevron svg { width: 16px; height: 16px; }
+/* Nur Layout – Hintergrund/Rahmen/Radius/Fokus-Ring kommen aus Obsidians nativem
+   Input-Styling (wie .bt-manage-input), damit Theme-Vorgaben respektiert werden. */
+.bt-nav-add-input { width: calc(100% - 16px); margin: 2px 8px 4px; font-size: var(--font-ui-small); }
+.bt-pop .bt-date-cal { border-top: 1px solid var(--background-modifier-border); margin-top: 5px; padding-top: 6px; }
+.bt-pop .bt-cal-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 8px; }
+.bt-pop .bt-cal-title { font-weight: 600; font-size: 0.9em; }
+.bt-pop .bt-cal-nav { display: inline-flex; cursor: pointer; opacity: 0.6; padding: 2px; border-radius: 4px; }
+.bt-pop .bt-cal-nav:hover { opacity: 1; background: var(--background-modifier-hover); }
+.bt-pop .bt-cal-nav svg { width: 16px; height: 16px; }
+.bt-pop .bt-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 4px 4px; }
+.bt-pop .bt-cal-wd { text-align: center; font-size: 0.68em; color: var(--text-faint); padding: 2px 0; text-transform: uppercase; }
+.bt-pop .bt-cal-day {
+  display: flex; align-items: center; justify-content: center; aspect-ratio: 1;
+  font-size: 0.82em; border-radius: 50%; cursor: pointer; color: var(--text-normal);
+}
+.bt-pop .bt-cal-day:hover { background: var(--background-modifier-hover); }
+.bt-pop .bt-cal-day.is-other { color: var(--text-faint); opacity: 0.5; }
+.bt-pop .bt-cal-day.is-today { box-shadow: inset 0 0 0 1.5px var(--text-error); color: var(--text-error); font-weight: 600; border-radius: 7px; }
+.bt-pop .bt-cal-day.is-sel { background: var(--interactive-accent); color: var(--text-on-accent); box-shadow: none; font-weight: 600; }
+
+/* ── Uhrzeit + Dauer (Todoist-Stil) im Date-Picker ── */
+.bt-pop .bt-time-wrap { border-top: 1px solid var(--background-modifier-border); margin-top: 6px; padding-top: 6px; }
+.bt-pop .bt-time-toggle {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px;
+  cursor: pointer; font-size: 0.88em; color: var(--text-normal);
+}
+.bt-pop .bt-time-toggle:hover { background: var(--background-modifier-hover); }
+.bt-pop .bt-time-row, .bt-pop .bt-dur-row { display: flex; align-items: center; gap: 8px; padding: 4px 4px; }
+.bt-pop .bt-time-label { flex: 0 0 52px; font-size: 0.8em; color: var(--text-muted); }
+.bt-pop .bt-time-field { position: relative; flex: 1; min-width: 0; }
+.bt-pop .bt-time-input, .bt-pop .bt-dur-input {
+  width: 100%; box-sizing: border-box; padding: 5px 7px; border-radius: 5px; font-size: 0.88em;
+  border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal);
+}
+.bt-pop .bt-time-input:focus, .bt-pop .bt-dur-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
+.bt-pop .bt-time-input.is-invalid { border-color: var(--text-error); }
+.bt-pop .bt-time-clear { display: inline-flex; opacity: 0.5; cursor: pointer; padding: 2px; flex-shrink: 0; }
+.bt-pop .bt-time-clear:hover { opacity: 1; }
+.bt-pop .bt-time-clear svg { width: 14px; height: 14px; }
+/* Vorschlags-Dropdown: absolut über der Eingabe (nach OBEN), overlappt den Kalender.
+   Standard versteckt; nur mit .is-open sichtbar (kein flackerndes JS-hide/show). */
+.bt-pop .bt-time-drop {
+  display: none; position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 5;
+  max-height: 186px; overflow-y: auto; padding: 4px;
+  background: var(--background-primary); border: 1px solid var(--background-modifier-border);
+  border-radius: 6px; box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.4));
+}
+.bt-pop .bt-time-drop.is-open { display: block; }
+.bt-pop .bt-time-opt { padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 0.88em; color: var(--text-normal); }
+.bt-pop .bt-time-opt:hover { background: var(--background-modifier-hover); }
+.bt-pop .bt-time-opt.is-sel { color: var(--interactive-accent); font-weight: 600; }
+.bt-pop .bt-dur-input { flex: 1; min-width: 0; }
+
+/* klickbare Datums-Chips in der Liste */
+.bt-view .bt-due, .bt-view .bt-sched { cursor: pointer; }
+
+/* Sektionen */
+.bt-section { margin-top: 2.2em; }
+.bt-section-title {
+  font-size: 0.75em; font-weight: 600; margin: 8px 0 0;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+}
+/* Einklappbare Sektion (z. B. „Erledigt"): Titel + Anzahl + Chevron rechts, klickbar. */
+.bt-collapsible .bt-section-title { display: flex; align-items: center; cursor: pointer; }
+/* Anzahl direkt neben dem Titel, mit dezentem „·"-Trenner. */
+.bt-section-count { font-weight: 400; letter-spacing: 0; color: var(--text-faint); }
+.bt-section-count::before { content: "·"; margin: 0 0.4em; opacity: 0.7; }
+.bt-collapse-ic { display: inline-flex; align-items: center; margin-left: auto; color: var(--text-muted); }
+.bt-collapse-ic svg { width: 14px; height: 14px; }
+.bt-collapsible .bt-section-title:hover .bt-collapse-ic { color: var(--text-normal); }
+.bt-section.is-collapsed .bt-list { display: none; }
+.bt-list { border-top: 1px solid var(--bt-line); margin-top: 6px; padding-top: 0.9em; }
+
+/* Aufgaben-Zeile */
+.bt-task {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+/* Trennlinie beginnt am Titel (rechts neben der Checkbox), nicht darunter.
+   Versatz = padding-left 2px + Checkbox 16px + gap 10px = 28px. */
+.bt-task::after {
+  content: "";
+  position: absolute;
+  left: 28px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--bt-line-faint);
+}
+.bt-task:last-child::after { display: none; }
+.bt-task:hover { background: var(--background-modifier-hover); border-radius: 6px; }
+/* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
+   damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
+.bt-task.is-focus {
+  background: hsla(var(--interactive-accent-hsl), 0.2);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px hsla(var(--interactive-accent-hsl), 0.5);
+}
+
+/* Runde Checkbox */
+.bt-check {
+  width: 16px; height: 16px; flex-shrink: 0;
+  margin-top: 2px;
+  border: 1.5px solid var(--text-faint);
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+}
+.bt-check:hover { border-color: var(--text-muted); }
+/* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben). */
+.bt-check:not(.is-done):hover::after {
+  content: ""; position: absolute; inset: 3px;
+  background-color: var(--text-muted);
+  -webkit-mask: var(--bt-check) center / 100% no-repeat;
+  mask: var(--bt-check) center / 100% no-repeat;
+}
+/* Priorität: farbiger Checkbox-Ring (wie altes BeautyTasks). */
+.bt-check[data-prio="highest"] { border-color: var(--bt-prio-1); box-shadow: 0 0 0 1px var(--bt-prio-1); }
+.bt-check[data-prio="high"]    { border-color: var(--bt-prio-2); box-shadow: 0 0 0 1px var(--bt-prio-2); }
+.bt-check[data-prio="medium"]  { border-color: var(--bt-prio-3); box-shadow: 0 0 0 1px var(--bt-prio-3); }
+.bt-check.is-done { background-color: var(--text-muted); border-color: var(--text-muted); }
+.bt-check.is-done::after {
+  content: ""; position: absolute; inset: 2px;
+  background-color: var(--background-primary);
+  -webkit-mask: var(--bt-check) center / 100% no-repeat;
+  mask: var(--bt-check) center / 100% no-repeat;
+}
+
+/* Titel + Metadaten */
+.bt-body { flex: 1; min-width: 0; }
+.bt-title { line-height: 1.4; }
+/* Inline gerenderter Markdown (Titel/Beschreibung mit Links): <p> inline + randlos,
+   damit die Zeile/Ellipsis passt. */
+.bt-md-inline p { display: inline; margin: 0; }
+/* Beschreibungs-Vorschau: einzeilig, gekürzt, gedämpft (Todoist-Stil) */
+.bt-desc {
+  font-size: 0.85em; color: var(--text-muted); line-height: 1.3; margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bt-task.is-done .bt-desc { text-decoration: line-through; }
+/* Unteraufgaben im Board: eingerückt nach Tiefe */
+.bt-task.bt-subtask { margin-left: calc(var(--bt-depth, 1) * 24px); }
+
+.bt-task.is-done .bt-title { color: var(--text-muted); text-decoration: line-through; }
+.bt-task .bt-check.is-done ~ .bt-body .bt-title { color: var(--text-muted); }
+/* Abgebrochen (Papierkorb): wie erledigt gedämpft/durchgestrichen; Checkbox inaktiv. */
+.bt-task.is-cancelled .bt-title { color: var(--text-muted); text-decoration: line-through; }
+.bt-task.is-cancelled .bt-desc { text-decoration: line-through; }
+/* Papierkorb: alter Kreis bleibt, X sitzt zentriert darin. */
+.bt-check.bt-check-x {
+  cursor: default;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.bt-check.bt-check-x .svg-icon { width: 11px; height: 11px; color: var(--text-muted); }
+.bt-check.bt-check-x:hover { border-color: var(--text-faint); }   /* kein Hover-Effekt */
+.bt-check.bt-check-x:hover::after { display: none; }              /* kein Häkchen-Hover */
+.bt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px; }
+
+/* Chips (Basis) – nur in der Liste; Modal-Chips nutzen .bt-task-modal .bt-chip */
+.bt-view .bt-chip {
+  font-size: 0.85em;
+  font-family: var(--font-interface);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.3;
+  padding: 2px 0;
+  color: var(--text-muted);
+}
+.bt-view .bt-chip::before {
+  content: ""; display: inline-block;
+  width: 14px; height: 14px; flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+
+/* Fälligkeit – Kalender-Icon + Farbe je Zeitbezug */
+.bt-due::before { -webkit-mask-image: var(--bt-calendar); mask-image: var(--bt-calendar); }
+.bt-due[data-when="past"]   { color: var(--bt-overdue); }
+.bt-due[data-when="today"]  { color: var(--bt-today); }
+.bt-due[data-when="future"] { color: var(--text-muted); }
+
+/* Geplant – Uhr-Icon */
+.bt-sched::before { -webkit-mask-image: var(--bt-clock); mask-image: var(--bt-clock); }
+
+/* Wiederholung – nur Icon, Breeze-Blau */
+.bt-recur { color: var(--bt-recur); gap: 0; }
+.bt-recur::before { -webkit-mask-image: var(--bt-refresh); mask-image: var(--bt-refresh); }
+
+/* Label – Tag-Icon (liefert das „#") + Violett, klebt am Wort */
+.bt-label { color: var(--bt-label); gap: 0; }
+.bt-label::before {
+  width: 13px; height: 13px; margin-right: -1px;
+  -webkit-mask-image: var(--bt-tag); mask-image: var(--bt-tag);
+}
+
+/* Kommentar-/Anhang-Chip (Büroklammer + dezente Anzahl, wie Todoist) */
+.bt-comments { display: inline-flex; align-items: center; gap: 3px; color: var(--text-muted); font-size: 0.85em; }
+.bt-comments-ic { display: inline-flex; }
+.bt-comments-ic svg { width: 14px; height: 14px; }
+.bt-comments-n { font-size: 0.92em; }
+
+/* Rechte Gruppe: Projekt-Backlink + Stift */
+.bt-extras {
+  margin-left: auto;
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bt-backlink { font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+.bt-backlink:hover { color: var(--text-normal); text-decoration: underline; }
+/* Papierkorb-Zeilenaktionen (Wiederherstellen/Löschen) rechts – wie Manage-Aktionen. */
+.bt-task-actions { margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+
+/* ── Lucide-Icon-Masken (als CSS-Variablen, einmal definiert) ── */
+.bt-view, .bt-add {
+  --bt-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+  --bt-clock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E");
+  --bt-refresh: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8'/%3E%3Cpath d='M21 3v5h-5'/%3E%3Cpath d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16'/%3E%3Cpath d='M8 16H3v5'/%3E%3C/svg%3E");
+  --bt-tag: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='4' x2='20' y1='9' y2='9'/%3E%3Cline x1='4' x2='20' y1='15' y2='15'/%3E%3Cline x1='10' x2='8' y1='3' y2='21'/%3E%3Cline x1='16' x2='14' y1='3' y2='21'/%3E%3C/svg%3E");
+  --bt-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  --bt-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='M12 5v14'/%3E%3C/svg%3E");
+  --bt-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z'/%3E%3Cpath d='m15 5 4 4'/%3E%3C/svg%3E");
+}
+
+/* Verstecktes Datei-Input (Anhang-Auswahl) – Style per Klasse statt JS (R34). */
+.bt-hidden-file { display: none; }
+.bt-hidden { display: none; }
+
+/* Projekt→Bereich-Umschalter im Board-Header (Häkchen links). */
+/* ── Verwaltung (ListManager): Kopf + Tabs + Zeilen ── */
+/* Kategorie-Buttons rechts, auf gleicher Höhe wie die Überschrift (wie altes BeautyTasks). */
+.bt-view .bt-manage-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bt-view .bt-manage-header h1 { margin: 6px 0 2px; }   /* identisch zu .bt-view h1 (Board/Inbox) */
+.bt-view .bt-manage-header .bt-tabs { margin: 0; }
+.bt-view .bt-manage-add { margin: 20px 0 18px; }   /* Überschrift→„Add project" wie Inbox: Titel→„Add task" */
+.bt-view .bt-manage-add .bt-add { margin-top: 0; }   /* Verwaltung: kein Zusatz-Abstand wie im Board */
+.bt-view .bt-manage-add .bt-input, .bt-view .bt-manage-add .bt-manage-input { max-width: 320px; }
+.bt-view .bt-tabs { display: flex; gap: 6px; margin: 10px 0 14px; }
+.bt-view .bt-tab {
+  cursor: pointer; padding: 4px 14px; border-radius: 6px; font-size: var(--font-ui-small);
+  border: 1px solid var(--background-modifier-border); background: transparent; color: var(--text-muted); box-shadow: none;
+}
+.bt-view .bt-tab:hover { color: var(--text-normal); }
+.bt-view .bt-tab.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); }
+
+/* Aktiv/Archiv unter „Projekte" – Pill-Buttons wie die Kategorie-Tabs (altes BeautyTasks). */
+.bt-view .bt-subtabs { display: flex; gap: 8px; margin: 0 0 18px; }
+.bt-view .bt-subtab {
+  cursor: pointer; padding: 4px 14px; border-radius: 6px; font-size: var(--font-ui-small);
+  border: 1px solid var(--background-modifier-border); background: transparent; color: var(--text-muted); box-shadow: none;
+}
+.bt-view .bt-subtab:hover { color: var(--text-normal); }
+.bt-view .bt-subtab.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); }
+
+/* Papierkorb: globale Aktionen im Plugin-Idiom (wie .bt-add / Modal-„Löschen") –
+   transparent, randlos, gedämpfter Text + Icon; destruktiv in Plugin-Rot. */
+.bt-view .bt-trash-actions { display: flex; align-items: center; gap: 20px; margin: 22px 0 16px; }
+.bt-view .bt-trash-act { display: inline-flex; }
+.bt-view .bt-trash-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: transparent; border: none; box-shadow: none; padding: 0;
+  color: var(--text-muted); font-size: 0.95em;
+}
+.bt-view .bt-trash-btn:hover { color: var(--text-normal); background: transparent; }
+.bt-view .bt-trash-btn .svg-icon { width: 15px; height: 15px; }
+.bt-view .bt-trash-btn.is-danger { color: var(--bt-overdue); }
+.bt-view .bt-trash-btn.is-danger:hover { color: var(--bt-overdue); opacity: 0.8; background: transparent; }
+
+.bt-view .bt-manage-head {
+  margin-top: 1.8em;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  font-size: 0.8em; color: var(--text-muted);
+  padding-bottom: 5px; border-bottom: 2px solid var(--bt-line);
+}
+.bt-view .bt-manage-list { margin: 4px 0 10px; }
+.bt-view .bt-manage-row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 2px;
+  border-bottom: 1px solid var(--bt-line-faint);
+}
+.bt-view .bt-manage-row:last-child { border-bottom: none; }
+.bt-view .bt-manage-name { flex: 1; min-width: 0; cursor: pointer; color: var(--text-normal); }
+.bt-view .bt-manage-name:hover { text-decoration: underline; }
+.bt-view .bt-manage-count { color: var(--text-faint); font-size: 0.82em; flex-shrink: 0; }
+.bt-view .bt-manage-row.is-archived .bt-manage-name { color: var(--text-muted); }
+.bt-view .bt-manage-input { flex: 1; }
+.bt-view .bt-manage-actions { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.bt-view .bt-manage-btn {
+  display: inline-flex; align-items: center; padding: 4px; border-radius: 5px; cursor: pointer;
+  background: transparent; border: none; box-shadow: none; color: var(--text-muted);
+  height: auto; min-height: 0; line-height: 1;
+}
+.bt-view .bt-manage-btn:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-view .bt-manage-btn .svg-icon { width: 15px; height: 15px; }
+.bt-view .bt-manage-btn.is-active { color: var(--interactive-accent); }
+.bt-view .bt-manage-btn.is-active:hover { color: var(--interactive-accent); }
+.bt-view .bt-manage-btn.is-locked { opacity: 0.3; cursor: not-allowed; }
+.bt-view .bt-manage-btn.is-locked:hover { color: var(--text-muted); background: transparent; }
+.bt-view .bt-manage-actions.bt-confirm { gap: 6px; }
+.bt-view .bt-confirm-q { font-size: 0.85em; color: var(--bt-overdue); }
+
+/* „Verwalten" am Fuß der Nav, leicht abgesetzt. */
+.bt-nav-manage { margin-top: 10px; }
+
+/* Bild-Lightbox: schwebt über dem Modal, dunkler Scrim (bewusst themenunabhängig). */
+.bt-lightbox {
+  position: fixed; inset: 0; z-index: var(--layer-modal, 100);
+  display: flex; align-items: center; justify-content: center;
+  padding: 4vh 5vw; background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(2px); cursor: zoom-out;
+}
+.bt-lightbox .bt-lb-stage { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.bt-lightbox .bt-lb-img {
+  max-width: 90vw; max-height: 92vh; border-radius: var(--radius-m);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); cursor: pointer;
+}
+.bt-lightbox .bt-lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--bt-overlay-bg); color: var(--bt-overlay-fg);
+  border: none; box-shadow: none; cursor: pointer; transition: background 0.15s;
+}
+.bt-lightbox .bt-lb-nav:hover { background: var(--bt-overlay-bg-hover); }
+.bt-lightbox .bt-lb-nav:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.bt-lightbox .bt-lb-nav .svg-icon { width: 26px; height: 26px; }
+.bt-lightbox .bt-lb-prev { left: 2.5vw; }
+.bt-lightbox .bt-lb-next { right: 2.5vw; }
+.bt-lightbox .bt-lb-close, .bt-lightbox .bt-lb-copy {
+  position: absolute; top: 14px;
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: var(--radius-m);
+  background: var(--bt-overlay-bg); color: var(--bt-overlay-fg);
+  border: none; box-shadow: none; cursor: pointer;
+}
+.bt-lightbox .bt-lb-close { right: 18px; }
+.bt-lightbox .bt-lb-copy { right: 70px; }   /* links neben Schließen */
+.bt-lightbox .bt-lb-close:hover, .bt-lightbox .bt-lb-copy:hover { background: var(--bt-overlay-bg-hover); }
+.bt-lightbox .bt-lb-close:focus-visible, .bt-lightbox .bt-lb-copy:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.bt-lightbox .bt-lb-close .svg-icon, .bt-lightbox .bt-lb-copy .svg-icon { width: 18px; height: 18px; }
+.bt-lightbox .bt-lb-counter {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.85); font-size: 0.85em; letter-spacing: 0.03em;
+}

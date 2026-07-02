@@ -1,0 +1,133 @@
+// i18n.ts — Anzeige-Strings (Locale-Schicht). EN = Default/Kanon, DE = Locale-Pack.
+// Identität (Frontmatter-Keys, Ordner, view-Typen) ist sprach-neutral und NICHT hier.
+// t(key, ...args) ersetzt Platzhalter {0}, {1}, … Fallback: locale → en → key.
+
+type Dict = Record<string, string>;
+
+const STRINGS: Record<string, Dict> = {
+  en: {
+    view_today: "Today", view_upcoming: "Upcoming", view_recurring: "Recurring", view_done: "Done",
+    nav_inbox: "Inbox", group_area: "Areas", group_project: "Projects",
+    sec_overdue: "Overdue", sec_today: "Today", sec_upcoming: "Upcoming", sec_no_date: "No date", sec_done: "Done",
+    count_task: "{0} task", count_tasks: "{0} tasks",
+    empty_nothing_scheduled: "Nothing scheduled.", empty_nothing_recurring: "No recurring tasks.",
+    empty_nothing_done: "Nothing done yet.",
+    empty_no_project_tasks: "No tasks in this project yet.",
+    empty_no_label_tasks: "No tasks with this label yet.",
+    empty_no_tasks: "No tasks yet.",
+    btn_add_task: "Add task", btn_cancel: "Cancel", btn_save: "Save", btn_delete: "Delete", details: "Details",
+    subtask: "Subtask", placeholder_subtask: "Subtask",
+    log_placeholder: "Add a comment …", log_attach: "Attach file", log_link: "Link note", log_add: "Add",
+    log_edit: "Edit", log_update: "Update", log_link_placeholder: "Link a note …",
+    btn_close: "Close", lb_prev: "Previous image", lb_next: "Next image", lb_copy: "Copy image",
+    msg_image_copied: "Image copied to clipboard.", msg_image_copy_failed: "Could not copy image.",
+    msg_attached: "Attached {0}", msg_attach_failed: "Attachment failed: {0}", err_detail_save: "Could not save details.",
+    placeholder_taskname: "Task name", placeholder_description: "Description …",
+    placeholder_date_input: "Enter date …", placeholder_label: "Label",
+    placeholder_project_name: "Project name …", placeholder_area_name: "Area name …",
+    chip_date: "Date", chip_priority: "Priority", chip_label: "Labels", chip_recurrence: "Recurrence", chip_deadline: "Deadline",
+    chip_parent: "Parent", pick_parent: "Move under task …",
+    prio_1: "Priority 1", prio_2: "Priority 2", prio_3: "Priority 3", prio_4: "Priority 4",
+    recur_none: "None", recur_daily: "Daily", recur_weekly: "Weekly", recur_monthly: "Monthly", recur_quarterly: "Quarterly", recur_yearly: "Yearly",
+    recur_basis: "Next date from", recur_when_done: "When done",
+    pick_new_project: "New project", pick_new_area: "New area", no_project: "No project",
+    make_area: "Area", make_area_hint: "Areas are permanent and can't be deleted or archived.",
+    manage: "Manage", manage_full: "ListManager", tab_active: "Active", tab_archive: "Archive", tab_labels: "Labels", add_label: "New label",
+    manage_empty_labels: "No labels in use yet.",
+    tip_show_sidebar: "Show in sidebar", tip_hide_sidebar: "Hide from sidebar",
+    tip_mark_area: "Convert to area", tip_unmark_area: "Convert to project",
+    btn_rename: "Rename", btn_archive: "Archive", btn_restore: "Restore", btn_delete_forever: "Delete permanently",
+    confirm_delete_q: "Delete?", confirm_delete_forever_q: "Delete permanently?",
+    manage_empty_active: "No projects or areas yet.", manage_empty_archive: "Nothing archived.",
+    manage_no_active_hint: "Create a project from the task dialog, then convert it to an area here if needed.",
+    date_today: "Today", date_yesterday: "Yesterday", date_tomorrow: "Tomorrow",
+    date_this_weekend: "This weekend", date_next_week: "Next week", date_no_date: "No date",
+    time_add: "Time", time_label: "Time", duration_label: "Duration",
+    err_enter_taskname: "Please enter a task name.",
+    cmd_new_task: "New task", cmd_open_view: "Open {0}", cmd_count_tasks: "Count tasks", cmd_import: "Import from Tasks/Lists", cmd_search: "Search tasks",
+    nav_search: "Search", search_placeholder: "Search tasks …",
+    notice_count: "BeautyTasks: {0} tasks ({1} open)",
+    notice_import_running: "BeautyTasks: importing …",
+    notice_imported: "BeautyTasks: {0} tasks imported.",
+    notice_import_failed: "BeautyTasks: import failed (see console).",
+    ribbon_open: "Open BeautyTasks",
+    set_show_desc: "Show description in lists",
+    set_show_desc_desc: "Display a one-line description preview under the task title.",
+    nav_trash: "Trash", empty_trash: "Trash is empty.",
+    trash_restore_all: "Restore all", trash_empty: "Empty trash", confirm_empty_trash_q: "Empty trash?",
+    msg_restored: "\"{0}\" restored.", msg_trash_empty: "Trash is already empty.",
+    msg_trash_emptied: "Trash emptied – {0} task(s) permanently deleted.",
+    report_trash_empty_restore: "Trash is empty – nothing to restore.",
+    report_tasks_restored: "{0} task(s) restored.",
+  },
+  de: {
+    view_today: "Heute", view_upcoming: "Demnächst", view_recurring: "Wiederkehrend", view_done: "Erledigt",
+    nav_inbox: "Eingang", group_area: "Bereiche", group_project: "Projekte",
+    sec_overdue: "Überfällig", sec_today: "Heute", sec_upcoming: "Demnächst", sec_no_date: "Ohne Datum", sec_done: "Erledigt",
+    count_task: "{0} Aufgabe", count_tasks: "{0} Aufgaben",
+    empty_nothing_scheduled: "Nichts geplant.", empty_nothing_recurring: "Keine wiederkehrenden Aufgaben.",
+    empty_nothing_done: "Noch nichts erledigt.",
+    empty_no_project_tasks: "Noch keine Aufgaben in diesem Projekt.",
+    empty_no_label_tasks: "Noch keine Aufgaben mit diesem Label.",
+    empty_no_tasks: "Noch keine Aufgaben.",
+    btn_add_task: "Aufgabe hinzufügen", btn_cancel: "Abbrechen", btn_save: "Speichern", btn_delete: "Löschen", details: "Details",
+    subtask: "Unteraufgabe", placeholder_subtask: "Unteraufgabe",
+    log_placeholder: "Kommentar hinzufügen …", log_attach: "Datei anhängen", log_link: "Notiz verknüpfen", log_add: "Hinzufügen",
+    log_edit: "Bearbeiten", log_update: "Aktualisieren", log_link_placeholder: "Notiz verknüpfen …",
+    btn_close: "Schließen", lb_prev: "Vorheriges Bild", lb_next: "Nächstes Bild", lb_copy: "Bild kopieren",
+    msg_image_copied: "Bild in die Zwischenablage kopiert.", msg_image_copy_failed: "Bild konnte nicht kopiert werden.",
+    msg_attached: "Angehängt: {0}", msg_attach_failed: "Anhang fehlgeschlagen: {0}", err_detail_save: "Details konnten nicht gespeichert werden.",
+    placeholder_taskname: "Aufgabenname", placeholder_description: "Beschreibung …",
+    placeholder_date_input: "Datum eingeben …", placeholder_label: "Label",
+    placeholder_project_name: "Projektname …", placeholder_area_name: "Bereichsname …",
+    chip_date: "Datum", chip_priority: "Priorität", chip_label: "Label", chip_recurrence: "Wiederholung", chip_deadline: "Deadline",
+    chip_parent: "Übergeordnet", pick_parent: "Unter Aufgabe einordnen …",
+    prio_1: "Priorität 1", prio_2: "Priorität 2", prio_3: "Priorität 3", prio_4: "Priorität 4",
+    recur_none: "Keine", recur_daily: "Täglich", recur_weekly: "Wöchentlich", recur_monthly: "Monatlich", recur_quarterly: "Quartalsweise", recur_yearly: "Jährlich",
+    recur_basis: "Nächstes Datum ab", recur_when_done: "Erledigung",
+    pick_new_project: "Neues Projekt", pick_new_area: "Neuer Bereich", no_project: "Kein Projekt",
+    make_area: "Bereich", make_area_hint: "Bereiche sind dauerhaft und können nicht gelöscht oder archiviert werden.",
+    manage: "Verwalten", manage_full: "ListManager", tab_active: "Aktiv", tab_archive: "Archiv", tab_labels: "Labels", add_label: "Neues Label",
+    manage_empty_labels: "Noch keine Labels in Verwendung.",
+    tip_show_sidebar: "In Seitenleiste anzeigen", tip_hide_sidebar: "Aus Seitenleiste ausblenden",
+    tip_mark_area: "In Bereich umwandeln", tip_unmark_area: "In Projekt umwandeln",
+    btn_rename: "Umbenennen", btn_archive: "Archivieren", btn_restore: "Wiederherstellen", btn_delete_forever: "Endgültig löschen",
+    confirm_delete_q: "Löschen?", confirm_delete_forever_q: "Endgültig löschen?",
+    manage_empty_active: "Noch keine Projekte oder Bereiche.", manage_empty_archive: "Nichts archiviert.",
+    manage_no_active_hint: "Projekte entstehen im Aufgaben-Dialog; hier kannst du sie bei Bedarf in Bereiche umwandeln.",
+    date_today: "Heute", date_yesterday: "Gestern", date_tomorrow: "Morgen",
+    date_this_weekend: "Dieses Wochenende", date_next_week: "Nächste Woche", date_no_date: "Kein Datum",
+    time_add: "Uhrzeit", time_label: "Uhrzeit", duration_label: "Dauer",
+    err_enter_taskname: "Bitte einen Aufgabennamen eingeben.",
+    cmd_new_task: "Neue Aufgabe", cmd_open_view: "{0} öffnen", cmd_count_tasks: "Aufgaben zählen", cmd_import: "Aus Tasks/Lists importieren", cmd_search: "Aufgaben suchen",
+    nav_search: "Suchen", search_placeholder: "Aufgabe suchen …",
+    notice_count: "BeautyTasks: {0} Aufgaben ({1} offen)",
+    notice_import_running: "BeautyTasks: Import läuft …",
+    notice_imported: "BeautyTasks: {0} Aufgaben importiert.",
+    notice_import_failed: "BeautyTasks: Import fehlgeschlagen (Konsole).",
+    ribbon_open: "BeautyTasks öffnen",
+    set_show_desc: "Beschreibung in Listen anzeigen",
+    set_show_desc_desc: "Zeigt eine einzeilige Beschreibungs-Vorschau unter dem Aufgabentitel.",
+    nav_trash: "Papierkorb", empty_trash: "Papierkorb ist leer.",
+    trash_restore_all: "Alle wiederherstellen", trash_empty: "Papierkorb leeren", confirm_empty_trash_q: "Papierkorb leeren?",
+    msg_restored: "\"{0}\" wiederhergestellt.", msg_trash_empty: "Papierkorb ist bereits leer.",
+    msg_trash_emptied: "Papierkorb geleert – {0} Aufgabe(n) endgültig gelöscht.",
+    report_trash_empty_restore: "Papierkorb ist leer – nichts wiederherzustellen.",
+    report_tasks_restored: "{0} Aufgabe(n) wiederhergestellt.",
+  },
+};
+
+const DEFAULT_LOCALE = "en";
+let current = DEFAULT_LOCALE;
+
+export function pickLocale(raw?: string): string {
+  const l = String(raw ?? "").trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(STRINGS, l) ? l : DEFAULT_LOCALE;
+}
+export function setLocale(loc?: string): void { current = pickLocale(loc); }
+export function getLocale(): string { return current; }
+export function t(key: string, ...args: (string | number)[]): string {
+  let s = STRINGS[current][key] ?? STRINGS[DEFAULT_LOCALE][key] ?? key;
+  for (let i = 0; i < args.length; i++) s = s.split("{" + i + "}").join(String(args[i]));
+  return s;
+}

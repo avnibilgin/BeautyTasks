@@ -1,0 +1,15 @@
+# Abhängigkeiten
+node_modules/
+
+# Build-Artefakt (wird gebaut / gehört in GitHub-Releases, nicht ins Repo)
+main.js
+*.map
+
+# Lokale Plugin-Daten (persönliche Einstellungen/Zustand)
+data.json
+
+# Editor / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
