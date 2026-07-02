@@ -32,9 +32,12 @@ var DEFAULT_SETTINGS = {
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],
-  locale: "en",
+  locale: "auto",
   showDescriptionInList: true,
-  navCollapsed: {}
+  navCollapsed: {},
+  startView: "heute",
+  lastView: "heute",
+  parseNaturalLanguage: true
 };
 
 // src/taskIndex.ts
@@ -160,6 +163,22 @@ var STRINGS = {
     ribbon_open: "Open BeautyTasks",
     set_show_desc: "Show description in lists",
     set_show_desc_desc: "Display a one-line description preview under the task title.",
+    set_folders_heading: "Folders",
+    set_folder_items: "Tasks folder",
+    set_folder_items_desc: "Where new task notes are created.",
+    set_folder_projects: "Projects folder",
+    set_folder_projects_desc: "Where project and area notes are created.",
+    set_folder_attachments: "Attachments folder",
+    set_folder_attachments_desc: "Where pasted or attached files are stored.",
+    set_behavior_heading: "Behavior",
+    set_language: "Language",
+    set_language_desc: "Language for the interface.",
+    set_language_auto: "Automatic (follow Obsidian)",
+    set_start_view: "View on open",
+    set_start_view_desc: "Which view opens on start.",
+    set_start_view_last: "Last used",
+    set_nl: "Detect date and #labels in title",
+    set_nl_desc: "Parse due dates and #labels automatically while typing the task title.",
     nav_trash: "Trash",
     empty_trash: "Trash is empty.",
     trash_restore_all: "Restore all",
@@ -289,6 +308,22 @@ var STRINGS = {
     ribbon_open: "BeautyTasks \xF6ffnen",
     set_show_desc: "Beschreibung in Listen anzeigen",
     set_show_desc_desc: "Zeigt eine einzeilige Beschreibungs-Vorschau unter dem Aufgabentitel.",
+    set_folders_heading: "Ordner",
+    set_folder_items: "Aufgaben-Ordner",
+    set_folder_items_desc: "Wo neue Aufgaben-Notizen angelegt werden.",
+    set_folder_projects: "Projekte-Ordner",
+    set_folder_projects_desc: "Wo Projekt- und Bereich-Notizen angelegt werden.",
+    set_folder_attachments: "Anh\xE4nge-Ordner",
+    set_folder_attachments_desc: "Wo eingef\xFCgte oder angeh\xE4ngte Dateien gespeichert werden.",
+    set_behavior_heading: "Verhalten",
+    set_language: "Sprache",
+    set_language_desc: "Sprache der Oberfl\xE4che.",
+    set_language_auto: "Automatisch (folgt Obsidian)",
+    set_start_view: "Ansicht beim \xD6ffnen",
+    set_start_view_desc: "Welche Ansicht beim Start erscheint.",
+    set_start_view_last: "Zuletzt benutzte",
+    set_nl: "Datum und #Labels im Titel erkennen",
+    set_nl_desc: "F\xE4lligkeitsdatum und #Labels automatisch beim Tippen aus dem Titel \xFCbernehmen.",
     nav_trash: "Papierkorb",
     empty_trash: "Papierkorb ist leer.",
     trash_restore_all: "Alle wiederherstellen",
@@ -2030,6 +2065,7 @@ function renderNavInto(c, plugin) {
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
   if (eingang && !eingang.hidden) {
     navItem(c, {
+      cls: "bt-nav-inbox",
       icon: eingang.icon,
       iconColor: eingang.color,
       label: eingang.name,
@@ -2040,11 +2076,12 @@ function renderNavInto(c, plugin) {
   }
   for (const id of VIEW_IDS) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.manageOpen && plugin.currentView === id;
-    navItem(c, { icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
+    navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
   }
-  const projItems = (items) => {
+  const projItems = (items, cls) => {
     for (const p of items.filter((x) => !x.hidden)) {
       navItem(c, {
+        cls,
         icon: p.icon,
         iconColor: p.color,
         label: p.name,
@@ -2061,7 +2098,7 @@ function renderNavInto(c, plugin) {
   });
   if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
     const count = plugin.index.all().filter((tk) => tk.labels.includes(name) && (tk.status === "todo" || tk.status === "doing")).length;
-    navItem(c, { icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
+    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
   const areasCollapsed = navHead(
     c,
@@ -2073,7 +2110,7 @@ function renderNavInto(c, plugin) {
     redraw,
     (v) => plugin.createProject(v, true)
   );
-  if (!areasCollapsed) projItems(bereiche);
+  if (!areasCollapsed) projItems(bereiche, "bt-nav-area");
   const projCollapsed = navHead(
     c,
     plugin,
@@ -2084,7 +2121,7 @@ function renderNavInto(c, plugin) {
     redraw,
     (v) => plugin.createProject(v)
   );
-  if (!projCollapsed) projItems(projekte);
+  if (!projCollapsed) projItems(projekte, "bt-nav-project");
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });
 }
 function navCount(plugin, id) {
@@ -2515,6 +2552,10 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
   /** Natural-Language: Datum + #Labels aus dem Titel erkennen und übernehmen.
    *  Datum nur, solange nicht manuell gesetzt; Labels werden ergänzt. */
   applyParse() {
+    if (!this.plugin.settings.parseNaturalLanguage) {
+      this.cleanTitle = this.f.title;
+      return;
+    }
     const p = parseQuickEntry(this.f.title);
     this.cleanTitle = p.title;
     if (!this.duePinned && p.faellig) this.f.due = p.faellig;
@@ -3204,6 +3245,32 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
 
 // src/settingsTab.ts
 var import_obsidian10 = require("obsidian");
+var FolderSuggest = class extends import_obsidian10.AbstractInputSuggest {
+  constructor(appRef, textInputEl, onPick) {
+    super(appRef, textInputEl);
+    this.appRef = appRef;
+    this.onPick = onPick;
+  }
+  getSuggestions(query) {
+    const q = query.toLowerCase();
+    const out = [];
+    for (const f of this.appRef.vault.getAllLoadedFiles()) {
+      if (f instanceof import_obsidian10.TFolder && f.path.toLowerCase().includes(q)) {
+        out.push(f);
+        if (out.length >= 100) break;
+      }
+    }
+    return out;
+  }
+  renderSuggestion(folder, el) {
+    el.setText(folder.path || "/");
+  }
+  selectSuggestion(folder) {
+    this.setValue(folder.path);
+    this.onPick(folder.path);
+    this.close();
+  }
+};
 var BeautyTasksSettingTab = class extends import_obsidian10.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -3212,10 +3279,58 @@ var BeautyTasksSettingTab = class extends import_obsidian10.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian10.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(this.plugin.settings.showDescriptionInList).onChange(async (v) => {
-      this.plugin.settings.showDescriptionInList = v;
-      await this.plugin.saveSettings();
-      this.plugin.renderAll();
+    const p = this.plugin;
+    new import_obsidian10.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
+    const folderRow = (name, desc, get, set) => {
+      new import_obsidian10.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
+        text.setValue(get());
+        const save = (raw) => {
+          const v = (0, import_obsidian10.normalizePath)(raw.trim());
+          if (v && v !== ".") {
+            set(v);
+            void p.saveSettings();
+          }
+        };
+        text.onChange(save);
+        new FolderSuggest(this.app, text.inputEl, (path) => {
+          text.setValue(path);
+          save(path);
+        });
+      });
+    };
+    folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => p.settings.itemsFolder = v);
+    folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => p.settings.projectsFolder = v);
+    folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => p.settings.attachmentsFolder = v);
+    new import_obsidian10.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
+    new import_obsidian10.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
+      dd.addOption("auto", t("set_language_auto"));
+      dd.addOption("en", "English");
+      dd.addOption("de", "Deutsch");
+      dd.setValue(p.settings.locale);
+      dd.onChange(async (v) => {
+        p.settings.locale = v;
+        await p.saveSettings();
+        p.applyLocale();
+        p.renderAll();
+      });
+    });
+    new import_obsidian10.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
+      for (const id of VIEW_IDS) dd.addOption(id, viewTitle(id));
+      dd.addOption("last", t("set_start_view_last"));
+      dd.setValue(p.settings.startView);
+      dd.onChange(async (v) => {
+        p.settings.startView = v;
+        await p.saveSettings();
+      });
+    });
+    new import_obsidian10.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
+      p.settings.parseNaturalLanguage = v;
+      await p.saveSettings();
+    }));
+    new import_obsidian10.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
+      p.settings.showDescriptionInList = v;
+      await p.saveSettings();
+      p.renderAll();
     }));
   }
 };
@@ -3247,7 +3362,8 @@ var BeautyTasksPlugin = class extends import_obsidian11.Plugin {
   // Lifecycle für Markdown-Titel (Links), von MainView pro Zeichnung gesetzt
   async onload() {
     await this.loadSettings();
-    setLocale(this.settings.locale);
+    this.applyLocale();
+    this.currentView = this.resolveStartView();
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
@@ -3311,7 +3427,17 @@ var BeautyTasksPlugin = class extends import_obsidian11.Plugin {
   // ── Öffnen / Navigieren ──
   async openBeautyTasks() {
     await this.activateNav();
-    await this.activateView(this.currentView);
+    await this.activateView(this.resolveStartView());
+  }
+  /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
+   *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
+  applyLocale() {
+    setLocale(this.settings.locale === "auto" ? import_obsidian11.moment.locale() : this.settings.locale);
+  }
+  /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
+  resolveStartView() {
+    const pick = this.settings.startView === "last" ? this.settings.lastView : this.settings.startView;
+    return VIEW_IDS.includes(pick) ? pick : "heute";
   }
   async activateNav() {
     const { workspace } = this.app;
@@ -3341,6 +3467,10 @@ var BeautyTasksPlugin = class extends import_obsidian11.Plugin {
     this.currentLabel = null;
     this.manageOpen = false;
     this.doneTab = "done";
+    if (this.settings.lastView !== id) {
+      this.settings.lastView = id;
+      void this.saveSettings();
+    }
     await this.showMain();
   }
   async activateProject(path) {

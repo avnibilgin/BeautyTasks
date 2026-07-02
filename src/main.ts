@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, WorkspaceLeaf, Component } from "obsidian";
+import { Plugin, Notice, TFile, WorkspaceLeaf, Component, moment } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task } from "./types";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -30,7 +30,8 @@ export default class BeautyTasksPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    setLocale(this.settings.locale);          // EN = Kanon/Default, DE als Locale-Pack
+    this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
+    this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
@@ -100,7 +101,19 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Öffnen / Navigieren ──
   async openBeautyTasks(): Promise<void> {
     await this.activateNav();
-    await this.activateView(this.currentView);
+    await this.activateView(this.resolveStartView());
+  }
+
+  /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
+   *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
+  applyLocale(): void {
+    setLocale(this.settings.locale === "auto" ? moment.locale() : this.settings.locale);
+  }
+
+  /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
+  private resolveStartView(): ViewId {
+    const pick = this.settings.startView === "last" ? this.settings.lastView : this.settings.startView;
+    return (VIEW_IDS as string[]).includes(pick) ? (pick as ViewId) : "heute";
   }
 
   async activateNav(): Promise<void> {
@@ -127,7 +140,11 @@ export default class BeautyTasksPlugin extends Plugin {
     this.renderNav();
   }
 
-  async activateView(id: ViewId): Promise<void> { this.currentView = id; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; this.doneTab = "done"; await this.showMain(); }
+  async activateView(id: ViewId): Promise<void> {
+    this.currentView = id; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; this.doneTab = "done";
+    if (this.settings.lastView !== id) { this.settings.lastView = id; void this.saveSettings(); }   // für startView === "last"
+    await this.showMain();
+  }
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.manageOpen = false; await this.showMain(); }
   async activateManage(section?: "projects" | "labels"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }

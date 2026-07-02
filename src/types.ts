@@ -32,9 +32,12 @@ export interface BeautyTasksSettings {
   attachmentsFolder: string;
   knownLabels: string[];   // Register: auch Labels ohne Aufgabe (im Manager angelegt)
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
-  locale: string;          // "en" (Kanon) | "de" | …
+  locale: string;          // "auto" (folgt Obsidian) | "en" (Kanon) | "de"
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
+  startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
+  lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
+  parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
@@ -44,7 +47,10 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],
-  locale: "en",
+  locale: "auto",
   showDescriptionInList: true,
   navCollapsed: {},
+  startView: "heute",
+  lastView: "heute",
+  parseNaturalLanguage: true,
 };

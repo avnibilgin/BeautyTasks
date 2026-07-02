@@ -158,6 +158,7 @@ export class TaskModal extends Modal {
   /** Natural-Language: Datum + #Labels aus dem Titel erkennen und übernehmen.
    *  Datum nur, solange nicht manuell gesetzt; Labels werden ergänzt. */
   private applyParse(): void {
+    if (!this.plugin.settings.parseNaturalLanguage) { this.cleanTitle = this.f.title; return; }
     const p = parseQuickEntry(this.f.title);
     this.cleanTitle = p.title;
     if (!this.duePinned && p.faellig) this.f.due = p.faellig;

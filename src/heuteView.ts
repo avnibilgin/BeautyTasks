@@ -406,7 +406,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Inbox ganz oben, OHNE Abschnittsüberschrift (über den Ansichten).
   if (eingang && !eingang.hidden) {
     navItem(c, {
-      icon: eingang.icon, iconColor: eingang.color, label: eingang.name,
+      cls: "bt-nav-inbox", icon: eingang.icon, iconColor: eingang.color, label: eingang.name,
       count: plugin.index.byProject(eingang.path).length, active: plugin.currentProject === eingang.path,
       onClick: () => void plugin.activateProject(eingang.path),
     });
@@ -414,13 +414,15 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
   for (const id of VIEW_IDS) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.manageOpen && plugin.currentView === id;
-    navItem(c, { icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
+    // Klasse pro Board (bt-nav-heute …) für einzeln themebare Icon-Farben.
+    navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
   }
 
-  const projItems = (items: { name: string; path: string; icon: string; color: string | null; hidden: boolean }[]) => {
+  // cls = Kategorie-Klasse (bt-nav-area / bt-nav-project) für eine gemeinsame Icon-Farbe je Gruppe.
+  const projItems = (items: { name: string; path: string; icon: string; color: string | null; hidden: boolean }[], cls: string) => {
     for (const p of items.filter((x) => !x.hidden)) {   // in der Verwaltung ausgeblendete weglassen
       navItem(c, {
-        icon: p.icon, iconColor: p.color, label: p.name, count: plugin.index.byProject(p.path).length,
+        cls, icon: p.icon, iconColor: p.color, label: p.name, count: plugin.index.byProject(p.path).length,
         active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
       });
     }
@@ -434,18 +436,18 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   });
   if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
     const count = plugin.index.all().filter((tk) => tk.labels.includes(name) && (tk.status === "todo" || tk.status === "doing")).length;
-    navItem(c, { icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
+    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
 
   // Bereiche: Header „+" legt eine Notiz direkt als Bereich (type: area) an.
   const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), t("placeholder_area_name"), redraw,
     (v) => plugin.createProject(v, true));
-  if (!areasCollapsed) projItems(bereiche);
+  if (!areasCollapsed) projItems(bereiche, "bt-nav-area");
 
   // Projekte: Header „+" legt ein neues Projekt an.
   const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), t("placeholder_project_name"), redraw,
     (v) => plugin.createProject(v));
-  if (!projCollapsed) projItems(projekte);
+  if (!projCollapsed) projItems(projekte, "bt-nav-project");
 
   // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });
