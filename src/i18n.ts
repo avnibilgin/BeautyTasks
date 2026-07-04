@@ -82,6 +82,10 @@ const STRINGS: Record<string, Dict> = {
     msg_trash_emptied: "Trash emptied – {0} task(s) permanently deleted.",
     report_trash_empty_restore: "Trash is empty – nothing to restore.",
     report_tasks_restored: "{0} task(s) restored.",
+    rem_at_time: "At time of task", rem_before: "{0} before",
+    rem_unit_min: "{0} min", rem_unit_hour: "{0} h", rem_unit_day: "{0} day", rem_unit_days: "{0} days",
+    chip_reminder: "Reminder", rem_count: "{0} reminders", reminders_title: "Reminders",
+    rem_tab_relative: "Before the task", rem_tab_absolute: "Date & time…", rem_need_time: "Set a time first",
   },
   de: {
     view_today: "Heute", view_upcoming: "Demnächst", view_recurring: "Wiederkehrend", view_done: "Erledigt",
@@ -160,6 +164,10 @@ const STRINGS: Record<string, Dict> = {
     msg_trash_emptied: "Papierkorb geleert – {0} Aufgabe(n) endgültig gelöscht.",
     report_trash_empty_restore: "Papierkorb ist leer – nichts wiederherzustellen.",
     report_tasks_restored: "{0} Aufgabe(n) wiederhergestellt.",
+    rem_at_time: "Zum Zeitpunkt der Aufgabe", rem_before: "{0} vorher",
+    rem_unit_min: "{0} min", rem_unit_hour: "{0} Std", rem_unit_day: "{0} Tag", rem_unit_days: "{0} Tage",
+    chip_reminder: "Erinnerung", rem_count: "{0} Erinnerungen", reminders_title: "Erinnerungen",
+    rem_tab_relative: "Vor der Aufgabe", rem_tab_absolute: "Datum & Uhrzeit…", rem_need_time: "Setz zuerst eine Uhrzeit",
   },
 };
 

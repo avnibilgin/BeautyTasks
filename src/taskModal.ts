@@ -5,6 +5,7 @@ import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, today
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
 import { openPopover, popRow } from "./popover";
 import { openDatePicker } from "./datePicker";
+import { formatReminder } from "./reminders";
 import { parseQuickEntry } from "./quickEntry";
 import { LogEntry, readLog, writeLog, readDescription, writeDescription, nowLogTs, formatLogTime } from "./detailLog";
 import { TaskPickerModal } from "./searchModal";
@@ -40,7 +41,7 @@ const recurLabel = (v: string, basis?: "due" | "done"): string => {
 /** Aufgaben-Modal im Todoist-Stil – 1:1 zu BeautyTasks (randloser Titel, Chip-Reihe,
  *  Projekt-Picker, CTA). Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
 export class TaskModal extends Modal {
-  private f: TaskFields & { scheduled?: string | null; recurrence?: string | null };
+  private f: TaskFields & { scheduled?: string | null; recurrence?: string | null; reminders: string[] };
   private chipBar!: HTMLElement;
   private descInput: HTMLTextAreaElement | null = null;
   private descDirty = false;          // true sobald Nutzer die Beschreibung getippt hat
@@ -71,8 +72,9 @@ export class TaskModal extends Modal {
           project: existing.project ? baseName(existing.project) : null,
           parent: existing.parent ? baseName(existing.parent) : null,
           labels: [...existing.labels],
+          reminders: [...(existing.reminders ?? [])],
         }
-      : { title: opts.defaultTitle ?? "", priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+      : { title: opts.defaultTitle ?? "", priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
   }
 
   onOpen(): void {
@@ -188,8 +190,10 @@ export class TaskModal extends Modal {
       (el) => this.openLabels(el), () => { this.f.labels = []; this.renderChips(); });
     this.addChip(bar, "refresh-ccw", this.f.recurrence ? recurLabel(this.f.recurrence, this.f.recurBasis) : t("chip_recurrence"), !!this.f.recurrence,
       (el) => this.openRecur(el), () => { this.f.recurrence = null; this.renderChips(); });
-    this.addChip(bar, "alarm-clock", this.f.scheduled ? formatDateTime(combineDT(this.f.scheduled, this.f.scheduledTime)) : t("chip_deadline"), !!this.f.scheduled,
+    this.addChip(bar, "clock", this.f.scheduled ? formatDateTime(combineDT(this.f.scheduled, this.f.scheduledTime)) : t("chip_deadline"), !!this.f.scheduled,
       (el) => this.openDate(el, "scheduled"), () => { this.f.scheduled = null; this.f.scheduledTime = null; this.renderChips(); });
+    this.addChip(bar, "alarm-clock", this.reminderChipLabel(), this.f.reminders.length > 0,
+      (el) => this.openReminders(el), () => { this.f.reminders = []; this.renderChips(); });
     // Elternaufgabe (macht diese Aufgabe zur Unteraufgabe). Im festen „+ Subtask"-Modus
     // (opts.parent) ausgeblendet – dort steht der Parent bereits fest.
     if (!this.opts.parent) {
@@ -217,6 +221,60 @@ export class TaskModal extends Modal {
       setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
       acts.onclick = (e) => { e.stopPropagation(); this.openActionsMenu(acts); };
     }
+  }
+
+  /** Chip-Text für Erinnerungen: 0 → „Erinnerung", 1 → deren Text, n → „n Erinnerungen". */
+  private reminderChipLabel(): string {
+    const n = this.f.reminders.length;
+    if (n === 0) return t("chip_reminder");
+    if (n === 1) return formatReminder(this.f.reminders[0]);
+    return t("rem_count", n);
+  }
+
+  /** Erinnerungs-Popover (Todoist-Stil): bestehende Liste mit ×, relative Presets
+   *  („Vor der Aufgabe", nur mit Uhrzeit) und ein absoluter „Datum & Uhrzeit"-Eintrag. */
+  private openReminders(anchor: HTMLElement): void {
+    const PRESETS = ["-0m", "-10m", "-30m", "-1h", "-1d"];   // Zeitpunkt, 10 min, 30 min, 1 Std, 1 Tag
+    openPopover(anchor, (pop, close) => {
+      pop.addClass("bt-rem");
+      const add = (raw: string) => {
+        if (!this.f.reminders.includes(raw)) this.f.reminders = [...this.f.reminders, raw];
+        this.renderChips();
+      };
+      const render = () => {
+        pop.empty();
+        pop.createDiv({ cls: "bt-pop-head", text: t("reminders_title") });
+
+        // Bestehende Erinnerungen mit Entfernen-×.
+        for (const raw of this.f.reminders) {
+          const row = pop.createDiv({ cls: "bt-row bt-rem-item" });
+          const ic = row.createSpan({ cls: "bt-row-ic" }); setIcon(ic, "alarm-clock");
+          row.createSpan({ cls: "bt-row-lbl", text: formatReminder(raw) });
+          const x = row.createSpan({ cls: "bt-rem-x" }); setIcon(x, "x");
+          x.onclick = (e) => { e.stopPropagation(); this.f.reminders = this.f.reminders.filter((r) => r !== raw); this.renderChips(); render(); };
+        }
+        if (this.f.reminders.length) pop.createDiv({ cls: "bt-rem-sep" });
+
+        // „Vor der Aufgabe" (relativ) – braucht eine Uhrzeit an der Fälligkeit.
+        pop.createDiv({ cls: "bt-pop-sub", text: t("rem_tab_relative") });
+        if (!this.f.dueTime) {
+          pop.createDiv({ cls: "bt-rem-hint", text: t("rem_need_time") });
+        } else {
+          for (const raw of PRESETS) {
+            const row = popRow(pop, "clock", formatReminder(raw), () => { add(raw); render(); });
+            if (this.f.reminders.includes(raw)) row.addClass("is-disabled");
+          }
+        }
+
+        // „Datum & Uhrzeit" (absolut) – öffnet den vorhandenen Date-Picker.
+        pop.createDiv({ cls: "bt-rem-sep" });
+        popRow(pop, "calendar-clock", t("rem_tab_absolute"), () => {
+          close();
+          openDatePicker(anchor, "", (iso) => { if (iso) add(iso); });
+        });
+      };
+      render();
+    });
   }
 
   /** „+"-Aktionsmenü zur Aufgabe (Edit-Modus), thematisch gruppiert mit Trennlinien. */
@@ -816,6 +874,7 @@ export class TaskModal extends Modal {
           set("project", this.f.project ? "[[" + this.f.project + "]]" : null);
           set("parent", this.f.parent ? "[[" + this.f.parent + "]]" : null);
           set("labels", this.f.labels);
+          set("reminders", this.f.reminders);
         });
         if (title !== this.existing.title) {
           // Titel steckt in der „# Überschrift" (ungekürzt); Dateiname bleibt der Slug

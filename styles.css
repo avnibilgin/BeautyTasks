@@ -454,6 +454,9 @@ body {
 
 /* ── Schnell-Erfassung (kompaktes Quick-Add-Modal) ────────────────────────────────────────
    Teilt sich .bt-task-modal (Titel-/Projekt-/Chip-Styles); hier nur die kompakte Anordnung. */
+/* Schmaler als das volle Aufgaben-Modal (800px) – die Quick-Erfassung braucht keine so breite
+   Fläche. Etwas kompakter, aber weiter responsiv gedeckelt. */
+.bt-quickadd { width: 660px; }
 .bt-quickadd .bt-titel { font-size: 1.1em; }
 /* Eine Zeile: Projekt-Chip + Attribut-Chips links, Aktionen rechts (margin-left:auto). Umbruch
    erlaubt, falls viele Labels -> Buttons rutschen dann in die nächste Zeile. */
@@ -528,6 +531,16 @@ body {
 .bt-pop .bt-pop-head { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 8px 8px 3px; }
 .bt-pop .bt-row-action .bt-row-lbl, .bt-pop .bt-row-action .bt-row-ic { color: var(--interactive-accent); }
 
+/* Erinnerungs-Popover (Todoist-Stil): Liste bestehender Erinnerungen + Presets */
+.bt-pop.bt-rem { min-width: 240px; }
+.bt-pop .bt-pop-sub { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 6px 8px 2px; }
+.bt-pop .bt-rem-item .bt-rem-x { display: inline-flex; flex-shrink: 0; color: var(--text-faint); cursor: pointer; }
+.bt-pop .bt-rem-item .bt-rem-x:hover { color: var(--text-normal); }
+.bt-pop .bt-rem-item .bt-rem-x svg { width: 15px; height: 15px; }
+.bt-pop .bt-rem-hint { padding: 3px 8px 6px; color: var(--text-faint); font-size: 0.85em; }
+.bt-pop .bt-rem-sep { height: 1px; background: var(--background-modifier-border); margin: 5px 6px; }
+.bt-pop .bt-row.is-disabled { opacity: 0.45; pointer-events: none; }
+
 /* ── Linke Navigation ── */
 .bt-nav { padding: 6px 6px 16px; }
 .bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
@@ -538,10 +551,13 @@ body {
 /* Seitenleisten-Icon-Farben: Boards einzeln, Labels/Bereiche/Projekte je gemeinsam.
    Eine per-Item-Frontmatter-Farbe (inline gesetzt) sticht die Gruppenfarbe. */
 /* „Aufgabe hinzufügen" ganz oben: prominent in Akzentfarbe (Todoist-Stil), Icon + Text fett. */
-.bt-nav-add-task { color: var(--interactive-accent); font-weight: 600; }
-.bt-nav-add-task .bt-nav-ic { color: var(--interactive-accent); }
-.bt-nav-add-task:hover { color: var(--interactive-accent-hover); }
-.bt-nav-add-task:hover .bt-nav-ic { color: var(--interactive-accent-hover); }
+/* „Aufgabe hinzufügen": Funkeln-Icon, schwarz & fett. --text-normal = Schwarz im hellen,
+   Weiß im dunklen Theme -> bleibt in beiden Modi lesbar (statt fix #000, das im Dark-Mode
+   verschwände). */
+.bt-nav-add-task { color: var(--text-normal); font-weight: 700; }
+.bt-nav-add-task .bt-nav-ic { color: var(--text-normal); }
+.bt-nav-add-task:hover { color: var(--text-normal); }
+.bt-nav-add-task:hover .bt-nav-ic { color: var(--text-normal); }
 .bt-nav-search .bt-nav-ic { color: var(--bt-nav-search); }
 .bt-nav-inbox .bt-nav-ic { color: var(--bt-nav-inbox); }
 .bt-nav-heute .bt-nav-ic { color: var(--bt-nav-heute); }

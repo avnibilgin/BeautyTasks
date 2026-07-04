@@ -38,11 +38,9 @@ var DEFAULT_SETTINGS = {
   startView: "heute",
   lastView: "heute",
   parseNaturalLanguage: true,
-  chipsIconsOnly: false
+  chipsIconsOnly: false,
+  reminderLastScan: 0
 };
-
-// src/taskIndex.ts
-var import_obsidian2 = require("obsidian");
 
 // src/i18n.ts
 var STRINGS = {
@@ -207,7 +205,19 @@ var STRINGS = {
     msg_trash_empty: "Trash is already empty.",
     msg_trash_emptied: "Trash emptied \u2013 {0} task(s) permanently deleted.",
     report_trash_empty_restore: "Trash is empty \u2013 nothing to restore.",
-    report_tasks_restored: "{0} task(s) restored."
+    report_tasks_restored: "{0} task(s) restored.",
+    rem_at_time: "At time of task",
+    rem_before: "{0} before",
+    rem_unit_min: "{0} min",
+    rem_unit_hour: "{0} h",
+    rem_unit_day: "{0} day",
+    rem_unit_days: "{0} days",
+    chip_reminder: "Reminder",
+    rem_count: "{0} reminders",
+    reminders_title: "Reminders",
+    rem_tab_relative: "Before the task",
+    rem_tab_absolute: "Date & time\u2026",
+    rem_need_time: "Set a time first"
   },
   de: {
     view_today: "Heute",
@@ -370,7 +380,19 @@ var STRINGS = {
     msg_trash_empty: "Papierkorb ist bereits leer.",
     msg_trash_emptied: "Papierkorb geleert \u2013 {0} Aufgabe(n) endg\xFCltig gel\xF6scht.",
     report_trash_empty_restore: "Papierkorb ist leer \u2013 nichts wiederherzustellen.",
-    report_tasks_restored: "{0} Aufgabe(n) wiederhergestellt."
+    report_tasks_restored: "{0} Aufgabe(n) wiederhergestellt.",
+    rem_at_time: "Zum Zeitpunkt der Aufgabe",
+    rem_before: "{0} vorher",
+    rem_unit_min: "{0} min",
+    rem_unit_hour: "{0} Std",
+    rem_unit_day: "{0} Tag",
+    rem_unit_days: "{0} Tage",
+    chip_reminder: "Erinnerung",
+    rem_count: "{0} Erinnerungen",
+    reminders_title: "Erinnerungen",
+    rem_tab_relative: "Vor der Aufgabe",
+    rem_tab_absolute: "Datum & Uhrzeit\u2026",
+    rem_need_time: "Setz zuerst eine Uhrzeit"
   }
 };
 var DEFAULT_LOCALE = "en";
@@ -393,6 +415,92 @@ function t(key, ...args) {
 function projectDisplayName(name) {
   return name && /^(inbox|eingang)$/i.test(name) ? t("nav_inbox") : name ?? "";
 }
+
+// src/format.ts
+function todayStr() {
+  const d = /* @__PURE__ */ new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function monthShort(monthIndex) {
+  return new Intl.DateTimeFormat(getLocale(), { month: "short" }).format(new Date(2020, monthIndex, 1)).replace(/\.$/, "");
+}
+var dateOf = (iso3) => iso3.slice(0, 10);
+var timeOf = (iso3) => {
+  const m = iso3.match(/T(\d{2}:\d{2})/);
+  return m ? m[1] : null;
+};
+var combineDT = (date, time) => time ? date + "T" + time : date;
+function formatDate(iso3, today = todayStr()) {
+  const d = /* @__PURE__ */ new Date(dateOf(iso3) + "T00:00");
+  const tn = /* @__PURE__ */ new Date(dateOf(today) + "T00:00");
+  const diff = Math.round((d.getTime() - tn.getTime()) / 864e5);
+  if (diff === 0) return t("date_today");
+  if (diff === -1) return t("date_yesterday");
+  if (diff === 1) return t("date_tomorrow");
+  const sameYear = d.getFullYear() === tn.getFullYear();
+  return `${d.getDate()} ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
+}
+function formatDateTime(iso3, today = todayStr()) {
+  const tm = timeOf(iso3);
+  return formatDate(iso3, today) + (tm ? " \xB7 " + tm : "");
+}
+function formatDuration(min) {
+  if (min < 60) return min + " min";
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+function dueWhen(iso3, today = todayStr()) {
+  const d = dateOf(iso3), tn = dateOf(today);
+  return d < tn ? "past" : d === tn ? "today" : "future";
+}
+
+// src/reminders.ts
+function parseReminder(raw) {
+  const rel = raw.match(/^-(\d+)([mhd])$/);
+  if (rel) {
+    const n = parseInt(rel[1], 10);
+    const mult = rel[2] === "m" ? 1 : rel[2] === "h" ? 60 : 1440;
+    return { rel: n * mult };
+  }
+  if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(raw)) return { abs: raw };
+  return null;
+}
+function humanizeOffset(min) {
+  if (min % 1440 === 0) {
+    const d = min / 1440;
+    return t(d === 1 ? "rem_unit_day" : "rem_unit_days", d);
+  }
+  if (min % 60 === 0) return t("rem_unit_hour", min / 60);
+  return t("rem_unit_min", min);
+}
+function formatReminder(raw) {
+  const p = parseReminder(raw);
+  if (!p) return raw;
+  if ("abs" in p) return formatDateTime(p.abs);
+  if (p.rel === 0) return t("rem_at_time");
+  return t("rem_before", humanizeOffset(p.rel));
+}
+function resolveReminders(task) {
+  if (task.status === "done" || task.status === "cancelled") return [];
+  const out = [];
+  for (const raw of task.reminders ?? []) {
+    const p = parseReminder(raw);
+    if (!p) continue;
+    if ("abs" in p) {
+      const d = new Date(p.abs);
+      if (!isNaN(d.getTime())) out.push({ raw, fireAt: d });
+    } else {
+      if (!task.due || !task.dueTime) continue;
+      const base = /* @__PURE__ */ new Date(task.due + "T" + task.dueTime);
+      if (isNaN(base.getTime())) continue;
+      out.push({ raw, fireAt: new Date(base.getTime() - p.rel * 6e4) });
+    }
+  }
+  return out;
+}
+
+// src/taskIndex.ts
+var import_obsidian2 = require("obsidian");
 
 // src/detailLog.ts
 function parseDetailLog(body, fallbackTs = "") {
@@ -499,46 +607,6 @@ async function writeDescription(app, file, description) {
 
 // src/taskService.ts
 var import_obsidian = require("obsidian");
-
-// src/format.ts
-function todayStr() {
-  const d = /* @__PURE__ */ new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function monthShort(monthIndex) {
-  return new Intl.DateTimeFormat(getLocale(), { month: "short" }).format(new Date(2020, monthIndex, 1)).replace(/\.$/, "");
-}
-var dateOf = (iso3) => iso3.slice(0, 10);
-var timeOf = (iso3) => {
-  const m = iso3.match(/T(\d{2}:\d{2})/);
-  return m ? m[1] : null;
-};
-var combineDT = (date, time) => time ? date + "T" + time : date;
-function formatDate(iso3, today = todayStr()) {
-  const d = /* @__PURE__ */ new Date(dateOf(iso3) + "T00:00");
-  const tn = /* @__PURE__ */ new Date(dateOf(today) + "T00:00");
-  const diff = Math.round((d.getTime() - tn.getTime()) / 864e5);
-  if (diff === 0) return t("date_today");
-  if (diff === -1) return t("date_yesterday");
-  if (diff === 1) return t("date_tomorrow");
-  const sameYear = d.getFullYear() === tn.getFullYear();
-  return `${d.getDate()} ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
-}
-function formatDateTime(iso3, today = todayStr()) {
-  const tm = timeOf(iso3);
-  return formatDate(iso3, today) + (tm ? " \xB7 " + tm : "");
-}
-function formatDuration(min) {
-  if (min < 60) return min + " min";
-  const h = Math.floor(min / 60), m = min % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
-}
-function dueWhen(iso3, today = todayStr()) {
-  const d = dateOf(iso3), tn = dateOf(today);
-  return d < tn ? "past" : d === tn ? "today" : "future";
-}
-
-// src/taskService.ts
 var slugify = (s) => s.replace(/[\\/:*?"<>|#^[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "Task";
 var normalizeLabel = (s) => slugify(s).toLowerCase().replace(/^#/, "").replace(/\s+/g, "-");
 var newId = (p) => p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -583,6 +651,7 @@ async function createTaskNote(app, settings, f) {
     labels: f.labels ?? [],
     recurrence: f.recurrence ?? null,
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
+    reminders: f.reminders ?? [],
     created: todayIso()
   });
   const desc = (f.description ?? "").trim();
@@ -818,6 +887,7 @@ var TaskIndex = class extends import_obsidian2.Component {
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,
       recurBasis: fm.recur_basis === "done" ? "done" : "due",
+      reminders: Array.isArray(fm.reminders) ? fm.reminders.map(String) : [],
       created: typeof fm.created === "string" ? fm.created : "",
       completed: asDate(fm.completed),
       cancelled: asDate(fm.cancelled),
@@ -2143,7 +2213,7 @@ function renderNavInto(c, plugin) {
   c.addClass("bt-nav");
   const redraw = () => renderNavInto(c, plugin);
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  navItem(c, { cls: "bt-nav-add-task", icon: "plus-circle", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+  navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
   if (eingang && !eingang.hidden) {
     navItem(c, {
@@ -2572,8 +2642,9 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
       recurBasis: existing.recurBasis,
       project: existing.project ? baseName2(existing.project) : null,
       parent: existing.parent ? baseName2(existing.parent) : null,
-      labels: [...existing.labels]
-    } : { title: opts.defaultTitle ?? "", priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+      labels: [...existing.labels],
+      reminders: [...existing.reminders ?? []]
+    } : { title: opts.defaultTitle ?? "", priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
   }
   onOpen() {
     const { contentEl, modalEl } = this;
@@ -2728,13 +2799,24 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
     );
     this.addChip(
       bar,
-      "alarm-clock",
+      "clock",
       this.f.scheduled ? formatDateTime(combineDT(this.f.scheduled, this.f.scheduledTime)) : t("chip_deadline"),
       !!this.f.scheduled,
       (el) => this.openDate(el, "scheduled"),
       () => {
         this.f.scheduled = null;
         this.f.scheduledTime = null;
+        this.renderChips();
+      }
+    );
+    this.addChip(
+      bar,
+      "alarm-clock",
+      this.reminderChipLabel(),
+      this.f.reminders.length > 0,
+      (el) => this.openReminders(el),
+      () => {
+        this.f.reminders = [];
         this.renderChips();
       }
     );
@@ -2774,6 +2856,64 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
         this.openActionsMenu(acts);
       };
     }
+  }
+  /** Chip-Text für Erinnerungen: 0 → „Erinnerung", 1 → deren Text, n → „n Erinnerungen". */
+  reminderChipLabel() {
+    const n = this.f.reminders.length;
+    if (n === 0) return t("chip_reminder");
+    if (n === 1) return formatReminder(this.f.reminders[0]);
+    return t("rem_count", n);
+  }
+  /** Erinnerungs-Popover (Todoist-Stil): bestehende Liste mit ×, relative Presets
+   *  („Vor der Aufgabe", nur mit Uhrzeit) und ein absoluter „Datum & Uhrzeit"-Eintrag. */
+  openReminders(anchor) {
+    const PRESETS = ["-0m", "-10m", "-30m", "-1h", "-1d"];
+    openPopover(anchor, (pop, close) => {
+      pop.addClass("bt-rem");
+      const add = (raw) => {
+        if (!this.f.reminders.includes(raw)) this.f.reminders = [...this.f.reminders, raw];
+        this.renderChips();
+      };
+      const render = () => {
+        pop.empty();
+        pop.createDiv({ cls: "bt-pop-head", text: t("reminders_title") });
+        for (const raw of this.f.reminders) {
+          const row = pop.createDiv({ cls: "bt-row bt-rem-item" });
+          const ic = row.createSpan({ cls: "bt-row-ic" });
+          (0, import_obsidian9.setIcon)(ic, "alarm-clock");
+          row.createSpan({ cls: "bt-row-lbl", text: formatReminder(raw) });
+          const x = row.createSpan({ cls: "bt-rem-x" });
+          (0, import_obsidian9.setIcon)(x, "x");
+          x.onclick = (e) => {
+            e.stopPropagation();
+            this.f.reminders = this.f.reminders.filter((r) => r !== raw);
+            this.renderChips();
+            render();
+          };
+        }
+        if (this.f.reminders.length) pop.createDiv({ cls: "bt-rem-sep" });
+        pop.createDiv({ cls: "bt-pop-sub", text: t("rem_tab_relative") });
+        if (!this.f.dueTime) {
+          pop.createDiv({ cls: "bt-rem-hint", text: t("rem_need_time") });
+        } else {
+          for (const raw of PRESETS) {
+            const row = popRow(pop, "clock", formatReminder(raw), () => {
+              add(raw);
+              render();
+            });
+            if (this.f.reminders.includes(raw)) row.addClass("is-disabled");
+          }
+        }
+        pop.createDiv({ cls: "bt-rem-sep" });
+        popRow(pop, "calendar-clock", t("rem_tab_absolute"), () => {
+          close();
+          openDatePicker(anchor, "", (iso3) => {
+            if (iso3) add(iso3);
+          });
+        });
+      };
+      render();
+    });
   }
   /** „+"-Aktionsmenü zur Aufgabe (Edit-Modus), thematisch gruppiert mit Trennlinien. */
   openActionsMenu(anchor) {
@@ -3488,6 +3628,7 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
           set("project", this.f.project ? "[[" + this.f.project + "]]" : null);
           set("parent", this.f.parent ? "[[" + this.f.parent + "]]" : null);
           set("labels", this.f.labels);
+          set("reminders", this.f.reminders);
         });
         if (title !== this.existing.title) {
           await this.app.vault.process(file, (c) => c.replace(/^#\s+.*$/m, () => "# " + title));
@@ -3892,8 +4033,10 @@ var BeautyTasksPlugin = class extends import_obsidian12.Plugin {
     this.flashScrolled = false;
     // pro Sprung nur einmal ins Bild scrollen
     this.titleRenderComp = null;
+    // Lifecycle für Markdown-Titel (Links), von MainView pro Zeichnung gesetzt
+    this.reminderScan = 0;
   }
-  // Lifecycle für Markdown-Titel (Links), von MainView pro Zeichnung gesetzt
+  // Obergrenze des zuletzt geprüften Zeitfensters (Epoch-ms)
   async onload() {
     await this.loadSettings();
     this.applyLocale();
@@ -3901,13 +4044,16 @@ var BeautyTasksPlugin = class extends import_obsidian12.Plugin {
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
+    this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(() => {
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
       });
       this.index.build();
       this.renderAll();
+      this.scanReminders();
     });
+    this.registerInterval(window.setInterval(() => this.scanReminders(), 3e4));
     this.registerView(VIEW_MAIN, (leaf) => new MainView(leaf, this));
     this.registerView(VIEW_NAV, (leaf) => new NavView(leaf, this));
     this.addRibbonIcon("list-checks", t("ribbon_open"), () => void this.openBeautyTasks());
@@ -4198,6 +4344,49 @@ var BeautyTasksPlugin = class extends import_obsidian12.Plugin {
   }
   openSearch() {
     new TaskSearchModal(this).open();
+  }
+  // ── Erinnerungen (Stufe A) ──
+  /** Prüft alle offenen Aufgaben und feuert Erinnerungen, deren Zeitpunkt ins Fenster
+   *  (letzter Scan, jetzt] fällt. Das fortlaufende Fenster garantiert „genau einmal";
+   *  ein Grace von 1 h fängt beim (Neu-)Start kürzlich Verpasstes ohne Alt-Spam. */
+  scanReminders() {
+    if (!this.index) return;
+    const now = Date.now();
+    const REMINDER_GRACE_MS = 60 * 6e4;
+    const from = Math.max(this.reminderScan, now - REMINDER_GRACE_MS);
+    let fired = false;
+    for (const task of this.index.open()) {
+      for (const { fireAt } of resolveReminders(task)) {
+        const ts = fireAt.getTime();
+        if (ts > from && ts <= now) {
+          this.fireReminder(task);
+          fired = true;
+        }
+      }
+    }
+    this.reminderScan = now;
+    if (fired) {
+      this.settings.reminderLastScan = now;
+      void this.saveSettings();
+    }
+  }
+  /** Zustellung: System-Notification (Desktop, auch im Hintergrund) + klickbare In-App-Notice.
+   *  Klick öffnet die Aufgabe. Auf Mobile/ohne Notification bleibt die Notice der Kanal. */
+  fireReminder(task) {
+    const body = task.title;
+    try {
+      if (typeof Notification !== "undefined" && !import_obsidian12.Platform.isMobile) {
+        const n = new Notification("BeautyTasks", { body });
+        n.onclick = () => {
+          window.focus();
+          this.openEditTask(task);
+        };
+      }
+    } catch {
+    }
+    const notice = new import_obsidian12.Notice("\u23F0 " + body, 1e4);
+    notice.noticeEl.style.cursor = "pointer";
+    notice.noticeEl.onclick = () => this.openEditTask(task);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);

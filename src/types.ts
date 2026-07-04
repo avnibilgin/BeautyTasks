@@ -19,6 +19,7 @@ export interface Task {
   labels: string[];
   recurrence: string | null;
   recurBasis: "due" | "done";   // Wiederholung ab Fälligkeit (due) oder Erledigung (done)
+  reminders: string[];          // rohe Erinnerungs-Strings, siehe reminders.ts ("-30m" | ISO)
   created: string;
   completed: string | null;
   cancelled: string | null;
@@ -39,6 +40,7 @@ export interface BeautyTasksSettings {
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
+  reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
@@ -55,4 +57,5 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   lastView: "heute",
   parseNaturalLanguage: true,
   chipsIconsOnly: false,
+  reminderLastScan: 0,
 };

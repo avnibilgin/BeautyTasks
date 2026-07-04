@@ -46,6 +46,7 @@ export interface TaskFields {
   recurrence?: string | null;
   recurBasis?: "due" | "done";
   parent?: string | null;    // Basename der Eltern-Aufgabe
+  reminders?: string[];      // rohe Erinnerungs-Strings (siehe reminders.ts)
 }
 
 /** Neue Aufgaben-Notiz anlegen (kollisionssicherer Dateiname). */
@@ -71,6 +72,7 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     labels: f.labels ?? [],
     recurrence: f.recurrence ?? null,
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
+    reminders: f.reminders ?? [],
     created: todayIso(),
   });
   const desc = (f.description ?? "").trim();

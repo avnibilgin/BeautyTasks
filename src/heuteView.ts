@@ -427,7 +427,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
 
   // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
-  navItem(c, { cls: "bt-nav-add-task", icon: "plus-circle", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+  navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
 
   // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });

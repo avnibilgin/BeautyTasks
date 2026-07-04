@@ -1,5 +1,6 @@
-import { Plugin, Notice, TFile, WorkspaceLeaf, Component, moment } from "obsidian";
+import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task } from "./types";
+import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
 import {
@@ -28,6 +29,7 @@ export default class BeautyTasksPlugin extends Plugin {
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
   flashScrolled = false;                                 // pro Sprung nur einmal ins Bild scrollen
   titleRenderComp: Component | null = null;              // Lifecycle für Markdown-Titel (Links), von MainView pro Zeichnung gesetzt
+  private reminderScan = 0;                              // Obergrenze des zuletzt geprüften Zeitfensters (Epoch-ms)
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -37,6 +39,9 @@ export default class BeautyTasksPlugin extends Plugin {
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
+    // Reminder-Scanfenster: bei echtem Vorwert Verpasstes nachfeuern (auf Grace begrenzt),
+    // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
+    this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(() => {
       // Leafs alter Sitzungen (pro-Ansicht-Typen) aufräumen.
       this.app.workspace.iterateAllLeaves((leaf) => {
@@ -44,7 +49,10 @@ export default class BeautyTasksPlugin extends Plugin {
       });
       this.index.build();
       this.renderAll();
+      this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
     });
+    // Alle 30 s prüfen, welche Erinnerungen im Fenster (letzter Scan, jetzt] fällig wurden.
+    this.registerInterval(window.setInterval(() => this.scanReminders(), 30_000));
 
     this.registerView(VIEW_MAIN, (leaf: WorkspaceLeaf) => new MainView(leaf, this));
     this.registerView(VIEW_NAV, (leaf: WorkspaceLeaf) => new NavView(leaf, this));
@@ -316,6 +324,43 @@ export default class BeautyTasksPlugin extends Plugin {
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
   openQuickAdd(project?: string): void { new QuickAddModal(this, project).open(); }
   openSearch(): void { new TaskSearchModal(this).open(); }
+
+  // ── Erinnerungen (Stufe A) ──
+  /** Prüft alle offenen Aufgaben und feuert Erinnerungen, deren Zeitpunkt ins Fenster
+   *  (letzter Scan, jetzt] fällt. Das fortlaufende Fenster garantiert „genau einmal";
+   *  ein Grace von 1 h fängt beim (Neu-)Start kürzlich Verpasstes ohne Alt-Spam. */
+  private scanReminders(): void {
+    if (!this.index) return;
+    const now = Date.now();
+    const REMINDER_GRACE_MS = 60 * 60_000;
+    const from = Math.max(this.reminderScan, now - REMINDER_GRACE_MS);
+    let fired = false;
+    for (const task of this.index.open()) {
+      for (const { fireAt } of resolveReminders(task)) {
+        const ts = fireAt.getTime();
+        if (ts > from && ts <= now) { this.fireReminder(task); fired = true; }
+      }
+    }
+    this.reminderScan = now;
+    // Nur beim tatsächlichen Feuern persistieren (kein 30-s-Dauerschreiben auf die Platte).
+    // Das Grace-Fenster deckelt die Lücke ohnehin, falls zwischendurch nichts gefeuert wurde.
+    if (fired) { this.settings.reminderLastScan = now; void this.saveSettings(); }
+  }
+
+  /** Zustellung: System-Notification (Desktop, auch im Hintergrund) + klickbare In-App-Notice.
+   *  Klick öffnet die Aufgabe. Auf Mobile/ohne Notification bleibt die Notice der Kanal. */
+  private fireReminder(task: Task): void {
+    const body = task.title;
+    try {
+      if (typeof Notification !== "undefined" && !Platform.isMobile) {
+        const n = new Notification("BeautyTasks", { body });
+        n.onclick = () => { window.focus(); this.openEditTask(task); };
+      }
+    } catch { /* Notification je nach Umgebung nicht verfügbar -> Notice reicht */ }
+    const notice = new Notice("⏰ " + body, 10_000);
+    notice.noticeEl.style.cursor = "pointer";
+    notice.noticeEl.onclick = () => this.openEditTask(task);
+  }
 
   async setTaskDate(task: Task, field: "due" | "scheduled", isoVal: string): Promise<void> {
     const f = this.app.vault.getAbstractFileByPath(task.path);

@@ -128,6 +128,7 @@ export class TaskIndex extends Component {
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,
       recurBasis: fm.recur_basis === "done" ? "done" : "due",
+      reminders: Array.isArray(fm.reminders) ? fm.reminders.map(String) : [],
       created: typeof fm.created === "string" ? fm.created : "",
       completed: asDate(fm.completed),
       cancelled: asDate(fm.cancelled),
