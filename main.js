@@ -1852,9 +1852,11 @@ function renderViewInto(c, plugin, view) {
   const idx = plugin.index;
   if (view === "heute") {
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
-    const present = renderedPaths(plugin, [...overdue, ...dueToday]);
+    const doneToday = idx.done().filter((tk) => tk.completed === today);
+    const present = renderedPaths(plugin, [...overdue, ...dueToday, ...doneToday]);
     section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
     section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
+    if (doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
   } else if (view === "demnaechst") {
     const groups = idx.upcomingByDate(today);
     const nd = idx.noDate();
