@@ -41,6 +41,7 @@ export interface BeautyTasksSettings {
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
+  didInitialSetup: boolean;        // intern: Erst-Setup (Inbox anlegen) einmalig gelaufen
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
@@ -58,4 +59,5 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   parseNaturalLanguage: true,
   chipsIconsOnly: false,
   reminderLastScan: 0,
+  didInitialSetup: false,
 };

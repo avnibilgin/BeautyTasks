@@ -8,7 +8,7 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox } from "./taskService";
 import { nextInstance } from "./recurrence";
 import { todayStr } from "./format";
 import { t, setLocale } from "./i18n";
@@ -42,11 +42,18 @@ export default class BeautyTasksPlugin extends Plugin {
     // Reminder-Scanfenster: bei echtem Vorwert Verpasstes nachfeuern (auf Grace begrenzt),
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
     this.reminderScan = this.settings.reminderLastScan || Date.now();
-    this.app.workspace.onLayoutReady(() => {
+    this.app.workspace.onLayoutReady(async () => {
       // Leafs alter Sitzungen (pro-Ansicht-Typen) aufräumen.
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
       });
+      // Erst-Setup (einmalig): Inbox-Notiz anlegen, falls keine existiert. Danach
+      // Flag setzen, damit ein absichtliches Löschen der Inbox respektiert wird.
+      if (!this.settings.didInitialSetup) {
+        try { await ensureInbox(this.app, this.settings); } catch (e) { console.error("BeautyTasks inbox setup", e); }
+        this.settings.didInitialSetup = true;
+        await this.saveSettings();
+      }
       this.index.build();
       this.renderAll();
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)

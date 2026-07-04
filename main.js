@@ -39,7 +39,8 @@ var DEFAULT_SETTINGS = {
   lastView: "heute",
   parseNaturalLanguage: true,
   chipsIconsOnly: false,
-  reminderLastScan: 0
+  reminderLastScan: 0,
+  didInitialSetup: false
 };
 
 // src/i18n.ts
@@ -709,6 +710,14 @@ async function createProjectNote(app, settings, name, asArea = false) {
   const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", created: todayIso() });
   await app.vault.create(dest, fm + "\n# " + name + "\n");
   return base;
+}
+async function ensureInbox(app, settings) {
+  if (allProjItems(app).some(isInbox)) return;
+  await ensureFolder(app, settings.projectsFolder);
+  const dest = (0, import_obsidian.normalizePath)(settings.projectsFolder + "/Inbox.md");
+  if (app.vault.getAbstractFileByPath(dest)) return;
+  const fm = buildFrontmatter({ type: "project", id: newId("p"), status: "active", icon: "inbox", created: todayIso() });
+  await app.vault.create(dest, fm + "\n# Inbox\n");
 }
 async function setProjectType(app, path, toArea) {
   const file = app.vault.getAbstractFileByPath(path);
@@ -4047,10 +4056,19 @@ var BeautyTasksPlugin = class extends import_obsidian12.Plugin {
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
     this.reminderScan = this.settings.reminderLastScan || Date.now();
-    this.app.workspace.onLayoutReady(() => {
+    this.app.workspace.onLayoutReady(async () => {
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
       });
+      if (!this.settings.didInitialSetup) {
+        try {
+          await ensureInbox(this.app, this.settings);
+        } catch (e) {
+          console.error("BeautyTasks inbox setup", e);
+        }
+        this.settings.didInitialSetup = true;
+        await this.saveSettings();
+      }
       this.index.build();
       this.renderAll();
       this.scanReminders();

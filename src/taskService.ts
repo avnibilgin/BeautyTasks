@@ -153,6 +153,18 @@ export async function createProjectNote(app: App, settings: BeautyTasksSettings,
   return base;
 }
 
+/** Beim Erst-Setup die Inbox-Notiz anlegen, falls noch keine existiert. Die Inbox ist eine
+ *  normale Projekt-Notiz namens „Inbox" (im UI lokalisiert als „Eingang"); erkannt via isInbox.
+ *  Legt nichts an, wenn schon eine Inbox/Eingang-Notiz vorhanden ist. */
+export async function ensureInbox(app: App, settings: BeautyTasksSettings): Promise<void> {
+  if (allProjItems(app).some(isInbox)) return;
+  await ensureFolder(app, settings.projectsFolder);
+  const dest = normalizePath(settings.projectsFolder + "/Inbox.md");
+  if (app.vault.getAbstractFileByPath(dest)) return;
+  const fm = buildFrontmatter({ type: "project", id: newId("p"), status: "active", icon: "inbox", created: todayIso() });
+  await app.vault.create(dest, fm + "\n# Inbox\n");
+}
+
 /** Projekt ↔ Bereich umschalten – ändert NUR den Frontmatter-type (kein Verschieben,
  *  keine sonstigen Änderungen). Bereich = type:area, Projekt = type:project. */
 export async function setProjectType(app: App, path: string, toArea: boolean): Promise<void> {
