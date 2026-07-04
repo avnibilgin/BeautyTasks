@@ -4384,9 +4384,7 @@ var BeautyTasksPlugin = class extends import_obsidian12.Plugin {
       }
     } catch {
     }
-    const notice = new import_obsidian12.Notice("\u23F0 " + body, 1e4);
-    notice.noticeEl.style.cursor = "pointer";
-    notice.noticeEl.onclick = () => this.openEditTask(task);
+    new import_obsidian12.Notice("\u23F0 " + body, 1e4);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);

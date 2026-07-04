@@ -95,7 +95,7 @@ export class QuickAddModal extends Modal {
     const chip = this.chipBar.createEl("button", { cls: "bt-chip" + (isSet ? " is-set" : "") });
     if (!isSet) { chip.setAttribute("aria-label", tooltip); chip.setAttribute("data-tooltip-position", "top"); }
     setIcon(chip.createSpan({ cls: "bt-chip-ic" }), icon);
-    if (isSet) chip.createSpan({ cls: "bt-chip-lbl", text: label! });
+    if (isSet) chip.createSpan({ cls: "bt-chip-lbl", text: label });
     chip.onclick = (e) => { e.stopPropagation(); onClick(chip); };
     if (isSet) { const x = chip.createSpan({ cls: "bt-chip-x" }); setIcon(x, "x"); x.onclick = (e) => { e.stopPropagation(); onClear(); }; }
   }

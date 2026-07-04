@@ -357,9 +357,10 @@ export default class BeautyTasksPlugin extends Plugin {
         n.onclick = () => { window.focus(); this.openEditTask(task); };
       }
     } catch { /* Notification je nach Umgebung nicht verfügbar -> Notice reicht */ }
-    const notice = new Notice("⏰ " + body, 10_000);
-    notice.noticeEl.style.cursor = "pointer";
-    notice.noticeEl.onclick = () => this.openEditTask(task);
+    // In-App-Notice bewusst nur informativ: der Klick-zum-Öffnen läuft über die
+    // System-Notification (oben). messageEl/noticeEl sind erst ab 1.8.7 bzw. deprecated
+    // -> nicht anfassen, um minAppVersion 1.7.2 zu halten.
+    new Notice("⏰ " + body, 10_000);
   }
 
   async setTaskDate(task: Task, field: "due" | "scheduled", isoVal: string): Promise<void> {
