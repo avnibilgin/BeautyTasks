@@ -2344,7 +2344,7 @@ var NavView = class extends import_obsidian7.ItemView {
     return "BeautyTasks";
   }
   getIcon() {
-    return "list-checks";
+    return "check-circle";
   }
   async onOpen() {
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
@@ -4058,7 +4058,7 @@ var BeautyTasksPlugin = class extends import_obsidian12.Plugin {
     this.registerInterval(window.setInterval(() => this.scanReminders(), 3e4));
     this.registerView(VIEW_MAIN, (leaf) => new MainView(leaf, this));
     this.registerView(VIEW_NAV, (leaf) => new NavView(leaf, this));
-    this.addRibbonIcon("list-checks", t("ribbon_open"), () => void this.openBeautyTasks());
+    this.addRibbonIcon("check-circle", t("ribbon_open"), () => void this.openBeautyTasks());
     this.addSettingTab(new BeautyTasksSettingTab(this.app, this));
     this.registerEvent(this.app.workspace.on("layout-change", () => this.renderAll()));
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderAll()));

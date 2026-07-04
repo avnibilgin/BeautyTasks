@@ -537,7 +537,7 @@ export class NavView extends ItemView {
   constructor(leaf: WorkspaceLeaf, private plugin: BeautyTasksPlugin) { super(leaf); }
   getViewType(): string { return VIEW_NAV; }
   getDisplayText(): string { return "BeautyTasks"; }
-  getIcon(): string { return "list-checks"; }
+  getIcon(): string { return "check-circle"; }
   async onOpen(): Promise<void> {
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();

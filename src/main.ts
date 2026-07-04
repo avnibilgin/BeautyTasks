@@ -57,7 +57,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.registerView(VIEW_MAIN, (leaf: WorkspaceLeaf) => new MainView(leaf, this));
     this.registerView(VIEW_NAV, (leaf: WorkspaceLeaf) => new NavView(leaf, this));
 
-    this.addRibbonIcon("list-checks", t("ribbon_open"), () => void this.openBeautyTasks());
+    this.addRibbonIcon("check-circle", t("ribbon_open"), () => void this.openBeautyTasks());
     this.addSettingTab(new BeautyTasksSettingTab(this.app, this));
 
     // Layout-/Tab-Wechsel: u. a. wenn Obsidian eine aufgeschobene View endlich anhängt.
