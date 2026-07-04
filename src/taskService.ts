@@ -12,7 +12,13 @@ export const normalizeLabel = (s: string): string =>
 export const newId = (p: string): string =>
   p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-export const todayIso = (): string => new Date().toISOString().slice(0, 10);
+// Lokales Datum (YYYY-MM-DD), NICHT UTC: toISOString() würde nachts (lokal 00:00 bis
+// UTC-Offset) noch „gestern" liefern. Identisch zur iso()-Logik im Datepicker.
+export const todayIso = (): string => {
+  const d = new Date();
+  const z = (n: number): string => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
+};
 
 /** Frontmatter-Block – nur gesetzte Felder. */
 export function buildFrontmatter(obj: Record<string, unknown>): string {

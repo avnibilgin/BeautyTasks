@@ -1,5 +1,6 @@
 import { App, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, TaskStatus, Priority } from "./types";
+import { todayIso } from "./taskService";
 
 const PRIO_MAP: Record<string, Priority> = {
   "🔺": "highest", "⏫": "high", "🔼": "medium", "🔽": "low", "⏬": "lowest",
@@ -91,7 +92,7 @@ export async function runMigration(app: App, settings: BeautyTasksSettings): Pro
     .filter((f) => f.path.startsWith("Tasks/Lists/") && f.path.indexOf("/", "Tasks/Lists/".length) === -1
       && f.basename !== "+ New Project");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();   // lokales Datum (nicht UTC), siehe taskService.todayIso
   let created = 0;
 
   for (const list of lists) {

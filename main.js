@@ -611,7 +611,11 @@ var import_obsidian = require("obsidian");
 var slugify = (s) => s.replace(/[\\/:*?"<>|#^[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "Task";
 var normalizeLabel = (s) => slugify(s).toLowerCase().replace(/^#/, "").replace(/\s+/g, "-");
 var newId = (p) => p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-var todayIso = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+var todayIso = () => {
+  const d = /* @__PURE__ */ new Date();
+  const z4 = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z4(d.getMonth() + 1) + "-" + z4(d.getDate());
+};
 function buildFrontmatter(obj) {
   const clean = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -1082,7 +1086,7 @@ async function runMigration(app, settings) {
   await ensureFolder2(app, settings.itemsFolder);
   await ensureFolder2(app, settings.projectsFolder);
   const lists = app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Tasks/Lists/") && f.path.indexOf("/", "Tasks/Lists/".length) === -1 && f.basename !== "+ New Project");
-  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const today = todayIso();
   let created = 0;
   for (const list of lists) {
     const projectName2 = list.basename;
