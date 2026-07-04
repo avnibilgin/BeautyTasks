@@ -69,7 +69,7 @@ Each task can carry:
 - **Labels** (`#tags`).
 - **Recurrence** — “every day / week / 3 months …”, repeating from either the **due date** or the **completion date**.
 - **Reminders** — get notified before or at a task’s time (see below).
-- A **Markdown description** plus a timestamped **activity log** (comments), with image attachments.
+- A **Markdown description**, a **timestamped comment log**, and **file/image attachments** (see below).
 
 ### Quick capture with natural language
 Add tasks at the speed of thought. The quick-add modal understands plain sentences in **English and German**:
@@ -83,6 +83,16 @@ It recognizes **dates** (today/tomorrow, weekdays, `3 Jul`, month names), **time
 Attach one or more reminders to a task — either **relative** (“at time of task”, 10 min / 30 min / 1 h / 1 day before) or an **absolute** date & time. When a reminder is due, BeautyTasks shows a **system notification** on desktop (even when Obsidian is in the background) and an in-app notice; clicking it opens the task.
 
 > **Good to know:** reminders fire while Obsidian is running. On desktop that includes the background; on mobile they appear while the app is open. Delivery that survives a fully-closed app (calendar/ICS export) is on the roadmap and pairs with upcoming Sync.
+
+### Notes, comments & attachments
+Every task has a **Details** panel for the story behind the task:
+
+- A free-form **Markdown description**.
+- A **timestamped comment log** to track progress over time — add, edit and revisit notes, each stamped with its date and time.
+- **Attachments** — click the paperclip, or simply **paste or drag & drop** files and images straight into a comment. They’re saved to your configurable attachments folder, and images appear as thumbnails with a built-in **lightbox** (zoom, copy to clipboard).
+- **Link other notes** into a comment to connect related context from your vault.
+
+Because it all lives in the task note’s own Markdown body, your comments and attachments stay readable and portable outside the plugin, too.
 
 ### Everyday conveniences
 - **Duplicate** a task, **copy a deep link** (`obsidian://`) to it, or **print** a clean copy.
