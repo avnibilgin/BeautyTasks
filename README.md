@@ -18,6 +18,30 @@ A Todoist-style task & project manager that lives **inside** Obsidian — with a
 
 ---
 
+## Screenshots
+
+### The dashboard
+A Todoist-style dashboard with sidebar navigation and grouped task lists.
+
+![BeautyTasks dashboard — Today view](docs/dashboard.png)
+
+### Task editor
+The full editor with its chip row for date, priority, labels, recurrence, deadline and reminders.
+
+![BeautyTasks task editor](docs/task-editor.png)
+
+### Quick capture
+Add tasks in plain language — dates, times, priority and `#labels` are parsed automatically.
+
+![BeautyTasks quick add](docs/quick-add.png)
+
+### Reminders
+Relative (“30 min before”) or absolute reminders, delivered as system notifications.
+
+![BeautyTasks reminders popover](docs/reminders.png)
+
+---
+
 ## Features
 
 ### Views & navigation
