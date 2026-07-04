@@ -1,7 +1,7 @@
 {
   "id": "beautytasks",
   "name": "BeautyTasks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.7.2",
   "description": "Aufgaben- und Projektsystem im Todoist-Stil – eine Markdown-Notiz pro Aufgabe, ganz ohne externe Abhängigkeiten.",
   "author": "Avni Bilgin",

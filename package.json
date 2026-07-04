@@ -1,6 +1,6 @@
 {
   "name": "beautytasks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "BeautyTasks – Obsidian task & project system (note per task, no plugin dependencies).",
   "main": "main.js",
   "scripts": {
@@ -14,7 +14,6 @@
   "devDependencies": {
     "@types/node": "^20",
     "@typescript-eslint/parser": "^8.62.1",
-    "builtin-modules": "^3.3.0",
     "esbuild": "0.28.1",
     "eslint": "^9.39.4",
     "eslint-plugin-obsidianmd": "^0.3.0",

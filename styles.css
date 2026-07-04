@@ -756,7 +756,7 @@ body {
 
 /* Keine Trennlinie zwischen Hauptaufgabe und ihren Unteraufgaben: Parent + Kinder lesen
    sich als ein Block. Trifft nur die oberste Ebene (Parent), nicht Subtask→Subtask. */
-.bt-task:not(.bt-subtask):has(+ .bt-subtask)::after { display: none !important; }
+.bt-task:not(.bt-subtask):has(+ .bt-subtask)::after { display: none; }
 
 /* Rail bis zur Hauptaufgaben-Checkbox hochziehen: Segment auf der Parent-Zeile, von 4px
    unter der Checkbox (top: 28px = padding 6 + margin 2 + Checkbox 16 + 4px Abstand, gleicher
