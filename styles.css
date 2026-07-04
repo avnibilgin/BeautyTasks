@@ -187,6 +187,10 @@ body {
   --bt-nav-project: #E5C07B;
 }
 .theme-light {
+  /* Trennlinien: die Basis-Defaults (body) sind weiß (rgba 255) und damit im
+     hellen Modus unsichtbar. Hier auf sichtbares Hellgrau überschrieben. */
+  --bt-line: #eee;
+  --bt-line-faint: #eee;
   --bt-overdue: #E45649;
   --bt-add: #C15B34;
   --bt-today: #C18401;
@@ -297,7 +301,13 @@ body {
 .bt-empty { color: var(--text-muted); font-size: 0.92em; margin: 4px 0 8px; }
 
 /* ── Aufgaben-Modal (Todoist-Stil, 1:1 zu BeautyTasks) ── */
-.bt-task-modal { width: 800px; max-width: 92vw; }
+.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; }
+/* Damit die randlose Trennlinie den ECHTEN Modal-Rand erreicht: den horizontalen Innen-
+   abstand vom Modal auf .modal-content verlagern (oben: padding-left/right 0 am Modal, hier
+   der Abstand). So füllt .modal-content die volle Modalbreite; die Linie kann per negativer
+   Positionierung bis zum Rand laufen. overflow-x: clip kappt den Überstand (kein Scrollbalken),
+   lässt die vertikale Achse unberührt. Popover hängen an .modal → nicht betroffen. */
+.bt-task-modal .modal-content { padding-left: var(--size-4-4); padding-right: var(--size-4-4); overflow-x: clip; }
 .bt-task-modal .bt-titel {
   width: 100%; border: none; background: transparent;
   font-size: 1.25em; font-weight: 600; color: var(--text-normal);
@@ -317,7 +327,17 @@ body {
 
 .bt-task-modal .bt-chips {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0;
-  padding-bottom: 14px; border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 14px; position: relative;
+}
+/* Trennlinie randlos (bis an die Modal-Ränder) und dezent: über ein Pseudo gezeichnet,
+   damit die Chip-Box unangetastet bleibt. Die negativen Ränder entsprechen dem Modal-
+   Innenabstand (--size-4-8); bei Bedarf hier feinjustieren. */
+.bt-task-modal .bt-chips::after {
+  content: ""; position: absolute; bottom: 0;
+  /* Innenabstand (--size-4-4 = 16px) plus kleiner Sicherheitszuschlag; clip am .modal-content
+     trimmt die Linie exakt auf die Modalbreite (kein Spalt, kein Überstand). */
+  left: calc(-1 * var(--size-4-4) - 4px); right: calc(-1 * var(--size-4-4) - 4px);
+  border-bottom: 1px solid var(--bt-line);   /* Hell-Modus = #eee, wie die Listen-Trennlinien */
 }
 .bt-task-modal .bt-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -327,26 +347,41 @@ body {
 }
 .bt-task-modal .bt-chip:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
 .bt-task-modal .bt-chip.is-set { color: var(--text-normal); border-color: var(--interactive-accent); }
+/* Details-Chip (Büroklammer): aktiver Zustand = Sektion offen. Eigene Klasse .is-open, damit
+   der Chip im Icon-only-Modus (dort greift :not(.is-set)) trotzdem stets kompakt bleibt. */
+.bt-task-modal .bt-chip-details.is-open { color: var(--text-normal); border-color: var(--interactive-accent); }
+/* „+"-Aktionsbutton (Menü rechts in der Chip-Leiste): quadratisch, nur Icon. */
+.bt-task-modal .bt-chip-actions { width: 28px; padding: 0; gap: 0; justify-content: center; }
+/* Verstecktes iframe fürs Drucken (Aufgabe drucken aus dem +-Menü). */
+.bt-print-frame { position: fixed; right: 0; bottom: 0; width: 0; height: 0; border: 0; }
 .bt-task-modal .bt-chip-ic { display: inline-flex; }
 .bt-task-modal .bt-chip-ic svg { width: 15px; height: 15px; }
 .bt-task-modal .bt-chip-lbl { white-space: nowrap; }
+/* Elternaufgaben-Chip: langer Titel wird auf ~22 Zeichen begrenzt. Grenze in „ch", damit sie
+   mit der Schriftgröße mitskaliert. Der volle Name erscheint per Tooltip (nur wenn tatsächlich
+   abgeschnitten – siehe addChip). */
+.bt-task-modal .bt-chip-truncate .bt-chip-lbl {
+  overflow: hidden; max-width: 22ch;
+}
+/* Statt harter „…"-Ellipsis läuft der Text am rechten Rand sanft in Transparenz aus (Fade-Maske,
+   wie bei Linear/Notion). Wird per JS nur gesetzt, wenn der Titel wirklich überläuft (.is-faded),
+   damit kurze, komplett sichtbare Namen keinen ausgeblendeten Rand bekommen. */
+.bt-task-modal .bt-chip-truncate.is-faded .bt-chip-lbl {
+  -webkit-mask-image: linear-gradient(to right, #000 78%, transparent 100%);
+          mask-image: linear-gradient(to right, #000 78%, transparent 100%);
+}
 .bt-task-modal .bt-chip-sep { color: var(--text-muted); }
 .bt-task-modal .bt-chip-x { display: inline-flex; opacity: 0.5; margin-left: 1px; }
 .bt-task-modal .bt-chip-x svg { width: 13px; height: 13px; }
 .bt-task-modal .bt-chip-x:hover { opacity: 1; }
 
-.bt-task-modal .bt-details-bar { display: flex; align-items: center; gap: 12px; min-height: 24px; margin: 0 0 12px; }
-.bt-task-modal .bt-details-toggle {
-  background: transparent; border: none; box-shadow: none;
-  color: var(--text-muted); cursor: pointer; font-size: 0.85em; padding: 2px 0;
+/* Icon-only-Modus (Einstellung „Kompakte Chips"): leere Options-Chips zeigen nur das Icon
+   als quadratischen Button, der Name (Text) wird ausgeblendet und erscheint als Tooltip.
+   Chips mit gesetztem Wert bleiben unverändert und zeigen ihren Wert. */
+.bt-task-modal.bt-chips-icons-only .bt-chip:not(.is-set) {
+  width: 28px; padding: 0; gap: 0; justify-content: center;
 }
-.bt-task-modal .bt-details-toggle:hover { color: var(--text-normal); }
-.bt-task-modal .bt-add-subtask { display: inline-flex; align-items: center; color: var(--bt-add); }
-.bt-task-modal .bt-add-subtask:hover { color: var(--bt-add); opacity: 0.8; }
-.bt-task-modal .bt-delete-task { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--bt-overdue); }
-.bt-task-modal .bt-delete-task:hover { color: var(--bt-overdue); opacity: 0.8; }
-.bt-task-modal .bt-del-ic { display: inline-flex; }
-.bt-task-modal .bt-del-ic svg { width: 14px; height: 14px; }
+.bt-task-modal.bt-chips-icons-only .bt-chip:not(.is-set) .bt-chip-lbl { display: none; }
 
 /* Details = Kommentar-Log (Timeline + Composer) – portiert aus Tasks-Style.css .am-log-* */
 .bt-task-modal .bt-details { margin: 0 0 12px; }
@@ -384,6 +419,11 @@ body {
   display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; padding-top: 8px;
   border-top: 1px solid var(--background-modifier-border);
 }
+/* Ohne Kommentare: leere Timeline ausblenden und den Composer direkt unter die Chips
+   rücken (kein leeres Band, keine zweite Trennlinie). Mit Einträgen bleibt die Timeline
+   samt Trennlinie über dem Composer. */
+.bt-task-modal .bt-log-list:empty { display: none; }
+.bt-task-modal .bt-log-list:empty + .bt-log-composer { margin-top: 0; padding-top: 0; border-top: none; }
 .bt-task-modal .bt-log-input { flex: 1; resize: none; min-height: 34px; max-height: 220px; font-size: 0.9em; line-height: 1.4; }
 /* Dezenter Fokus statt Obsidians grellem Akzent-Glow – wie die übrigen Felder. */
 .bt-task-modal .bt-log-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
@@ -402,7 +442,7 @@ body {
 .bt-task-modal .bt-projekt {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
   border: 1px solid var(--background-modifier-border); border-radius: 6px;
-  background: transparent; color: var(--text-normal); font-size: 0.88em; cursor: pointer; box-shadow: none;
+  background: transparent; color: var(--text-normal); font-size: 0.88em; font-weight: 600; cursor: pointer; box-shadow: none;
 }
 .bt-task-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
 .bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car { display: inline-flex; }
@@ -410,6 +450,30 @@ body {
 .bt-task-modal .bt-projekt-car { opacity: 0.6; }
 .bt-task-modal .bt-projekt-car svg { width: 14px; height: 14px; }
 .bt-task-modal .bt-actions { display: inline-flex; gap: 8px; }
+.bt-task-modal .bt-actions button { font-weight: 600; }   /* Abbrechen / Speichern fett */
+
+/* ── Schnell-Erfassung (kompaktes Quick-Add-Modal) ────────────────────────────────────────
+   Teilt sich .bt-task-modal (Titel-/Projekt-/Chip-Styles); hier nur die kompakte Anordnung. */
+.bt-quickadd .bt-titel { font-size: 1.1em; }
+/* Eine Zeile: Projekt-Chip + Attribut-Chips links, Aktionen rechts (margin-left:auto). Umbruch
+   erlaubt, falls viele Labels -> Buttons rutschen dann in die nächste Zeile. */
+.bt-quickadd .bt-qa-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.bt-quickadd .bt-qa-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.bt-quickadd .bt-qa-chips::after { display: none; }   /* kein randloser Trennstrich im Quick-Add */
+.bt-quickadd .bt-qa-foot-right { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.bt-quickadd .bt-qa-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0; border-radius: 6px;
+  border: 1px solid var(--background-modifier-border); background: transparent;
+  color: var(--text-muted); cursor: pointer; box-shadow: none;
+}
+.bt-quickadd .bt-qa-icon:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-quickadd .bt-qa-icon svg { width: 16px; height: 16px; }
+.bt-quickadd .bt-qa-submit {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border-radius: 6px;
+}
+.bt-quickadd .bt-qa-submit svg { width: 17px; height: 17px; }
 
 
 /* Popover (Chip-Picker) */
@@ -473,6 +537,11 @@ body {
 .bt-nav-ic svg { width: 16px; height: 16px; }
 /* Seitenleisten-Icon-Farben: Boards einzeln, Labels/Bereiche/Projekte je gemeinsam.
    Eine per-Item-Frontmatter-Farbe (inline gesetzt) sticht die Gruppenfarbe. */
+/* „Aufgabe hinzufügen" ganz oben: prominent in Akzentfarbe (Todoist-Stil), Icon + Text fett. */
+.bt-nav-add-task { color: var(--interactive-accent); font-weight: 600; }
+.bt-nav-add-task .bt-nav-ic { color: var(--interactive-accent); }
+.bt-nav-add-task:hover { color: var(--interactive-accent-hover); }
+.bt-nav-add-task:hover .bt-nav-ic { color: var(--interactive-accent-hover); }
 .bt-nav-search .bt-nav-ic { color: var(--bt-nav-search); }
 .bt-nav-inbox .bt-nav-ic { color: var(--bt-nav-inbox); }
 .bt-nav-heute .bt-nav-ic { color: var(--bt-nav-heute); }
@@ -605,10 +674,12 @@ body {
   left: 28px;
   right: 0;
   bottom: 0;
-  height: 1px;
-  background: var(--bt-line-faint);
+  /* Echter Border statt height:1px-Block → wird wie die Sektions-Linie
+     (.bt-list border-top) aufs Pixelraster gesnapped und rendert uniform 1px. */
+  border-top: 1px solid var(--bt-line-faint);
 }
-.bt-task:last-child::after { display: none; }
+/* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
+   ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
 .bt-task:hover { background: var(--background-modifier-hover); border-radius: 6px; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
@@ -659,8 +730,50 @@ body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bt-task.is-done .bt-desc { text-decoration: line-through; }
-/* Unteraufgaben im Board: eingerückt nach Tiefe */
-.bt-task.bt-subtask { margin-left: calc(var(--bt-depth, 1) * 24px); }
+/* Unteraufgaben im Board: eingerückt nach Tiefe + etwas kleinerer Text zur
+   besseren Unterscheidung von Hauptaufgaben (Titel/Beschreibung/Meta skalieren
+   proportional per em; Checkbox & Einrückung sind px-basiert, bleiben gleich). */
+.bt-task.bt-subtask { margin-left: calc(var(--bt-depth, 1) * 24px); font-size: 0.9em; }
+/* ── Unteraufgaben als Baum abheben (Variante 2: Elbow) + kleinere Checkbox + gedämpfter
+   Titel. Gilt nur für VERSCHACHTELTE Unteraufgaben (.bt-subtask). Promotete Unteraufgaben
+   werden auf Ebene 0 ohne diese Klasse gerendert → volle, normale Darstellung. ──────── */
+
+/* Keine Trennlinie zwischen Hauptaufgabe und ihren Unteraufgaben: Parent + Kinder lesen
+   sich als ein Block. Trifft nur die oberste Ebene (Parent), nicht Subtask→Subtask. */
+.bt-task:not(.bt-subtask):has(+ .bt-subtask)::after { display: none !important; }
+
+/* Rail bis zur Hauptaufgaben-Checkbox hochziehen: Segment auf der Parent-Zeile, von 4px
+   unter der Checkbox (top: 28px = padding 6 + margin 2 + Checkbox 16 + 4px Abstand, gleicher
+   Abstand wie der Subtask-Haken zur Checkbox) bis zum Zeilenende. Fluchtet mit der Subtask-
+   Rail (beide bei absolut 10px = Checkbox-Mitte); bottom:0 macht es höhenunabhängig. */
+.bt-task:not(.bt-subtask):has(+ .bt-subtask)::before {
+  content: ""; position: absolute; pointer-events: none;
+  left: 10px; top: 28px; bottom: 0;
+  border-left: 1.5px solid var(--background-modifier-border);
+}
+
+/* Elbow-Konnektor: vertikale Rail (::before) + horizontaler Haken zur Checkbox (::after),
+   an der Checkbox-Mitte des Parents (Zeilenrand − 14px). Mittlere Kinder = ├, letztes = └.
+   Das ::after ersetzt bei Unteraufgaben die frühere Zeilentrennlinie (daher kein Kreuzen). */
+.bt-task.bt-subtask::before {
+  content: ""; position: absolute; pointer-events: none;
+  left: -14px; top: -2px; bottom: 0;
+  border-left: 1.5px solid var(--background-modifier-border);
+}
+.bt-task.bt-subtask::after {
+  content: ""; position: absolute; pointer-events: none;
+  left: -14px; right: auto; top: 14.5px; bottom: auto; width: 12px;
+  border-top: 1.5px solid var(--background-modifier-border);
+}
+/* Letztes Kind: Rail endet an der Ecke (└) und eine dezente Linie schließt die Gruppe ab. */
+.bt-task.bt-subtask:not(:has(+ .bt-subtask))::before { bottom: auto; height: 16.5px; }
+.bt-task.bt-subtask:not(:has(+ .bt-subtask)) { border-bottom: 1px solid var(--bt-line-faint); }
+
+/* C – gedämpfter Titel: Hauptaufgaben treten hervor, Unteraufgaben zurück. */
+.bt-task.bt-subtask .bt-title { color: var(--text-muted); }
+
+/* B – kleinere Checkbox (13px statt 16px) als feines Unterordnungssignal. */
+.bt-task.bt-subtask .bt-check { width: 13px; height: 13px; }
 
 .bt-task.is-done .bt-title { color: var(--text-muted); text-decoration: line-through; }
 .bt-task .bt-check.is-done ~ .bt-body .bt-title { color: var(--text-muted); }

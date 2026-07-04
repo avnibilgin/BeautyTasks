@@ -38,6 +38,7 @@ export interface BeautyTasksSettings {
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
+  chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
@@ -53,4 +54,5 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   startView: "heute",
   lastView: "heute",
   parseNaturalLanguage: true,
+  chipsIconsOnly: false,
 };

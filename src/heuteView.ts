@@ -6,7 +6,7 @@ import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
-import { t, getLocale } from "./i18n";
+import { t, getLocale, projectDisplayName } from "./i18n";
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -39,13 +39,16 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
 
   const idx = plugin.index;
   if (view === "heute") {
-    section(root, plugin, t("sec_overdue"), idx.overdue(today), today);
-    section(root, plugin, t("sec_today"), idx.dueToday(today), today);
+    const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
+    const present = renderedPaths(plugin, [...overdue, ...dueToday]);
+    section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
+    section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
   } else if (view === "demnaechst") {
     const groups = idx.upcomingByDate(today);
-    for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today);
     const nd = idx.noDate();
-    if (nd.length) section(root, plugin, t("sec_no_date"), nd, today);
+    const present = renderedPaths(plugin, [...groups.flatMap((g) => g.tasks), ...nd]);
+    for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
+    if (nd.length) section(root, plugin, t("sec_no_date"), nd, today, false, false, present);
     if (!groups.length && !nd.length) root.createEl("p", { cls: "bt-empty", text: t("empty_nothing_scheduled") });
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -98,7 +101,7 @@ function recurKey(recurrence: string): string {
   return "raw:" + recurrence;   // Sonderintervalle: eigene Gruppe mit dem Rohtext als Titel
 }
 function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: string): void {
-  const recs = plugin.index.all().filter((tk) => tk.recurrence && (tk.status === "todo" || tk.status === "doing"));
+  const recs = plugin.index.open().filter((tk) => tk.recurrence);   // open() blendet archivierte Projekte aus
   if (!recs.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_nothing_recurring") }); return; }
   const groups = new Map<string, Task[]>();
   for (const tk of recs) {
@@ -149,7 +152,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  root.createEl("h1", { text: name });
+  root.createEl("h1", { text: projectDisplayName(name) });
 
   addBar(root, plugin, () => plugin.openNewTask(name), "projects", t("group_project"));
 
@@ -165,11 +168,12 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const done = tasks.filter((t) => t.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
   if (!tasks.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_no_project_tasks") }); return; }
-  if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today);
-  if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today);
-  if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today);
-  if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today);
-  if (done.length) section(root, plugin, t("sec_done"), done, today, true);
+  const present = renderedPaths(plugin, [...open, ...done]);
+  if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
+  if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
+  if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
+  if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
+  if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -183,7 +187,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
 
   addBar(root, plugin, () => plugin.openNewTask(undefined, label), "labels", t("tab_labels"));
 
-  const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label));
+  const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
   const open = tasks.filter((tk) => tk.status === "todo" || tk.status === "doing");
   const overdue = open.filter((tk) => tk.due && tk.due < today).sort(byDue);
   const dueToday = open.filter((tk) => tk.due === today);
@@ -192,11 +196,12 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   const done = tasks.filter((tk) => tk.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
   if (!tasks.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_no_label_tasks") }); return; }
-  if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today);
-  if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today);
-  if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today);
-  if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today);
-  if (done.length) section(root, plugin, t("sec_done"), done, today, true);
+  const present = renderedPaths(plugin, [...open, ...done]);
+  if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
+  if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
+  if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
+  if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
+  if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
 }
 
 function groupLabel(dateISO: string, today: string): string {
@@ -206,8 +211,27 @@ function groupLabel(dateISO: string, today: string): string {
   return wd + ", " + lbl;
 }
 
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false): void {
-  const top = trash ? tasks : tasks.filter((x) => !x.parent);   // im Papierkorb jede Zeile flach, sonst Unteraufgaben verschachtelt
+/** Alle Pfade, die in dieser Ansicht real gerendert werden: die Anker-Aufgaben plus ihre
+ *  (nicht abgebrochenen) Nachfahren, die renderTask verschachtelt zeichnet. Basis für
+ *  Variante A – eine Unteraufgabe gilt als „im Parent aufgehoben", wenn ihr Parent hier
+ *  gerendert wird; ist er es nicht, wird die Unteraufgabe eigenständig angezeigt. */
+function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> {
+  const present = new Set<string>();
+  const walk = (tk: Task): void => {
+    if (present.has(tk.path)) return;
+    present.add(tk.path);
+    for (const kid of plugin.index.children(tk.path)) if (kid.status !== "cancelled") walk(kid);
+  };
+  for (const a of anchors) walk(a);
+  return present;
+}
+
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>): void {
+  // Variante A: Unteraufgaben werden verschachtelt unter ihrem Parent gezeigt, WENN dieser
+  // in der Ansicht vorkommt (present). Fehlt der Parent in der Ansicht, erscheint die
+  // Unteraufgabe eigenständig als eigene Zeile – statt ganz zu verschwinden.
+  // Ohne present (z. B. Papierkorb/Wiederkehrend/Erledigt): altes Verhalten (nur verschachtelt).
+  const top = trash ? tasks : tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)));
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });
@@ -307,11 +331,13 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (task.project && !plugin.currentProject) {
+  } else if (task.project && !plugin.currentProject && depth === 0) {
     // In einem Projekt-/Inbox-Board ist der Projektname redundant -> ausblenden; sonst sichtbar.
+    // Ebenso bei verschachtelten Unteraufgaben (depth > 0): der Parent darüber zeigt dasselbe
+    // Projekt bereits – nur auf Ebene 0 (Hauptaufgabe ODER promotete Unteraufgabe) anzeigen.
     const extras = row.createDiv({ cls: "bt-extras" });
     const name = task.project.split("/").pop()!.replace(/\.md$/, "");
-    const bl = extras.createEl("a", { cls: "bt-backlink", text: "#" + name });
+    const bl = extras.createEl("a", { cls: "bt-backlink", text: "#" + projectDisplayName(name) });
     bl.onclick = (e) => { e.stopPropagation(); openPath(plugin, task.project!); };
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
@@ -400,13 +426,16 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
 
-  // „Suchen" ganz oben: öffnet die Aufgaben-Suche (Command-Palette-Stil).
+  // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
+  navItem(c, { cls: "bt-nav-add-task", icon: "plus-circle", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+
+  // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
 
   // Inbox ganz oben, OHNE Abschnittsüberschrift (über den Ansichten).
   if (eingang && !eingang.hidden) {
     navItem(c, {
-      cls: "bt-nav-inbox", icon: eingang.icon, iconColor: eingang.color, label: eingang.name,
+      cls: "bt-nav-inbox", icon: eingang.icon, iconColor: eingang.color, label: projectDisplayName(eingang.name),
       count: plugin.index.byProject(eingang.path).length, active: plugin.currentProject === eingang.path,
       onClick: () => void plugin.activateProject(eingang.path),
     });
@@ -435,7 +464,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     if (ok && nu) await plugin.setLabelVisible(nu, true);   // aus der Nav erstellt -> gleich sichtbar
   });
   if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
-    const count = plugin.index.all().filter((tk) => tk.labels.includes(name) && (tk.status === "todo" || tk.status === "doing")).length;
+    const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
     navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
 
@@ -457,7 +486,7 @@ function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
   const today = todayStr();
   if (id === "heute") return plugin.index.overdue(today).length + plugin.index.dueToday(today).length;
   if (id === "demnaechst") return plugin.index.upcoming(today).length;
-  if (id === "wiederkehrend") return plugin.index.all().filter((tk) => tk.recurrence && (tk.status === "todo" || tk.status === "doing")).length;
+  if (id === "wiederkehrend") return plugin.index.open().filter((tk) => tk.recurrence).length;
   return 0;
 }
 

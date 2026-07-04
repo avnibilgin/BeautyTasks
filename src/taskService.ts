@@ -112,6 +112,12 @@ function allProjItems(app: App): ProjItem[] {
 
 /** Eingang + Bereiche + Projekte (ohne Archivierte) für Picker/Nav. „hidden" bleibt drin;
  *  die Nav filtert es selbst, der Aufgaben-Picker zeigt es weiterhin. */
+/** Basenamen (lowercase) aller archivierten Projekte/Bereiche – zum Ausblenden ihrer
+ *  Aufgaben aus Sammelansichten (Heute, Demnächst, Labels, Projekt-Boards …). */
+export function archivedProjectNames(app: App): Set<string> {
+  return new Set(allProjItems(app).filter((p) => p.archived).map((p) => p.name.toLowerCase()));
+}
+
 export function listProjectsAndAreas(app: App): { eingang: ProjItem | null; bereiche: ProjItem[]; projekte: ProjItem[] } {
   const all = allProjItems(app).filter((p) => !p.archived);
   const bereiche = all.filter((p) => p.type === "area").sort(byName);

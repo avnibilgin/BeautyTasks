@@ -1,6 +1,7 @@
-// Quick-Entry-Parser (zweisprachig). Zerlegt Freitext in { title, faellig, tags }.
-// Erkennt inline #Labels und gängige Datumsphrasen (DE + EN); gibt den um die
-// erkannten Token bereinigten Titel zurück. Portiert aus tasks-ui.js parseQuickEntry.
+// Quick-Entry-Parser (zweisprachig). Zerlegt Freitext in { title, faellig, time, tags, priority }.
+// Erkennt inline #Labels, gängige Datumsphrasen, Uhrzeiten und Prioritäten (DE + EN);
+// gibt den um die erkannten Token bereinigten Titel zurück. Portiert aus tasks-ui.js.
+import { Priority } from "./types";
 
 const z = (n: number) => String(n).padStart(2, "0");
 const iso = (d: Date) => d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
@@ -35,7 +36,7 @@ const L = "[A-Za-zÄÖÜäöüß]";
 // bleiben stabil; der konsumierte Grenz-Char wird beim Strippen ohnehin zu Leerraum.
 const re = (body: string) => new RegExp("(?:^|[^A-Za-zÄÖÜäöüß])" + body + "(?!" + L + ")", "i");
 
-export interface QuickEntry { title: string; faellig: string; tags: string[]; }
+export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; }
 
 export function parseQuickEntry(raw: string): QuickEntry {
   let text = " " + (raw || "") + " ";
@@ -89,5 +90,26 @@ export function parseQuickEntry(raw: string): QuickEntry {
     const d = new Date(+m[1], +m[2] - 1, +m[3]); return d.getMonth() === +m[2] - 1 ? d : null;
   });
 
-  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, tags: [...new Set(tags)] };
+  // Uhrzeit: „um 07:30", „07:30", „um 7 uhr", „7 uhr"; englisch „7pm", „7:30 am". Erste Treffer gewinnt.
+  let time = "";
+  const hm = (h: number, mi: number): string | null => (h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z(h) + ":" + z(mi) : null);
+  const grabTime = (rx: RegExp, fn: (m: RegExpMatchArray) => string | null) => {
+    if (time) return;
+    const m = text.match(rx);
+    if (!m) return;
+    const t = fn(m);
+    if (t) { time = t; text = text.replace(m[0], " "); }
+  };
+  grabTime(/(?:^|\s)(?:um|at|@)\s*(\d{1,2}):(\d{2})(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
+  grabTime(/(?:^|\s)(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?![a-z])/i, (m) => { let h = +m[1] % 12; if (m[3].toLowerCase() === "pm") h += 12; return hm(h, m[2] ? +m[2] : 0); });
+  grabTime(/(?:^|\s)(\d{1,2}):(\d{2})(?!\d)/, (m) => hm(+m[1], +m[2]));
+  grabTime(/(?:^|\s)(?:um|at)\s*(\d{1,2})(?:\s*uhr)?(?![\d:])/i, (m) => hm(+m[1], 0));
+  grabTime(/(?:^|\s)(\d{1,2})\s*uhr(?!\d)/i, (m) => hm(+m[1], 0));
+
+  // Priorität: „p1"–„p4" bzw. „!1"–„!4" (Todoist-Stil). p1 = höchste.
+  let priority: Priority | null = null;
+  const pm = text.match(/(?:^|\s)[p!]([1-4])(?![\wäöüßÄÖÜ])/i);
+  if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
+
+  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority };
 }

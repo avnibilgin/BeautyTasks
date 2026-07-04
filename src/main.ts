@@ -6,6 +6,7 @@ import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES, projectName,
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
+import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel } from "./taskService";
 import { nextInstance } from "./recurrence";
 import { todayStr } from "./format";
@@ -60,6 +61,7 @@ export default class BeautyTasksPlugin extends Plugin {
       this.addCommand({ id: "open-" + id, name: t("cmd_open_view", viewTitle(id)), callback: () => void this.activateView(id) });
     }
     this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTask() });
+    this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({
       id: "count-tasks", name: t("cmd_count_tasks"),
@@ -312,6 +314,7 @@ export default class BeautyTasksPlugin extends Plugin {
     new TaskModal(this, undefined, project, { defaultLabel: label, defaultToday: today }).open();
   }
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
+  openQuickAdd(project?: string): void { new QuickAddModal(this, project).open(); }
   openSearch(): void { new TaskSearchModal(this).open(); }
 
   async setTaskDate(task: Task, field: "due" | "scheduled", isoVal: string): Promise<void> {

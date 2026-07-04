@@ -1,7 +1,9 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, TaskStatus, Priority } from "./types";
 import { splitContent } from "./detailLog";
+import { archivedProjectNames } from "./taskService";
 
+const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const STATUS = new Set<string>(["todo", "doing", "done", "cancelled"]);
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
 const asDate = (v: unknown): string | null =>
@@ -21,8 +23,16 @@ export class TaskIndex extends Component {
   private descriptions = new Map<string, string>();  // path -> Beschreibung (Body zwischen Titel und Log)
   private subs = new Set<() => void>();
   private timer: number | null = null;
+  private archivedDirty = true;                 // neu berechnen, sobald sich etwas geändert hat
+  private archivedSet = new Set<string>();       // Basenamen (lowercase) archivierter Projekte
 
   constructor(private app: App) { super(); }
+
+  /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
+  private archivedProjects(): Set<string> {
+    if (this.archivedDirty) { this.archivedSet = archivedProjectNames(this.app); this.archivedDirty = false; }
+    return this.archivedSet;
+  }
 
   /** NACH onLayoutReady aufrufen – dann sind Wikilinks auflösbar. */
   build(): void {
@@ -128,6 +138,7 @@ export class TaskIndex extends Component {
   // ── Reaktivität ──
   subscribe(cb: () => void): () => void { this.subs.add(cb); return () => this.subs.delete(cb); }
   private notify(): void {
+    this.archivedDirty = true;   // Projekt-Notiz könnte (ent)archiviert worden sein
     if (this.timer) return;
     this.timer = window.setTimeout(() => { this.timer = null; this.subs.forEach((cb) => cb()); }, 50);
   }
@@ -136,7 +147,17 @@ export class TaskIndex extends Component {
   all(): Task[] { return [...this.byPath.values()]; }
   get(path: string): Task | undefined { return this.byPath.get(path); }
   getById(id: string): Task | undefined { const p = this.byId.get(id); return p ? this.byPath.get(p) : undefined; }
-  open(): Task[] { return this.all().filter((t) => t.status === "todo" || t.status === "doing"); }
+  /** Offene Aufgaben (todo/doing) OHNE die aus archivierten Projekten – Basis aller
+   *  Sammelansichten, damit archivierte Projekte nirgends mehr auftauchen. */
+  open(): Task[] {
+    const archived = this.archivedProjects();
+    return this.all().filter((t) => (t.status === "todo" || t.status === "doing")
+      && !(t.project && archived.has(baseName(t.project).toLowerCase())));
+  }
+  /** True, wenn das Projekt (Basename) archiviert ist – für Ansichten/Zähler, die all() nutzen. */
+  isProjectArchived(project: string | null | undefined): boolean {
+    return !!project && this.archivedProjects().has(baseName(project).toLowerCase());
+  }
   overdue(today: string): Task[] { return this.open().filter((t) => !!t.due && t.due < today); }
   dueToday(today: string): Task[] { return this.open().filter((t) => t.due === today); }
   upcoming(today: string): Task[] {

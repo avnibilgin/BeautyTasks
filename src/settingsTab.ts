@@ -73,5 +73,11 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
         p.renderAll();
       }));
+
+    new Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) =>
+      tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
+        p.settings.chipsIconsOnly = v;
+        await p.saveSettings();
+      }));
   }
 }

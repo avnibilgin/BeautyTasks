@@ -44,7 +44,9 @@ const STRINGS: Record<string, Dict> = {
     date_this_weekend: "This weekend", date_next_week: "Next week", date_no_date: "No date",
     time_add: "Time", time_label: "Time", duration_label: "Duration",
     err_enter_taskname: "Please enter a task name.",
-    cmd_new_task: "New task", cmd_open_view: "Open {0}", cmd_count_tasks: "Count tasks", cmd_import: "Import from Tasks/Lists", cmd_search: "Search tasks",
+    err_parent_not_found: "Parent task not found.",
+    cmd_new_task: "New task", cmd_quick_add: "Quick add task", cmd_open_view: "Open {0}", cmd_count_tasks: "Count tasks", cmd_import: "Import from Tasks/Lists", cmd_search: "Search tasks",
+    qa_placeholder: "e.g. Write report tomorrow p1 #work", qa_added: "Task added", qa_open_full: "Open in full editor",
     nav_search: "Search", search_placeholder: "Search tasks …",
     notice_count: "BeautyTasks: {0} tasks ({1} open)",
     notice_import_running: "BeautyTasks: importing …",
@@ -53,6 +55,19 @@ const STRINGS: Record<string, Dict> = {
     ribbon_open: "Open BeautyTasks",
     set_show_desc: "Show description in lists",
     set_show_desc_desc: "Display a one-line description preview under the task title.",
+    set_chips_iconsonly: "Compact chips (icons only)",
+    set_chips_iconsonly_desc: "In the task editor, show only the icons of empty option chips (Date, Priority, Label …); the name appears as a tooltip. Chips with a value still show it.",
+    task_actions: "Task actions",
+    menu_create_subtask: "Create subtask",
+    menu_show_parent: "Show parent task",
+    menu_duplicate: "Duplicate task",
+    menu_copy_link: "Copy link to task",
+    menu_open_obsidian: "Open in Obsidian",
+    menu_open_editor: "Open in editor",
+    menu_print: "Print",
+    copy_suffix: "(Copy)",
+    msg_duplicated: "Task duplicated",
+    msg_link_copied: "Link copied",
     set_folders_heading: "Folders",
     set_folder_items: "Tasks folder", set_folder_items_desc: "Where new task notes are created.",
     set_folder_projects: "Projects folder", set_folder_projects_desc: "Where project and area notes are created.",
@@ -107,7 +122,9 @@ const STRINGS: Record<string, Dict> = {
     date_this_weekend: "Dieses Wochenende", date_next_week: "Nächste Woche", date_no_date: "Kein Datum",
     time_add: "Uhrzeit", time_label: "Uhrzeit", duration_label: "Dauer",
     err_enter_taskname: "Bitte einen Aufgabennamen eingeben.",
-    cmd_new_task: "Neue Aufgabe", cmd_open_view: "{0} öffnen", cmd_count_tasks: "Aufgaben zählen", cmd_import: "Aus Tasks/Lists importieren", cmd_search: "Aufgaben suchen",
+    err_parent_not_found: "Übergeordnete Aufgabe nicht gefunden.",
+    cmd_new_task: "Neue Aufgabe", cmd_quick_add: "Aufgabe schnell erfassen", cmd_open_view: "{0} öffnen", cmd_count_tasks: "Aufgaben zählen", cmd_import: "Aus Tasks/Lists importieren", cmd_search: "Aufgaben suchen",
+    qa_placeholder: "z. B. Bericht schreiben morgen p1 #arbeit", qa_added: "Aufgabe hinzugefügt", qa_open_full: "Im vollen Editor öffnen",
     nav_search: "Suchen", search_placeholder: "Aufgabe suchen …",
     notice_count: "BeautyTasks: {0} Aufgaben ({1} offen)",
     notice_import_running: "BeautyTasks: Import läuft …",
@@ -116,6 +133,19 @@ const STRINGS: Record<string, Dict> = {
     ribbon_open: "BeautyTasks öffnen",
     set_show_desc: "Beschreibung in Listen anzeigen",
     set_show_desc_desc: "Zeigt eine einzeilige Beschreibungs-Vorschau unter dem Aufgabentitel.",
+    set_chips_iconsonly: "Kompakte Chips (nur Icons)",
+    set_chips_iconsonly_desc: "In der Aufgaben-Maske nur die Icons leerer Options-Chips (Datum, Priorität, Label …) zeigen; der Name erscheint als Tooltip. Chips mit Wert zeigen diesen weiterhin an.",
+    task_actions: "Aufgabenaktionen",
+    menu_create_subtask: "Unteraufgabe erstellen",
+    menu_show_parent: "Übergeordnete Aufgabe anzeigen",
+    menu_duplicate: "Aufgabe duplizieren",
+    menu_copy_link: "Link zur Aufgabe kopieren",
+    menu_open_obsidian: "In Obsidian öffnen",
+    menu_open_editor: "In Editor öffnen",
+    menu_print: "Drucken",
+    copy_suffix: "(Kopie)",
+    msg_duplicated: "Aufgabe dupliziert",
+    msg_link_copied: "Link kopiert",
     set_folders_heading: "Ordner",
     set_folder_items: "Aufgaben-Ordner", set_folder_items_desc: "Wo neue Aufgaben-Notizen angelegt werden.",
     set_folder_projects: "Projekte-Ordner", set_folder_projects_desc: "Wo Projekt- und Bereich-Notizen angelegt werden.",
@@ -146,4 +176,11 @@ export function t(key: string, ...args: (string | number)[]): string {
   let s = STRINGS[current][key] ?? STRINGS[DEFAULT_LOCALE][key] ?? key;
   for (let i = 0; i < args.length; i++) s = s.split("{" + i + "}").join(String(args[i]));
   return s;
+}
+
+/** Anzeigename eines Projekts: der Eingang wird lokalisiert dargestellt (die Notiz heißt
+ *  „Inbox" oder „Eingang" – angezeigt wird der übersetzte Begriff via nav_inbox). Alle
+ *  anderen Projekte unverändert. Rein kosmetisch – der gespeicherte Projektname bleibt gleich. */
+export function projectDisplayName(name: string | null | undefined): string {
+  return name && /^(inbox|eingang)$/i.test(name) ? t("nav_inbox") : (name ?? "");
 }

@@ -58,3 +58,54 @@ describe("parseQuickEntry – Wortgrenzen (kein Lookbehind nötig)", () => {
     expect(r.title).toBe("Milch kaufen");
   });
 });
+
+describe("parseQuickEntry – Uhrzeit", () => {
+  it("erkennt um HH:MM und entfernt es aus dem Titel", () => {
+    const r = parseQuickEntry("Zahnarzt um 07:30");
+    expect(r.time).toBe("07:30");
+    expect(r.title).toBe("Zahnarzt");
+  });
+  it("erkennt bloesses HH:MM", () => {
+    expect(parseQuickEntry("Meeting 14:15").time).toBe("14:15");
+  });
+  it("erkennt um H uhr und H uhr", () => {
+    expect(parseQuickEntry("Anruf um 9 uhr").time).toBe("09:00");
+    expect(parseQuickEntry("Termin 8 uhr").time).toBe("08:00");
+  });
+  it("erkennt englisches am/pm", () => {
+    expect(parseQuickEntry("call 7pm").time).toBe("19:00");
+    expect(parseQuickEntry("call 7:30 am").time).toBe("07:30");
+  });
+  it("ignoriert ungueltige Zeiten", () => {
+    expect(parseQuickEntry("Code 99:99").time).toBe("");
+  });
+});
+
+describe("parseQuickEntry – Prioritaet", () => {
+  it("erkennt p1-p4 und entfernt es aus dem Titel", () => {
+    const r = parseQuickEntry("Zahnarzt p1");
+    expect(r.priority).toBe("highest");
+    expect(r.title).toBe("Zahnarzt");
+    expect(parseQuickEntry("x p2").priority).toBe("high");
+    expect(parseQuickEntry("x p3").priority).toBe("medium");
+    expect(parseQuickEntry("x p4").priority).toBe("normal");
+  });
+  it("erkennt !1-!4", () => {
+    expect(parseQuickEntry("wichtig !1").priority).toBe("highest");
+  });
+  it("greift nicht mitten im Wort", () => {
+    expect(parseQuickEntry("Kapitel p12 lesen").priority).toBeNull();
+    expect(parseQuickEntry("Top1 Liste").priority).toBeNull();
+  });
+});
+
+describe("parseQuickEntry – kombiniert (Original-Eingabe)", () => {
+  it("Morgen um 07:30 Zahnarzt #wichtig p1", () => {
+    const r = parseQuickEntry("Morgen um 07:30 Zahnarzt #wichtig p1");
+    expect(r.faellig).toBe("2026-06-16");
+    expect(r.time).toBe("07:30");
+    expect(r.tags).toEqual(["wichtig"]);
+    expect(r.priority).toBe("highest");
+    expect(r.title).toBe("Zahnarzt");
+  });
+});
