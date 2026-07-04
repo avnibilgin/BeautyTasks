@@ -32,6 +32,8 @@ A single dashboard with a left sidebar:
 - **Search** — fast fuzzy search across all tasks.
 - **Manage** — administer projects and labels, archive projects, and restore or permanently remove trashed items.
 
+**Projects vs. Areas.** Organize tasks into projects, or **promote a project to a permanent Area**. An Area is a fixed section that keeps its own place in the sidebar and is **protected from deletion and archiving** — ideal for long-running responsibilities that should never be “finished” or accidentally removed. You can convert an Area back into a normal project at any time.
+
 ### Tasks & attributes
 Each task can carry:
 
