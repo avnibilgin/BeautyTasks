@@ -123,7 +123,6 @@ export class TaskIndex extends Component {
       duration: asNum(fm.duration),
       start: asDate(fm.start),
       project: link(fm.project),
-      area: link(fm.area),
       parent: link(fm.parent),
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,

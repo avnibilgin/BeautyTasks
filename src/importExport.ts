@@ -1,12 +1,12 @@
 import { App, FuzzySuggestModal, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
-import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote } from "./taskService";
+import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged } from "./taskService";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
 const EXPORT_FORMAT = "beautytasks";
-const EXPORT_VERSION = 1;
+const EXPORT_VERSION = 2;   // v2: eigener `lists`-Abschnitt (Projekt/Bereich mit Typ). v1 = nur Aufgaben.
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 
@@ -24,8 +24,7 @@ interface ExportTask {
   scheduledTime: string | null;
   duration: number | null;
   start: string | null;
-  project: string | null;
-  area: string | null;
+  project: string | null;   // Basename der zugeordneten Liste (Projekt ODER Bereich – Typ steht in `lists`)
   parent: string | null;
   labels: string[];
   recurrence: string | null;
@@ -37,11 +36,21 @@ interface ExportTask {
   description: string;
 }
 
+/** Listen-Definition (Projekt/Bereich). Trägt den Typ, den die Aufgaben-Referenz allein nicht
+ *  kennt – so kommen Bereiche beim Import wieder als Bereich (nicht als Projekt) zurück. */
+interface ExportList {
+  name: string;
+  type: "project" | "area";
+  color: string | null;
+  archived: boolean;
+}
+
 interface ExportData {
   format: typeof EXPORT_FORMAT;
   version: number;
   exportedAt: string;
   taskCount: number;
+  lists: ExportList[];
   labels: string[];
   tasks: ExportTask[];
 }
@@ -63,7 +72,6 @@ function buildExportData(plugin: BeautyTasksPlugin): ExportData {
     duration: tk.duration,
     start: tk.start,
     project: tk.project ? baseName(tk.project) : null,
-    area: tk.area ? baseName(tk.area) : null,
     parent: tk.parent ? baseName(tk.parent) : null,
     labels: tk.labels,
     recurrence: tk.recurrence,
@@ -74,9 +82,14 @@ function buildExportData(plugin: BeautyTasksPlugin): ExportData {
     cancelled: tk.cancelled,
     description: plugin.index.descriptionOf(tk.path),
   }));
+  // Listen mit Typ mitexportieren (aktive + archivierte, ohne Inbox – listManaged filtert sie).
+  const { active, archived } = listManaged(plugin.app);
+  const lists: ExportList[] = [...active, ...archived].map((p) => ({
+    name: p.name, type: p.type, color: p.color, archived: p.archived,
+  }));
   return {
     format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(),
-    taskCount: tasks.length, labels: [...plugin.settings.knownLabels], tasks,
+    taskCount: tasks.length, lists, labels: [...plugin.settings.knownLabels], tasks,
   };
 }
 
@@ -124,7 +137,6 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
     duration: et.duration ?? null,
     start: et.start ?? null,
     project: et.project ? "[[" + et.project + "]]" : null,
-    area: et.area ? "[[" + et.area + "]]" : null,
     parent: et.parent ? "[[" + et.parent + "]]" : null,
     labels: et.labels ?? [],
     recurrence: et.recurrence ?? null,
@@ -137,6 +149,24 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
   });
   const desc = (et.description ?? "").trim();
   await app.vault.create(dest, fm + "\n# " + et.title + "\n" + (desc ? "\n" + desc + "\n" : ""));
+}
+
+/** Eine importierte Liste mit KORREKTEM Typ (Projekt/Bereich) + Farbe/Archiv-Status anlegen. */
+async function writeImportedList(app: App, settings: BeautyTasksSettings, list: ExportList): Promise<void> {
+  const folder = settings.projectsFolder;
+  await ensureFolder(app, folder);
+  const base = slugify(list.name);
+  let dest = normalizePath(folder + "/" + base + ".md");
+  let n = 2;
+  while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
+  const fm = buildFrontmatter({
+    type: list.type === "area" ? "area" : "project",
+    id: newId("p"),
+    status: list.archived ? "archived" : "active",
+    color: list.color ?? undefined,
+    created: todayIso(),
+  });
+  await app.vault.create(dest, fm + "\n# " + list.name + "\n");
 }
 
 /** Basenamen (lowercase) aller vorhandenen Projekt-/Bereich-Notizen. */
@@ -157,18 +187,28 @@ export async function importData(plugin: BeautyTasksPlugin, data: ExportData): P
   const seenIds = new Set(existing.map((t) => t.id));
   const seenExt = new Set(existing.filter((t) => t.externalId).map((t) => t.externalId as string));
 
-  // 1) Fehlende Projekte/Bereiche anlegen, damit Wikilinks der Aufgaben auflösen.
+  // 1) Listen (Projekte/Bereiche) mit KORREKTEM Typ aus dem Manifest anlegen – nur fehlende.
+  //    Vorhandene Notizen bleiben unangetastet (eine falsch als Projekt liegende Liste
+  //    korrigiert der User mit einem Klick im ListManager → in Bereich umwandeln).
   const listNames = existingListNames(app);
   let listsCreated = 0;
-  const ensureList = async (name: string | null, asArea: boolean): Promise<void> => {
-    if (!name) return;
-    const key = name.toLowerCase();
-    if (listNames.has(key)) return;
+  for (const list of data.lists ?? []) {
+    const key = list.name?.toLowerCase();
+    if (!key || listNames.has(key)) continue;
     listNames.add(key);
-    await createProjectNote(app, settings, name, asArea);
+    await writeImportedList(app, settings, list);
     listsCreated++;
-  };
-  for (const et of data.tasks) { await ensureList(et.project, false); await ensureList(et.area, true); }
+  }
+  // Fallback: von Aufgaben referenzierte Listen, die weder existieren noch im Manifest stehen
+  //   (z. B. Alt-Export ohne `lists`), als Projekt anlegen, damit die Wikilinks auflösen.
+  for (const et of data.tasks) {
+    const key = et.project?.toLowerCase();
+    if (!et.project || !key || listNames.has(key)) continue;
+    if (key === "inbox" || key === "eingang") continue;   // Inbox nie als Projekt anlegen (wird separat sichergestellt)
+    listNames.add(key);
+    await createProjectNote(app, settings, et.project, false);
+    listsCreated++;
+  }
 
   // 2) Label-Register ergänzen (aus Export-Register + Aufgaben-Labels).
   const labels = new Set<string>([...(data.labels ?? []), ...data.tasks.flatMap((t) => t.labels ?? [])]);

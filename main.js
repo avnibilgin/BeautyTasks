@@ -28,7 +28,6 @@ var import_obsidian13 = require("obsidian");
 var DEFAULT_SETTINGS = {
   itemsFolder: "BeautyTasks/Items",
   projectsFolder: "BeautyTasks/Projects",
-  areasFolder: "BeautyTasks/Areas",
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],
@@ -65,6 +64,7 @@ var STRINGS = {
     empty_nothing_done: "Nothing done yet.",
     empty_nothing_today: "Nothing due today.",
     empty_no_project_tasks: "No tasks in this project yet.",
+    empty_no_area_tasks: "No tasks in this area yet.",
     empty_no_inbox_tasks: "No tasks in the inbox yet.",
     empty_no_label_tasks: "No tasks with this label yet.",
     empty_no_tasks: "No tasks yet.",
@@ -259,6 +259,7 @@ var STRINGS = {
     empty_nothing_done: "Noch nichts erledigt.",
     empty_nothing_today: "Noch keine Aufgaben heute.",
     empty_no_project_tasks: "Noch keine Aufgaben in diesem Projekt.",
+    empty_no_area_tasks: "Noch keine Aufgaben in diesem Bereich.",
     empty_no_inbox_tasks: "Noch keine Aufgaben im Eingang.",
     empty_no_label_tasks: "Noch keine Aufgaben mit diesem Label.",
     empty_no_tasks: "Noch keine Aufgaben.",
@@ -773,6 +774,12 @@ async function setProjectType(app, path, toArea) {
     fm.type = toArea ? "area" : "project";
   });
 }
+function isAreaPath(app, path) {
+  const file = app.vault.getAbstractFileByPath(path);
+  if (!(file instanceof import_obsidian.TFile)) return false;
+  const fm = app.metadataCache.getFileCache(file)?.frontmatter;
+  return fm?.type === "area";
+}
 async function setProjectArchived(app, path, archived) {
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof import_obsidian.TFile)) return;
@@ -938,7 +945,6 @@ var TaskIndex = class extends import_obsidian2.Component {
       duration: asNum(fm.duration),
       start: asDate(fm.start),
       project: link(fm.project),
-      area: link(fm.area),
       parent: link(fm.parent),
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,
@@ -2017,7 +2023,8 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
   root.createEl("h1", { text: projectDisplayName(name) });
-  addBar(root, plugin, () => plugin.openNewTask(name), "projects", t("group_project"));
+  const isArea = isAreaPath(plugin.app, projectPath);
+  addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
   const want = name;
   const tasks = plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === want);
   const open = tasks.filter((t2) => t2.status === "todo" || t2.status === "doing");
@@ -2028,7 +2035,9 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   const done = tasks.filter((t2) => t2.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (!tasks.length) {
     const isInbox2 = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
-    emptyState(root, isInbox2 ? "inbox" : "folder", isInbox2 ? "empty_no_inbox_tasks" : "empty_no_project_tasks");
+    if (isInbox2) emptyState(root, "inbox", "empty_no_inbox_tasks");
+    else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
+    else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
   const present = renderedPaths(plugin, [...open, ...done]);
@@ -4076,7 +4085,7 @@ var BeautyTasksSettingTab = class extends import_obsidian11.PluginSettingTab {
 // src/importExport.ts
 var import_obsidian12 = require("obsidian");
 var EXPORT_FORMAT = "beautytasks";
-var EXPORT_VERSION = 1;
+var EXPORT_VERSION = 2;
 var baseName3 = (p) => p.split("/").pop().replace(/\.md$/, "");
 function buildExportData(plugin) {
   const tasks = plugin.index.all().map((tk) => ({
@@ -4092,7 +4101,6 @@ function buildExportData(plugin) {
     duration: tk.duration,
     start: tk.start,
     project: tk.project ? baseName3(tk.project) : null,
-    area: tk.area ? baseName3(tk.area) : null,
     parent: tk.parent ? baseName3(tk.parent) : null,
     labels: tk.labels,
     recurrence: tk.recurrence,
@@ -4103,11 +4111,19 @@ function buildExportData(plugin) {
     cancelled: tk.cancelled,
     description: plugin.index.descriptionOf(tk.path)
   }));
+  const { active, archived } = listManaged(plugin.app);
+  const lists = [...active, ...archived].map((p) => ({
+    name: p.name,
+    type: p.type,
+    color: p.color,
+    archived: p.archived
+  }));
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
     taskCount: tasks.length,
+    lists,
     labels: [...plugin.settings.knownLabels],
     tasks
   };
@@ -4163,7 +4179,6 @@ async function writeImportedTask(app, settings, et) {
     duration: et.duration ?? null,
     start: et.start ?? null,
     project: et.project ? "[[" + et.project + "]]" : null,
-    area: et.area ? "[[" + et.area + "]]" : null,
     parent: et.parent ? "[[" + et.parent + "]]" : null,
     labels: et.labels ?? [],
     recurrence: et.recurrence ?? null,
@@ -4176,6 +4191,26 @@ async function writeImportedTask(app, settings, et) {
   });
   const desc = (et.description ?? "").trim();
   await app.vault.create(dest, fm + "\n# " + et.title + "\n" + (desc ? "\n" + desc + "\n" : ""));
+}
+async function writeImportedList(app, settings, list) {
+  const folder = settings.projectsFolder;
+  await ensureFolder(app, folder);
+  const base = slugify(list.name);
+  let dest = (0, import_obsidian12.normalizePath)(folder + "/" + base + ".md");
+  let n = 2;
+  while (app.vault.getAbstractFileByPath(dest)) {
+    dest = (0, import_obsidian12.normalizePath)(folder + "/" + base + " " + n + ".md");
+    n++;
+    if (n > 200) break;
+  }
+  const fm = buildFrontmatter({
+    type: list.type === "area" ? "area" : "project",
+    id: newId("p"),
+    status: list.archived ? "archived" : "active",
+    color: list.color ?? void 0,
+    created: todayIso()
+  });
+  await app.vault.create(dest, fm + "\n# " + list.name + "\n");
 }
 function existingListNames(app) {
   const out = /* @__PURE__ */ new Set();
@@ -4192,17 +4227,20 @@ async function importData(plugin, data) {
   const seenExt = new Set(existing.filter((t2) => t2.externalId).map((t2) => t2.externalId));
   const listNames = existingListNames(app);
   let listsCreated = 0;
-  const ensureList = async (name, asArea) => {
-    if (!name) return;
-    const key = name.toLowerCase();
-    if (listNames.has(key)) return;
+  for (const list of data.lists ?? []) {
+    const key = list.name?.toLowerCase();
+    if (!key || listNames.has(key)) continue;
     listNames.add(key);
-    await createProjectNote(app, settings, name, asArea);
+    await writeImportedList(app, settings, list);
     listsCreated++;
-  };
+  }
   for (const et of data.tasks) {
-    await ensureList(et.project, false);
-    await ensureList(et.area, true);
+    const key = et.project?.toLowerCase();
+    if (!et.project || !key || listNames.has(key)) continue;
+    if (key === "inbox" || key === "eingang") continue;
+    listNames.add(key);
+    await createProjectNote(app, settings, et.project, false);
+    listsCreated++;
   }
   const labels = /* @__PURE__ */ new Set([...data.labels ?? [], ...data.tasks.flatMap((t2) => t2.labels ?? [])]);
   let labelsAdded = 0;

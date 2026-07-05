@@ -13,8 +13,7 @@ export interface Task {
   scheduledTime: string | null;
   duration: number | null; // Minuten (Event-Länge), optional
   start: string | null;
-  project: string | null;  // aufgelöster Pfad der Projekt-Notiz
-  area: string | null;
+  project: string | null;  // aufgelöster Pfad der zugeordneten Liste (Projekt ODER Bereich; Typ lebt an der Liste)
   parent: string | null;   // aufgelöster Pfad der Eltern-Aufgabe
   labels: string[];
   recurrence: string | null;
@@ -28,8 +27,7 @@ export interface Task {
 
 export interface BeautyTasksSettings {
   itemsFolder: string;
-  projectsFolder: string;
-  areasFolder: string;
+  projectsFolder: string;   // Projekte UND Bereiche liegen hier (Bereich = type:area)
   attachmentsFolder: string;
   knownLabels: string[];   // Register: auch Labels ohne Aufgabe (im Manager angelegt)
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
@@ -47,7 +45,6 @@ export interface BeautyTasksSettings {
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   itemsFolder: "BeautyTasks/Items",
   projectsFolder: "BeautyTasks/Projects",
-  areasFolder: "BeautyTasks/Areas",
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],

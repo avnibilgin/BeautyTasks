@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, normalizeLabel } from "./taskService";
+import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -146,7 +146,7 @@ function emptyState(root: HTMLElement, icon: string, key: string): void {
 /** „+ Add task"-Zeile eines Boards: links der Hinzufügen-Button, rechts ein dezenter
  *  Link zurück ins ListManager (Projekte- bzw. Labels-Tab) – wie im alten BeautyTasks. */
 function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void,
-  section: "projects" | "labels", linkLabel: string): void {
+  section: "projects" | "areas" | "labels", linkLabel: string): void {
   const bar = root.createDiv({ cls: "bt-board-bar" });
 
   const add = bar.createDiv({ cls: "bt-add" });
@@ -170,7 +170,9 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const name = projectName(projectPath);
   root.createEl("h1", { text: projectDisplayName(name) });
 
-  addBar(root, plugin, () => plugin.openNewTask(name), "projects", t("group_project"));
+  // Bereich (type: area) → Board-Link „Bereiche" und ListManager-Tab „areas"; sonst „Projekte".
+  const isArea = isAreaPath(plugin.app, projectPath);
+  addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
 
   // Nach Namen vergleichen: gleichnamige Notizen (altes Board/Liste vs. Projekt-Notiz)
   // hätten sonst verschiedene Pfade -> der Wikilink trifft evtl. die falsche.
@@ -184,9 +186,11 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const done = tasks.filter((t) => t.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
   if (!tasks.length) {
-    // Eingang bekommt einen eigenen Text; sonst der generische Projekt-Leerzustand.
+    // Eingang und Bereich bekommen einen eigenen Text/Icon; sonst der generische Projekt-Leerzustand.
     const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
-    emptyState(root, isInbox ? "inbox" : "folder", isInbox ? "empty_no_inbox_tasks" : "empty_no_project_tasks");
+    if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
+    else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
+    else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
   const present = renderedPaths(plugin, [...open, ...done]);
