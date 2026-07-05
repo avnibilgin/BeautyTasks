@@ -200,6 +200,7 @@ var STRINGS = {
     copy_suffix: "(Copy)",
     msg_duplicated: "Task duplicated",
     msg_link_copied: "Link copied",
+    msg_link_copy_failed: "Could not copy link.",
     set_folders_heading: "Folders",
     set_folder_items: "Tasks folder",
     set_folder_items_desc: "Where new task notes are created.",
@@ -395,6 +396,7 @@ var STRINGS = {
     copy_suffix: "(Kopie)",
     msg_duplicated: "Aufgabe dupliziert",
     msg_link_copied: "Link kopiert",
+    msg_link_copy_failed: "Link konnte nicht kopiert werden.",
     set_folders_heading: "Ordner",
     set_folder_items: "Aufgaben-Ordner",
     set_folder_items_desc: "Wo neue Aufgaben-Notizen angelegt werden.",
@@ -2994,9 +2996,13 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
     menu.addSeparator();
     menu.addItem((i) => i.setTitle(t("menu_copy_link")).setIcon("link").onClick(() => this.copyLink()));
     menu.addItem((i) => i.setTitle(t("menu_open_obsidian")).setIcon("file-text").onClick(() => this.openInObsidian()));
-    menu.addItem((i) => i.setTitle(t("menu_open_editor")).setIcon("external-link").onClick(() => this.openInEditor()));
-    menu.addSeparator();
-    menu.addItem((i) => i.setTitle(t("menu_print")).setIcon("printer").onClick(() => this.printTask()));
+    if (!import_obsidian9.Platform.isMobile) {
+      menu.addItem((i) => i.setTitle(t("menu_open_editor")).setIcon("external-link").onClick(() => this.openInEditor()));
+    }
+    if (!import_obsidian9.Platform.isMobile) {
+      menu.addSeparator();
+      menu.addItem((i) => i.setTitle(t("menu_print")).setIcon("printer").onClick(() => this.printTask()));
+    }
     menu.addSeparator();
     menu.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove()));
     const r = anchor.getBoundingClientRect();
@@ -3025,8 +3031,10 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
     if (!this.existing) return;
     const vault = encodeURIComponent(this.app.vault.getName());
     const file = encodeURIComponent(this.existing.path.replace(/\.md$/, ""));
-    void navigator.clipboard.writeText(`obsidian://open?vault=${vault}&file=${file}`);
-    new import_obsidian9.Notice(t("msg_link_copied"));
+    navigator.clipboard.writeText(`obsidian://open?vault=${vault}&file=${file}`).then(() => new import_obsidian9.Notice(t("msg_link_copied"))).catch((err) => {
+      console.error("BeautyTasks: copy link failed", err);
+      new import_obsidian9.Notice(t("msg_link_copy_failed"));
+    });
   }
   /** Aufgaben-Notiz in einem neuen Obsidian-Tab öffnen. */
   openInObsidian() {
@@ -4832,7 +4840,11 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     new import_obsidian13.Notice(t("msg_trash_emptied", items.length));
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const saved = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    if (saved?.chipsIconsOnly === void 0 && import_obsidian13.Platform.isMobile) {
+      this.settings.chipsIconsOnly = true;
+    }
   }
   async saveSettings() {
     await this.saveData(this.settings);

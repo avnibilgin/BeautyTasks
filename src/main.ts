@@ -507,7 +507,14 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<BeautyTasksSettings>);
+    const saved = (await this.loadData()) as Partial<BeautyTasksSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    // Kompakt-Modus (nur Chip-Icons) auf Mobile standardmäßig an – aber nur, wenn der Nutzer
+    // die Einstellung noch nie selbst gesetzt hat (frische Installation). Manuelles Umschalten
+    // in den Einstellungen bleibt danach erhalten.
+    if (saved?.chipsIconsOnly === undefined && Platform.isMobile) {
+      this.settings.chipsIconsOnly = true;
+    }
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
 }

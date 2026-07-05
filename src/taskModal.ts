@@ -1,4 +1,4 @@
-import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Menu } from "obsidian";
+import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Menu, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, Priority } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, todayIso, ensureFolder, TaskFields } from "./taskService";
@@ -291,10 +291,16 @@ export class TaskModal extends Modal {
     // Öffnen/Teilen
     menu.addItem((i) => i.setTitle(t("menu_copy_link")).setIcon("link").onClick(() => this.copyLink()));
     menu.addItem((i) => i.setTitle(t("menu_open_obsidian")).setIcon("file-text").onClick(() => this.openInObsidian()));
-    menu.addItem((i) => i.setTitle(t("menu_open_editor")).setIcon("external-link").onClick(() => this.openInEditor()));
-    menu.addSeparator();
-    // Ausgabe
-    menu.addItem((i) => i.setTitle(t("menu_print")).setIcon("printer").onClick(() => this.printTask()));
+    // „Im Editor öffnen" nutzt openWithDefaultApp (Desktop-only) – auf Mobile funktionslos.
+    if (!Platform.isMobile) {
+      menu.addItem((i) => i.setTitle(t("menu_open_editor")).setIcon("external-link").onClick(() => this.openInEditor()));
+    }
+    // Drucken: Obsidian Mobile hat keinen Druck (Webview) – Menüpunkt dort ausblenden.
+    if (!Platform.isMobile) {
+      menu.addSeparator();
+      // Ausgabe
+      menu.addItem((i) => i.setTitle(t("menu_print")).setIcon("printer").onClick(() => this.printTask()));
+    }
     menu.addSeparator();
     // Gefährlich
     menu.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove()));
@@ -321,8 +327,9 @@ export class TaskModal extends Modal {
     if (!this.existing) return;
     const vault = encodeURIComponent(this.app.vault.getName());
     const file = encodeURIComponent(this.existing.path.replace(/\.md$/, ""));
-    void navigator.clipboard.writeText(`obsidian://open?vault=${vault}&file=${file}`);
-    new Notice(t("msg_link_copied"));
+    navigator.clipboard.writeText(`obsidian://open?vault=${vault}&file=${file}`)
+      .then(() => new Notice(t("msg_link_copied")))
+      .catch((err) => { console.error("BeautyTasks: copy link failed", err); new Notice(t("msg_link_copy_failed")); });
   }
 
   /** Aufgaben-Notiz in einem neuen Obsidian-Tab öffnen. */
