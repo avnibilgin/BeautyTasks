@@ -54,9 +54,9 @@ A single dashboard with a left sidebar:
 - **Done** — completed tasks, with a built-in **Trash** for soft-deleted items.
 - **Projects, Areas & Labels** — collapsible boards in the sidebar; open any one as its own list.
 - **Search** — fast fuzzy search across all tasks.
-- **Manage** — administer projects and labels, archive projects, and restore or permanently remove trashed items.
+- **Manage** — a ListManager with separate **Projects**, **Areas** and **Labels** tabs: create, rename, hide, archive or delete each, and restore or permanently remove trashed items.
 
-**Projects vs. Areas.** Organize tasks into projects, or **promote a project to a permanent Area**. An Area is a fixed section that keeps its own place in the sidebar and is **protected from deletion and archiving** — ideal for long-running responsibilities that should never be “finished” or accidentally removed. You can convert an Area back into a normal project at any time.
+**Projects vs. Areas.** Organize tasks into **projects** or **areas** — two independent kinds, each with its own tab in the ListManager and its own `+` in the sidebar, so you can **create, archive and delete either one directly**. An **Area** is a fixed section that keeps its own place in the sidebar — ideal for long-running responsibilities that should never be “finished” — while a **project** is for work that eventually wraps up. You can convert one into the other at any time.
 
 ### Tasks & attributes
 Each task can carry:
@@ -96,7 +96,8 @@ Because it all lives in the task note’s own Markdown body, your comments and a
 
 ### Everyday conveniences
 - **Duplicate** a task, **copy a deep link** (`obsidian://`) to it, or **print** a clean copy.
-- **Soft delete** to Trash, then restore or empty it — nothing is lost by accident.
+- **Soft delete** to Trash, then restore or empty it — nothing is lost by accident (Trash and Done are ordered newest-first).
+- **Export & import all tasks as JSON** — a lossless backup of your task data (fields and description) that you can restore or move to another vault. Import from within the vault or from a file on disk; re-importing is **idempotent** (existing tasks are matched by id and skipped), and missing projects, areas and labels are recreated. Attachments and the comment log stay as separate files in your vault (back them up with the folder).
 - **Import** existing checkboxes from the Tasks/Lists format into BeautyTasks notes.
 - **Icons-only chips** option for a more compact editor.
 - Optional **description preview** under task titles in lists.
@@ -106,7 +107,7 @@ Because it all lives in the task note’s own Markdown body, your comments and a
 ## Getting started
 
 1. Install BeautyTasks and enable it.
-2. Click the **list-checks** ribbon icon (or run **“Open BeautyTasks”**) to open the dashboard.
+2. Click the **check-circle** ribbon icon (or run **“Open BeautyTasks”**) to open the dashboard.
 3. Hit **Add task** / run **Quick add**, type something like `Buy milk tomorrow #errands`, and press Enter.
 
 That’s it — a new Markdown note is created for the task in your configured folder.
@@ -157,6 +158,8 @@ By default, notes live under these folders (all configurable in settings):
 | Quick add task | Fast natural-language capture |
 | Search tasks | Fuzzy search |
 | Count tasks | Show total / open count |
+| Export tasks (JSON) | Save all tasks to a JSON file in your vault |
+| Import tasks (JSON) | Restore tasks from a JSON export |
 | Import from Tasks/Lists | Migrate existing checkbox tasks |
 
 Assign hotkeys to any of these under **Settings → Hotkeys**.
@@ -169,6 +172,7 @@ Assign hotkeys to any of these under **Settings → Hotkeys**.
 - **Natural-language parsing** — toggle date/label/priority detection in titles.
 - **Icons-only chips** and **description preview in lists**.
 - **Visible labels** in the sidebar.
+- **Import & Export** — save all tasks to JSON, or read them back from the vault or a file.
 
 ---
 
