@@ -559,8 +559,9 @@ export class TaskModal extends Modal {
   private openProject(anchor: HTMLElement): void {
     openPopover(anchor, (pop, close) => {
       pop.addClass("bt-picker");
-      // Nur noch Projekte werden erstellt; Bereiche entstehen durch Umwandeln eines Projekts.
-      popRow(pop, "plus", t("pick_new_project"), () => this.startNewProject(pop, close)).addClass("bt-row-action");
+      // Projekt ODER Bereich direkt anlegen – gleicher Weg wie im ListManager.
+      popRow(pop, "plus", t("pick_new_project"), () => this.startNewProject(pop, close, false)).addClass("bt-row-action");
+      popRow(pop, "plus", t("pick_new_area"), () => this.startNewProject(pop, close, true)).addClass("bt-row-action");
 
       const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
       const pick = (name: string) => { this.f.project = name; this.renderProjekt(); close(); };
@@ -575,15 +576,15 @@ export class TaskModal extends Modal {
     });
   }
 
-  private startNewProject(pop: HTMLElement, close: () => void): void {
+  private startNewProject(pop: HTMLElement, close: () => void, asArea: boolean): void {
     pop.empty();
-    const inp = pop.createEl("input", { type: "text", cls: "bt-pop-input", attr: { placeholder: t("placeholder_project_name") } });
+    const inp = pop.createEl("input", { type: "text", cls: "bt-pop-input", attr: { placeholder: asArea ? t("placeholder_area_name") : t("placeholder_project_name") } });
     inp.onkeydown = async (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
       const name = inp.value.trim();
       if (!name) return;
-      const base = await createProjectNote(this.app, this.plugin.settings, name);
+      const base = await createProjectNote(this.app, this.plugin.settings, name, asArea);
       this.f.project = base; this.renderProjekt();
       close();
     };

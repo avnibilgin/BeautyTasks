@@ -1,11 +1,12 @@
 import { setIcon, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { listManaged, createProjectNote, ProjItem } from "./taskService";
+import { listManaged, ProjItem } from "./taskService";
 import { t } from "./i18n";
 
-// Verwaltungs-Ansicht (ListManager): Projekte + Bereiche, Tabs Aktiv/Archiv.
-// Aktiv-Zeile: Area-Häkchen · Name · Sichtbarkeit · Umbenennen · Archiv · Löschen
-//   (Archiv/Löschen für Bereiche gesperrt – Bereiche sind dauerhaft).
+// Verwaltungs-Ansicht (ListManager): drei Kategorie-Tabs Projekte | Bereiche | Labels,
+// darunter (Projekte/Bereiche) die Subtabs Aktiv/Archiv. Jeder Typ hat seinen eigenen
+// Anlege-Weg – Bereiche entstehen nicht mehr nur per Umwandeln.
+// Aktiv-Zeile: Typ umschalten · Name · Sichtbarkeit · Umbenennen · Archiv · Löschen.
 // Archiv-Zeile: Name · Wiederherstellen · Endgültig löschen.
 
 export function iconBtn(parent: HTMLElement, icon: string, label: string, onClick: () => void): HTMLButtonElement {
@@ -15,27 +16,23 @@ export function iconBtn(parent: HTMLElement, icon: string, label: string, onClic
   return b;
 }
 
-function lockBtn(btn: HTMLButtonElement, tip: string): void {
-  btn.disabled = true;
-  btn.addClass("is-locked");
-  btn.setAttr("aria-label", tip);
-}
-
 export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   c.empty();
   c.addClass("bt-view");
   const root = c.createDiv({ cls: "bt-sizer" });
   const redraw = () => renderManageInto(c, plugin);
 
-  // Kopf: Überschrift links, Kategorie-Buttons rechts auf gleicher Höhe (wie alt).
+  // Kopf: Überschrift links, drei Kategorie-Tabs rechts auf gleicher Höhe.
   const header = root.createDiv({ cls: "bt-manage-header" });
-  header.createEl("h1", { text: plugin.manageSection === "labels" ? t("tab_labels") : t("group_project") });
+  const titleKey = plugin.manageSection === "labels" ? "tab_labels" : plugin.manageSection === "areas" ? "group_area" : "group_project";
+  header.createEl("h1", { text: t(titleKey) });
   const sections = header.createDiv({ cls: "bt-tabs" });
-  const mkSection = (id: "projects" | "labels", label: string) => {
+  const mkSection = (id: "projects" | "areas" | "labels", label: string) => {
     const b = sections.createEl("button", { cls: "bt-tab" + (plugin.manageSection === id ? " is-active" : ""), text: label });
     b.onclick = () => { plugin.manageSection = id; renderManageInto(c, plugin); };
   };
   mkSection("projects", t("group_project"));
+  mkSection("areas", t("group_area"));
   mkSection("labels", t("tab_labels"));
 
   if (plugin.manageSection === "labels") {
@@ -47,9 +44,15 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     return;
   }
 
-  // „Neues Projekt" zuerst (wie bei Labels); Bereiche entstehen per Umwandeln.
-  addRow(root, t("pick_new_project"), t("placeholder_project_name"),
-    async (v) => { await createProjectNote(plugin.app, plugin.settings, v); }, redraw);
+  // Projekte- ODER Bereiche-Tab: eigener Anlege-Weg je Typ (kein Umwandeln nötig mehr).
+  const isAreaSection = plugin.manageSection === "areas";
+  const wantType = isAreaSection ? "area" : "project";
+  // Über plugin.createProject anlegen: das wartet per einmaligem metadataCache-„changed" auf
+  // das geparste Frontmatter und zeichnet dann neu. Direktes createProjectNote + sofortiges
+  // redraw() käme zu früh (Typ noch nicht im Cache) -> Eintrag erst nach manuellem Reload sichtbar.
+  addRow(root, isAreaSection ? t("pick_new_area") : t("pick_new_project"),
+    isAreaSection ? t("placeholder_area_name") : t("placeholder_project_name"),
+    (v) => plugin.createProject(v, isAreaSection), redraw);
 
   // Darunter: Aktiv | Archiv.
   const subtabs = root.createDiv({ cls: "bt-subtabs" });
@@ -63,21 +66,17 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
   const { active, archived } = listManaged(plugin.app);
 
   if (plugin.manageTab === "archive") {
-    if (!archived.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_archive") }); return; }
+    const items = archived.filter((p) => p.type === wantType);
+    if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_archive") }); return; }
     const list = root.createDiv({ cls: "bt-manage-list" });
-    for (const it of archived) archiveRow(list, plugin, it, redraw);
+    for (const it of items) archiveRow(list, plugin, it, redraw);
     return;
   }
 
-  if (!active.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_active") }); return; }
-  const group = (title: string, items: ProjItem[]) => {
-    if (!items.length) return;
-    root.createEl("h6", { cls: "bt-section-title bt-manage-head", text: title });
-    const list = root.createDiv({ cls: "bt-manage-list" });
-    for (const it of items) activeRow(list, plugin, it, redraw);
-  };
-  group(t("group_area"), active.filter((p) => p.type === "area"));
-  group(t("group_project"), active.filter((p) => p.type === "project"));
+  const items = active.filter((p) => p.type === wantType);
+  if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t(isAreaSection ? "manage_empty_areas" : "manage_empty_projects") }); return; }
+  const list = root.createDiv({ cls: "bt-manage-list" });
+  for (const it of items) activeRow(list, plugin, it, redraw);
 }
 
 /** „+ Neu"-Zeile: Button, der sich beim Klick in ein Eingabefeld verwandelt (Enter = anlegen). */
@@ -113,9 +112,9 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
   iconBtn(actions, it.hidden ? "eye-off" : "eye", it.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setProjectVisible(it.path, it.hidden));
   iconBtn(actions, "pencil", t("btn_rename"), () => startRename(row, plugin, it, redraw));
-  const arch = iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
-  const del = iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
-  if (isArea) { lockBtn(arch, t("make_area_hint")); lockBtn(del, t("make_area_hint")); }
+  // Bereiche sind wie Projekte archivier-/löschbar (eigene Kategorie im ListManager).
+  iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
+  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
 }
 
 function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void): void {

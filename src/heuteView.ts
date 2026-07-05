@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile, setIcon, MarkdownRenderer, Component, Keymap } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
-import { todayStr, formatDate, formatDateTime, combineDT, dueWhen } from "./format";
+import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
@@ -41,18 +41,23 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   if (view === "heute") {
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
     // Heute erledigte Aufgaben – wie in Projekten/Inbox als eigener, einklappbarer Erledigt-Bereich.
-    const doneToday = idx.done().filter((tk) => tk.completed === today);
-    const present = renderedPaths(plugin, [...overdue, ...dueToday, ...doneToday]);
-    section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
-    section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
-    if (doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
+    const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed ist jetzt ein Zeitstempel -> nur Datums-Teil vergleichen
+    if (!overdue.length && !dueToday.length && !doneToday.length) {
+      // Komplett leer: nur der einheitliche Leerzustand – keine leeren „Überfällig/Heute"-Tabellen.
+      emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
+    } else {
+      const present = renderedPaths(plugin, [...overdue, ...dueToday, ...doneToday]);
+      section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
+      section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
+      if (doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
+    }
   } else if (view === "demnaechst") {
     const groups = idx.upcomingByDate(today);
     const nd = idx.noDate();
     const present = renderedPaths(plugin, [...groups.flatMap((g) => g.tasks), ...nd]);
     for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
     if (nd.length) section(root, plugin, t("sec_no_date"), nd, today, false, false, present);
-    if (!groups.length && !nd.length) root.createEl("p", { cls: "bt-empty", text: t("empty_nothing_scheduled") });
+    if (!groups.length && !nd.length) emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled");
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
   } else {
@@ -70,7 +75,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
 
     if (plugin.doneTab === "trash") {
       const items = idx.cancelled();
-      if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_trash") }); return; }
+      if (!items.length) { emptyState(root, "trash-2", "empty_trash"); return; }
       // Globale Aktionen rechtsbündig: Alle wiederherstellen (reversibel) / Papierkorb leeren (Bestätigung).
       const bar = root.createDiv({ cls: "bt-trash-actions" });
       const rAll = bar.createEl("button", { cls: "bt-trash-btn" });
@@ -86,7 +91,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       section(root, plugin, t("nav_trash"), items, today, false, true);
     } else {
       const done = idx.done();
-      if (!done.length) root.createEl("p", { cls: "bt-empty", text: t("empty_nothing_done") });
+      if (!done.length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
       else section(root, plugin, t("sec_done"), done, today);
     }
   }
@@ -105,7 +110,7 @@ function recurKey(recurrence: string): string {
 }
 function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: string): void {
   const recs = plugin.index.open().filter((tk) => tk.recurrence);   // open() blendet archivierte Projekte aus
-  if (!recs.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_nothing_recurring") }); return; }
+  if (!recs.length) { emptyState(root, VIEW_ICON.wiederkehrend, "empty_nothing_recurring"); return; }
   const groups = new Map<string, Task[]>();
   for (const tk of recs) {
     const key = recurKey(tk.recurrence ?? "");
@@ -129,6 +134,14 @@ function applyReadableWidth(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
 const byDue = (a: Task, b: Task) => (a.due ?? "").localeCompare(b.due ?? "");
 export const projectName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
+
+/** Einheitlicher Leerzustand für alle Boards: zentriert im Restraum, Icon + Text (Akzentfarbe).
+ *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css. */
+function emptyState(root: HTMLElement, icon: string, key: string): void {
+  const box = root.createDiv({ cls: "bt-empty" });
+  setIcon(box.createDiv({ cls: "bt-empty-ic" }), icon);
+  box.createDiv({ cls: "bt-empty-text", text: t(key) });
+}
 
 /** „+ Add task"-Zeile eines Boards: links der Hinzufügen-Button, rechts ein dezenter
  *  Link zurück ins ListManager (Projekte- bzw. Labels-Tab) – wie im alten BeautyTasks. */
@@ -170,7 +183,12 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const noDate = open.filter((t) => !t.due);
   const done = tasks.filter((t) => t.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
-  if (!tasks.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_no_project_tasks") }); return; }
+  if (!tasks.length) {
+    // Eingang bekommt einen eigenen Text; sonst der generische Projekt-Leerzustand.
+    const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+    emptyState(root, isInbox ? "inbox" : "folder", isInbox ? "empty_no_inbox_tasks" : "empty_no_project_tasks");
+    return;
+  }
   const present = renderedPaths(plugin, [...open, ...done]);
   if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
   if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
@@ -198,7 +216,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   const noDate = open.filter((tk) => !tk.due);
   const done = tasks.filter((tk) => tk.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
-  if (!tasks.length) { root.createEl("p", { cls: "bt-empty", text: t("empty_no_label_tasks") }); return; }
+  if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
   const present = renderedPaths(plugin, [...open, ...done]);
   if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
   if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);

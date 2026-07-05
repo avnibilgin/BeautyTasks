@@ -13,4 +13,5 @@ export function stringifyYaml(obj: Record<string, unknown>): string {
 export class App {}
 export class TFile {}
 export class Component {}
+export class FuzzySuggestModal {}
 export function setIcon(): void { /* no-op im Test */ }

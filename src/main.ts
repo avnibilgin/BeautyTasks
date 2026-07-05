@@ -10,10 +10,11 @@ import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox } from "./taskService";
 import { nextInstance } from "./recurrence";
-import { todayStr } from "./format";
+import { todayStr, localStamp } from "./format";
 import { t, setLocale } from "./i18n";
 import { BeautyTasksSettingTab } from "./settingsTab";
 import { TaskSearchModal } from "./searchModal";
+import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -23,7 +24,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentLabel: string | null = null;                   // aktives Label-Board
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
-  manageSection: "projects" | "labels" = "projects";    // obere Ebene
+  manageSection: "projects" | "areas" | "labels" = "projects";    // obere Ebene
   manageTab: "active" | "archive" = "active";           // Unterteilung nur bei Projekten
   doneTab: "done" | "trash" = "done";                   // „Erledigt"-Ansicht: Liste vs. Papierkorb
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
@@ -82,6 +83,8 @@ export default class BeautyTasksPlugin extends Plugin {
       id: "count-tasks", name: t("cmd_count_tasks"),
       callback: () => new Notice(t("notice_count", this.index.all().length, this.index.open().length)),
     });
+    this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
+    this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
     this.addCommand({
       id: "import-from-lists", name: t("cmd_import"),
       callback: async () => {
@@ -164,7 +167,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "labels"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
 
   /** Aus der Suche gewählte Aufgabe in ihrer Liste zeigen: zum Projekt-/Inbox-Board
    *  (bzw. passenden Datums-/Erledigt-View) springen und die Zeile kurz hervorheben
@@ -243,6 +246,42 @@ export default class BeautyTasksPlugin extends Plugin {
   async deleteProject(path: string): Promise<void> {
     await deleteProjectNote(this.app, path);
     this.renderAll();   // Datei ist nach trashFile sofort weg -> Cache aktuell
+  }
+
+  // ── Import / Export (JSON, verlustfrei) ──
+  /** Alle Aufgaben als JSON in den Vault sichern; Notice mit Zielpfad. */
+  async exportTasksJson(): Promise<void> {
+    try {
+      const path = await writeExportFile(this);
+      new Notice(t("notice_export_done", path));
+    } catch (e) {
+      console.error("BeautyTasks export error", e);
+      new Notice(t("notice_export_failed"));
+    }
+  }
+  /** JSON-Rohtext einlesen, Aufgaben anlegen (Duplikat-Schutz), Index neu aufbauen. */
+  async importTasksFromText(raw: string): Promise<void> {
+    const data = parseExport(raw);
+    if (!data) { new Notice(t("notice_import_invalid")); return; }
+    try {
+      const r = await importData(this, data);
+      new Notice(t("notice_import_summary", r.created, r.skipped));
+      window.setTimeout(() => this.index.build(), 800);   // Frontmatter der neuen Notizen ist erst kurz später im Cache
+    } catch (e) {
+      console.error("BeautyTasks JSON import error", e);
+      new Notice(t("notice_import_failed"));
+    }
+  }
+  /** Import über die In-Vault-Auswahl (alle .json-Dateien). */
+  importTasksFromVault(): void {
+    new JsonFilePickerModal(this.app, (f) => void this.readAndImport(f)).open();
+  }
+  private async readAndImport(f: TFile): Promise<void> {
+    await this.importTasksFromText(await this.app.vault.read(f));
+  }
+  /** Import über den OS-Dateidialog (Datei außerhalb des Vaults). */
+  importTasksFromOs(): void {
+    pickOsJsonFile((text) => void this.importTasksFromText(text));
   }
 
   // ── Label-Verwaltung (Strings auf den Aufgaben + Register für leere Labels) ──
@@ -388,7 +427,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const done = task.status !== "done";
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
       fm.status = done ? "done" : "todo";
-      fm.completed = done ? todayStr() : null;
+      fm.completed = done ? localStamp() : null;   // mit Uhrzeit: am selben Tag Erledigtes nach Zeit sortierbar
     });
     // Wiederkehrend + jetzt erledigt -> nächste Instanz anlegen (wie das Tasks-Plugin).
     if (done && task.recurrence) {
@@ -416,11 +455,14 @@ export default class BeautyTasksPlugin extends Plugin {
    *  (Kaskade). Sonst blieben Kinder ohne sichtbaren Parent zurück und wären nur noch
    *  über die Suche, nicht mehr in den Boards erreichbar. */
   async cancelTask(task: Task): Promise<void> {
-    const today = todayStr();
+    // Voller lokaler Zeitstempel (mit Uhrzeit/Sekunden), NICHT nur Datum: sonst hätten alle
+    // am selben Tag gelöschten Aufgaben denselben Sortierwert und der Papierkorb fiele bei
+    // Gleichstand auf die Datei-Reihenfolge zurück. Für die Kaskade EIN Stempel (Gruppe bleibt zusammen).
+    const stamp = localStamp();
     const targets = [task, ...this.index.descendants(task.path)].filter((t) => t.status !== "cancelled");
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "cancelled"; fm.cancelled = today; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "cancelled"; fm.cancelled = stamp; });
     }
   }
 

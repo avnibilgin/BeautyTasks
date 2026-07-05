@@ -130,8 +130,8 @@ export class TaskIndex extends Component {
       recurBasis: fm.recur_basis === "done" ? "done" : "due",
       reminders: Array.isArray(fm.reminders) ? fm.reminders.map(String) : [],
       created: typeof fm.created === "string" ? fm.created : "",
-      completed: asDate(fm.completed),
-      cancelled: asDate(fm.cancelled),
+      completed: typeof fm.completed === "string" ? fm.completed : null,   // voller Zeitstempel (Uhrzeit für Erledigt-Sortierung)
+      cancelled: typeof fm.cancelled === "string" ? fm.cancelled : null,   // voller Zeitstempel (Uhrzeit für Papierkorb-Sortierung)
       externalId: fm.external_id != null ? String(fm.external_id) : null,
     };
   }

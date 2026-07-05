@@ -5,6 +5,14 @@ export function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Lokaler Zeitstempel „YYYY-MM-DDTHH:mm:ss" (mit Uhrzeit) – z. B. als Sortierschlüssel für
+ *  den Papierkorb, damit am selben Tag Gelöschtes nach Uhrzeit geordnet bleibt. */
+export function localStamp(): string {
+  const d = new Date();
+  const z = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+}
+
 /** Lokalisiertes Monatskürzel via Intl (folgt der gewählten Locale). */
 export function monthShort(monthIndex: number): string {
   return new Intl.DateTimeFormat(getLocale(), { month: "short" }).format(new Date(2020, monthIndex, 1)).replace(/\.$/, "");

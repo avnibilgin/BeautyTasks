@@ -79,5 +79,15 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.settings.chipsIconsOnly = v;
         await p.saveSettings();
       }));
+
+    // ── Import & Export ──
+    new Setting(containerEl).setName(t("set_data_heading")).setHeading();
+
+    new Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc"))
+      .addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
+
+    new Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc"))
+      .addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault()))
+      .addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
   }
 }
