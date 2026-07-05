@@ -4281,15 +4281,24 @@ var JsonFilePickerModal = class extends import_obsidian12.FuzzySuggestModal {
   }
 };
 function pickOsJsonFile(onText) {
-  const input = createEl("input", { type: "file", attr: { accept: ".json,application/json" } });
+  const input = createEl("input", { cls: "bt-hidden-file-input", type: "file", attr: { accept: ".json,application/json" } });
+  activeDocument.body.appendChild(input);
+  const cleanup = () => input.remove();
   input.addEventListener("change", () => {
     const file = input.files?.[0];
+    cleanup();
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => onText(typeof reader.result === "string" ? reader.result : "");
     reader.readAsText(file);
   });
-  input.click();
+  window.addEventListener("focus", () => window.setTimeout(cleanup, 0), { once: true });
+  try {
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.click();
+  } catch {
+    input.click();
+  }
 }
 
 // src/main.ts

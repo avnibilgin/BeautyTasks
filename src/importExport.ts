@@ -243,15 +243,28 @@ export class JsonFilePickerModal extends FuzzySuggestModal<TFile> {
   onChooseItem(f: TFile): void { this.onPick(f); }
 }
 
-/** OS-Dateidialog (Rechner) → liest den Textinhalt und reicht ihn weiter. */
+/** OS-Dateidialog (Rechner) → liest den Textinhalt und reicht ihn weiter.
+ *  WICHTIG: Das Input MUSS im DOM hängen – ein loses Element öffnet den nativen Dialog in
+ *  Electron/Chromium unzuverlässig (öffnet erst beim nächsten Fensterfokus). Daher versteckt
+ *  in document.body einhängen, klicken, danach wieder entfernen. `showPicker()` bevorzugt. */
 export function pickOsJsonFile(onText: (text: string) => void): void {
-  const input = createEl("input", { type: "file", attr: { accept: ".json,application/json" } });
+  const input = createEl("input", { cls: "bt-hidden-file-input", type: "file", attr: { accept: ".json,application/json" } });
+  activeDocument.body.appendChild(input);
+  const cleanup = () => input.remove();
   input.addEventListener("change", () => {
     const file = input.files?.[0];
+    cleanup();
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => onText(typeof reader.result === "string" ? reader.result : "");
     reader.readAsText(file);
   });
-  input.click();
+  // Abbruch (kein change-Event) → aufräumen, sobald das Fenster den Fokus zurückbekommt.
+  window.addEventListener("focus", () => window.setTimeout(cleanup, 0), { once: true });
+  try {
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.click();
+  } catch {
+    input.click();
+  }
 }

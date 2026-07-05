@@ -317,6 +317,9 @@ body {
   padding: 24px 16px;
   color: var(--interactive-accent);
 }
+/* Verstecktes File-Input für den OS-Dateidialog (muss im DOM hängen, siehe pickOsJsonFile). */
+.bt-hidden-file-input { display: none; }
+
 .bt-empty-ic { display: inline-flex; opacity: 0.9; }
 .bt-empty-ic .svg-icon { width: 44px; height: 44px; }
 .bt-empty-text {
