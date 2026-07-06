@@ -52,15 +52,25 @@ A single dashboard with a left sidebar:
 - **Upcoming** — a forward-looking, date-sorted agenda.
 - **Recurring** — all repeating tasks at a glance.
 - **Done** — completed tasks, with a built-in **Trash** for soft-deleted items.
-- **Projects, Areas & Labels** — collapsible boards in the sidebar; open any one as its own list.
+- **Projects, Areas & Labels** — collapsible boards in the sidebar; open any one as its own **list or Kanban board**.
 - **Search** — fast fuzzy search across all tasks.
 - **Manage** — a ListManager with separate **Projects**, **Areas** and **Labels** tabs: create, rename, hide, archive or delete each, and restore or permanently remove trashed items.
 
 **Projects vs. Areas.** Organize tasks into **projects** or **areas** — two independent kinds, each with its own tab in the ListManager and its own `+` in the sidebar, so you can **create, archive and delete either one directly**. An **Area** is a fixed section that keeps its own place in the sidebar — ideal for long-running responsibilities that should never be “finished” — while a **project** is for work that eventually wraps up. You can convert one into the other at any time.
 
+### Kanban board
+Any project, area or label board can switch between a **List** and a **Board** layout with a quiet toggle in its header. The board is a Kanban with one column per status — **To-Do · In progress · Done** — so you can see your workflow at a glance:
+
+- **Drag & drop** a card between columns to change its status instantly.
+- **Add a task straight into a column** with the per-column `+`, pre-set to that column’s status.
+- Columns **stack vertically** on narrow panes and mobile, so the board stays usable on the phone.
+
+Because columns map to the task’s `status` field, moving a card is just a normal edit to its Markdown note — nothing lives in a separate board file.
+
 ### Tasks & attributes
 Each task can carry:
 
+- **Status** — *To-Do*, *In progress* and *Done* (plus a *Cancelled* trash state). The in-progress state shows as a **half-filled checkbox** in every list and board. Set a status by **right-clicking** the checkbox (or **long-pressing** it on mobile), from the **status chip** in the task editor, or by dragging on the Kanban board — a left-click still simply completes the task.
 - **Priority** (highest → lowest) with colored checkbox rings (P1/P2/P3).
 - **Due date & time** and an optional **duration** (event length).
 - A separate **deadline / scheduled** date & time.
@@ -220,7 +230,7 @@ BeautyTasks is under active development. The following are **planned and not yet
 
 - **Sync** — a first-class way to keep tasks in sync across devices.
 - **Reminders that survive a closed app** — calendar / `.ics` (VALARM) export so your OS or phone notifies you even when Obsidian isn’t running (pairs with Sync).
-- **Kanban board view** — drag tasks across status/columns.
+- **Custom statuses** — define your own workflow columns (add, rename, reorder) beyond To-Do / In progress / Done.
 - **Calendar view** — see due/scheduled tasks on a month/week grid.
 - **Task templates** — create recurring structures and checklists from reusable templates.
 - **Saved filters & smart views** — Todoist-style custom queries in the sidebar.
