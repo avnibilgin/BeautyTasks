@@ -1131,6 +1131,8 @@ body {
 .bt-pop .bt-color-none svg, .bt-pop .bt-color-none .svg-icon { width: 15px; height: 15px; color: var(--text-faint); }
 
 /* ── Sortier-Umschalter im ListManager (Manuell · Name · Anzahl) ── */
-.bt-view .bt-sort-control { display: flex; align-items: center; gap: 10px; margin: 2px 2px 14px; flex-wrap: wrap; }
+/* Rechtsbündig wie eine Filterleiste; an der Textlinie ausgerichtet (Baseline), damit
+   „Sortieren" nicht höher sitzt als die Optionen daneben. */
+.bt-view .bt-sort-control { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; margin: 2px 2px 16px; flex-wrap: wrap; }
 .bt-view .bt-sort-lbl { color: var(--text-faint); font-size: var(--font-ui-smaller); }
 .bt-view .bt-sort-control .bt-layout-toggle { margin: 0; gap: 12px; }

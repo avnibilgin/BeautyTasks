@@ -144,6 +144,7 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
 
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
   name.onclick = () => void plugin.activateProject(it.path);
+  row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });   // offene Aufgaben (wie bei Labels/Status)
 
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   // Projekt ↔ Bereich umschalten. Icon spiegelt den aktuellen Typ: Projekt = Seitenleisten-

@@ -1842,6 +1842,7 @@ function activeRow(list, plugin, it, redraw, reorder) {
   const isArea = it.type === "area";
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
   name.onclick = () => void plugin.activateProject(it.path);
+  row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   iconBtn(
     actions,
