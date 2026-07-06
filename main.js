@@ -72,6 +72,10 @@ var STRINGS = {
     status_need_done: "Keep at least one \u201CDone\u201D status.",
     status_need_open: "Keep at least one open status.",
     status_reassigned: "{0} tasks moved to {1}.",
+    sort_by: "Sort",
+    sort_manual: "Manual",
+    sort_name: "Name",
+    sort_count: "Count",
     nav_inbox: "Inbox",
     group_area: "Areas",
     group_project: "Projects",
@@ -290,6 +294,10 @@ var STRINGS = {
     status_need_done: 'Mindestens ein \u201EErledigt"-Status muss bleiben.',
     status_need_open: "Mindestens ein offener Status muss bleiben.",
     status_reassigned: "{0} Aufgaben nach {1} verschoben.",
+    sort_by: "Sortieren",
+    sort_manual: "Manuell",
+    sort_name: "Name",
+    sort_count: "Anzahl",
     nav_inbox: "Eingang",
     group_area: "Bereiche",
     group_project: "Projekte",
@@ -1696,6 +1704,26 @@ function openDatePicker(anchor, value, onPick, dur) {
 
 // src/manageView.ts
 var import_obsidian6 = require("obsidian");
+function sortControl(parent, plugin, sec) {
+  const wrap = parent.createDiv({ cls: "bt-sort-control" });
+  wrap.createSpan({ cls: "bt-sort-lbl", text: t("sort_by") });
+  const seg = wrap.createDiv({ cls: "bt-tabs bt-layout-toggle" });
+  const mk = (mode, label) => {
+    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.navSortMode(sec) === mode ? " is-active" : ""), text: label });
+    b.onclick = () => void plugin.setNavSort(sec, mode);
+  };
+  mk("manual", t("sort_manual"));
+  mk("name", t("sort_name"));
+  mk("count", t("sort_count"));
+}
+function reorderHandle(row, plugin, sec, key, i, n) {
+  const move = row.createDiv({ cls: "bt-status-move" });
+  const up = iconBtn(move, "chevron-up", t("btn_move_up"), () => void plugin.moveNavItem(sec, key, -1));
+  const down = iconBtn(move, "chevron-down", t("btn_move_down"), () => void plugin.moveNavItem(sec, key, 1));
+  if (i === 0) up.disabled = true;
+  if (i === n - 1) down.disabled = true;
+  row.prepend(move);
+}
 function iconBtn(parent, icon, label, onClick) {
   const b = parent.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": label, "data-tooltip-position": "top" } });
   (0, import_obsidian6.setIcon)(b.createSpan(), icon);
@@ -1731,13 +1759,15 @@ function renderManageInto(c, plugin) {
   }
   if (plugin.manageSection === "labels") {
     addRow(root, t("add_label"), t("placeholder_label"), (v) => plugin.addLabel(v), redraw);
-    const labels = plugin.getLabels();
+    sortControl(root, plugin, "labels");
+    const labels = plugin.sortLabels(plugin.getLabels());
     if (!labels.length) {
       root.createEl("p", { cls: "bt-empty", text: t("manage_empty_labels") });
       return;
     }
+    const manual2 = plugin.navSortMode("labels") === "manual";
     const list2 = root.createDiv({ cls: "bt-manage-list" });
-    for (const l of labels) labelRow(list2, plugin, l, redraw);
+    labels.forEach((l, i) => labelRow(list2, plugin, l, redraw, manual2 ? { sec: "labels", i, n: labels.length } : void 0));
     return;
   }
   const isAreaSection = plugin.manageSection === "areas";
@@ -1770,13 +1800,16 @@ function renderManageInto(c, plugin) {
     for (const it of items2) archiveRow(list2, plugin, it, redraw);
     return;
   }
-  const items = active.filter((p) => p.type === wantType);
+  const sec = isAreaSection ? "areas" : "projects";
+  sortControl(root, plugin, sec);
+  const items = plugin.sortProjItems(sec, active.filter((p) => p.type === wantType));
   if (!items.length) {
     root.createEl("p", { cls: "bt-empty", text: t(isAreaSection ? "manage_empty_areas" : "manage_empty_projects") });
     return;
   }
+  const manual = plugin.navSortMode(sec) === "manual";
   const list = root.createDiv({ cls: "bt-manage-list" });
-  for (const it of items) activeRow(list, plugin, it, redraw);
+  items.forEach((it, i) => activeRow(list, plugin, it, redraw, manual ? { sec, i, n: items.length } : void 0));
 }
 function addRow(parent, label, placeholder, onSubmit, redraw) {
   const wrap = parent.createDiv({ cls: "bt-manage-add" });
@@ -1803,8 +1836,9 @@ function addRow(parent, label, placeholder, onSubmit, redraw) {
     window.setTimeout(() => input.focus(), 0);
   };
 }
-function activeRow(list, plugin, it, redraw) {
+function activeRow(list, plugin, it, redraw, reorder) {
   const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorder) reorderHandle(row, plugin, reorder.sec, it.path, reorder.i, reorder.n);
   const isArea = it.type === "area";
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
   name.onclick = () => void plugin.activateProject(it.path);
@@ -1833,8 +1867,9 @@ function archiveRow(list, plugin, it, redraw) {
   iconBtn(actions, "archive-restore", t("btn_restore"), () => void plugin.archiveProject(it.path, false));
   iconBtn(actions, "trash-2", t("btn_delete_forever"), () => confirmInline(actions, t("confirm_delete_forever_q"), () => void plugin.deleteProject(it.path), redraw));
 }
-function labelRow(list, plugin, l, redraw) {
+function labelRow(list, plugin, l, redraw, reorder) {
   const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorder) reorderHandle(row, plugin, reorder.sec, l.name, reorder.i, reorder.n);
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
   name.onclick = () => void plugin.activateLabel(l.name);
   row.createSpan({ cls: "bt-manage-count", text: String(l.count) });
@@ -2711,7 +2746,7 @@ function renderNavInto(c, plugin) {
     redraw,
     (v) => plugin.createProject(v, true)
   );
-  if (!areasCollapsed) projItems(bereiche, "bt-nav-area");
+  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
   const projCollapsed = navHead(
     c,
     plugin,
@@ -2722,7 +2757,7 @@ function renderNavInto(c, plugin) {
     redraw,
     (v) => plugin.createProject(v)
   );
-  if (!projCollapsed) projItems(projekte, "bt-nav-project");
+  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });
 }
 function navCount(plugin, id) {
@@ -5066,10 +5101,68 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   isLabelVisible(name) {
     return this.settings.visibleLabels.includes(name);
   }
-  /** Sichtbar geschaltete Labels, die es noch gibt (alphabetisch). */
+  /** Sichtbar geschaltete Labels, die es noch gibt – in der eingestellten Reihenfolge. */
   getVisibleLabels() {
     const exist = new Set(this.getLabels().map((l) => l.name));
-    return this.settings.visibleLabels.filter((n) => exist.has(n)).sort((a, b) => a.localeCompare(b, "de"));
+    const raw = this.settings.visibleLabels.filter((n) => exist.has(n)).map((n) => ({ name: n }));
+    return this.orderNav("labels", raw, (x) => x.name, (x) => x.name).map((x) => x.name);
+  }
+  // ── Seitenleisten-Sortierung (Projekte/Bereiche/Labels) ──
+  navSortMode(sec) {
+    return this.settings.navSort?.[sec] ?? "name";
+  }
+  async setNavSort(sec, mode) {
+    const cur = this.settings.navSort ?? { projects: "name", areas: "name", labels: "name" };
+    cur[sec] = mode;
+    this.settings.navSort = cur;
+    await this.saveSettings();
+    this.renderAll();
+  }
+  navCount(sec, key) {
+    return sec === "labels" ? this.index.byLabel(key).length : this.index.byProject(key).length;
+  }
+  /** Liste nach dem aktiven Modus sortieren: Name (alphabetisch) · Anzahl (viele zuerst) · Manuell. */
+  orderNav(sec, items, keyOf, nameOf) {
+    const mode = this.navSortMode(sec);
+    const arr = [...items];
+    const byName2 = (a, b) => nameOf(a).localeCompare(nameOf(b), "de");
+    if (mode === "count") return arr.sort((a, b) => this.navCount(sec, keyOf(b)) - this.navCount(sec, keyOf(a)) || byName2(a, b));
+    if (mode === "manual") {
+      const order = this.settings.navOrder?.[sec] ?? [];
+      const idx = new Map(order.map((k, i) => [k, i]));
+      return arr.sort((a, b) => (idx.get(keyOf(a)) ?? Infinity) - (idx.get(keyOf(b)) ?? Infinity) || byName2(a, b));
+    }
+    return arr.sort(byName2);
+  }
+  /** Projekte/Bereiche in eingestellter Reihenfolge – für Seitenleiste UND ListManager. */
+  sortProjItems(sec, items) {
+    return this.orderNav(sec, items, (p) => p.path, (p) => p.name);
+  }
+  /** Label-Liste (Manager) in eingestellter Reihenfolge. */
+  sortLabels(items) {
+    return this.orderNav("labels", items, (x) => x.name, (x) => x.name);
+  }
+  /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
+  currentNavKeys(sec) {
+    if (sec === "labels") {
+      const items2 = this.getLabels().map((l) => ({ name: l.name }));
+      return this.orderNav("labels", items2, (x) => x.name, (x) => x.name).map((x) => x.name);
+    }
+    const wantType = sec === "areas" ? "area" : "project";
+    const items = listManaged(this.app).active.filter((p) => p.type === wantType);
+    return this.sortProjItems(sec, items).map((p) => p.path);
+  }
+  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
+  async moveNavItem(sec, key, dir) {
+    const keys = this.currentNavKeys(sec);
+    const i = keys.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [] };
+    order[sec] = keys;
+    this.settings.navOrder = order;
+    await this.saveSettings();
+    this.renderAll();
   }
   // ── Nav-Abschnitte ein-/ausklappen (Zustand persistent, beim Neustart wiederhergestellt) ──
   isNavCollapsed(id) {

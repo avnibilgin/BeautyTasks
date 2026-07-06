@@ -2,8 +2,33 @@ import { setIcon, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { listManaged, ProjItem } from "./taskService";
 import { statusLabel, statusIcon, statusTint, StatusKind, StoredStatus } from "./statuses";
+import { NavSection, NavSortMode } from "./types";
 import { openPopover } from "./popover";
 import { t } from "./i18n";
+
+/** Sortier-Umschalter „Manuell · Name · Anzahl" (leise, aktiv = Akzent) für eine Sektion. */
+function sortControl(parent: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection): void {
+  const wrap = parent.createDiv({ cls: "bt-sort-control" });
+  wrap.createSpan({ cls: "bt-sort-lbl", text: t("sort_by") });
+  const seg = wrap.createDiv({ cls: "bt-tabs bt-layout-toggle" });
+  const mk = (mode: NavSortMode, label: string) => {
+    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.navSortMode(sec) === mode ? " is-active" : ""), text: label });
+    b.onclick = () => void plugin.setNavSort(sec, mode);
+  };
+  mk("manual", t("sort_manual"));
+  mk("name", t("sort_name"));
+  mk("count", t("sort_count"));
+}
+
+/** ↑/↓-Pfeile am Zeilenanfang (nur im Manuell-Modus) zum Verschieben. */
+function reorderHandle(row: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection, key: string, i: number, n: number): void {
+  const move = row.createDiv({ cls: "bt-status-move" });
+  const up = iconBtn(move, "chevron-up", t("btn_move_up"), () => void plugin.moveNavItem(sec, key, -1));
+  const down = iconBtn(move, "chevron-down", t("btn_move_down"), () => void plugin.moveNavItem(sec, key, 1));
+  if (i === 0) up.disabled = true;
+  if (i === n - 1) down.disabled = true;
+  row.prepend(move);   // vor Name/Aktionen an den Zeilenanfang
+}
 
 // Verwaltungs-Ansicht (ListManager): drei Kategorie-Tabs Projekte | Bereiche | Labels,
 // darunter (Projekte/Bereiche) die Subtabs Aktiv/Archiv. Jeder Typ hat seinen eigenen
@@ -47,10 +72,12 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
 
   if (plugin.manageSection === "labels") {
     addRow(root, t("add_label"), t("placeholder_label"), (v) => plugin.addLabel(v), redraw);
-    const labels = plugin.getLabels();
+    sortControl(root, plugin, "labels");
+    const labels = plugin.sortLabels(plugin.getLabels());
     if (!labels.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_labels") }); return; }
+    const manual = plugin.navSortMode("labels") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
-    for (const l of labels) labelRow(list, plugin, l, redraw);
+    labels.forEach((l, i) => labelRow(list, plugin, l, redraw, manual ? { sec: "labels", i, n: labels.length } : undefined));
     return;
   }
 
@@ -83,10 +110,13 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     return;
   }
 
-  const items = active.filter((p) => p.type === wantType);
+  const sec: NavSection = isAreaSection ? "areas" : "projects";
+  sortControl(root, plugin, sec);
+  const items = plugin.sortProjItems(sec, active.filter((p) => p.type === wantType));
   if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t(isAreaSection ? "manage_empty_areas" : "manage_empty_projects") }); return; }
+  const manual = plugin.navSortMode(sec) === "manual";
   const list = root.createDiv({ cls: "bt-manage-list" });
-  for (const it of items) activeRow(list, plugin, it, redraw);
+  items.forEach((it, i) => activeRow(list, plugin, it, redraw, manual ? { sec, i, n: items.length } : undefined));
 }
 
 /** „+ Neu"-Zeile: Button, der sich beim Klick in ein Eingabefeld verwandelt (Enter = anlegen). */
@@ -107,8 +137,9 @@ function addRow(parent: HTMLElement, label: string, placeholder: string, onSubmi
   };
 }
 
-function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void): void {
+function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorder) reorderHandle(row, plugin, reorder.sec, it.path, reorder.i, reorder.n);
   const isArea = it.type === "area";
 
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
@@ -136,8 +167,9 @@ function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, 
   iconBtn(actions, "trash-2", t("btn_delete_forever"), () => confirmInline(actions, t("confirm_delete_forever_q"), () => void plugin.deleteProject(it.path), redraw));
 }
 
-function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void): void {
+function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorder) reorderHandle(row, plugin, reorder.sec, l.name, reorder.i, reorder.n);
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
   name.onclick = () => void plugin.activateLabel(l.name);   // Verlinkung: Klick öffnet das Label-Board
   row.createSpan({ cls: "bt-manage-count", text: String(l.count) });

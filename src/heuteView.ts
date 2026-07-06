@@ -691,12 +691,12 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Bereiche: Header „+" legt eine Notiz direkt als Bereich (type: area) an.
   const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), t("placeholder_area_name"), redraw,
     (v) => plugin.createProject(v, true));
-  if (!areasCollapsed) projItems(bereiche, "bt-nav-area");
+  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
 
   // Projekte: Header „+" legt ein neues Projekt an.
   const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), t("placeholder_project_name"), redraw,
     (v) => plugin.createProject(v));
-  if (!projCollapsed) projItems(projekte, "bt-nav-project");
+  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
 
   // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });

@@ -1,5 +1,5 @@
 import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, StoredStatus, StatusKind } from "./types";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
 import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
@@ -9,7 +9,7 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
 import { t, setLocale } from "./i18n";
@@ -341,10 +341,67 @@ export default class BeautyTasksPlugin extends Plugin {
 
   // ── Label-Sichtbarkeit in der Seitenleiste (Default: aus) ──
   isLabelVisible(name: string): boolean { return this.settings.visibleLabels.includes(name); }
-  /** Sichtbar geschaltete Labels, die es noch gibt (alphabetisch). */
+  /** Sichtbar geschaltete Labels, die es noch gibt – in der eingestellten Reihenfolge. */
   getVisibleLabels(): string[] {
     const exist = new Set(this.getLabels().map((l) => l.name));
-    return this.settings.visibleLabels.filter((n) => exist.has(n)).sort((a, b) => a.localeCompare(b, "de"));
+    const raw = this.settings.visibleLabels.filter((n) => exist.has(n)).map((n) => ({ name: n }));
+    return this.orderNav("labels", raw, (x) => x.name, (x) => x.name).map((x) => x.name);
+  }
+
+  // ── Seitenleisten-Sortierung (Projekte/Bereiche/Labels) ──
+  navSortMode(sec: NavSection): NavSortMode { return this.settings.navSort?.[sec] ?? "name"; }
+  async setNavSort(sec: NavSection, mode: NavSortMode): Promise<void> {
+    const cur = this.settings.navSort ?? { projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode };
+    cur[sec] = mode;
+    this.settings.navSort = cur;
+    await this.saveSettings();
+    this.renderAll();
+  }
+  private navCount(sec: NavSection, key: string): number {
+    return sec === "labels" ? this.index.byLabel(key).length : this.index.byProject(key).length;
+  }
+  /** Liste nach dem aktiven Modus sortieren: Name (alphabetisch) · Anzahl (viele zuerst) · Manuell. */
+  private orderNav<T>(sec: NavSection, items: T[], keyOf: (t: T) => string, nameOf: (t: T) => string): T[] {
+    const mode = this.navSortMode(sec);
+    const arr = [...items];
+    const byName = (a: T, b: T) => nameOf(a).localeCompare(nameOf(b), "de");
+    if (mode === "count") return arr.sort((a, b) => this.navCount(sec, keyOf(b)) - this.navCount(sec, keyOf(a)) || byName(a, b));
+    if (mode === "manual") {
+      const order = this.settings.navOrder?.[sec] ?? [];
+      const idx = new Map(order.map((k, i) => [k, i] as const));
+      return arr.sort((a, b) => ((idx.get(keyOf(a)) ?? Infinity) - (idx.get(keyOf(b)) ?? Infinity)) || byName(a, b));
+    }
+    return arr.sort(byName);
+  }
+  /** Projekte/Bereiche in eingestellter Reihenfolge – für Seitenleiste UND ListManager. */
+  sortProjItems(sec: "projects" | "areas", items: ProjItem[]): ProjItem[] {
+    return this.orderNav(sec, items, (p) => p.path, (p) => p.name);
+  }
+  /** Label-Liste (Manager) in eingestellter Reihenfolge. */
+  sortLabels<T extends { name: string }>(items: T[]): T[] {
+    return this.orderNav("labels", items, (x) => x.name, (x) => x.name);
+  }
+  /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
+  private currentNavKeys(sec: NavSection): string[] {
+    if (sec === "labels") {
+      const items = this.getLabels().map((l) => ({ name: l.name }));
+      return this.orderNav("labels", items, (x) => x.name, (x) => x.name).map((x) => x.name);
+    }
+    const wantType = sec === "areas" ? "area" : "project";
+    const items = listManaged(this.app).active.filter((p) => p.type === wantType);
+    return this.sortProjItems(sec, items).map((p) => p.path);
+  }
+  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
+  async moveNavItem(sec: NavSection, key: string, dir: -1 | 1): Promise<void> {
+    const keys = this.currentNavKeys(sec);
+    const i = keys.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [] };
+    order[sec] = keys;
+    this.settings.navOrder = order;
+    await this.saveSettings();
+    this.renderAll();
   }
   // ── Nav-Abschnitte ein-/ausklappen (Zustand persistent, beim Neustart wiederhergestellt) ──
   isNavCollapsed(id: string): boolean { return !!this.settings.navCollapsed[id]; }

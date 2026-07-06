@@ -1129,3 +1129,8 @@ body {
   background: var(--background-primary); border: 1px solid var(--background-modifier-border);
 }
 .bt-pop .bt-color-none svg, .bt-pop .bt-color-none .svg-icon { width: 15px; height: 15px; color: var(--text-faint); }
+
+/* ── Sortier-Umschalter im ListManager (Manuell · Name · Anzahl) ── */
+.bt-view .bt-sort-control { display: flex; align-items: center; gap: 10px; margin: 2px 2px 14px; flex-wrap: wrap; }
+.bt-view .bt-sort-lbl { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.bt-view .bt-sort-control .bt-layout-toggle { margin: 0; gap: 12px; }
