@@ -38,6 +38,7 @@ export interface BeautyTasksSettings {
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
+  boardLayout: "list" | "board";   // Projekt-/Label-Boards als Liste oder Kanban (Spalten = Status)
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
   didInitialSetup: boolean;        // intern: Erst-Setup (Inbox anlegen) einmalig gelaufen
 }
@@ -55,6 +56,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   lastView: "heute",
   parseNaturalLanguage: true,
   chipsIconsOnly: false,
+  boardLayout: "list",
   reminderLastScan: 0,
   didInitialSetup: false,
 };

@@ -1,9 +1,10 @@
 import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Menu, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task, Priority } from "./types";
+import { Task, Priority, TaskStatus } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, todayIso, ensureFolder, TaskFields } from "./taskService";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
 import { openPopover, popRow } from "./popover";
+import { BOARD_STATUSES, statusLabel, STATUS_ICON } from "./statuses";
 import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { parseQuickEntry } from "./quickEntry";
@@ -62,7 +63,7 @@ export class TaskModal extends Modal {
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus } = {}) {
     super(plugin.app);
     this.f = existing
       ? {
@@ -74,7 +75,7 @@ export class TaskModal extends Modal {
           labels: [...existing.labels],
           reminders: [...(existing.reminders ?? [])],
         }
-      : { title: opts.defaultTitle ?? "", priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+      : { title: opts.defaultTitle ?? "", status: opts.defaultStatus, priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
   }
 
   onOpen(): void {
@@ -181,6 +182,15 @@ export class TaskModal extends Modal {
   // ── Chips ──
   private renderChips(): void {
     const bar = this.chipBar; bar.empty();
+
+    // Status-Chip ganz vorne: zeigt den aktuellen Status (auch im Modal sichtbar) und öffnet
+    // die Auswahl. Kein „x" – Status ist nie leer. Immer als is-set (Label bleibt sichtbar).
+    const cur = this.f.status ?? "todo";
+    const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
+    setIcon(statusChip.createSpan({ cls: "bt-chip-ic" }), STATUS_ICON[cur]);
+    statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
+    statusChip.onclick = (e) => { e.stopPropagation(); this.openStatus(statusChip); };
+
     this.addChip(bar, "calendar", this.f.due ? formatDateTime(combineDT(this.f.due, this.f.dueTime)) + (this.f.duration ? " · " + formatDuration(this.f.duration) : "") : t("chip_date"), !!this.f.due,
       (el) => this.openDate(el, "due"), () => { this.f.due = null; this.f.dueTime = null; this.f.duration = null; this.duePinned = true; this.renderChips(); });
     this.addChip(bar, "flag", this.f.priority && this.f.priority !== "normal" ? t(PRIO_KEY[this.f.priority]) : t("chip_priority"),
@@ -490,6 +500,24 @@ export class TaskModal extends Modal {
         popRow(pop, "flag", t(p.key), () => { this.f.priority = p.value; this.renderChips(); close(); }, this.f.priority === p.value, p.color);
       }
     });
+  }
+
+  /** Status-Popover (To-Do · In Arbeit · Erledigt). Abbrechen/Papierkorb läuft über das
+   *  „+"-Aktionsmenü, nicht hier – dieses Popover bleibt auf die Arbeits-Status beschränkt. */
+  private openStatus(anchor: HTMLElement): void {
+    openPopover(anchor, (pop, close) => {
+      for (const s of BOARD_STATUSES) {
+        popRow(pop, STATUS_ICON[s.id], statusLabel(s.id), () => { void this.applyStatus(s.id); close(); }, (this.f.status ?? "todo") === s.id);
+      }
+    });
+  }
+
+  /** Status übernehmen. Bei bestehender Aufgabe live schreiben (setTaskStatus kümmert sich
+   *  um Zeitstempel/Wiederholung); bei neuer Aufgabe fließt f.status beim Anlegen ein. */
+  private async applyStatus(status: TaskStatus): Promise<void> {
+    this.f.status = status;
+    if (this.existing) { await this.plugin.setTaskStatus(this.existing, status); this.existing.status = status; }
+    this.renderChips();
   }
 
   private openRecur(anchor: HTMLElement): void {

@@ -2,9 +2,10 @@ import { App, Component, TFile } from "obsidian";
 import { Task, TaskStatus, Priority } from "./types";
 import { splitContent } from "./detailLog";
 import { archivedProjectNames } from "./taskService";
+import { statusIds, isOpen } from "./statuses";
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
-const STATUS = new Set<string>(["todo", "doing", "done", "cancelled"]);
+const STATUS = new Set<string>(statusIds());   // gültige Status = Registry (statuses.ts)
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
 const asDate = (v: unknown): string | null =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
@@ -151,7 +152,7 @@ export class TaskIndex extends Component {
    *  Sammelansichten, damit archivierte Projekte nirgends mehr auftauchen. */
   open(): Task[] {
     const archived = this.archivedProjects();
-    return this.all().filter((t) => (t.status === "todo" || t.status === "doing")
+    return this.all().filter((t) => isOpen(t.status)
       && !(t.project && archived.has(baseName(t.project).toLowerCase())));
   }
   /** True, wenn das Projekt (Basename) archiviert ist – für Ansichten/Zähler, die all() nutzen. */

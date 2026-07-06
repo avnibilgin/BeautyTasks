@@ -7,6 +7,8 @@ type Dict = Record<string, string>;
 const STRINGS: Record<string, Dict> = {
   en: {
     view_today: "Today", view_upcoming: "Upcoming", view_recurring: "Recurring", view_done: "Done",
+    status_todo: "To-Do", status_doing: "In progress", status_done: "Done", status_cancelled: "Cancelled",
+    layout_list: "List", layout_board: "Board", menu_cancel_task: "Cancel task",
     nav_inbox: "Inbox", group_area: "Areas", group_project: "Projects",
     sec_overdue: "Overdue", sec_today: "Today", sec_upcoming: "Upcoming", sec_no_date: "No date", sec_done: "Done",
     count_task: "{0} task", count_tasks: "{0} tasks",
@@ -104,6 +106,8 @@ const STRINGS: Record<string, Dict> = {
   },
   de: {
     view_today: "Heute", view_upcoming: "Demnächst", view_recurring: "Wiederkehrend", view_done: "Erledigt",
+    status_todo: "To-Do", status_doing: "In Arbeit", status_done: "Erledigt", status_cancelled: "Abgebrochen",
+    layout_list: "Liste", layout_board: "Board", menu_cancel_task: "Abbrechen",
     nav_inbox: "Eingang", group_area: "Bereiche", group_project: "Projekte",
     sec_overdue: "Überfällig", sec_today: "Heute", sec_upcoming: "Demnächst", sec_no_date: "Ohne Datum", sec_done: "Erledigt",
     count_task: "{0} Aufgabe", count_tasks: "{0} Aufgaben",

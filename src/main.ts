@@ -1,5 +1,6 @@
 import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task } from "./types";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus } from "./types";
+import { isDone } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -364,8 +365,8 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   // ── Aufgaben-Aktionen ──
-  openNewTask(project?: string, label?: string, today = false): void {
-    new TaskModal(this, undefined, project, { defaultLabel: label, defaultToday: today }).open();
+  openNewTask(project?: string, label?: string, today = false, status?: TaskStatus): void {
+    new TaskModal(this, undefined, project, { defaultLabel: label, defaultToday: today, defaultStatus: status }).open();
   }
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
   openQuickAdd(project?: string): void { new QuickAddModal(this, project).open(); }
@@ -421,16 +422,29 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { if (minutes) fm.duration = minutes; else delete fm.duration; });
   }
 
+  /** Checkbox-Umschalten: erledigt ⇄ offen. Delegiert an setTaskStatus, damit die
+   *  Erledigt-Semantik (Zeitstempel, Wiederholung) an EINER Stelle lebt. */
   async toggleDone(task: Task): Promise<void> {
+    await this.setTaskStatus(task, isDone(task.status) ? "todo" : "done");
+  }
+
+  /** Status setzen (Frontmatter). Beim Wechsel nach „erledigt" wird `completed`
+   *  gestempelt und – falls wiederkehrend – die nächste Instanz angelegt (wie das
+   *  Tasks-Plugin). Beim Verlassen von „erledigt" wird der Stempel entfernt. Basis
+   *  für Checkbox UND Kanban-Drag; `cancelled` läuft weiter über cancelTask. */
+  async setTaskStatus(task: Task, status: TaskStatus): Promise<void> {
+    if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
-    const done = task.status !== "done";
+    const wasDone = isDone(task.status);
+    const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-      fm.status = done ? "done" : "todo";
-      fm.completed = done ? localStamp() : null;   // mit Uhrzeit: am selben Tag Erledigtes nach Zeit sortierbar
+      fm.status = status;
+      if (nowDone && !wasDone) fm.completed = localStamp();   // mit Uhrzeit: am selben Tag nach Zeit sortierbar
+      else if (wasDone && !nowDone) fm.completed = null;      // von „erledigt" zurück ins Offene -> Stempel weg
     });
-    // Wiederkehrend + jetzt erledigt -> nächste Instanz anlegen (wie das Tasks-Plugin).
-    if (done && task.recurrence) {
+    // Wiederkehrend + gerade erledigt -> nächste Instanz anlegen.
+    if (nowDone && !wasDone && task.recurrence) {
       const next = nextInstance(task, todayStr());
       if (next && (next.due || next.scheduled)) {
         await createTaskNote(this.app, this.settings, {

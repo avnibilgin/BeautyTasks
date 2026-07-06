@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, setIcon, MarkdownRenderer, Component, Keymap } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
@@ -6,7 +6,11 @@ import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
+import { isOpen, isDone, isCancelled, STATUSES, BOARD_STATUSES, statusLabel, STATUS_ICON, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
+
+// Transienter Zustand während eines Kanban-Drags (Pfad der gezogenen Karte).
+let dragPath: string | null = null;
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -144,9 +148,11 @@ function emptyState(root: HTMLElement, icon: string, key: string): void {
 }
 
 /** „+ Add task"-Zeile eines Boards: links der Hinzufügen-Button, rechts ein dezenter
- *  Link zurück ins ListManager (Projekte- bzw. Labels-Tab) – wie im alten BeautyTasks. */
+ *  Link zurück ins ListManager (Projekte- bzw. Labels-Tab) – wie im alten BeautyTasks.
+ *  Der Link ist optional: der Eingang ist ein Systemordner (kein normales Projekt) und
+ *  bekommt daher KEINEN „Projekte"-Link. */
 function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void,
-  section: "projects" | "areas" | "labels", linkLabel: string): void {
+  section?: "projects" | "areas" | "labels", linkLabel?: string): void {
   const bar = root.createDiv({ cls: "bt-board-bar" });
 
   const add = bar.createDiv({ cls: "bt-add" });
@@ -154,6 +160,7 @@ function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void,
   add.createSpan({ text: t("btn_add_task") });
   add.onclick = onAdd;
 
+  if (!section || !linkLabel) return;
   const link = bar.createDiv({ cls: "bt-board-link", attr: { role: "button", tabindex: "0", "aria-label": linkLabel } });
   const lic = link.createSpan({ cls: "bt-board-link-ic" }); setIcon(lic, "arrow-left-square");
   link.createSpan({ text: linkLabel });
@@ -168,29 +175,36 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  root.createEl("h1", { text: projectDisplayName(name) });
+  boardHead(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }));
 
   // Bereich (type: area) → Board-Link „Bereiche" und ListManager-Tab „areas"; sonst „Projekte".
+  // Der Eingang ist ein Systemordner: „+ Aufgabe", aber KEIN „Projekte"-Link.
   const isArea = isAreaPath(plugin.app, projectPath);
-  addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
+  const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+  if (isInbox) addBar(root, plugin, () => plugin.openNewTask(name));
+  else addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
 
   // Nach Namen vergleichen: gleichnamige Notizen (altes Board/Liste vs. Projekt-Notiz)
   // hätten sonst verschiedene Pfade -> der Wikilink trifft evtl. die falsche.
   const want = name;
   const tasks = plugin.index.all().filter((t) => t.project != null && projectName(t.project) === want);
-  const open = tasks.filter((t) => t.status === "todo" || t.status === "doing");
+  const open = tasks.filter((t) => isOpen(t.status));
   const overdue = open.filter((t) => t.due && t.due < today).sort(byDue);
   const dueToday = open.filter((t) => t.due === today);
   const upcoming = open.filter((t) => t.due && t.due > today).sort(byDue);
   const noDate = open.filter((t) => !t.due);
-  const done = tasks.filter((t) => t.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
   if (!tasks.length) {
     // Eingang und Bereich bekommen einen eigenen Text/Icon; sonst der generische Projekt-Leerzustand.
-    const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
     if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
     else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
     else emptyState(root, "folder", "empty_no_project_tasks");
+    return;
+  }
+  // Kanban-Layout: Spalten = Status, Karten ziehbar. Sonst die klassische Liste.
+  if (plugin.settings.boardLayout === "board") {
+    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(name, undefined, false, status));
     return;
   }
   const present = renderedPaths(plugin, [...open, ...done]);
@@ -208,25 +222,115 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  root.createEl("h1", { cls: "bt-label-title", text: "#" + label });
+  boardHead(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }));
 
   addBar(root, plugin, () => plugin.openNewTask(undefined, label), "labels", t("tab_labels"));
 
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
-  const open = tasks.filter((tk) => tk.status === "todo" || tk.status === "doing");
+  const open = tasks.filter((tk) => isOpen(tk.status));
   const overdue = open.filter((tk) => tk.due && tk.due < today).sort(byDue);
   const dueToday = open.filter((tk) => tk.due === today);
   const upcoming = open.filter((tk) => tk.due && tk.due > today).sort(byDue);
   const noDate = open.filter((tk) => !tk.due);
-  const done = tasks.filter((tk) => tk.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  const done = tasks.filter((tk) => isDone(tk.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
 
   if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
+  // Kanban-Layout auch fürs Label-Board: „+ Aufgabe" legt mit Label + Spalten-Status an.
+  if (plugin.settings.boardLayout === "board") {
+    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(undefined, label, false, status));
+    return;
+  }
   const present = renderedPaths(plugin, [...open, ...done]);
   if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
   if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
   if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
   if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
   if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+}
+
+// ── Board-Kopf mit Layout-Umschalter (Liste ⇆ Kanban) ───────────────
+/** Board-Überschrift: übergebenen Titel + rechts den Layout-Umschalter in eine
+ *  Kopfzeile packen (der Titel wurde vom Aufrufer bereits erzeugt). */
+function boardHead(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement): void {
+  const head = root.createDiv({ cls: "bt-board-head" });
+  head.appendChild(titleEl);
+  layoutToggle(head, plugin);
+}
+
+/** Segmentierter Umschalter „Liste | Board". Persistiert global in den Einstellungen
+ *  und zeichnet die Dashboard-Leaf neu. */
+function layoutToggle(parent: HTMLElement, plugin: BeautyTasksPlugin): void {
+  const seg = parent.createDiv({ cls: "bt-tabs bt-layout-toggle" });
+  const mk = (mode: "list" | "board", label: string, icon: string): void => {
+    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : "") });
+    setIcon(b.createSpan({ cls: "bt-tab-ic" }), icon);
+    b.createSpan({ text: label });
+    b.onclick = () => {
+      if (plugin.settings.boardLayout === mode) return;
+      plugin.settings.boardLayout = mode;
+      void plugin.saveSettings();
+      plugin.renderMain();
+    };
+  };
+  mk("list", t("layout_list"), "list");
+  mk("board", t("layout_board"), "layout-grid");
+}
+
+// ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
+/** Innerhalb einer Spalte sortieren: „erledigt" nach Abschlusszeit (neueste oben),
+ *  offene Spalten datiert zuerst (aufsteigend), Datumlose ans Ende. */
+function sortColumn(list: Task[], kind: StatusKind): Task[] {
+  if (kind === "done") return list.sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
+}
+
+/** Eine Spalte als Drop-Ziel verdrahten: Loslassen setzt den Status der gezogenen Karte. */
+function setupColumnDnd(colEl: HTMLElement, status: string, plugin: BeautyTasksPlugin): void {
+  colEl.addEventListener("dragover", (e) => {
+    if (!dragPath) return;                       // nur eigene Karten (kein Vault-Drag)
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    colEl.addClass("is-drop");
+  });
+  colEl.addEventListener("dragleave", (e) => {
+    if (!colEl.contains(e.relatedTarget as Node | null)) colEl.removeClass("is-drop");
+  });
+  colEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    colEl.removeClass("is-drop");
+    const path = e.dataTransfer?.getData("text/plain") || dragPath;
+    dragPath = null;
+    if (!path) return;
+    const task = plugin.index.get(path);
+    if (task && task.status !== status) void plugin.setTaskStatus(task, status as Task["status"]);
+  });
+}
+
+/** Kanban-Board zeichnen: je Board-Status eine Spalte mit ziehbaren Karten und
+ *  einem „+ Aufgabe", das direkt mit dem Spalten-Status anlegt. */
+function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], today: string,
+  addInStatus: (status: Task["status"]) => void): void {
+  root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
+  const board = root.createDiv({ cls: "bt-kanban" });
+  for (const col of BOARD_STATUSES) {
+    const colEl = board.createDiv({ cls: "bt-kanban-col" });
+    colEl.dataset.status = col.id;
+    setupColumnDnd(colEl, col.id, plugin);
+
+    const head = colEl.createDiv({ cls: "bt-kanban-head" });
+    head.createSpan({ cls: "bt-kanban-dot" });
+    head.createSpan({ cls: "bt-kanban-title", text: statusLabel(col.id) });
+    const colTasks = sortColumn(tasks.filter((tk) => tk.status === col.id), col.kind);
+    head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
+
+    const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true });
+
+    const add = colEl.createDiv({ cls: "bt-kanban-add" });
+    add.createSpan({ cls: "bt-add-icon" });
+    add.createSpan({ text: t("btn_add_task") });
+    add.onclick = () => addInStatus(col.id);
+  }
 }
 
 function groupLabel(dateISO: string, today: string): string {
@@ -245,7 +349,7 @@ function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> 
   const walk = (tk: Task): void => {
     if (present.has(tk.path)) return;
     present.add(tk.path);
-    for (const kid of plugin.index.children(tk.path)) if (kid.status !== "cancelled") walk(kid);
+    for (const kid of plugin.index.children(tk.path)) if (!isCancelled(kid.status)) walk(kid);
   };
   for (const a of anchors) walk(a);
   return present;
@@ -301,21 +405,37 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
   });
 }
 
-function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false): void {
+function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
+  opts: { flat?: boolean; draggable?: boolean } = {}): void {
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
-  if (task.status === "done") row.addClass("is-done");
+  if (isDone(task.status)) row.addClass("is-done");
   if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);   // aus der Suche angesprungen? -> hervorheben + ins Bild scrollen
 
+  // Kanban-Karte: per HTML5-Drag zwischen Status-Spalten verschiebbar (Desktop).
+  if (opts.draggable && !trash) {
+    row.setAttr("draggable", "true");
+    row.addEventListener("dragstart", (e) => {
+      dragPath = task.path;
+      row.addClass("is-dragging");
+      e.dataTransfer?.setData("text/plain", task.path);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+    });
+    row.addEventListener("dragend", () => { dragPath = null; row.removeClass("is-dragging"); });
+  }
+
   const check = row.createDiv({ cls: "bt-check" });
-  if (trash) { check.addClass("bt-check-x"); setIcon(check, "minus"); }   // Papierkorb: Minus im Kreis
-  else if (task.status === "done") check.addClass("is-done");
-  // Priorität als farbiger Checkbox-Ring (wie altes BeautyTasks): höchste=rot, hoch=orange,
-  // mittel=blau; normal/niedrig neutral.
-  else if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
-  if (!trash) check.onclick = (e) => { e.stopPropagation(); void plugin.toggleDone(task); };
+  if (trash) { check.addClass("bt-check-x"); setIcon(check, "x"); }   // Papierkorb: × im Kreis (wie das x-circle-Status-Icon)
+  else if (isDone(task.status)) check.addClass("is-done");
+  else {
+    if (task.status === "doing") check.addClass("is-doing");   // halb gefüllt = In Arbeit
+    // Priorität als farbiger Checkbox-Ring (wie altes BeautyTasks): höchste=rot, hoch=orange,
+    // mittel=blau; normal/niedrig neutral. Ring + Füllung überlagern sich sauber.
+    if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
+  }
+  if (!trash) attachCheckActions(check, plugin, task);
 
   const body = row.createDiv({ cls: "bt-body" });
   renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
@@ -368,10 +488,57 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
   row.onclick = () => plugin.openEditTask(task);
 
-  // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb.
-  if (!trash) for (const kid of plugin.index.children(task.path)) {
-    if (kid.status !== "cancelled") renderTask(list, plugin, kid, today, depth + 1);
+  // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
+  // und nicht im flachen Kanban-Kartenmodus.
+  if (!trash && !opts.flat) for (const kid of plugin.index.children(task.path)) {
+    if (!isCancelled(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
   }
+}
+
+/** Checkbox-Interaktion: Links-Klick erledigt (⇄ offen); Rechtsklick/Long-Press öffnet das
+ *  Status-Menü. Der Long-Press deckt Mobile ab (dort gibt es keinen Rechtsklick). */
+function attachCheckActions(check: HTMLElement, plugin: BeautyTasksPlugin, task: Task): void {
+  let longFired = false;
+  check.onclick = (e) => {
+    e.stopPropagation();
+    if (longFired) { longFired = false; return; }   // Long-Press hat das Menü schon geöffnet
+    void plugin.toggleDone(task);
+  };
+  check.addEventListener("contextmenu", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    showStatusMenu(plugin, task, e.clientX, e.clientY);
+  });
+  // Touch: Long-Press (~500 ms) öffnet dasselbe Menü.
+  let timer: number | null = null;
+  const clear = () => { if (timer !== null) { window.clearTimeout(timer); timer = null; } };
+  check.addEventListener("touchstart", (e) => {
+    const p = e.touches[0];
+    const x = p.clientX, y = p.clientY;
+    longFired = false;
+    timer = window.setTimeout(() => { timer = null; longFired = true; showStatusMenu(plugin, task, x, y); }, 500);
+  }, { passive: true });
+  check.addEventListener("touchend", clear);
+  check.addEventListener("touchmove", clear);
+  check.addEventListener("touchcancel", clear);
+}
+
+/** Status-Kontextmenü der Checkbox: To-Do · In Arbeit · Erledigt · (Abbrechen → Papierkorb).
+ *  Setzt den Status live (setTaskStatus kümmert sich um Zeitstempel/Wiederholung). */
+function showStatusMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: number): void {
+  const menu = new Menu();
+  for (const s of STATUSES) {
+    if (s.kind === "cancelled") menu.addSeparator();   // Abbrechen von den Arbeits-Status trennen
+    menu.addItem((it) => {
+      it.setTitle(s.kind === "cancelled" ? t("menu_cancel_task") : statusLabel(s.id));
+      it.setIcon(STATUS_ICON[s.id]);
+      it.setChecked(task.status === s.id);
+      it.onClick(() => {
+        if (s.kind === "cancelled") void plugin.cancelTask(task);
+        else void plugin.setTaskStatus(task, s.id);
+      });
+    });
+  }
+  menu.showAtPosition({ x, y });
 }
 
 function openPath(plugin: BeautyTasksPlugin, path: string): void {

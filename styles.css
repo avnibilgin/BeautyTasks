@@ -404,6 +404,10 @@ body {
 .bt-task-modal .bt-chip-x { display: inline-flex; opacity: 0.5; margin-left: 1px; }
 .bt-task-modal .bt-chip-x svg { width: 13px; height: 13px; }
 .bt-task-modal .bt-chip-x:hover { opacity: 1; }
+/* Status-Chip: Icon nach Status einfärben (To-Do neutral, In Arbeit Akzent, Erledigt grün). */
+.bt-task-modal .bt-chip-status .bt-chip-ic { color: var(--text-muted); }
+.bt-task-modal .bt-chip-status[data-status="doing"] .bt-chip-ic { color: var(--interactive-accent); }
+.bt-task-modal .bt-chip-status[data-status="done"] .bt-chip-ic { color: var(--color-green, #4caf50); }
 
 /* Icon-only-Modus (Einstellung „Kompakte Chips"): leere Options-Chips zeigen nur das Icon
    als quadratischen Button, der Name (Text) wird ausgeblendet und erscheint als Tooltip.
@@ -745,13 +749,24 @@ body {
   position: relative;
 }
 .bt-check:hover { border-color: var(--text-muted); }
-/* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben). */
-.bt-check:not(.is-done):hover::after {
+/* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben, nicht bei „in Arbeit"). */
+.bt-check:not(.is-done):not(.is-doing):hover::after {
   content: ""; position: absolute; inset: 3px;
   background-color: var(--text-muted);
   -webkit-mask: var(--bt-check) center / 100% no-repeat;
   mask: var(--bt-check) center / 100% no-repeat;
 }
+/* „In Arbeit": halb gefüllter Kreis (Linear-Stil) – Füllung innen (Akzent), Rand bleibt
+   für die Prioritätsfarbe frei. Rechte Hälfte per clip-path abgeschnitten → LINKS gefüllt. */
+.bt-check.is-doing::after {
+  content: ""; position: absolute; inset: 2px;
+  border-radius: 50%;
+  background-color: var(--interactive-accent);
+  clip-path: inset(0 50% 0 0);
+}
+/* Das Status-Icon „In Arbeit" (Lucide `contrast`) füllt standardmäßig die RECHTE Hälfte.
+   Spiegeln, damit die gefüllte Seite – wie bei der Checkbox oben – LINKS liegt (Chip + Menü). */
+.lucide-contrast { transform: scaleX(-1); }
 /* Priorität: farbiger Checkbox-Ring (wie altes BeautyTasks). */
 .bt-check[data-prio="highest"] { border-color: var(--bt-prio-1); box-shadow: 0 0 0 1px var(--bt-prio-1); }
 .bt-check[data-prio="high"]    { border-color: var(--bt-prio-2); box-shadow: 0 0 0 1px var(--bt-prio-2); }
@@ -1027,4 +1042,54 @@ body {
 .bt-lightbox .bt-lb-counter {
   position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.85); font-size: 0.85em; letter-spacing: 0.03em;
+}
+
+/* ── Board-Kopf + Layout-Umschalter (Liste ⇆ Kanban) ── */
+.bt-view .bt-board-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bt-view .bt-board-head h1 { margin: 6px 0 2px; }
+.bt-layout-toggle { margin: 6px 0 2px; flex-shrink: 0; }
+.bt-layout-toggle .bt-tab { display: inline-flex; align-items: center; gap: 5px; }
+.bt-layout-toggle .bt-tab-ic { display: inline-flex; }
+.bt-layout-toggle .bt-tab-ic svg { width: 14px; height: 14px; }
+
+/* ── Kanban-Board (Spalten = Status) ── */
+/* Board nutzt volle Pane-Breite statt der Lesebreite (die Liste bleibt schmal). */
+.bt-view .bt-sizer.bt-sizer-board { max-width: calc(100% - 48px); }
+.bt-kanban { display: flex; align-items: flex-start; gap: 14px; overflow-x: auto; padding: 10px 2px 16px; }
+.bt-kanban-col {
+  flex: 0 0 300px; width: 300px;
+  display: flex; flex-direction: column; max-height: calc(100vh - 220px);
+  background: var(--background-secondary); border: 1px solid var(--bt-line);
+  border-radius: 10px; padding: 10px;
+}
+.bt-kanban-col.is-drop { border-color: var(--interactive-accent); background: hsla(var(--interactive-accent-hsl), 0.06); }
+.bt-kanban-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
+.bt-kanban-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.bt-kanban-col[data-status="doing"] .bt-kanban-dot { background: var(--color-blue, #4b8bf5); }
+.bt-kanban-col[data-status="done"] .bt-kanban-dot { background: var(--color-green, #4caf50); }
+.bt-kanban-title { font-weight: 600; font-size: var(--font-ui-small); color: var(--text-normal); }
+.bt-kanban-count { margin-left: auto; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.bt-kanban-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 40px; overflow-y: auto; }
+
+/* Karten: kompakte Kacheln statt Listenzeilen (keine Trennlinie, eigener Rahmen). */
+.bt-kanban-list .bt-task {
+  background: var(--background-primary); border: 1px solid var(--bt-line-faint);
+  border-radius: 8px; padding: 8px 10px; cursor: grab;
+}
+.bt-kanban-list .bt-task:hover { background: var(--background-primary); border-color: var(--bt-line); }
+.bt-kanban-list .bt-task::after { display: none; }
+.bt-kanban-list .bt-task:active { cursor: grabbing; }
+.bt-kanban-list .bt-task.is-dragging { opacity: 0.45; }
+
+.bt-kanban-add {
+  display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 4px;
+  color: var(--text-muted); font-size: var(--font-ui-small); cursor: pointer; border-radius: 6px;
+}
+.bt-kanban-add:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+
+/* Mobil / schmale Pane: Spalten vertikal stapeln statt nebeneinander scrollen. */
+@media (max-width: 700px) {
+  .bt-view .bt-sizer.bt-sizer-board { max-width: calc(100% - 24px); }
+  .bt-kanban { flex-direction: column; overflow-x: visible; }
+  .bt-kanban-col { flex: 1 1 auto; width: 100%; max-height: none; }
 }

@@ -38,6 +38,7 @@ var DEFAULT_SETTINGS = {
   lastView: "heute",
   parseNaturalLanguage: true,
   chipsIconsOnly: false,
+  boardLayout: "list",
   reminderLastScan: 0,
   didInitialSetup: false
 };
@@ -49,6 +50,13 @@ var STRINGS = {
     view_upcoming: "Upcoming",
     view_recurring: "Recurring",
     view_done: "Done",
+    status_todo: "To-Do",
+    status_doing: "In progress",
+    status_done: "Done",
+    status_cancelled: "Cancelled",
+    layout_list: "List",
+    layout_board: "Board",
+    menu_cancel_task: "Cancel task",
     nav_inbox: "Inbox",
     group_area: "Areas",
     group_project: "Projects",
@@ -245,6 +253,13 @@ var STRINGS = {
     view_upcoming: "Demn\xE4chst",
     view_recurring: "Wiederkehrend",
     view_done: "Erledigt",
+    status_todo: "To-Do",
+    status_doing: "In Arbeit",
+    status_done: "Erledigt",
+    status_cancelled: "Abgebrochen",
+    layout_list: "Liste",
+    layout_board: "Board",
+    menu_cancel_task: "Abbrechen",
     nav_inbox: "Eingang",
     group_area: "Bereiche",
     group_project: "Projekte",
@@ -457,6 +472,30 @@ function t(key, ...args) {
 function projectDisplayName(name) {
   return name && /^(inbox|eingang)$/i.test(name) ? t("nav_inbox") : name ?? "";
 }
+
+// src/statuses.ts
+var STATUSES = [
+  { id: "todo", labelKey: "status_todo", kind: "open" },
+  { id: "doing", labelKey: "status_doing", kind: "open" },
+  { id: "done", labelKey: "status_done", kind: "done" },
+  { id: "cancelled", labelKey: "status_cancelled", kind: "cancelled" }
+];
+var STATUS_ICON = {
+  todo: "circle",
+  doing: "contrast",
+  done: "check-circle",
+  cancelled: "x-circle"
+};
+var BY_ID = new Map(STATUSES.map((s) => [s.id, s]));
+var statusLabel = (id) => {
+  const d = BY_ID.get(id);
+  return d ? t(d.labelKey) : id;
+};
+var statusIds = () => STATUSES.map((s) => s.id);
+var isOpen = (s) => BY_ID.get(s)?.kind === "open";
+var isDone = (s) => BY_ID.get(s)?.kind === "done";
+var isCancelled = (s) => BY_ID.get(s)?.kind === "cancelled";
+var BOARD_STATUSES = STATUSES.filter((s) => s.kind !== "cancelled");
 
 // src/format.ts
 function todayStr() {
@@ -819,7 +858,7 @@ async function deleteProjectNote(app, path) {
 
 // src/taskIndex.ts
 var baseName = (p) => p.split("/").pop().replace(/\.md$/, "");
-var STATUS = /* @__PURE__ */ new Set(["todo", "doing", "done", "cancelled"]);
+var STATUS = new Set(statusIds());
 var PRIO = /* @__PURE__ */ new Set(["highest", "high", "medium", "normal", "low", "lowest"]);
 var asDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
 var asTime = (v) => {
@@ -988,7 +1027,7 @@ var TaskIndex = class extends import_obsidian2.Component {
    *  Sammelansichten, damit archivierte Projekte nirgends mehr auftauchen. */
   open() {
     const archived = this.archivedProjects();
-    return this.all().filter((t2) => (t2.status === "todo" || t2.status === "doing") && !(t2.project && archived.has(baseName(t2.project).toLowerCase())));
+    return this.all().filter((t2) => isOpen(t2.status) && !(t2.project && archived.has(baseName(t2.project).toLowerCase())));
   }
   /** True, wenn das Projekt (Basename) archiviert ist – für Ansichten/Zähler, die all() nutzen. */
   isProjectArchived(project) {
@@ -1878,6 +1917,7 @@ function nextInstance(task, today) {
 }
 
 // src/heuteView.ts
+var dragPath = null;
 var VIEW_PREFIX = "beautytasks-";
 var VIEW_IDS = ["heute", "demnaechst", "wiederkehrend", "erledigt"];
 var VIEW_MAIN = VIEW_PREFIX + "main";
@@ -2011,6 +2051,7 @@ function addBar(root, plugin, onAdd, section2, linkLabel) {
   add.createSpan({ cls: "bt-add-icon" });
   add.createSpan({ text: t("btn_add_task") });
   add.onclick = onAdd;
+  if (!section2 || !linkLabel) return;
   const link = bar.createDiv({ cls: "bt-board-link", attr: { role: "button", tabindex: "0", "aria-label": linkLabel } });
   const lic = link.createSpan({ cls: "bt-board-link-ic" });
   (0, import_obsidian7.setIcon)(lic, "arrow-left-square");
@@ -2024,22 +2065,27 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  root.createEl("h1", { text: projectDisplayName(name) });
+  boardHead(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }));
   const isArea = isAreaPath(plugin.app, projectPath);
-  addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
+  const isInbox2 = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+  if (isInbox2) addBar(root, plugin, () => plugin.openNewTask(name));
+  else addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
   const want = name;
   const tasks = plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === want);
-  const open = tasks.filter((t2) => t2.status === "todo" || t2.status === "doing");
+  const open = tasks.filter((t2) => isOpen(t2.status));
   const overdue = open.filter((t2) => t2.due && t2.due < today).sort(byDue);
   const dueToday = open.filter((t2) => t2.due === today);
   const upcoming = open.filter((t2) => t2.due && t2.due > today).sort(byDue);
   const noDate = open.filter((t2) => !t2.due);
-  const done = tasks.filter((t2) => t2.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  const done = tasks.filter((t2) => isDone(t2.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (!tasks.length) {
-    const isInbox2 = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
     if (isInbox2) emptyState(root, "inbox", "empty_no_inbox_tasks");
     else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
     else emptyState(root, "folder", "empty_no_project_tasks");
+    return;
+  }
+  if (plugin.settings.boardLayout === "board") {
+    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(name, void 0, false, status));
     return;
   }
   const present = renderedPaths(plugin, [...open, ...done]);
@@ -2055,17 +2101,21 @@ function renderLabelBoardInto(c, plugin, label) {
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  root.createEl("h1", { cls: "bt-label-title", text: "#" + label });
+  boardHead(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }));
   addBar(root, plugin, () => plugin.openNewTask(void 0, label), "labels", t("tab_labels"));
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
-  const open = tasks.filter((tk) => tk.status === "todo" || tk.status === "doing");
+  const open = tasks.filter((tk) => isOpen(tk.status));
   const overdue = open.filter((tk) => tk.due && tk.due < today).sort(byDue);
   const dueToday = open.filter((tk) => tk.due === today);
   const upcoming = open.filter((tk) => tk.due && tk.due > today).sort(byDue);
   const noDate = open.filter((tk) => !tk.due);
-  const done = tasks.filter((tk) => tk.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  const done = tasks.filter((tk) => isDone(tk.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (!tasks.length) {
     emptyState(root, "hash", "empty_no_label_tasks");
+    return;
+  }
+  if (plugin.settings.boardLayout === "board") {
+    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(void 0, label, false, status));
     return;
   }
   const present = renderedPaths(plugin, [...open, ...done]);
@@ -2074,6 +2124,71 @@ function renderLabelBoardInto(c, plugin, label) {
   if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
   if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
   if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+}
+function boardHead(root, plugin, titleEl) {
+  const head = root.createDiv({ cls: "bt-board-head" });
+  head.appendChild(titleEl);
+  layoutToggle(head, plugin);
+}
+function layoutToggle(parent, plugin) {
+  const seg = parent.createDiv({ cls: "bt-tabs bt-layout-toggle" });
+  const mk = (mode, label, icon) => {
+    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : "") });
+    (0, import_obsidian7.setIcon)(b.createSpan({ cls: "bt-tab-ic" }), icon);
+    b.createSpan({ text: label });
+    b.onclick = () => {
+      if (plugin.settings.boardLayout === mode) return;
+      plugin.settings.boardLayout = mode;
+      void plugin.saveSettings();
+      plugin.renderMain();
+    };
+  };
+  mk("list", t("layout_list"), "list");
+  mk("board", t("layout_board"), "layout-grid");
+}
+function sortColumn(list, kind) {
+  if (kind === "done") return list.sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
+}
+function setupColumnDnd(colEl, status, plugin) {
+  colEl.addEventListener("dragover", (e) => {
+    if (!dragPath) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    colEl.addClass("is-drop");
+  });
+  colEl.addEventListener("dragleave", (e) => {
+    if (!colEl.contains(e.relatedTarget)) colEl.removeClass("is-drop");
+  });
+  colEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    colEl.removeClass("is-drop");
+    const path = e.dataTransfer?.getData("text/plain") || dragPath;
+    dragPath = null;
+    if (!path) return;
+    const task = plugin.index.get(path);
+    if (task && task.status !== status) void plugin.setTaskStatus(task, status);
+  });
+}
+function renderKanbanBoard(root, plugin, tasks, today, addInStatus) {
+  root.addClass("bt-sizer-board");
+  const board = root.createDiv({ cls: "bt-kanban" });
+  for (const col of BOARD_STATUSES) {
+    const colEl = board.createDiv({ cls: "bt-kanban-col" });
+    colEl.dataset.status = col.id;
+    setupColumnDnd(colEl, col.id, plugin);
+    const head = colEl.createDiv({ cls: "bt-kanban-head" });
+    head.createSpan({ cls: "bt-kanban-dot" });
+    head.createSpan({ cls: "bt-kanban-title", text: statusLabel(col.id) });
+    const colTasks = sortColumn(tasks.filter((tk) => tk.status === col.id), col.kind);
+    head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
+    const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true });
+    const add = colEl.createDiv({ cls: "bt-kanban-add" });
+    add.createSpan({ cls: "bt-add-icon" });
+    add.createSpan({ text: t("btn_add_task") });
+    add.onclick = () => addInStatus(col.id);
+  }
 }
 function groupLabel(dateISO, today) {
   const lbl = formatDate(dateISO, today);
@@ -2086,7 +2201,7 @@ function renderedPaths(plugin, anchors) {
   const walk = (tk) => {
     if (present.has(tk.path)) return;
     present.add(tk.path);
-    for (const kid of plugin.index.children(tk.path)) if (kid.status !== "cancelled") walk(kid);
+    for (const kid of plugin.index.children(tk.path)) if (!isCancelled(kid.status)) walk(kid);
   };
   for (const a of anchors) walk(a);
   return present;
@@ -2138,23 +2253,36 @@ function renderLinkedText(el, plugin, text, sourcePath) {
     }
   });
 }
-function renderTask(list, plugin, task, today, depth, trash = false) {
+function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) {
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
-  if (task.status === "done") row.addClass("is-done");
+  if (isDone(task.status)) row.addClass("is-done");
   if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);
+  if (opts.draggable && !trash) {
+    row.setAttr("draggable", "true");
+    row.addEventListener("dragstart", (e) => {
+      dragPath = task.path;
+      row.addClass("is-dragging");
+      e.dataTransfer?.setData("text/plain", task.path);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+    });
+    row.addEventListener("dragend", () => {
+      dragPath = null;
+      row.removeClass("is-dragging");
+    });
+  }
   const check = row.createDiv({ cls: "bt-check" });
   if (trash) {
     check.addClass("bt-check-x");
-    (0, import_obsidian7.setIcon)(check, "minus");
-  } else if (task.status === "done") check.addClass("is-done");
-  else if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
-  if (!trash) check.onclick = (e) => {
-    e.stopPropagation();
-    void plugin.toggleDone(task);
-  };
+    (0, import_obsidian7.setIcon)(check, "x");
+  } else if (isDone(task.status)) check.addClass("is-done");
+  else {
+    if (task.status === "doing") check.addClass("is-doing");
+    if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
+  }
+  if (!trash) attachCheckActions(check, plugin, task);
   const body = row.createDiv({ cls: "bt-body" });
   renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
   if (plugin.settings.showDescriptionInList) {
@@ -2210,9 +2338,61 @@ function renderTask(list, plugin, task, today, depth, trash = false) {
     };
   }
   row.onclick = () => plugin.openEditTask(task);
-  if (!trash) for (const kid of plugin.index.children(task.path)) {
-    if (kid.status !== "cancelled") renderTask(list, plugin, kid, today, depth + 1);
+  if (!trash && !opts.flat) for (const kid of plugin.index.children(task.path)) {
+    if (!isCancelled(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
   }
+}
+function attachCheckActions(check, plugin, task) {
+  let longFired = false;
+  check.onclick = (e) => {
+    e.stopPropagation();
+    if (longFired) {
+      longFired = false;
+      return;
+    }
+    void plugin.toggleDone(task);
+  };
+  check.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showStatusMenu(plugin, task, e.clientX, e.clientY);
+  });
+  let timer = null;
+  const clear = () => {
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+  };
+  check.addEventListener("touchstart", (e) => {
+    const p = e.touches[0];
+    const x = p.clientX, y = p.clientY;
+    longFired = false;
+    timer = window.setTimeout(() => {
+      timer = null;
+      longFired = true;
+      showStatusMenu(plugin, task, x, y);
+    }, 500);
+  }, { passive: true });
+  check.addEventListener("touchend", clear);
+  check.addEventListener("touchmove", clear);
+  check.addEventListener("touchcancel", clear);
+}
+function showStatusMenu(plugin, task, x, y) {
+  const menu = new import_obsidian7.Menu();
+  for (const s of STATUSES) {
+    if (s.kind === "cancelled") menu.addSeparator();
+    menu.addItem((it) => {
+      it.setTitle(s.kind === "cancelled" ? t("menu_cancel_task") : statusLabel(s.id));
+      it.setIcon(STATUS_ICON[s.id]);
+      it.setChecked(task.status === s.id);
+      it.onClick(() => {
+        if (s.kind === "cancelled") void plugin.cancelTask(task);
+        else void plugin.setTaskStatus(task, s.id);
+      });
+    });
+  }
+  menu.showAtPosition({ x, y });
 }
 function openPath(plugin, path) {
   const f = plugin.app.vault.getAbstractFileByPath(path);
@@ -2714,7 +2894,7 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
       parent: existing.parent ? baseName2(existing.parent) : null,
       labels: [...existing.labels],
       reminders: [...existing.reminders ?? []]
-    } : { title: opts.defaultTitle ?? "", priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+    } : { title: opts.defaultTitle ?? "", status: opts.defaultStatus, priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
   }
   onOpen() {
     const { contentEl, modalEl } = this;
@@ -2820,6 +3000,14 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
   renderChips() {
     const bar = this.chipBar;
     bar.empty();
+    const cur = this.f.status ?? "todo";
+    const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
+    (0, import_obsidian9.setIcon)(statusChip.createSpan({ cls: "bt-chip-ic" }), STATUS_ICON[cur]);
+    statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
+    statusChip.onclick = (e) => {
+      e.stopPropagation();
+      this.openStatus(statusChip);
+    };
     this.addChip(
       bar,
       "calendar",
@@ -3210,6 +3398,28 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
         }, this.f.priority === p.value, p.color);
       }
     });
+  }
+  /** Status-Popover (To-Do · In Arbeit · Erledigt). Abbrechen/Papierkorb läuft über das
+   *  „+"-Aktionsmenü, nicht hier – dieses Popover bleibt auf die Arbeits-Status beschränkt. */
+  openStatus(anchor) {
+    openPopover(anchor, (pop, close) => {
+      for (const s of BOARD_STATUSES) {
+        popRow(pop, STATUS_ICON[s.id], statusLabel(s.id), () => {
+          void this.applyStatus(s.id);
+          close();
+        }, (this.f.status ?? "todo") === s.id);
+      }
+    });
+  }
+  /** Status übernehmen. Bei bestehender Aufgabe live schreiben (setTaskStatus kümmert sich
+   *  um Zeitstempel/Wiederholung); bei neuer Aufgabe fließt f.status beim Anlegen ein. */
+  async applyStatus(status) {
+    this.f.status = status;
+    if (this.existing) {
+      await this.plugin.setTaskStatus(this.existing, status);
+      this.existing.status = status;
+    }
+    this.renderChips();
   }
   openRecur(anchor) {
     openPopover(anchor, (pop, close) => {
@@ -4681,8 +4891,8 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     this.renderAll();
   }
   // ── Aufgaben-Aktionen ──
-  openNewTask(project, label, today = false) {
-    new TaskModal(this, void 0, project, { defaultLabel: label, defaultToday: today }).open();
+  openNewTask(project, label, today = false, status) {
+    new TaskModal(this, void 0, project, { defaultLabel: label, defaultToday: today, defaultStatus: status }).open();
   }
   openEditTask(task) {
     new TaskModal(this, task).open();
@@ -4750,15 +4960,27 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
       else delete fm.duration;
     });
   }
+  /** Checkbox-Umschalten: erledigt ⇄ offen. Delegiert an setTaskStatus, damit die
+   *  Erledigt-Semantik (Zeitstempel, Wiederholung) an EINER Stelle lebt. */
   async toggleDone(task) {
+    await this.setTaskStatus(task, isDone(task.status) ? "todo" : "done");
+  }
+  /** Status setzen (Frontmatter). Beim Wechsel nach „erledigt" wird `completed`
+   *  gestempelt und – falls wiederkehrend – die nächste Instanz angelegt (wie das
+   *  Tasks-Plugin). Beim Verlassen von „erledigt" wird der Stempel entfernt. Basis
+   *  für Checkbox UND Kanban-Drag; `cancelled` läuft weiter über cancelTask. */
+  async setTaskStatus(task, status) {
+    if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof import_obsidian13.TFile)) return;
-    const done = task.status !== "done";
+    const wasDone = isDone(task.status);
+    const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
-      fm.status = done ? "done" : "todo";
-      fm.completed = done ? localStamp() : null;
+      fm.status = status;
+      if (nowDone && !wasDone) fm.completed = localStamp();
+      else if (wasDone && !nowDone) fm.completed = null;
     });
-    if (done && task.recurrence) {
+    if (nowDone && !wasDone && task.recurrence) {
       const next = nextInstance(task, todayStr());
       if (next && (next.due || next.scheduled)) {
         await createTaskNote(this.app, this.settings, {
