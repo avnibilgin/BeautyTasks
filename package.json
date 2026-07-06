@@ -1,6 +1,6 @@
 {
   "name": "beautytasks",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "description": "BeautyTasks – Obsidian task & project system (note per task, no plugin dependencies).",
   "main": "main.js",
   "scripts": {
