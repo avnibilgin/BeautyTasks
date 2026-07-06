@@ -749,23 +749,19 @@ body {
   position: relative;
 }
 .bt-check:hover { border-color: var(--text-muted); }
-/* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben, nicht bei „in Arbeit"). */
-.bt-check:not(.is-done):not(.is-doing):hover::after {
+/* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben ohne Status-Icon). */
+.bt-check:not(.is-done):not(.bt-check-status):hover::after {
   content: ""; position: absolute; inset: 3px;
   background-color: var(--text-muted);
   -webkit-mask: var(--bt-check) center / 100% no-repeat;
   mask: var(--bt-check) center / 100% no-repeat;
 }
-/* „In Arbeit": halb gefüllter Kreis (Linear-Stil) – Füllung innen (Akzent), Rand bleibt
-   für die Prioritätsfarbe frei. Rechte Hälfte per clip-path abgeschnitten → LINKS gefüllt. */
-.bt-check.is-doing::after {
-  content: ""; position: absolute; inset: 2px;
-  border-radius: 50%;
-  background-color: var(--interactive-accent);
-  clip-path: inset(0 50% 0 0);
-}
-/* Das Status-Icon „In Arbeit" (Lucide `contrast`) füllt standardmäßig die RECHTE Hälfte.
-   Spiegeln, damit die gefüllte Seite – wie bei der Checkbox oben – LINKS liegt (Chip + Menü). */
+/* Offene Phase (außer To-Do): Status-Icon in der Status-Farbe im Ring – generalisiert für
+   beliebige (auch user-definierte) Status. „In Arbeit" nutzt das halb gefüllte `contrast`. */
+.bt-check.bt-check-status { display: inline-flex; align-items: center; justify-content: center; }
+.bt-check.bt-check-status svg { width: 11px; height: 11px; color: var(--bt-status-col, var(--interactive-accent)); }
+/* Das `contrast`-Icon füllt standardmäßig die RECHTE Hälfte – spiegeln, damit die gefüllte
+   Seite überall (Checkbox, Chip, Menü, Editor) LINKS liegt. */
 .lucide-contrast { transform: scaleX(-1); }
 /* Priorität: farbiger Checkbox-Ring (wie altes BeautyTasks). */
 .bt-check[data-prio="highest"] { border-color: var(--bt-prio-1); box-shadow: 0 0 0 1px var(--bt-prio-1); }

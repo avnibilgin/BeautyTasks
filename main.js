@@ -2458,7 +2458,12 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
     (0, import_obsidian7.setIcon)(check, "x");
   } else if (isDone(task.status)) check.addClass("is-done");
   else {
-    if (task.status === "doing") check.addClass("is-doing");
+    if (task.status !== firstOpenStatus()) {
+      check.addClass("bt-check-status");
+      (0, import_obsidian7.setIcon)(check, statusIcon(task.status));
+      const col = statusColor(task.status);
+      if (col) check.style.setProperty("--bt-status-col", col);
+    }
     if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
   }
   if (!trash) attachCheckActions(check, plugin, task);

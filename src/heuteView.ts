@@ -6,7 +6,7 @@ import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
-import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, StatusKind } from "./statuses";
+import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
 // Transienter Zustand während eines Kanban-Drags (Pfad der gezogenen Karte).
@@ -446,9 +446,15 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   if (trash) { check.addClass("bt-check-x"); setIcon(check, "x"); }   // Papierkorb: × im Kreis (wie das x-circle-Status-Icon)
   else if (isDone(task.status)) check.addClass("is-done");
   else {
-    if (task.status === "doing") check.addClass("is-doing");   // halb gefüllt = In Arbeit
+    // Jede offene Phase außer der ersten (To-Do = leerer Kreis) zeigt ihr Icon in ihrer Farbe.
+    if (task.status !== firstOpenStatus()) {
+      check.addClass("bt-check-status");
+      setIcon(check, statusIcon(task.status));
+      const col = statusColor(task.status);
+      if (col) check.style.setProperty("--bt-status-col", col);
+    }
     // Priorität als farbiger Checkbox-Ring (wie altes BeautyTasks): höchste=rot, hoch=orange,
-    // mittel=blau; normal/niedrig neutral. Ring + Füllung überlagern sich sauber.
+    // mittel=blau; normal/niedrig neutral. Ring + Status-Icon überlagern sich sauber.
     if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
   }
   if (!trash) attachCheckActions(check, plugin, task);
