@@ -1954,7 +1954,7 @@ function statusRow(list, plugin, s, i, n, redraw) {
   const cnt = plugin.statusTaskCount(s.id);
   if (cnt) row.createSpan({ cls: "bt-manage-count", text: String(cnt) });
   const actions = row.createDiv({ cls: "bt-manage-actions" });
-  const kindBtn = actions.createEl("button", { cls: "bt-status-kind", text: t(KIND_KEY[s.kind]) });
+  const kindBtn = actions.createEl("button", { cls: "bt-tab bt-status-kind", text: t(KIND_KEY[s.kind]) });
   kindBtn.onclick = (e) => {
     e.stopPropagation();
     openKindPicker(kindBtn, plugin, s);

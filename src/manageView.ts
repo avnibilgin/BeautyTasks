@@ -231,7 +231,7 @@ function statusRow(list: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus
 
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   // kind-Pill → Popover mit den drei Arten.
-  const kindBtn = actions.createEl("button", { cls: "bt-status-kind", text: t(KIND_KEY[s.kind]) });
+  const kindBtn = actions.createEl("button", { cls: "bt-tab bt-status-kind", text: t(KIND_KEY[s.kind]) });
   kindBtn.onclick = (e) => { e.stopPropagation(); openKindPicker(kindBtn, plugin, s); };
   // Icon- und Farb-Picker.
   const iconB = iconBtn(actions, "shapes", t("status_pick_icon"), () => openIconPicker(iconB, plugin, s));

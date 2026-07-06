@@ -1099,12 +1099,9 @@ body {
 .bt-status-move .bt-manage-btn:disabled { opacity: 0.3; cursor: default; }
 .bt-status-dot { display: inline-flex; flex-shrink: 0; color: var(--bt-status-col, var(--text-muted)); }
 .bt-status-dot svg { width: 16px; height: 16px; }
-/* Wie die Kategorie-Tabs (.bt-tab): dezenter 6px-Radius statt Voll-Pille – konsistent zur App. */
-.bt-status-kind {
-  cursor: pointer; padding: 4px 12px; border-radius: 6px; font-size: var(--font-ui-small); box-shadow: none;
-  border: 1px solid var(--background-modifier-border); background: transparent; color: var(--text-muted);
-}
-.bt-status-kind:hover { color: var(--text-normal); border-color: var(--text-muted); }
+/* Der Kind-Button IST ein .bt-tab (erbt Rahmen, 6px-Radius und Schatten der Kopf-Tabs) –
+   hier nur etwas kompakter und ohne den Aktiv-Akzent. */
+.bt-view .bt-status-kind { padding: 3px 12px; }
 
 /* Icon-/Farb-Picker-Popover. min-width:0 + width:max-content überschreiben die 190px des
    Basis-Popovers, damit das Raster genau zu seinen festen Spalten passt (kein Quetschen). */
