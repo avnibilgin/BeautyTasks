@@ -2041,6 +2041,7 @@ function applyReadableWidth(c, plugin) {
 var byDue = (a, b) => (a.due ?? "").localeCompare(b.due ?? "");
 var projectName = (path) => path.split("/").pop().replace(/\.md$/, "");
 function emptyState(root, icon, key) {
+  root.addClass("is-empty");
   const box = root.createDiv({ cls: "bt-empty" });
   (0, import_obsidian7.setIcon)(box.createDiv({ cls: "bt-empty-ic" }), icon);
   box.createDiv({ cls: "bt-empty-text", text: t(key) });
@@ -2212,6 +2213,7 @@ function section(parent, plugin, title, tasks, today, collapsible = false, trash
   head.createSpan({ cls: "bt-section-count", text: String(top.length) });
   const list = sec.createDiv({ cls: "bt-list" });
   for (const task of top) renderTask(list, plugin, task, today, 0, trash);
+  annotateSubtaskTree(list);
   if (collapsible) {
     sec.addClass("bt-collapsible");
     const chev = head.createSpan({ cls: "bt-collapse-ic" });
@@ -2224,6 +2226,17 @@ function section(parent, plugin, title, tasks, today, collapsible = false, trash
       plugin.doneCollapsed = !plugin.doneCollapsed;
       apply();
     };
+  }
+}
+function annotateSubtaskTree(list) {
+  const rows = Array.from(list.children);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row.hasClass("bt-task")) continue;
+    const next = rows[i + 1];
+    const nextIsSub = !!next && next.hasClass("bt-task") && next.hasClass("bt-subtask");
+    if (row.hasClass("bt-subtask")) row.toggleClass("bt-last-sub", !nextIsSub);
+    else row.toggleClass("bt-has-sub", nextIsSub);
   }
 }
 var LINK_MARKERS = /\[\[|]\(|https?:\/\/|obsidian:\/\//;

@@ -299,10 +299,10 @@ body {
 }
 
 /* Einheitlicher Leerzustand aller Boards: zentriert im verbleibenden Board-Raum, Icon +
-   Text in Akzentfarbe. Position/Style sind bewusst überall gleich. Das :has()-Regel macht
-   den Sizer nur dann zur zentrierenden Flex-Spalte, wenn ausschließlich der Leerzustand
-   (kein Task/Section) darin steht – volle Boards bleiben unberührt. */
-.bt-view .bt-sizer:has(> .bt-empty) {
+   Text in Akzentfarbe. Position/Style sind bewusst überall gleich. Die Klasse `.is-empty`
+   (von emptyState() gesetzt) macht den Sizer zur zentrierenden Flex-Spalte – nur im
+   Leerzustand, volle Boards bleiben unberührt. (Bewusst kein :has – breite Invalidierung.) */
+.bt-view .bt-sizer.is-empty {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 140px);
@@ -801,13 +801,13 @@ body {
 
 /* Keine Trennlinie zwischen Hauptaufgabe und ihren Unteraufgaben: Parent + Kinder lesen
    sich als ein Block. Trifft nur die oberste Ebene (Parent), nicht Subtask→Subtask. */
-.bt-task:not(.bt-subtask):has(+ .bt-subtask)::after { display: none; }
+.bt-task.bt-has-sub::after { display: none; }
 
 /* Rail bis zur Hauptaufgaben-Checkbox hochziehen: Segment auf der Parent-Zeile, von 4px
    unter der Checkbox (top: 28px = padding 6 + margin 2 + Checkbox 16 + 4px Abstand, gleicher
    Abstand wie der Subtask-Haken zur Checkbox) bis zum Zeilenende. Fluchtet mit der Subtask-
    Rail (beide bei absolut 10px = Checkbox-Mitte); bottom:0 macht es höhenunabhängig. */
-.bt-task:not(.bt-subtask):has(+ .bt-subtask)::before {
+.bt-task.bt-has-sub::before {
   content: ""; position: absolute; pointer-events: none;
   left: 10px; top: 28px; bottom: 0;
   border-left: 1.5px solid var(--background-modifier-border);
@@ -827,8 +827,8 @@ body {
   border-top: 1.5px solid var(--background-modifier-border);
 }
 /* Letztes Kind: Rail endet an der Ecke (└) und eine dezente Linie schließt die Gruppe ab. */
-.bt-task.bt-subtask:not(:has(+ .bt-subtask))::before { bottom: auto; height: 16.5px; }
-.bt-task.bt-subtask:not(:has(+ .bt-subtask)) { border-bottom: 1px solid var(--bt-line-faint); }
+.bt-task.bt-subtask.bt-last-sub::before { bottom: auto; height: 16.5px; }
+.bt-task.bt-subtask.bt-last-sub { border-bottom: 1px solid var(--bt-line-faint); }
 
 /* C – gedämpfter Titel: Hauptaufgaben treten hervor, Unteraufgaben zurück. */
 .bt-task.bt-subtask .bt-title { color: var(--text-muted); }

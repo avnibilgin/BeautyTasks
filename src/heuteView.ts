@@ -142,6 +142,7 @@ export const projectName = (path: string): string => path.split("/").pop()!.repl
 /** Einheitlicher Leerzustand für alle Boards: zentriert im Restraum, Icon + Text (Akzentfarbe).
  *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css. */
 function emptyState(root: HTMLElement, icon: string, key: string): void {
+  root.addClass("is-empty");   // zentriert den Leerzustand (ersetzt :has(> .bt-empty))
   const box = root.createDiv({ cls: "bt-empty" });
   setIcon(box.createDiv({ cls: "bt-empty-ic" }), icon);
   box.createDiv({ cls: "bt-empty-text", text: t(key) });
@@ -365,6 +366,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
   for (const task of top) renderTask(list, plugin, task, today, 0, trash);
+  annotateSubtaskTree(list);
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
@@ -373,6 +375,22 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
     const apply = () => { sec.toggleClass("is-collapsed", plugin.doneCollapsed); setIcon(chev, plugin.doneCollapsed ? "chevron-right" : "chevron-down"); };
     apply();
     head.onclick = () => { plugin.doneCollapsed = !plugin.doneCollapsed; apply(); };
+  }
+}
+
+/** Subtask-Baum-Marker in EINEM Durchlauf setzen (statt Nachbar-`:has` in CSS, das breite
+ *  Invalidierung auslöst): pro Liste die Zeilen durchgehen und
+ *  - `bt-has-sub`  auf eine Hauptaufgabe, direkt gefolgt von einer Unteraufgabe (Rail + keine Trennlinie),
+ *  - `bt-last-sub` auf eine Unteraufgabe, der KEINE weitere folgt (└-Ecke + Abschlusslinie). */
+function annotateSubtaskTree(list: HTMLElement): void {
+  const rows = Array.from(list.children) as HTMLElement[];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row.hasClass("bt-task")) continue;
+    const next = rows[i + 1];
+    const nextIsSub = !!next && next.hasClass("bt-task") && next.hasClass("bt-subtask");
+    if (row.hasClass("bt-subtask")) row.toggleClass("bt-last-sub", !nextIsSub);
+    else row.toggleClass("bt-has-sub", nextIsSub);
   }
 }
 
