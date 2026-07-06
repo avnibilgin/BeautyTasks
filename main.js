@@ -4875,7 +4875,6 @@ var BeautyTasksPlugin = class extends import_obsidian14.Plugin {
     this.addRibbonIcon("check-circle", t("ribbon_open"), () => void this.openBeautyTasks());
     this.addSettingTab(new BeautyTasksSettingTab(this.app, this));
     this.registerEvent(this.app.workspace.on("layout-change", () => this.renderAll()));
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderAll()));
     this.addCommand({ id: "open", name: t("ribbon_open"), callback: () => void this.openBeautyTasks() });
     for (const id of VIEW_IDS) {
       this.addCommand({ id: "open-" + id, name: t("cmd_open_view", viewTitle(id)), callback: () => void this.activateView(id) });

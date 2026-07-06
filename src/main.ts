@@ -80,8 +80,11 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addSettingTab(new BeautyTasksSettingTab(this.app, this));
 
     // Layout-/Tab-Wechsel: u. a. wenn Obsidian eine aufgeschobene View endlich anhängt.
+    // Bewusst KEIN active-leaf-change-Redraw: der feuert auf dem fokusverschiebenden
+    // mousedown beim Wechsel zwischen Nav- und Main-Leaf und würde c.empty() mitten in
+    // der Klick-Geste ausführen -> das Klickziel verschwindet vor mouseup, der erste Klick
+    // im neuen Bereich geht verloren. Badges/Inhalte bleiben via index.subscribe aktuell.
     this.registerEvent(this.app.workspace.on("layout-change", () => this.renderAll()));
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderAll()));
 
     this.addCommand({ id: "open", name: t("ribbon_open"), callback: () => void this.openBeautyTasks() });
     for (const id of VIEW_IDS) {
