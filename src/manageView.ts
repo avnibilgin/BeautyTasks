@@ -1,7 +1,7 @@
 import { setIcon, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { listManaged, ProjItem } from "./taskService";
-import { statusLabel, statusIcon, statusColor, StatusKind, StoredStatus } from "./statuses";
+import { statusLabel, statusIcon, statusTint, StatusKind, StoredStatus } from "./statuses";
 import { openPopover } from "./popover";
 import { t } from "./i18n";
 
@@ -221,8 +221,7 @@ function statusRow(list: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus
   // Vorschau: Icon in der Status-Farbe – genau wie später auf dem Board.
   const dot = row.createSpan({ cls: "bt-status-dot" });
   setIcon(dot, statusIcon(s.id));
-  const col = statusColor(s.id);
-  if (col) dot.style.setProperty("--bt-status-col", col);
+  dot.style.color = statusTint(s.id);
 
   const name = row.createSpan({ cls: "bt-manage-name bt-status-name", text: statusLabel(s.id) });
   name.onclick = () => startStatusRename(row, plugin, s, redraw);

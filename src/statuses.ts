@@ -53,3 +53,15 @@ export const boardStatuses = (): StoredStatus[] => CURRENT.filter((s) => s.kind 
 export const firstOpenStatus = (): string => CURRENT.find((s) => s.kind === "open")?.id ?? "todo";
 /** Erster erledigt-Status (Fallback "done"). */
 export const firstDoneStatus = (): string => CURRENT.find((s) => s.kind === "done")?.id ?? "done";
+
+/** Effektive Anzeigefarbe (Board-Punkt · Checkbox · Chip · Editor-Vorschau). Eigene Farbe,
+ *  sonst Vorgabe nach Art: erste offene Phase neutral · weitere offen = Akzent · erledigt =
+ *  grün · abgebrochen = rot. So sind Defaults stimmig UND jede Farbe im Editor überschreibbar. */
+export function statusTint(id: string): string {
+  const d = BY_ID.get(id);
+  if (d?.color) return d.color;
+  if (!d) return "var(--interactive-accent)";
+  if (d.kind === "done") return "var(--color-green, #4caf50)";
+  if (d.kind === "cancelled") return "var(--color-red, #e05c4a)";
+  return id === firstOpenStatus() ? "var(--text-muted)" : "var(--interactive-accent)";
+}

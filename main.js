@@ -535,6 +535,14 @@ var isCancelled = (s) => BY_ID.get(s)?.kind === "cancelled";
 var boardStatuses = () => CURRENT.filter((s) => s.kind !== "cancelled");
 var firstOpenStatus = () => CURRENT.find((s) => s.kind === "open")?.id ?? "todo";
 var firstDoneStatus = () => CURRENT.find((s) => s.kind === "done")?.id ?? "done";
+function statusTint(id) {
+  const d = BY_ID.get(id);
+  if (d?.color) return d.color;
+  if (!d) return "var(--interactive-accent)";
+  if (d.kind === "done") return "var(--color-green, #4caf50)";
+  if (d.kind === "cancelled") return "var(--color-red, #e05c4a)";
+  return id === firstOpenStatus() ? "var(--text-muted)" : "var(--interactive-accent)";
+}
 
 // src/format.ts
 function todayStr() {
@@ -1940,8 +1948,7 @@ function statusRow(list, plugin, s, i, n, redraw) {
   if (i === n - 1) down.disabled = true;
   const dot = row.createSpan({ cls: "bt-status-dot" });
   (0, import_obsidian6.setIcon)(dot, statusIcon(s.id));
-  const col = statusColor(s.id);
-  if (col) dot.style.setProperty("--bt-status-col", col);
+  dot.style.color = statusTint(s.id);
   const name = row.createSpan({ cls: "bt-manage-name bt-status-name", text: statusLabel(s.id) });
   name.onclick = () => startStatusRename(row, plugin, s, redraw);
   const cnt = plugin.statusTaskCount(s.id);
@@ -2345,7 +2352,7 @@ function renderKanbanBoard(root, plugin, tasks, today, addInStatus) {
     colEl.dataset.status = col.id;
     setupColumnDnd(colEl, col.id, plugin);
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
-    head.createSpan({ cls: "bt-kanban-dot" });
+    head.createSpan({ cls: "bt-kanban-dot" }).style.background = statusTint(col.id);
     head.createSpan({ cls: "bt-kanban-title", text: statusLabel(col.id) });
     const colTasks = sortColumn(tasks.filter((tk) => tk.status === col.id), col.kind);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
@@ -2456,13 +2463,21 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   if (trash) {
     check.addClass("bt-check-x");
     (0, import_obsidian7.setIcon)(check, "x");
-  } else if (isDone(task.status)) check.addClass("is-done");
-  else {
+  } else if (isDone(task.status)) {
+    check.addClass("is-done");
+    const c = statusColor(task.status);
+    if (c) {
+      check.style.backgroundColor = c;
+      check.style.borderColor = c;
+    }
+  } else {
     if (task.status !== firstOpenStatus()) {
       check.addClass("bt-check-status");
       (0, import_obsidian7.setIcon)(check, statusIcon(task.status));
-      const col = statusColor(task.status);
-      if (col) check.style.setProperty("--bt-status-col", col);
+      check.style.setProperty("--bt-status-col", statusTint(task.status));
+    } else {
+      const c = statusColor(task.status);
+      if (c) check.style.borderColor = c;
     }
     if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
   }
@@ -3186,7 +3201,9 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
     bar.empty();
     const cur = this.f.status ?? "todo";
     const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
-    (0, import_obsidian9.setIcon)(statusChip.createSpan({ cls: "bt-chip-ic" }), statusIcon(cur));
+    const sic = statusChip.createSpan({ cls: "bt-chip-ic" });
+    (0, import_obsidian9.setIcon)(sic, statusIcon(cur));
+    sic.style.color = statusTint(cur);
     statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
     statusChip.onclick = (e) => {
       e.stopPropagation();

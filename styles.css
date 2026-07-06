@@ -404,10 +404,7 @@ body {
 .bt-task-modal .bt-chip-x { display: inline-flex; opacity: 0.5; margin-left: 1px; }
 .bt-task-modal .bt-chip-x svg { width: 13px; height: 13px; }
 .bt-task-modal .bt-chip-x:hover { opacity: 1; }
-/* Status-Chip: Icon nach Status einfärben (To-Do neutral, In Arbeit Akzent, Erledigt grün). */
-.bt-task-modal .bt-chip-status .bt-chip-ic { color: var(--text-muted); }
-.bt-task-modal .bt-chip-status[data-status="doing"] .bt-chip-ic { color: var(--interactive-accent); }
-.bt-task-modal .bt-chip-status[data-status="done"] .bt-chip-ic { color: var(--color-green, #4caf50); }
+/* Status-Chip: Icon-Farbe kommt inline aus statusTint() (folgt der Editor-Einstellung). */
 
 /* Icon-only-Modus (Einstellung „Kompakte Chips"): leere Options-Chips zeigen nur das Icon
    als quadratischen Button, der Name (Text) wird ausgeblendet und erscheint als Tooltip.
@@ -1066,8 +1063,6 @@ body {
 .bt-kanban-col.is-drop { border-color: var(--interactive-accent); background: hsla(var(--interactive-accent-hsl), 0.06); }
 .bt-kanban-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
 .bt-kanban-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
-.bt-kanban-col[data-status="doing"] .bt-kanban-dot { background: var(--color-blue, #4b8bf5); }
-.bt-kanban-col[data-status="done"] .bt-kanban-dot { background: var(--color-green, #4caf50); }
 .bt-kanban-title { font-weight: 600; font-size: var(--font-ui-small); color: var(--text-normal); }
 .bt-kanban-count { margin-left: auto; color: var(--text-faint); font-size: var(--font-ui-smaller); }
 .bt-kanban-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 40px; overflow-y: auto; }
@@ -1110,17 +1105,29 @@ body {
 }
 .bt-status-kind:hover { color: var(--text-normal); border-color: var(--text-muted); }
 
-/* Icon-/Farb-Picker-Popover */
-.bt-pop.bt-icon-grid, .bt-pop.bt-color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; }
-.bt-icon-cell, .bt-color-cell {
-  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
-  border-radius: 6px; border: 1px solid transparent; background: transparent; box-shadow: none; cursor: pointer; color: var(--text-normal);
+/* Icon-/Farb-Picker-Popover. min-width:0 + width:max-content überschreiben die 190px des
+   Basis-Popovers, damit das Raster genau zu seinen festen Spalten passt (kein Quetschen). */
+.bt-pop.bt-icon-grid, .bt-pop.bt-color-grid { min-width: 0; width: max-content; display: grid; gap: 6px; padding: 8px; }
+.bt-pop.bt-icon-grid { grid-template-columns: repeat(4, 36px); }
+.bt-pop.bt-color-grid { grid-template-columns: repeat(4, 30px); justify-items: center; align-items: center; }
+
+.bt-pop .bt-icon-cell {
+  width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px; border: 1px solid var(--background-modifier-border); background: var(--background-primary);
+  box-shadow: none; cursor: pointer; color: var(--text-normal);
 }
-.bt-icon-cell:hover, .bt-color-cell:hover { background: var(--background-modifier-hover); }
-.bt-icon-cell.is-active { border-color: var(--interactive-accent); color: var(--interactive-accent); }
-.bt-icon-cell svg { width: 17px; height: 17px; }
-.bt-color-cell { position: relative; }
-.bt-color-cell::after { content: ""; width: 18px; height: 18px; border-radius: 50%; background: var(--bt-swatch, transparent); }
-.bt-color-cell.is-active { border-color: var(--interactive-accent); }
-.bt-color-none::after { display: none; }
-.bt-color-none svg { width: 16px; height: 16px; color: var(--text-faint); }
+.bt-pop .bt-icon-cell:hover { background: var(--background-modifier-hover); }
+.bt-pop .bt-icon-cell.is-active { border-color: var(--interactive-accent); color: var(--interactive-accent); }
+.bt-pop .bt-icon-cell svg, .bt-pop .bt-icon-cell .svg-icon { width: 20px; height: 20px; }
+
+/* Runde Farbkreise: Button selbst ist die Fläche (gleiche Breite/Höhe + 50 %). */
+.bt-pop .bt-color-cell {
+  width: 26px; height: 26px; padding: 0; border-radius: 50%; box-shadow: none; cursor: pointer;
+  border: 2px solid transparent; background: var(--bt-swatch, transparent);
+}
+.bt-pop .bt-color-cell.is-active { border-color: var(--text-normal); box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 3px var(--interactive-accent); }
+.bt-pop .bt-color-none {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--background-primary); border: 1px solid var(--background-modifier-border);
+}
+.bt-pop .bt-color-none svg, .bt-pop .bt-color-none .svg-icon { width: 15px; height: 15px; color: var(--text-faint); }

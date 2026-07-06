@@ -4,7 +4,7 @@ import { Task, Priority, TaskStatus } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, todayIso, ensureFolder, TaskFields } from "./taskService";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
 import { openPopover, popRow } from "./popover";
-import { boardStatuses, statusLabel, statusIcon } from "./statuses";
+import { boardStatuses, statusLabel, statusIcon, statusTint } from "./statuses";
 import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { parseQuickEntry } from "./quickEntry";
@@ -187,7 +187,9 @@ export class TaskModal extends Modal {
     // die Auswahl. Kein „x" – Status ist nie leer. Immer als is-set (Label bleibt sichtbar).
     const cur = this.f.status ?? "todo";
     const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
-    setIcon(statusChip.createSpan({ cls: "bt-chip-ic" }), statusIcon(cur));
+    const sic = statusChip.createSpan({ cls: "bt-chip-ic" });
+    setIcon(sic, statusIcon(cur));
+    sic.style.color = statusTint(cur);
     statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
     statusChip.onclick = (e) => { e.stopPropagation(); this.openStatus(statusChip); };
 
