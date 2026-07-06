@@ -1,11 +1,10 @@
 import { App, Component, TFile } from "obsidian";
-import { Task, TaskStatus, Priority } from "./types";
+import { Task, Priority } from "./types";
 import { splitContent } from "./detailLog";
 import { archivedProjectNames } from "./taskService";
-import { statusIds, isOpen } from "./statuses";
+import { isKnownStatus, isOpen } from "./statuses";
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
-const STATUS = new Set<string>(statusIds());   // gültige Status = Registry (statuses.ts)
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
 const asDate = (v: unknown): string | null =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
@@ -115,7 +114,7 @@ export class TaskIndex extends Component {
       path: f.path,
       // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
       title: cache?.headings?.[0]?.heading ?? f.basename,
-      status: (typeof fm.status === "string" && STATUS.has(fm.status) ? fm.status : "todo") as TaskStatus,
+      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : "todo",
       priority: (typeof fm.priority === "string" && PRIO.has(fm.priority) ? fm.priority : "normal") as Priority,
       due: asDate(fm.due),
       dueTime: asTime(fm.due),

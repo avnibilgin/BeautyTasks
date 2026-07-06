@@ -1,5 +1,27 @@
-export type TaskStatus = "todo" | "doing" | "done" | "cancelled";
+// Status-Id: die eingebauten als Literale (für Autocomplete/Guards), plus beliebige
+// user-definierte Ids. `(string & {})` hält die Literal-Hinweise, erlaubt aber jeden String.
+export type TaskStatus = "todo" | "doing" | "done" | "cancelled" | (string & {});
 export type Priority = "highest" | "high" | "medium" | "normal" | "low" | "lowest";
+
+/** Art eines Status – steuert Verhalten (nicht nur die Spalte):
+ *  open = aktive Phase · done = terminal (Zeitstempel/Wiederholung/Ausblenden) · cancelled = Papierkorb. */
+export type StatusKind = "open" | "done" | "cancelled";
+
+/** Seitenleisten-Sektionen mit sortierbarer Reihenfolge. */
+export type NavSection = "projects" | "areas" | "labels";
+/** Sortiermodus einer Sektion: manuelle Reihenfolge · alphabetisch · nach Aufgabenzahl. */
+export type NavSortMode = "manual" | "name" | "count";
+
+/** Gespeicherte Status-Definition (in settings.statuses). Eingebaute nutzen `labelKey` (i18n),
+ *  user-definierte `label` (wörtlich). `icon`/`color` optional (sonst Default nach kind). */
+export interface StoredStatus {
+  id: string;
+  labelKey?: string;
+  label?: string;
+  kind: StatusKind;
+  icon?: string;
+  color?: string;
+}
 
 export interface Task {
   id: string;
@@ -39,8 +61,12 @@ export interface BeautyTasksSettings {
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
   boardLayout: "list" | "board";   // Projekt-/Label-Boards als Liste oder Kanban (Spalten = Status)
+  statuses?: StoredStatus[];        // user-definierbare Status (undefined = eingebaute Defaults, siehe statuses.ts)
+  navSort?: Record<NavSection, NavSortMode>;    // Sortiermodus je Seitenleisten-Sektion (Default "name")
+  navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
   didInitialSetup: boolean;        // intern: Erst-Setup (Inbox anlegen) einmalig gelaufen
+  lastSeenVersion?: string;        // intern: zuletzt im „Neu"-Modal gezeigte Plugin-Version
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {

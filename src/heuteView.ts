@@ -6,7 +6,7 @@ import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
-import { isOpen, isDone, isCancelled, STATUSES, BOARD_STATUSES, statusLabel, STATUS_ICON, StatusKind } from "./statuses";
+import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
 // Transienter Zustand während eines Kanban-Drags (Pfad der gezogenen Karte).
@@ -301,7 +301,7 @@ function setupColumnDnd(colEl: HTMLElement, status: string, plugin: BeautyTasksP
     dragPath = null;
     if (!path) return;
     const task = plugin.index.get(path);
-    if (task && task.status !== status) void plugin.setTaskStatus(task, status as Task["status"]);
+    if (task && task.status !== status) void plugin.setTaskStatus(task, status);
   });
 }
 
@@ -311,13 +311,13 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   addInStatus: (status: Task["status"]) => void): void {
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
   const board = root.createDiv({ cls: "bt-kanban" });
-  for (const col of BOARD_STATUSES) {
+  for (const col of boardStatuses()) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.status = col.id;
     setupColumnDnd(colEl, col.id, plugin);
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
-    head.createSpan({ cls: "bt-kanban-dot" });
+    head.createSpan({ cls: "bt-kanban-dot" }).style.background = statusTint(col.id);
     head.createSpan({ cls: "bt-kanban-title", text: statusLabel(col.id) });
     const colTasks = sortColumn(tasks.filter((tk) => tk.status === col.id), col.kind);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
@@ -444,11 +444,23 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
 
   const check = row.createDiv({ cls: "bt-check" });
   if (trash) { check.addClass("bt-check-x"); setIcon(check, "x"); }   // Papierkorb: × im Kreis (wie das x-circle-Status-Icon)
-  else if (isDone(task.status)) check.addClass("is-done");
+  else if (isDone(task.status)) {
+    check.addClass("is-done");
+    const c = statusColor(task.status);
+    if (c) { check.style.backgroundColor = c; check.style.borderColor = c; }   // eigene Farbe, sonst Default-Grau
+  }
   else {
-    if (task.status === "doing") check.addClass("is-doing");   // halb gefüllt = In Arbeit
+    // Jede offene Phase außer der ersten (To-Do = leerer Kreis) zeigt ihr Icon in ihrer Farbe.
+    if (task.status !== firstOpenStatus()) {
+      check.addClass("bt-check-status");
+      setIcon(check, statusIcon(task.status));
+      check.style.setProperty("--bt-status-col", statusTint(task.status));
+    } else {
+      const c = statusColor(task.status);
+      if (c) check.style.borderColor = c;   // To-Do: Ring nur tönen, wenn eine eigene Farbe gesetzt ist
+    }
     // Priorität als farbiger Checkbox-Ring (wie altes BeautyTasks): höchste=rot, hoch=orange,
-    // mittel=blau; normal/niedrig neutral. Ring + Füllung überlagern sich sauber.
+    // mittel=blau; normal/niedrig neutral. Ring + Status-Icon überlagern sich sauber.
     if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
   }
   if (!trash) attachCheckActions(check, plugin, task);
@@ -542,11 +554,11 @@ function attachCheckActions(check: HTMLElement, plugin: BeautyTasksPlugin, task:
  *  Setzt den Status live (setTaskStatus kümmert sich um Zeitstempel/Wiederholung). */
 function showStatusMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: number): void {
   const menu = new Menu();
-  for (const s of STATUSES) {
+  for (const s of allStatuses()) {
     if (s.kind === "cancelled") menu.addSeparator();   // Abbrechen von den Arbeits-Status trennen
     menu.addItem((it) => {
       it.setTitle(s.kind === "cancelled" ? t("menu_cancel_task") : statusLabel(s.id));
-      it.setIcon(STATUS_ICON[s.id]);
+      it.setIcon(statusIcon(s.id));
       it.setChecked(task.status === s.id);
       it.onClick(() => {
         if (s.kind === "cancelled") void plugin.cancelTask(task);
@@ -679,12 +691,12 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Bereiche: Header „+" legt eine Notiz direkt als Bereich (type: area) an.
   const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), t("placeholder_area_name"), redraw,
     (v) => plugin.createProject(v, true));
-  if (!areasCollapsed) projItems(bereiche, "bt-nav-area");
+  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
 
   // Projekte: Header „+" legt ein neues Projekt an.
   const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), t("placeholder_project_name"), redraw,
     (v) => plugin.createProject(v));
-  if (!projCollapsed) projItems(projekte, "bt-nav-project");
+  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
 
   // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });

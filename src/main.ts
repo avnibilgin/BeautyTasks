@@ -1,6 +1,6 @@
 import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus } from "./types";
-import { isDone } from "./statuses";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
+import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -9,13 +9,14 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
 import { t, setLocale } from "./i18n";
 import { BeautyTasksSettingTab } from "./settingsTab";
 import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
+import { WhatsNewModal } from "./whatsNew";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -25,7 +26,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentLabel: string | null = null;                   // aktives Label-Board
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
-  manageSection: "projects" | "areas" | "labels" = "projects";    // obere Ebene
+  manageSection: "projects" | "areas" | "labels" | "statuses" = "projects";    // obere Ebene
   manageTab: "active" | "archive" = "active";           // Unterteilung nur bei Projekten
   doneTab: "done" | "trash" = "done";                   // „Erledigt"-Ansicht: Liste vs. Papierkorb
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
@@ -45,6 +46,9 @@ export default class BeautyTasksPlugin extends Plugin {
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
     this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(async () => {
+      // Vor dem Erst-Setup merken, ob es ein bestehender Nutzer ist und welche Version zuletzt lief.
+      const wasExisting = this.settings.didInitialSetup;
+      const prevVersion = this.settings.lastSeenVersion;
       // Leafs alter Sitzungen (pro-Ansicht-Typen) aufräumen.
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
@@ -59,6 +63,12 @@ export default class BeautyTasksPlugin extends Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
+      // „Neu"-Modal nur für bestehende Nutzer bei echtem Versionswechsel (nicht bei Erstinstallation).
+      if (wasExisting && prevVersion !== this.manifest.version) new WhatsNewModal(this).open();
+      if (this.settings.lastSeenVersion !== this.manifest.version) {
+        this.settings.lastSeenVersion = this.manifest.version;
+        await this.saveSettings();
+      }
     });
     // Alle 30 s prüfen, welche Erinnerungen im Fenster (letzter Scan, jetzt] fällig wurden.
     this.registerInterval(window.setInterval(() => this.scanReminders(), 30_000));
@@ -168,7 +178,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
 
   /** Aus der Suche gewählte Aufgabe in ihrer Liste zeigen: zum Projekt-/Inbox-Board
    *  (bzw. passenden Datums-/Erledigt-View) springen und die Zeile kurz hervorheben
@@ -341,10 +351,67 @@ export default class BeautyTasksPlugin extends Plugin {
 
   // ── Label-Sichtbarkeit in der Seitenleiste (Default: aus) ──
   isLabelVisible(name: string): boolean { return this.settings.visibleLabels.includes(name); }
-  /** Sichtbar geschaltete Labels, die es noch gibt (alphabetisch). */
+  /** Sichtbar geschaltete Labels, die es noch gibt – in der eingestellten Reihenfolge. */
   getVisibleLabels(): string[] {
     const exist = new Set(this.getLabels().map((l) => l.name));
-    return this.settings.visibleLabels.filter((n) => exist.has(n)).sort((a, b) => a.localeCompare(b, "de"));
+    const raw = this.settings.visibleLabels.filter((n) => exist.has(n)).map((n) => ({ name: n }));
+    return this.orderNav("labels", raw, (x) => x.name, (x) => x.name).map((x) => x.name);
+  }
+
+  // ── Seitenleisten-Sortierung (Projekte/Bereiche/Labels) ──
+  navSortMode(sec: NavSection): NavSortMode { return this.settings.navSort?.[sec] ?? "name"; }
+  async setNavSort(sec: NavSection, mode: NavSortMode): Promise<void> {
+    const cur = this.settings.navSort ?? { projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode };
+    cur[sec] = mode;
+    this.settings.navSort = cur;
+    await this.saveSettings();
+    this.renderAll();
+  }
+  private navCount(sec: NavSection, key: string): number {
+    return sec === "labels" ? this.index.byLabel(key).length : this.index.byProject(key).length;
+  }
+  /** Liste nach dem aktiven Modus sortieren: Name (alphabetisch) · Anzahl (viele zuerst) · Manuell. */
+  private orderNav<T>(sec: NavSection, items: T[], keyOf: (t: T) => string, nameOf: (t: T) => string): T[] {
+    const mode = this.navSortMode(sec);
+    const arr = [...items];
+    const byName = (a: T, b: T) => nameOf(a).localeCompare(nameOf(b), "de");
+    if (mode === "count") return arr.sort((a, b) => this.navCount(sec, keyOf(b)) - this.navCount(sec, keyOf(a)) || byName(a, b));
+    if (mode === "manual") {
+      const order = this.settings.navOrder?.[sec] ?? [];
+      const idx = new Map(order.map((k, i) => [k, i] as const));
+      return arr.sort((a, b) => ((idx.get(keyOf(a)) ?? Infinity) - (idx.get(keyOf(b)) ?? Infinity)) || byName(a, b));
+    }
+    return arr.sort(byName);
+  }
+  /** Projekte/Bereiche in eingestellter Reihenfolge – für Seitenleiste UND ListManager. */
+  sortProjItems(sec: "projects" | "areas", items: ProjItem[]): ProjItem[] {
+    return this.orderNav(sec, items, (p) => p.path, (p) => p.name);
+  }
+  /** Label-Liste (Manager) in eingestellter Reihenfolge. */
+  sortLabels<T extends { name: string }>(items: T[]): T[] {
+    return this.orderNav("labels", items, (x) => x.name, (x) => x.name);
+  }
+  /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
+  private currentNavKeys(sec: NavSection): string[] {
+    if (sec === "labels") {
+      const items = this.getLabels().map((l) => ({ name: l.name }));
+      return this.orderNav("labels", items, (x) => x.name, (x) => x.name).map((x) => x.name);
+    }
+    const wantType = sec === "areas" ? "area" : "project";
+    const items = listManaged(this.app).active.filter((p) => p.type === wantType);
+    return this.sortProjItems(sec, items).map((p) => p.path);
+  }
+  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
+  async moveNavItem(sec: NavSection, key: string, dir: -1 | 1): Promise<void> {
+    const keys = this.currentNavKeys(sec);
+    const i = keys.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [] };
+    order[sec] = keys;
+    this.settings.navOrder = order;
+    await this.saveSettings();
+    this.renderAll();
   }
   // ── Nav-Abschnitte ein-/ausklappen (Zustand persistent, beim Neustart wiederhergestellt) ──
   isNavCollapsed(id: string): boolean { return !!this.settings.navCollapsed[id]; }
@@ -362,6 +429,101 @@ export default class BeautyTasksPlugin extends Plugin {
     this.settings.visibleLabels = visible ? [...this.settings.visibleLabels, name] : this.settings.visibleLabels.filter((x) => x !== name);
     await this.saveSettings();
     this.renderAll();
+  }
+
+  // ── Status-Verwaltung (user-definierbare Status) ──
+  /** Mutierbare Status-Liste; materialisiert beim ersten Edit die eingebauten Defaults. */
+  private statusList(): StoredStatus[] {
+    if (!this.settings.statuses) this.settings.statuses = DEFAULT_STATUSES.map((s) => ({ ...s }));
+    return this.settings.statuses;
+  }
+  getStatuses(): StoredStatus[] { return this.statusList(); }
+  /** Wie viele Aufgaben tragen diesen Status (für Löschen-Umzug/Anzeige). */
+  statusTaskCount(id: string): number { return this.index.all().filter((tk) => tk.status === id).length; }
+
+  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. */
+  private async commitStatuses(): Promise<void> {
+    initStatuses(this.settings.statuses);
+    await this.saveSettings();
+    this.index.build();
+    this.renderAll();
+  }
+
+  async addStatus(label: string): Promise<void> {
+    const name = label.trim();
+    if (!name) return;
+    const list = this.statusList();
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "status";
+    let id = base, n = 2;
+    while (list.some((s) => s.id === id)) id = base + "-" + n++;
+    const entry: StoredStatus = { id, label: name, kind: "open", icon: "circle" };
+    // vor dem cancelled-Status einsortieren, damit der Papierkorb-Status hinten bleibt.
+    const cancelAt = list.findIndex((s) => s.kind === "cancelled");
+    if (cancelAt >= 0) list.splice(cancelAt, 0, entry); else list.push(entry);
+    await this.commitStatuses();
+  }
+
+  async renameStatus(id: string, label: string): Promise<void> {
+    const name = label.trim();
+    if (!name) return;
+    const s = this.statusList().find((x) => x.id === id);
+    if (!s) return;
+    delete s.labelKey;   // umbenannter Eingebauter wird zu literalem Label
+    s.label = name;
+    await this.commitStatuses();
+  }
+
+  async setStatusKind(id: string, kind: StatusKind): Promise<void> {
+    const list = this.statusList();
+    const s = list.find((x) => x.id === id);
+    if (!s || s.kind === kind) return;
+    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
+    s.kind = kind;
+    await this.commitStatuses();
+  }
+
+  async setStatusIcon(id: string, icon: string): Promise<void> {
+    const s = this.statusList().find((x) => x.id === id);
+    if (!s) return;
+    s.icon = icon;
+    await this.commitStatuses();
+  }
+
+  async setStatusColor(id: string, color: string | null): Promise<void> {
+    const s = this.statusList().find((x) => x.id === id);
+    if (!s) return;
+    if (color) s.color = color; else delete s.color;
+    await this.commitStatuses();
+  }
+
+  async moveStatus(id: string, dir: -1 | 1): Promise<void> {
+    const list = this.statusList();
+    const i = list.findIndex((s) => s.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await this.commitStatuses();
+  }
+
+  /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
+   *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
+  async deleteStatus(id: string): Promise<void> {
+    const list = this.statusList();
+    const s = list.find((x) => x.id === id);
+    if (!s) return;
+    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
+    if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) { new Notice(t("status_need_open")); return; }
+    // Ersatz gleicher Art (sonst irgendein offener), aber nie der zu löschende selbst.
+    const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id
+      ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
+    const affected = this.index.all().filter((tk) => tk.status === id);
+    for (const tk of affected) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = target; });
+    }
+    this.settings.statuses = list.filter((x) => x.id !== id);
+    await this.commitStatuses();
+    if (affected.length) new Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
 
   // ── Aufgaben-Aktionen ──
@@ -425,7 +587,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Checkbox-Umschalten: erledigt ⇄ offen. Delegiert an setTaskStatus, damit die
    *  Erledigt-Semantik (Zeitstempel, Wiederholung) an EINER Stelle lebt. */
   async toggleDone(task: Task): Promise<void> {
-    await this.setTaskStatus(task, isDone(task.status) ? "todo" : "done");
+    await this.setTaskStatus(task, isDone(task.status) ? firstOpenStatus() : firstDoneStatus());
   }
 
   /** Status setzen (Frontmatter). Beim Wechsel nach „erledigt" wird `completed`
@@ -529,6 +691,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (saved?.chipsIconsOnly === undefined && Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
+    initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
 }
