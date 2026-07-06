@@ -6,7 +6,7 @@ import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
-import { isOpen, isDone, isCancelled, STATUSES, BOARD_STATUSES, statusLabel, STATUS_ICON, StatusKind } from "./statuses";
+import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
 // Transienter Zustand während eines Kanban-Drags (Pfad der gezogenen Karte).
@@ -301,7 +301,7 @@ function setupColumnDnd(colEl: HTMLElement, status: string, plugin: BeautyTasksP
     dragPath = null;
     if (!path) return;
     const task = plugin.index.get(path);
-    if (task && task.status !== status) void plugin.setTaskStatus(task, status as Task["status"]);
+    if (task && task.status !== status) void plugin.setTaskStatus(task, status);
   });
 }
 
@@ -311,7 +311,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   addInStatus: (status: Task["status"]) => void): void {
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
   const board = root.createDiv({ cls: "bt-kanban" });
-  for (const col of BOARD_STATUSES) {
+  for (const col of boardStatuses()) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.status = col.id;
     setupColumnDnd(colEl, col.id, plugin);
@@ -542,11 +542,11 @@ function attachCheckActions(check: HTMLElement, plugin: BeautyTasksPlugin, task:
  *  Setzt den Status live (setTaskStatus kümmert sich um Zeitstempel/Wiederholung). */
 function showStatusMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: number): void {
   const menu = new Menu();
-  for (const s of STATUSES) {
+  for (const s of allStatuses()) {
     if (s.kind === "cancelled") menu.addSeparator();   // Abbrechen von den Arbeits-Status trennen
     menu.addItem((it) => {
       it.setTitle(s.kind === "cancelled" ? t("menu_cancel_task") : statusLabel(s.id));
-      it.setIcon(STATUS_ICON[s.id]);
+      it.setIcon(statusIcon(s.id));
       it.setChecked(task.status === s.id);
       it.onClick(() => {
         if (s.kind === "cancelled") void plugin.cancelTask(task);

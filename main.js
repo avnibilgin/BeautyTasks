@@ -474,28 +474,36 @@ function projectDisplayName(name) {
 }
 
 // src/statuses.ts
-var STATUSES = [
-  { id: "todo", labelKey: "status_todo", kind: "open" },
-  { id: "doing", labelKey: "status_doing", kind: "open" },
-  { id: "done", labelKey: "status_done", kind: "done" },
-  { id: "cancelled", labelKey: "status_cancelled", kind: "cancelled" }
+var KIND_ICON = { open: "circle", done: "check-circle", cancelled: "x-circle" };
+var DEFAULT_STATUSES = [
+  { id: "todo", labelKey: "status_todo", kind: "open", icon: "circle" },
+  { id: "doing", labelKey: "status_doing", kind: "open", icon: "contrast" },
+  { id: "done", labelKey: "status_done", kind: "done", icon: "check-circle" },
+  { id: "cancelled", labelKey: "status_cancelled", kind: "cancelled", icon: "x-circle" }
 ];
-var STATUS_ICON = {
-  todo: "circle",
-  doing: "contrast",
-  done: "check-circle",
-  cancelled: "x-circle"
-};
-var BY_ID = new Map(STATUSES.map((s) => [s.id, s]));
+var CURRENT = DEFAULT_STATUSES;
+var BY_ID = new Map(CURRENT.map((s) => [s.id, s]));
+function initStatuses(list) {
+  CURRENT = list && list.length ? list : DEFAULT_STATUSES;
+  BY_ID = new Map(CURRENT.map((s) => [s.id, s]));
+}
+var allStatuses = () => CURRENT;
+var isKnownStatus = (id) => BY_ID.has(id);
 var statusLabel = (id) => {
   const d = BY_ID.get(id);
-  return d ? t(d.labelKey) : id;
+  if (!d) return id;
+  return d.labelKey ? t(d.labelKey) : d.label ?? id;
 };
-var statusIds = () => STATUSES.map((s) => s.id);
+var statusIcon = (id) => {
+  const d = BY_ID.get(id);
+  return d?.icon ?? (d ? KIND_ICON[d.kind] : "circle");
+};
 var isOpen = (s) => BY_ID.get(s)?.kind === "open";
 var isDone = (s) => BY_ID.get(s)?.kind === "done";
 var isCancelled = (s) => BY_ID.get(s)?.kind === "cancelled";
-var BOARD_STATUSES = STATUSES.filter((s) => s.kind !== "cancelled");
+var boardStatuses = () => CURRENT.filter((s) => s.kind !== "cancelled");
+var firstOpenStatus = () => CURRENT.find((s) => s.kind === "open")?.id ?? "todo";
+var firstDoneStatus = () => CURRENT.find((s) => s.kind === "done")?.id ?? "done";
 
 // src/format.ts
 function todayStr() {
@@ -858,7 +866,6 @@ async function deleteProjectNote(app, path) {
 
 // src/taskIndex.ts
 var baseName = (p) => p.split("/").pop().replace(/\.md$/, "");
-var STATUS = new Set(statusIds());
 var PRIO = /* @__PURE__ */ new Set(["highest", "high", "medium", "normal", "low", "lowest"]);
 var asDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
 var asTime = (v) => {
@@ -977,7 +984,7 @@ var TaskIndex = class extends import_obsidian2.Component {
       path: f.path,
       // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
       title: cache?.headings?.[0]?.heading ?? f.basename,
-      status: typeof fm.status === "string" && STATUS.has(fm.status) ? fm.status : "todo",
+      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : "todo",
       priority: typeof fm.priority === "string" && PRIO.has(fm.priority) ? fm.priority : "normal",
       due: asDate(fm.due),
       dueTime: asTime(fm.due),
@@ -2172,7 +2179,7 @@ function setupColumnDnd(colEl, status, plugin) {
 function renderKanbanBoard(root, plugin, tasks, today, addInStatus) {
   root.addClass("bt-sizer-board");
   const board = root.createDiv({ cls: "bt-kanban" });
-  for (const col of BOARD_STATUSES) {
+  for (const col of boardStatuses()) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.status = col.id;
     setupColumnDnd(colEl, col.id, plugin);
@@ -2391,11 +2398,11 @@ function attachCheckActions(check, plugin, task) {
 }
 function showStatusMenu(plugin, task, x, y) {
   const menu = new import_obsidian7.Menu();
-  for (const s of STATUSES) {
+  for (const s of allStatuses()) {
     if (s.kind === "cancelled") menu.addSeparator();
     menu.addItem((it) => {
       it.setTitle(s.kind === "cancelled" ? t("menu_cancel_task") : statusLabel(s.id));
-      it.setIcon(STATUS_ICON[s.id]);
+      it.setIcon(statusIcon(s.id));
       it.setChecked(task.status === s.id);
       it.onClick(() => {
         if (s.kind === "cancelled") void plugin.cancelTask(task);
@@ -3013,7 +3020,7 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
     bar.empty();
     const cur = this.f.status ?? "todo";
     const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
-    (0, import_obsidian9.setIcon)(statusChip.createSpan({ cls: "bt-chip-ic" }), STATUS_ICON[cur]);
+    (0, import_obsidian9.setIcon)(statusChip.createSpan({ cls: "bt-chip-ic" }), statusIcon(cur));
     statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
     statusChip.onclick = (e) => {
       e.stopPropagation();
@@ -3414,8 +3421,8 @@ var TaskModal = class _TaskModal extends import_obsidian9.Modal {
    *  „+"-Aktionsmenü, nicht hier – dieses Popover bleibt auf die Arbeits-Status beschränkt. */
   openStatus(anchor) {
     openPopover(anchor, (pop, close) => {
-      for (const s of BOARD_STATUSES) {
-        popRow(pop, STATUS_ICON[s.id], statusLabel(s.id), () => {
+      for (const s of boardStatuses()) {
+        popRow(pop, statusIcon(s.id), statusLabel(s.id), () => {
           void this.applyStatus(s.id);
           close();
         }, (this.f.status ?? "todo") === s.id);
@@ -4974,7 +4981,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   /** Checkbox-Umschalten: erledigt ⇄ offen. Delegiert an setTaskStatus, damit die
    *  Erledigt-Semantik (Zeitstempel, Wiederholung) an EINER Stelle lebt. */
   async toggleDone(task) {
-    await this.setTaskStatus(task, isDone(task.status) ? "todo" : "done");
+    await this.setTaskStatus(task, isDone(task.status) ? firstOpenStatus() : firstDoneStatus());
   }
   /** Status setzen (Frontmatter). Beim Wechsel nach „erledigt" wird `completed`
    *  gestempelt und – falls wiederkehrend – die nächste Instanz angelegt (wie das
@@ -5078,6 +5085,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     if (saved?.chipsIconsOnly === void 0 && import_obsidian13.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
+    initStatuses(this.settings.statuses);
   }
   async saveSettings() {
     await this.saveData(this.settings);

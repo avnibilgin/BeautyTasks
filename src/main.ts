@@ -1,6 +1,6 @@
 import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus } from "./types";
-import { isDone } from "./statuses";
+import { isDone, initStatuses, firstOpenStatus, firstDoneStatus } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -425,7 +425,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Checkbox-Umschalten: erledigt ⇄ offen. Delegiert an setTaskStatus, damit die
    *  Erledigt-Semantik (Zeitstempel, Wiederholung) an EINER Stelle lebt. */
   async toggleDone(task: Task): Promise<void> {
-    await this.setTaskStatus(task, isDone(task.status) ? "todo" : "done");
+    await this.setTaskStatus(task, isDone(task.status) ? firstOpenStatus() : firstDoneStatus());
   }
 
   /** Status setzen (Frontmatter). Beim Wechsel nach „erledigt" wird `completed`
@@ -529,6 +529,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (saved?.chipsIconsOnly === undefined && Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
+    initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
 }
