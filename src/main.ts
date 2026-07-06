@@ -1,6 +1,6 @@
 import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus } from "./types";
-import { isDone, initStatuses, firstOpenStatus, firstDoneStatus } from "./statuses";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, StoredStatus, StatusKind } from "./types";
+import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -25,7 +25,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentLabel: string | null = null;                   // aktives Label-Board
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
-  manageSection: "projects" | "areas" | "labels" = "projects";    // obere Ebene
+  manageSection: "projects" | "areas" | "labels" | "statuses" = "projects";    // obere Ebene
   manageTab: "active" | "archive" = "active";           // Unterteilung nur bei Projekten
   doneTab: "done" | "trash" = "done";                   // „Erledigt"-Ansicht: Liste vs. Papierkorb
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
@@ -168,7 +168,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
 
   /** Aus der Suche gewählte Aufgabe in ihrer Liste zeigen: zum Projekt-/Inbox-Board
    *  (bzw. passenden Datums-/Erledigt-View) springen und die Zeile kurz hervorheben
@@ -362,6 +362,101 @@ export default class BeautyTasksPlugin extends Plugin {
     this.settings.visibleLabels = visible ? [...this.settings.visibleLabels, name] : this.settings.visibleLabels.filter((x) => x !== name);
     await this.saveSettings();
     this.renderAll();
+  }
+
+  // ── Status-Verwaltung (user-definierbare Status) ──
+  /** Mutierbare Status-Liste; materialisiert beim ersten Edit die eingebauten Defaults. */
+  private statusList(): StoredStatus[] {
+    if (!this.settings.statuses) this.settings.statuses = DEFAULT_STATUSES.map((s) => ({ ...s }));
+    return this.settings.statuses;
+  }
+  getStatuses(): StoredStatus[] { return this.statusList(); }
+  /** Wie viele Aufgaben tragen diesen Status (für Löschen-Umzug/Anzeige). */
+  statusTaskCount(id: string): number { return this.index.all().filter((tk) => tk.status === id).length; }
+
+  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. */
+  private async commitStatuses(): Promise<void> {
+    initStatuses(this.settings.statuses);
+    await this.saveSettings();
+    this.index.build();
+    this.renderAll();
+  }
+
+  async addStatus(label: string): Promise<void> {
+    const name = label.trim();
+    if (!name) return;
+    const list = this.statusList();
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "status";
+    let id = base, n = 2;
+    while (list.some((s) => s.id === id)) id = base + "-" + n++;
+    const entry: StoredStatus = { id, label: name, kind: "open", icon: "circle" };
+    // vor dem cancelled-Status einsortieren, damit der Papierkorb-Status hinten bleibt.
+    const cancelAt = list.findIndex((s) => s.kind === "cancelled");
+    if (cancelAt >= 0) list.splice(cancelAt, 0, entry); else list.push(entry);
+    await this.commitStatuses();
+  }
+
+  async renameStatus(id: string, label: string): Promise<void> {
+    const name = label.trim();
+    if (!name) return;
+    const s = this.statusList().find((x) => x.id === id);
+    if (!s) return;
+    delete s.labelKey;   // umbenannter Eingebauter wird zu literalem Label
+    s.label = name;
+    await this.commitStatuses();
+  }
+
+  async setStatusKind(id: string, kind: StatusKind): Promise<void> {
+    const list = this.statusList();
+    const s = list.find((x) => x.id === id);
+    if (!s || s.kind === kind) return;
+    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
+    s.kind = kind;
+    await this.commitStatuses();
+  }
+
+  async setStatusIcon(id: string, icon: string): Promise<void> {
+    const s = this.statusList().find((x) => x.id === id);
+    if (!s) return;
+    s.icon = icon;
+    await this.commitStatuses();
+  }
+
+  async setStatusColor(id: string, color: string | null): Promise<void> {
+    const s = this.statusList().find((x) => x.id === id);
+    if (!s) return;
+    if (color) s.color = color; else delete s.color;
+    await this.commitStatuses();
+  }
+
+  async moveStatus(id: string, dir: -1 | 1): Promise<void> {
+    const list = this.statusList();
+    const i = list.findIndex((s) => s.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await this.commitStatuses();
+  }
+
+  /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
+   *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
+  async deleteStatus(id: string): Promise<void> {
+    const list = this.statusList();
+    const s = list.find((x) => x.id === id);
+    if (!s) return;
+    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
+    if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) { new Notice(t("status_need_open")); return; }
+    // Ersatz gleicher Art (sonst irgendein offener), aber nie der zu löschende selbst.
+    const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id
+      ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
+    const affected = this.index.all().filter((tk) => tk.status === id);
+    for (const tk of affected) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = target; });
+    }
+    this.settings.statuses = list.filter((x) => x.id !== id);
+    await this.commitStatuses();
+    if (affected.length) new Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
 
   // ── Aufgaben-Aktionen ──

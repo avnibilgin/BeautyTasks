@@ -1098,3 +1098,33 @@ body {
   .bt-kanban { flex-direction: column; overflow-x: visible; }
   .bt-kanban-col { flex: 1 1 auto; width: 100%; max-height: none; }
 }
+
+/* ── Status-Editor (ListManager-Tab „Status") ── */
+.bt-view .bt-manage-hint { color: var(--text-faint); font-size: var(--font-ui-smaller); margin: 2px 2px 14px; }
+.bt-view .bt-status-row { gap: 8px; }
+.bt-status-move { display: inline-flex; flex-direction: column; flex-shrink: 0; }
+.bt-status-move .bt-manage-btn { padding: 0; height: 13px; box-shadow: none; }
+.bt-status-move .bt-manage-btn svg { width: 13px; height: 13px; }
+.bt-status-move .bt-manage-btn:disabled { opacity: 0.3; cursor: default; }
+.bt-status-dot { display: inline-flex; flex-shrink: 0; color: var(--bt-status-col, var(--text-muted)); }
+.bt-status-dot svg { width: 16px; height: 16px; }
+.bt-status-kind {
+  cursor: pointer; padding: 2px 10px; border-radius: 999px; font-size: var(--font-ui-smaller); box-shadow: none;
+  border: 1px solid var(--background-modifier-border); background: transparent; color: var(--text-muted);
+}
+.bt-status-kind:hover { color: var(--text-normal); border-color: var(--text-muted); }
+
+/* Icon-/Farb-Picker-Popover */
+.bt-pop.bt-icon-grid, .bt-pop.bt-color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; }
+.bt-icon-cell, .bt-color-cell {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 6px; border: 1px solid transparent; background: transparent; box-shadow: none; cursor: pointer; color: var(--text-normal);
+}
+.bt-icon-cell:hover, .bt-color-cell:hover { background: var(--background-modifier-hover); }
+.bt-icon-cell.is-active { border-color: var(--interactive-accent); color: var(--interactive-accent); }
+.bt-icon-cell svg { width: 17px; height: 17px; }
+.bt-color-cell { position: relative; }
+.bt-color-cell::after { content: ""; width: 18px; height: 18px; border-radius: 50%; background: var(--bt-swatch, transparent); }
+.bt-color-cell.is-active { border-color: var(--interactive-accent); }
+.bt-color-none::after { display: none; }
+.bt-color-none svg { width: 16px; height: 16px; color: var(--text-faint); }
