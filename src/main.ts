@@ -16,6 +16,7 @@ import { t, setLocale } from "./i18n";
 import { BeautyTasksSettingTab } from "./settingsTab";
 import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
+import { WhatsNewModal } from "./whatsNew";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -45,6 +46,9 @@ export default class BeautyTasksPlugin extends Plugin {
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
     this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(async () => {
+      // Vor dem Erst-Setup merken, ob es ein bestehender Nutzer ist und welche Version zuletzt lief.
+      const wasExisting = this.settings.didInitialSetup;
+      const prevVersion = this.settings.lastSeenVersion;
       // Leafs alter Sitzungen (pro-Ansicht-Typen) aufräumen.
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
@@ -59,6 +63,12 @@ export default class BeautyTasksPlugin extends Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
+      // „Neu"-Modal nur für bestehende Nutzer bei echtem Versionswechsel (nicht bei Erstinstallation).
+      if (wasExisting && prevVersion !== this.manifest.version) new WhatsNewModal(this).open();
+      if (this.settings.lastSeenVersion !== this.manifest.version) {
+        this.settings.lastSeenVersion = this.manifest.version;
+        await this.saveSettings();
+      }
     });
     // Alle 30 s prüfen, welche Erinnerungen im Fenster (letzter Scan, jetzt] fällig wurden.
     this.registerInterval(window.setInterval(() => this.scanReminders(), 30_000));

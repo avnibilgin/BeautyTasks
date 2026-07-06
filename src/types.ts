@@ -66,6 +66,7 @@ export interface BeautyTasksSettings {
   navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
   didInitialSetup: boolean;        // intern: Erst-Setup (Inbox anlegen) einmalig gelaufen
+  lastSeenVersion?: string;        // intern: zuletzt im „Neu"-Modal gezeigte Plugin-Version
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {

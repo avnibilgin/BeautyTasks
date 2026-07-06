@@ -22,7 +22,7 @@ __export(main_exports, {
   default: () => BeautyTasksPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -76,6 +76,16 @@ var STRINGS = {
     sort_manual: "Manual",
     sort_name: "Name",
     sort_count: "Count",
+    whatsnew_title: "What\u2019s new",
+    whatsnew_ok: "Got it",
+    wn_kanban_t: "Kanban board",
+    wn_kanban_d: "Switch any project or label between a list and a board, and drag cards across status columns.",
+    wn_status_t: "Custom statuses",
+    wn_status_d: "Create your own workflow columns \u2014 add, rename, reorder, with icon and color \u2014 in the new Statuses tab.",
+    wn_doing_t: "\u201CIn progress\u201D status",
+    wn_doing_d: "Now shown as a half-filled checkbox and settable via right-click or long-press.",
+    wn_sort_t: "Sort the sidebar",
+    wn_sort_d: "Order projects, areas and labels manually, by name, or by task count.",
     nav_inbox: "Inbox",
     group_area: "Areas",
     group_project: "Projects",
@@ -298,6 +308,16 @@ var STRINGS = {
     sort_manual: "Manuell",
     sort_name: "Name",
     sort_count: "Anzahl",
+    whatsnew_title: "Neu in dieser Version",
+    whatsnew_ok: "Verstanden",
+    wn_kanban_t: "Kanban-Board",
+    wn_kanban_d: "Jedes Projekt oder Label zwischen Liste und Board umschalten und Karten \xFCber Status-Spalten ziehen.",
+    wn_status_t: "Eigene Status",
+    wn_status_d: "Eigene Workflow-Spalten anlegen \u2013 hinzuf\xFCgen, umbenennen, sortieren, mit Icon und Farbe \u2013 im neuen Tab \u201EStatus\u201C.",
+    wn_doing_t: "Status \u201EIn Arbeit\u201C",
+    wn_doing_d: "Wird jetzt als halb gef\xFCllte Checkbox angezeigt und per Rechtsklick/Long-Press gesetzt.",
+    wn_sort_t: "Seitenleiste sortieren",
+    wn_sort_d: "Projekte, Bereiche und Labels manuell, nach Name oder nach Aufgabenzahl ordnen.",
     nav_inbox: "Eingang",
     group_area: "Bereiche",
     group_project: "Projekte",
@@ -4756,8 +4776,42 @@ function pickOsJsonFile(onText) {
   }
 }
 
+// src/whatsNew.ts
+var import_obsidian13 = require("obsidian");
+var WhatsNewModal = class extends import_obsidian13.Modal {
+  constructor(plugin) {
+    super(plugin.app);
+    this.plugin = plugin;
+  }
+  onOpen() {
+    const { contentEl, modalEl } = this;
+    modalEl.addClass("bt-whatsnew");
+    contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
+    contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
+    const items = [
+      { icon: "layout-grid", title: t("wn_kanban_t"), desc: t("wn_kanban_d") },
+      { icon: "shapes", title: t("wn_status_t"), desc: t("wn_status_d") },
+      { icon: "contrast", title: t("wn_doing_t"), desc: t("wn_doing_d") },
+      { icon: "arrow-up-down", title: t("wn_sort_t"), desc: t("wn_sort_d") }
+    ];
+    const list = contentEl.createDiv({ cls: "bt-wn-list" });
+    for (const it of items) {
+      const row = list.createDiv({ cls: "bt-wn-item" });
+      (0, import_obsidian13.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
+      const body = row.createDiv({ cls: "bt-wn-body" });
+      body.createDiv({ cls: "bt-wn-item-t", text: it.title });
+      body.createDiv({ cls: "bt-wn-item-d", text: it.desc });
+    }
+    const foot = contentEl.createDiv({ cls: "bt-wn-foot" });
+    foot.createEl("button", { cls: "mod-cta", text: t("whatsnew_ok") }).onclick = () => this.close();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
 // src/main.ts
-var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
+var BeautyTasksPlugin = class extends import_obsidian14.Plugin {
   constructor() {
     super(...arguments);
     this.currentView = "heute";
@@ -4792,6 +4846,8 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     this.index.subscribe(() => this.renderAll());
     this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(async () => {
+      const wasExisting = this.settings.didInitialSetup;
+      const prevVersion = this.settings.lastSeenVersion;
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
       });
@@ -4807,6 +4863,11 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();
+      if (wasExisting && prevVersion !== this.manifest.version) new WhatsNewModal(this).open();
+      if (this.settings.lastSeenVersion !== this.manifest.version) {
+        this.settings.lastSeenVersion = this.manifest.version;
+        await this.saveSettings();
+      }
     });
     this.registerInterval(window.setInterval(() => this.scanReminders(), 3e4));
     this.registerView(VIEW_MAIN, (leaf) => new MainView(leaf, this));
@@ -4825,7 +4886,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     this.addCommand({
       id: "count-tasks",
       name: t("cmd_count_tasks"),
-      callback: () => new import_obsidian13.Notice(t("notice_count", this.index.all().length, this.index.open().length))
+      callback: () => new import_obsidian14.Notice(t("notice_count", this.index.all().length, this.index.open().length))
     });
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
@@ -4833,14 +4894,14 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
       id: "import-from-lists",
       name: t("cmd_import"),
       callback: async () => {
-        new import_obsidian13.Notice(t("notice_import_running"));
+        new import_obsidian14.Notice(t("notice_import_running"));
         try {
           const n = await runMigration(this.app, this.settings);
-          new import_obsidian13.Notice(t("notice_imported", n));
+          new import_obsidian14.Notice(t("notice_imported", n));
           window.setTimeout(() => this.index.build(), 800);
         } catch (e) {
           console.error("BeautyTasks import error", e);
-          new import_obsidian13.Notice(t("notice_import_failed"));
+          new import_obsidian14.Notice(t("notice_import_failed"));
         }
       }
     });
@@ -4870,7 +4931,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
    *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
   applyLocale() {
-    setLocale(this.settings.locale === "auto" ? import_obsidian13.moment.locale() : this.settings.locale);
+    setLocale(this.settings.locale === "auto" ? import_obsidian14.moment.locale() : this.settings.locale);
   }
   /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
   resolveStartView() {
@@ -5012,26 +5073,26 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   async exportTasksJson() {
     try {
       const path = await writeExportFile(this);
-      new import_obsidian13.Notice(t("notice_export_done", path));
+      new import_obsidian14.Notice(t("notice_export_done", path));
     } catch (e) {
       console.error("BeautyTasks export error", e);
-      new import_obsidian13.Notice(t("notice_export_failed"));
+      new import_obsidian14.Notice(t("notice_export_failed"));
     }
   }
   /** JSON-Rohtext einlesen, Aufgaben anlegen (Duplikat-Schutz), Index neu aufbauen. */
   async importTasksFromText(raw) {
     const data = parseExport(raw);
     if (!data) {
-      new import_obsidian13.Notice(t("notice_import_invalid"));
+      new import_obsidian14.Notice(t("notice_import_invalid"));
       return;
     }
     try {
       const r = await importData(this, data);
-      new import_obsidian13.Notice(t("notice_import_summary", r.created, r.skipped));
+      new import_obsidian14.Notice(t("notice_import_summary", r.created, r.skipped));
       window.setTimeout(() => this.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks JSON import error", e);
-      new import_obsidian13.Notice(t("notice_import_failed"));
+      new import_obsidian14.Notice(t("notice_import_failed"));
     }
   }
   /** Import über die In-Vault-Auswahl (alle .json-Dateien). */
@@ -5070,7 +5131,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(oldName)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = [...new Set(arr.map((x) => x === oldName ? nu : x))];
       });
@@ -5087,7 +5148,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(name)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = arr.filter((x) => x !== name);
       });
@@ -5232,7 +5293,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
     if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) {
-      new import_obsidian13.Notice(t("status_need_done"));
+      new import_obsidian14.Notice(t("status_need_done"));
       return;
     }
     s.kind = kind;
@@ -5266,24 +5327,24 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s) return;
     if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) {
-      new import_obsidian13.Notice(t("status_need_done"));
+      new import_obsidian14.Notice(t("status_need_done"));
       return;
     }
     if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) {
-      new import_obsidian13.Notice(t("status_need_open"));
+      new import_obsidian14.Notice(t("status_need_open"));
       return;
     }
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = target;
       });
     }
     this.settings.statuses = list.filter((x) => x.id !== id);
     await this.commitStatuses();
-    if (affected.length) new import_obsidian13.Notice(t("status_reassigned", affected.length, statusLabel(target)));
+    if (affected.length) new import_obsidian14.Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
   // ── Aufgaben-Aktionen ──
   openNewTask(project, label, today = false, status) {
@@ -5328,7 +5389,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   fireReminder(task) {
     const body = task.title;
     try {
-      if (typeof Notification !== "undefined" && !import_obsidian13.Platform.isMobile) {
+      if (typeof Notification !== "undefined" && !import_obsidian14.Platform.isMobile) {
         const n = new Notification("BeautyTasks", { body });
         n.onclick = () => {
           window.focus();
@@ -5337,11 +5398,11 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
       }
     } catch {
     }
-    new import_obsidian13.Notice("\u23F0 " + body, 1e4);
+    new import_obsidian14.Notice("\u23F0 " + body, 1e4);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian13.TFile)) return;
+    if (!(f instanceof import_obsidian14.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (isoVal) fm[field] = isoVal;
       else delete fm[field];
@@ -5349,7 +5410,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   }
   async setTaskDuration(task, minutes) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian13.TFile)) return;
+    if (!(f instanceof import_obsidian14.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (minutes) fm.duration = minutes;
       else delete fm.duration;
@@ -5367,7 +5428,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
   async setTaskStatus(task, status) {
     if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian13.TFile)) return;
+    if (!(f instanceof import_obsidian14.TFile)) return;
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
@@ -5404,7 +5465,7 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((t2) => t2.status !== "cancelled");
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = "cancelled";
         fm.cancelled = stamp;
       });
@@ -5415,51 +5476,51 @@ var BeautyTasksPlugin = class extends import_obsidian13.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => tk.status === "cancelled");
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = "todo";
         delete fm.cancelled;
       });
     }
-    new import_obsidian13.Notice(t("msg_restored", task.title));
+    new import_obsidian14.Notice(t("msg_restored", task.title));
   }
   /** Einzelne Aufgabe endgültig löschen (in Obsidians Papierkorb – dort wiederherstellbar). */
   async deleteTaskForever(path) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (f instanceof import_obsidian13.TFile) await this.app.fileManager.trashFile(f);
+    if (f instanceof import_obsidian14.TFile) await this.app.fileManager.trashFile(f);
   }
   /** Alle abgebrochenen Aufgaben wiederherstellen (reversibel, ohne Rückfrage). */
   async restoreAllCancelled() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian13.Notice(t("report_trash_empty_restore"));
+      new import_obsidian14.Notice(t("report_trash_empty_restore"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = "todo";
         delete fm.cancelled;
       });
     }
-    new import_obsidian13.Notice(t("report_tasks_restored", items.length));
+    new import_obsidian14.Notice(t("report_tasks_restored", items.length));
   }
   /** Papierkorb leeren: alle abgebrochenen Aufgaben in Obsidians Papierkorb verschieben. */
   async emptyTrash() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian13.Notice(t("msg_trash_empty"));
+      new import_obsidian14.Notice(t("msg_trash_empty"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian13.TFile) await this.app.fileManager.trashFile(f);
+      if (f instanceof import_obsidian14.TFile) await this.app.fileManager.trashFile(f);
     }
-    new import_obsidian13.Notice(t("msg_trash_emptied", items.length));
+    new import_obsidian14.Notice(t("msg_trash_emptied", items.length));
   }
   async loadSettings() {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
-    if (saved?.chipsIconsOnly === void 0 && import_obsidian13.Platform.isMobile) {
+    if (saved?.chipsIconsOnly === void 0 && import_obsidian14.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
     initStatuses(this.settings.statuses);
