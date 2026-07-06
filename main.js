@@ -2132,10 +2132,8 @@ function boardHead(root, plugin, titleEl) {
 }
 function layoutToggle(parent, plugin) {
   const seg = parent.createDiv({ cls: "bt-tabs bt-layout-toggle" });
-  const mk = (mode, label, icon) => {
-    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : "") });
-    (0, import_obsidian7.setIcon)(b.createSpan({ cls: "bt-tab-ic" }), icon);
-    b.createSpan({ text: label });
+  const mk = (mode, label) => {
+    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : ""), text: label });
     b.onclick = () => {
       if (plugin.settings.boardLayout === mode) return;
       plugin.settings.boardLayout = mode;
@@ -2143,8 +2141,8 @@ function layoutToggle(parent, plugin) {
       plugin.renderMain();
     };
   };
-  mk("list", t("layout_list"), "list");
-  mk("board", t("layout_board"), "layout-grid");
+  mk("list", t("layout_list"));
+  mk("board", t("layout_board"));
 }
 function sortColumn(list, kind) {
   if (kind === "done") return list.sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));

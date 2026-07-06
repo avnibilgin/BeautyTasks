@@ -1047,10 +1047,15 @@ body {
 /* ── Board-Kopf + Layout-Umschalter (Liste ⇆ Kanban) ── */
 .bt-view .bt-board-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .bt-view .bt-board-head h1 { margin: 6px 0 2px; }
-.bt-layout-toggle { margin: 6px 0 2px; flex-shrink: 0; }
-.bt-layout-toggle .bt-tab { display: inline-flex; align-items: center; gap: 5px; }
-.bt-layout-toggle .bt-tab-ic { display: inline-flex; }
-.bt-layout-toggle .bt-tab-ic svg { width: 14px; height: 14px; }
+/* Layout-Umschalter „Liste | Board": bewusst leise – nur Text, aktiv in Akzentfarbe
+   (kein Rahmen/Hintergrund/Pill, damit er die Board-Kopfzeile nicht dominiert). */
+.bt-view .bt-layout-toggle { margin: 6px 0 2px; flex-shrink: 0; gap: 16px; }
+.bt-view .bt-layout-toggle .bt-tab {
+  background: none; border: none; box-shadow: none; border-radius: 0;
+  padding: 4px 0; color: var(--text-muted); font-weight: 500;
+}
+.bt-view .bt-layout-toggle .bt-tab:hover { color: var(--text-normal); }
+.bt-view .bt-layout-toggle .bt-tab.is-active { background: none; color: var(--interactive-accent); font-weight: 650; }
 
 /* ── Kanban-Board (Spalten = Status) ── */
 /* Board nutzt volle Pane-Breite statt der Lesebreite (die Liste bleibt schmal). */

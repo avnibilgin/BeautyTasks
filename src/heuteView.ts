@@ -261,10 +261,8 @@ function boardHead(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLEl
  *  und zeichnet die Dashboard-Leaf neu. */
 function layoutToggle(parent: HTMLElement, plugin: BeautyTasksPlugin): void {
   const seg = parent.createDiv({ cls: "bt-tabs bt-layout-toggle" });
-  const mk = (mode: "list" | "board", label: string, icon: string): void => {
-    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : "") });
-    setIcon(b.createSpan({ cls: "bt-tab-ic" }), icon);
-    b.createSpan({ text: label });
+  const mk = (mode: "list" | "board", label: string): void => {
+    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : ""), text: label });
     b.onclick = () => {
       if (plugin.settings.boardLayout === mode) return;
       plugin.settings.boardLayout = mode;
@@ -272,8 +270,8 @@ function layoutToggle(parent: HTMLElement, plugin: BeautyTasksPlugin): void {
       plugin.renderMain();
     };
   };
-  mk("list", t("layout_list"), "list");
-  mk("board", t("layout_board"), "layout-grid");
+  mk("list", t("layout_list"));
+  mk("board", t("layout_board"));
 }
 
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
