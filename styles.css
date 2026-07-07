@@ -1155,7 +1155,8 @@ body {
 /* Gleiche Spezifität wie „.bt-view .bt-board-head h1" (margin 6px 0 2px), aber später im
    File -> gewinnt. Symmetrischer Rand, damit der Edit-Button mittig zur Textzeile sitzt. */
 .bt-view .bt-filter-title h1 { margin: 0; line-height: 1; }
-.bt-filter-title .bt-manage-btn { align-self: center; }
+/* Optische Textmitte liegt unter der Em-Box-Mitte -> Icon ein paar px nach unten nudgen. */
+.bt-filter-title .bt-manage-btn { align-self: center; position: relative; top: 3px; }
 .bt-filter-title .bt-manage-btn .svg-icon { width: 18px; height: 18px; }
 /* Editor-Modal: kompakt, KEINE Trennlinien zwischen den Zeilen (nur unter Sektionsköpfen).
    !important + beide Seiten, weil Themes die Zeilenlinie mal als border-top, mal border-bottom
