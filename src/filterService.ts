@@ -8,7 +8,7 @@ import {
 
 /** Ein gespeicherter Filter (`type: filter`-Notiz im Vault). */
 export interface FilterItem {
-  name: string; path: string; icon: string; color: string | null;
+  name: string; path: string; icon: string; color: string | null; hidden: boolean;
   criteria: FilterCriteria; options: ViewOptions;
 }
 
@@ -39,8 +39,8 @@ function toItem(f: TFile, fm: Record<string, unknown>): FilterItem {
   return {
     name: f.basename, path: f.path,
     icon: "tag",   // fest (noch kein Icon-Picker) – gilt auch für Alt-Filter mit gespeichertem icon
-
     color: typeof fm.color === "string" ? fm.color : null,
+    hidden: !!fm.nav_hidden,
     criteria: readCriteria(fm), options: readOptions(fm),
   };
 }
@@ -115,6 +115,13 @@ export async function renameFilterNote(app: App, path: string, newName: string):
     if (replaced !== body) await app.vault.modify(nf, replaced);
   }
   return base;
+}
+
+/** Filter in der Seitenleiste ein-/ausblenden (Frontmatter `nav_hidden`). */
+export async function setFilterNavHidden(app: App, path: string, hidden: boolean): Promise<void> {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof TFile)) return;
+  await app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { if (hidden) fm.nav_hidden = true; else delete fm.nav_hidden; });
 }
 
 /** Filter-Notiz löschen (in Obsidians Papierkorb). */

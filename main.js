@@ -280,6 +280,7 @@ var STRINGS = {
     nav_filters: "Filters",
     filter_add: "New filter",
     sec_tasks: "Tasks",
+    manage_empty_filters: "No filters yet.",
     empty_no_filter: "This filter no longer exists.",
     empty_no_filter_tasks: "No task matches this filter.",
     filter_new: "New filter",
@@ -553,6 +554,7 @@ var STRINGS = {
     nav_filters: "Filter",
     filter_add: "Neuer Filter",
     sec_tasks: "Aufgaben",
+    manage_empty_filters: "Noch keine Filter.",
     empty_no_filter: "Diesen Filter gibt es nicht mehr.",
     empty_no_filter_tasks: "Keine Aufgabe passt zu diesem Filter.",
     filter_new: "Neuer Filter",
@@ -1892,6 +1894,7 @@ function toItem(f, fm) {
     icon: "tag",
     // fest (noch kein Icon-Picker) – gilt auch für Alt-Filter mit gespeichertem icon
     color: typeof fm.color === "string" ? fm.color : null,
+    hidden: !!fm.nav_hidden,
     criteria: readCriteria(fm),
     options: readOptions(fm)
   };
@@ -1942,6 +1945,14 @@ async function updateFilterNote(app, path, criteria, options) {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof import_obsidian6.TFile)) return;
   await app.fileManager.processFrontMatter(f, (fm) => applyToFrontmatter(fm, criteria, options));
+}
+async function setFilterNavHidden(app, path, hidden) {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof import_obsidian6.TFile)) return;
+  await app.fileManager.processFrontMatter(f, (fm) => {
+    if (hidden) fm.nav_hidden = true;
+    else delete fm.nav_hidden;
+  });
 }
 async function deleteFilterNote(app, path) {
   const f = app.vault.getAbstractFileByPath(path);
@@ -3486,7 +3497,7 @@ function renderManageInto(c, plugin) {
   const root = c.createDiv({ cls: "bt-sizer" });
   const redraw = () => renderManageInto(c, plugin);
   const header = root.createDiv({ cls: "bt-manage-header" });
-  const titleKey = plugin.manageSection === "statuses" ? "tab_statuses" : plugin.manageSection === "labels" ? "tab_labels" : plugin.manageSection === "areas" ? "group_area" : "group_project";
+  const titleKey = plugin.manageSection === "statuses" ? "tab_statuses" : plugin.manageSection === "filters" ? "nav_filters" : plugin.manageSection === "labels" ? "tab_labels" : plugin.manageSection === "areas" ? "group_area" : "group_project";
   header.createEl("h1", { text: t(titleKey) });
   const sections = header.createDiv({ cls: "bt-tabs" });
   const mkSection = (id, label) => {
@@ -3499,9 +3510,25 @@ function renderManageInto(c, plugin) {
   mkSection("projects", t("group_project"));
   mkSection("areas", t("group_area"));
   mkSection("labels", t("tab_labels"));
+  mkSection("filters", t("nav_filters"));
   mkSection("statuses", t("tab_statuses"));
   if (plugin.manageSection === "statuses") {
     renderStatusManager(root, plugin, redraw);
+    return;
+  }
+  if (plugin.manageSection === "filters") {
+    const add = root.createDiv({ cls: "bt-manage-add" });
+    const btn = add.createDiv({ cls: "bt-add" });
+    btn.createSpan({ cls: "bt-add-icon" });
+    btn.createSpan({ text: t("filter_add") });
+    btn.onclick = () => new FilterModal(plugin).open();
+    const filters = listFilters(plugin.app);
+    if (!filters.length) {
+      root.createEl("p", { cls: "bt-empty", text: t("manage_empty_filters") });
+      return;
+    }
+    const list2 = root.createDiv({ cls: "bt-manage-list" });
+    for (const fl of filters) filterRow(list2, plugin, fl, redraw);
     return;
   }
   if (plugin.manageSection === "labels") {
@@ -3631,6 +3658,21 @@ function labelRow(list, plugin, l, redraw, reorder) {
   );
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
+}
+function filterRow(list, plugin, fl, redraw) {
+  const row = list.createDiv({ cls: "bt-manage-row" });
+  const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
+  name.onclick = () => void plugin.activateFilter(fl.path);
+  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
+  const actions = row.createDiv({ cls: "bt-manage-actions" });
+  iconBtn(
+    actions,
+    fl.hidden ? "eye-off" : "eye",
+    fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
+    () => void plugin.setFilterVisible(fl.path, fl.hidden)
+  );
+  iconBtn(actions, "pencil", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
 }
 function startLabelRename(row, plugin, l, redraw) {
   row.empty();
@@ -4555,6 +4597,7 @@ function renderNavInto(c, plugin) {
     () => new FilterModal(plugin).open()
   );
   if (!filtersCollapsed) for (const fl of filters) {
+    if (fl.hidden) continue;
     navItem(c, {
       cls: "bt-nav-filter",
       icon: fl.icon,
@@ -5510,6 +5553,11 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   async updateFilter(path, criteria, options) {
     this.refreshOnChange(path);
     await updateFilterNote(this.app, path, criteria, options);
+  }
+  /** Filter in der Seitenleiste ein-/ausblenden (nav_hidden), refresh nach Cache-Update. */
+  async setFilterVisible(path, visible) {
+    this.refreshOnChange(path);
+    await setFilterNavHidden(this.app, path, !visible);
   }
   async deleteFilter(path) {
     await deleteFilterNote(this.app, path);

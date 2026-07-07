@@ -10,7 +10,7 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
-import { createFilterNote, updateFilterNote, deleteFilterNote, listFilters } from "./filterService";
+import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, listFilters } from "./filterService";
 import { FilterCriteria, ViewOptions } from "./filterEngine";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
@@ -29,7 +29,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentFilter: string | null = null;                  // aktiver gespeicherter Filter (type:filter-Pfad)
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
-  manageSection: "projects" | "areas" | "labels" | "statuses" = "projects";    // obere Ebene
+  manageSection: "projects" | "areas" | "labels" | "filters" | "statuses" = "projects";    // obere Ebene
   manageTab: "active" | "archive" = "active";           // Unterteilung nur bei Projekten
   doneTab: "done" | "trash" = "done";                   // „Erledigt"-Ansicht: Liste vs. Papierkorb
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
@@ -185,7 +185,7 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels" | "filters" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
 
   // ── Gespeicherte Filter (type:filter-Notizen) ──
   /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-
@@ -205,6 +205,11 @@ export default class BeautyTasksPlugin extends Plugin {
   async updateFilter(path: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
     this.refreshOnChange(path);
     await updateFilterNote(this.app, path, criteria, options);
+  }
+  /** Filter in der Seitenleiste ein-/ausblenden (nav_hidden), refresh nach Cache-Update. */
+  async setFilterVisible(path: string, visible: boolean): Promise<void> {
+    this.refreshOnChange(path);
+    await setFilterNavHidden(this.app, path, !visible);
   }
   async deleteFilter(path: string): Promise<void> {
     await deleteFilterNote(this.app, path);

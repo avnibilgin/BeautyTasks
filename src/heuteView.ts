@@ -751,6 +751,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
     async () => undefined, () => new FilterModal(plugin).open());
   if (!filtersCollapsed) for (const fl of filters) {
+    if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
     navItem(c, {
       cls: "bt-nav-filter", icon: fl.icon, iconColor: fl.color, label: fl.name,
       count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,

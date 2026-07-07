@@ -1,8 +1,12 @@
 import { setIcon, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { listManaged, ProjItem } from "./taskService";
+import { listFilters, FilterItem } from "./filterService";
+import { applyFilter } from "./filterEngine";
+import { FilterModal } from "./filterModal";
 import { statusLabel, statusIcon, statusTint, StatusKind, StoredStatus } from "./statuses";
 import { NavSection, NavSortMode } from "./types";
+import { todayStr } from "./format";
 import { openPopover } from "./popover";
 import { t } from "./i18n";
 
@@ -52,21 +56,37 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
   // Kopf: Überschrift links, drei Kategorie-Tabs rechts auf gleicher Höhe.
   const header = root.createDiv({ cls: "bt-manage-header" });
   const titleKey = plugin.manageSection === "statuses" ? "tab_statuses"
-    : plugin.manageSection === "labels" ? "tab_labels"
-      : plugin.manageSection === "areas" ? "group_area" : "group_project";
+    : plugin.manageSection === "filters" ? "nav_filters"
+      : plugin.manageSection === "labels" ? "tab_labels"
+        : plugin.manageSection === "areas" ? "group_area" : "group_project";
   header.createEl("h1", { text: t(titleKey) });
   const sections = header.createDiv({ cls: "bt-tabs" });
-  const mkSection = (id: "projects" | "areas" | "labels" | "statuses", label: string) => {
+  const mkSection = (id: "projects" | "areas" | "labels" | "filters" | "statuses", label: string) => {
     const b = sections.createEl("button", { cls: "bt-tab" + (plugin.manageSection === id ? " is-active" : ""), text: label });
     b.onclick = () => { plugin.manageSection = id; renderManageInto(c, plugin); };
   };
   mkSection("projects", t("group_project"));
   mkSection("areas", t("group_area"));
   mkSection("labels", t("tab_labels"));
+  mkSection("filters", t("nav_filters"));
   mkSection("statuses", t("tab_statuses"));
 
   if (plugin.manageSection === "statuses") {
     renderStatusManager(root, plugin, redraw);
+    return;
+  }
+
+  if (plugin.manageSection === "filters") {
+    // „+ Neuer Filter" öffnet den Editor (ein Filter braucht mehr als nur einen Namen).
+    const add = root.createDiv({ cls: "bt-manage-add" });
+    const btn = add.createDiv({ cls: "bt-add" });
+    btn.createSpan({ cls: "bt-add-icon" });
+    btn.createSpan({ text: t("filter_add") });
+    btn.onclick = () => new FilterModal(plugin).open();
+    const filters = listFilters(plugin.app);
+    if (!filters.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_filters") }); return; }
+    const list = root.createDiv({ cls: "bt-manage-list" });
+    for (const fl of filters) filterRow(list, plugin, fl, redraw);
     return;
   }
 
@@ -180,6 +200,20 @@ function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: strin
     () => void plugin.setLabelVisible(l.name, !vis));
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
+}
+
+/** Filter-Zeile im ListManager: Name (Klick öffnet das Board) · Anzahl · Sichtbarkeit ·
+ *  Bearbeiten (öffnet den Filter-Editor) · Löschen. Sichtbarkeit wie bei Projekten (nav_hidden). */
+function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void): void {
+  const row = list.createDiv({ cls: "bt-manage-row" });
+  const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
+  name.onclick = () => void plugin.activateFilter(fl.path);
+  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
+  const actions = row.createDiv({ cls: "bt-manage-actions" });
+  iconBtn(actions, fl.hidden ? "eye-off" : "eye", fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
+    () => void plugin.setFilterVisible(fl.path, fl.hidden));
+  iconBtn(actions, "pencil", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
 }
 
 function startLabelRename(row: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void): void {
