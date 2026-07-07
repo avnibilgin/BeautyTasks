@@ -2,9 +2,10 @@ import { App, TFile, normalizePath } from "obsidian";
 import { BeautyTasksSettings, Priority } from "./types";
 import { buildFrontmatter, ensureFolder, newId, todayIso, slugify } from "./taskService";
 import {
-  FilterCriteria, ViewOptions, FilterRange, FilterSort, FilterGroup,
-  DEFAULT_CRITERIA, DEFAULT_OPTIONS, RANGES, SORTS, GROUPS, FILTER_PRIORITIES,
+  FilterCriteria, ViewOptions, FilterRange,
+  DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES,
 } from "./filterEngine";
+import { readViewOptions, writeViewOptions } from "./pageOptions";
 
 /** Ein gespeicherter Filter (`type: filter`-Notiz im Vault). */
 export interface FilterItem {
@@ -28,11 +29,7 @@ function readCriteria(fm: Record<string, unknown>): FilterCriteria {
 }
 
 function readOptions(fm: Record<string, unknown>): ViewOptions {
-  return {
-    sort: oneOf<FilterSort>(fm.sort, SORTS, DEFAULT_OPTIONS.sort),
-    group: oneOf<FilterGroup>(fm.group, GROUPS, DEFAULT_OPTIONS.group),
-    showDone: fm.showDone === true,
-  };
+  return readViewOptions(fm);
 }
 
 function toItem(f: TFile, fm: Record<string, unknown>): FilterItem {
@@ -70,9 +67,7 @@ function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: V
   setOrDel("labels", c.labels.length ? c.labels : null);
   setOrDel("projects", c.projects.length ? c.projects : null);
   setOrDel("search", c.search.trim() || null);
-  fm.sort = o.sort;
-  fm.group = o.group;
-  setOrDel("showDone", o.showDone ? true : null);
+  writeViewOptions(fm, o);   // layout/sort/group/showDone (Defaults werden entfernt)
   setOrDel("color", color);
 }
 

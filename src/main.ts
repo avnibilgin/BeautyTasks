@@ -11,7 +11,8 @@ import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
-import { FilterCriteria, ViewOptions, applyFilter } from "./filterEngine";
+import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
+import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
 import { t, setLocale } from "./i18n";
@@ -187,6 +188,48 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
   async activateManage(section?: "projects" | "areas" | "labels" | "filters" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
+
+  // ── Anzeige pro Seite (Layout/Sortieren/Gruppieren/Erledigte) ──
+  /** Welche Seite ist gerade offen + ihre „Fernbedienungs-Größe". */
+  currentPage(): { key: string; tier: "full" | "light" | "none"; kind: "view" | "project" | "label" | "filter" } {
+    if (this.manageOpen) return { key: "manage", tier: "none", kind: "view" };
+    if (this.currentFilter) return { key: this.currentFilter, tier: "full", kind: "filter" };
+    if (this.currentLabel) return { key: this.currentLabel, tier: "full", kind: "label" };
+    if (this.currentProject) return { key: this.currentProject, tier: "full", kind: "project" };
+    const v = this.currentView;
+    return { key: v, tier: (v === "heute" || v === "demnaechst") ? "light" : "none", kind: "view" };
+  }
+  /** Effektive Anzeige-Optionen der aktuellen Seite (aus Frontmatter bzw. Settings). */
+  pageViewOptions(): ViewOptions {
+    const p = this.currentPage();
+    if (p.kind === "project") return readNoteViewOptions(this.app, p.key);
+    if (p.kind === "filter") { const fl = readFilter(this.app, p.key); return fl ? fl.options : { ...DEFAULT_OPTIONS }; }
+    return readViewOptions(this.settings.pageViewOptions?.[p.kind === "label" ? "label:" + p.key : p.key]);
+  }
+  /** Eine Anzeige-Option der aktuellen Seite setzen – am richtigen Ort gespeichert. */
+  async setPageViewOption(patch: Partial<ViewOptions>): Promise<void> {
+    const p = this.currentPage();
+    if (p.kind === "project") { this.refreshOnChange(p.key); await setNoteViewOption(this.app, p.key, patch); return; }
+    if (p.kind === "filter") {
+      const fl = readFilter(this.app, p.key); if (!fl) return;
+      await this.updateFilter(p.key, fl.criteria, { ...fl.options, ...patch }, fl.color);
+      return;
+    }
+    const map = this.settings.pageViewOptions ?? {};
+    const skey = p.kind === "label" ? "label:" + p.key : p.key;
+    map[skey] = { ...readViewOptions(map[skey]), ...patch };
+    this.settings.pageViewOptions = map;
+    await this.saveSettings();
+    this.renderMain();
+  }
+  /** Anzeige-Optionen der aktuellen Seite auf Default zurücksetzen. */
+  async resetPageViewOptions(): Promise<void> {
+    const p = this.currentPage();
+    if (p.kind === "project") { this.refreshOnChange(p.key); await setNoteViewOption(this.app, p.key, { ...DEFAULT_OPTIONS }); return; }
+    if (p.kind === "filter") { const fl = readFilter(this.app, p.key); if (fl) await this.updateFilter(p.key, fl.criteria, { ...DEFAULT_OPTIONS }, fl.color); return; }
+    if (this.settings.pageViewOptions) { delete this.settings.pageViewOptions[p.kind === "label" ? "label:" + p.key : p.key]; await this.saveSettings(); }
+    this.renderMain();
+  }
 
   // ── Gespeicherte Filter (type:filter-Notizen) ──
   /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-

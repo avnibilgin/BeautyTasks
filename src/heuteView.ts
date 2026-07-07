@@ -5,9 +5,10 @@ import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, FilterGroup } from "./filterEngine";
+import { applyFilter, sortTasks, FilterGroup, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
+import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
@@ -35,37 +36,51 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  if (view !== "erledigt") root.createEl("h1", { text: viewTitle(view) });   // „Erledigt" bekommt einen Kopf mit Tabs (unten)
-
+  // Heute/Demnächst: Kopf mit „Anzeige"-Knopf (leichtes Panel). Wiederkehrend: nur Titel.
   if (view === "heute" || view === "demnaechst") {
+    const head = root.createDiv({ cls: "bt-board-head" });
+    head.createEl("h1", { text: viewTitle(view) });
+    anzeigeButton(head, plugin);
     const add = root.createDiv({ cls: "bt-add" });
     add.createSpan({ cls: "bt-add-icon" });
     add.createSpan({ text: t("btn_add_task") });
-    // Nur im Today-Dashboard „heute" vorgeben; sonst ohne Datum.
     add.onclick = () => plugin.openNewTask(undefined, undefined, view === "heute");
+  } else if (view !== "erledigt") {
+    root.createEl("h1", { text: viewTitle(view) });   // „Erledigt" bekommt einen Kopf mit Tabs (unten)
   }
 
   const idx = plugin.index;
   if (view === "heute") {
+    const opts = plugin.pageViewOptions();
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
-    // Heute erledigte Aufgaben – wie in Projekten/Inbox als eigener, einklappbarer Erledigt-Bereich.
-    const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed ist jetzt ein Zeitstempel -> nur Datums-Teil vergleichen
-    if (!overdue.length && !dueToday.length && !doneToday.length) {
-      // Komplett leer: nur der einheitliche Leerzustand – keine leeren „Überfällig/Heute"-Tabellen.
+    const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
+    if (!overdue.length && !dueToday.length && !(opts.showDone && doneToday.length)) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
+    } else if (opts.layout === "board") {
+      const bt = [...overdue, ...dueToday, ...(opts.showDone ? doneToday : [])];
+      renderKanbanBoard(root, plugin, bt, today, (status) => plugin.openNewTask(undefined, undefined, true, status));
     } else {
-      const present = renderedPaths(plugin, [...overdue, ...dueToday, ...doneToday]);
+      // „Heute" behält seine semantischen Sektionen (Überfällig/Heute); Erledigte nur auf Wunsch.
+      const present = renderedPaths(plugin, [...overdue, ...dueToday, ...(opts.showDone ? doneToday : [])]);
       section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
       section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
-      if (doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
+      if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
   } else if (view === "demnaechst") {
+    const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
     const nd = idx.noDate();
-    const present = renderedPaths(plugin, [...groups.flatMap((g) => g.tasks), ...nd]);
-    for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
-    if (nd.length) section(root, plugin, t("sec_no_date"), nd, today, false, false, present);
-    if (!groups.length && !nd.length) emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled");
+    const done = opts.showDone ? idx.done() : [];
+    if (!groups.length && !nd.length && !done.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
+    else if (opts.layout === "board") {
+      const bt = [...groups.flatMap((g) => g.tasks), ...nd, ...done];
+      renderKanbanBoard(root, plugin, bt, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
+    } else {
+      const present = renderedPaths(plugin, [...groups.flatMap((g) => g.tasks), ...nd, ...done]);
+      for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
+      if (nd.length) section(root, plugin, t("sec_no_date"), nd, today, false, false, present);
+      if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+    }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
   } else {
@@ -180,44 +195,23 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  boardHead(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }));
+  pageHeader(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }));
 
   // Bereich (type: area) → Board-Link „Bereiche" und ListManager-Tab „areas"; sonst „Projekte".
-  // Der Eingang ist ein Systemordner: „+ Aufgabe", aber KEIN „Projekte"-Link.
   const isArea = isAreaPath(plugin.app, projectPath);
   const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
   if (isInbox) addBar(root, plugin, () => plugin.openNewTask(name));
   else addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
 
-  // Nach Namen vergleichen: gleichnamige Notizen (altes Board/Liste vs. Projekt-Notiz)
-  // hätten sonst verschiedene Pfade -> der Wikilink trifft evtl. die falsche.
-  const want = name;
-  const tasks = plugin.index.all().filter((t) => t.project != null && projectName(t.project) === want);
-  const open = tasks.filter((t) => isOpen(t.status));
-  const overdue = open.filter((t) => t.due && t.due < today).sort(byDue);
-  const dueToday = open.filter((t) => t.due === today);
-  const upcoming = open.filter((t) => t.due && t.due > today).sort(byDue);
-  const noDate = open.filter((t) => !t.due);
-  const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
-
+  // Nach Namen vergleichen: gleichnamige Notizen hätten sonst verschiedene Pfade.
+  const tasks = plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
   if (!tasks.length) {
-    // Eingang und Bereich bekommen einen eigenen Text/Icon; sonst der generische Projekt-Leerzustand.
     if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
     else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  // Kanban-Layout: Spalten = Status, Karten ziehbar. Sonst die klassische Liste.
-  if (plugin.settings.boardLayout === "board") {
-    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(name, undefined, false, status));
-    return;
-  }
-  const present = renderedPaths(plugin, [...open, ...done]);
-  if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
-  if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
-  if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
-  if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
-  if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, (status) => plugin.openNewTask(name, undefined, false, status));
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -227,30 +221,13 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  boardHead(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }));
+  pageHeader(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }));
 
   addBar(root, plugin, () => plugin.openNewTask(undefined, label), "labels", t("tab_labels"));
 
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
-  const open = tasks.filter((tk) => isOpen(tk.status));
-  const overdue = open.filter((tk) => tk.due && tk.due < today).sort(byDue);
-  const dueToday = open.filter((tk) => tk.due === today);
-  const upcoming = open.filter((tk) => tk.due && tk.due > today).sort(byDue);
-  const noDate = open.filter((tk) => !tk.due);
-  const done = tasks.filter((tk) => isDone(tk.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
-
   if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
-  // Kanban-Layout auch fürs Label-Board: „+ Aufgabe" legt mit Label + Spalten-Status an.
-  if (plugin.settings.boardLayout === "board") {
-    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(undefined, label, false, status));
-    return;
-  }
-  const present = renderedPaths(plugin, [...open, ...done]);
-  if (overdue.length) section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
-  if (dueToday.length) section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
-  if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
-  if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
-  if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, (status) => plugin.openNewTask(undefined, label, false, status));
 }
 
 /** Aufgaben eines Filter-Boards in Abschnitte gruppieren (Reihenfolge innerhalb bleibt die
@@ -266,20 +243,42 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
   const prioKey = (p: string): string => p === "highest" ? "prio_1" : p === "high" ? "prio_2" : p === "medium" ? "prio_3" : "prio_4";
   const prioOrder = (p: string): number => p === "highest" ? 0 : p === "high" ? 1 : p === "medium" ? 2 : 3;
   for (const tk of tasks) {
-    if (group === "date") {
-      if (tk.due && tk.due < today) push("overdue", t("sec_overdue"), 0, tk);
-      else if (tk.due === today) push("today", t("sec_today"), 1, tk);
-      else if (tk.due && tk.due > today) push("upcoming", t("sec_upcoming"), 2, tk);
+    if (group === "date" || group === "deadline") {
+      const d = group === "date" ? tk.due : tk.scheduled;   // „Datum" = due, „Deadline" = scheduled
+      if (d && d < today) push("overdue", t("sec_overdue"), 0, tk);
+      else if (d === today) push("today", t("sec_today"), 1, tk);
+      else if (d && d > today) push("upcoming", t("sec_upcoming"), 2, tk);
       else push("nodate", t("sec_no_date"), 3, tk);
     } else if (group === "priority") {
       const k = prioKey(tk.priority);
       push(k, t(k), prioOrder(tk.priority), tk);
+    } else if (group === "label") {
+      if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, tk);
+      else push("nolabel", t("no_label"), 0, tk);
     } else {   // project
       if (tk.project) { const nm = projectName(tk.project); push("p:" + nm, "#" + projectDisplayName(nm), 1, tk); }
-      else push("none", t("no_project"), 0, tk);
+      else push("noproject", t("no_project"), 0, tk);
     }
   }
   return [...buckets.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+}
+
+/** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
+ *  Offene Aufgaben werden gruppiert; Erledigte kommen (auf Wunsch) als einklappbare Sektion ans Ende. */
+function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], opts: ViewOptions, today: string,
+  addStatus: (status: Task["status"]) => void): void {
+  const open = tasks.filter((t) => isOpen(t.status));
+  const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  if (opts.layout === "board") {
+    renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, addStatus);
+    return;
+  }
+  const sorted = sortTasks(open, opts.sort);
+  const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
+  for (const g of filterGroups(plugin, sorted, opts.group, today)) {
+    if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+  }
+  if (opts.showDone && done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
@@ -293,52 +292,27 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   const filter = readFilter(plugin.app, filterPath);
   if (!filter) { emptyState(root, "tag", "empty_no_filter"); return; }
 
-  // Kopf: Titel + Bearbeiten (öffnet den Editor) + globaler Layout-Umschalter.
+  // Kopf: Titel + Bearbeiten (Kriterien-Editor) + Anzeige-Knopf (Layout/Sort/Group).
   const head = root.createDiv({ cls: "bt-board-head" });
   const titleWrap = head.createDiv({ cls: "bt-filter-title" });
   titleWrap.createEl("h1", { text: filter.name });
   iconBtn(titleWrap, "settings-2", t("filter_edit"), () => new FilterModal(plugin, filterPath).open());
-  layoutToggle(head, plugin);
+  anzeigeButton(head, plugin);
 
   addBar(root, plugin, () => plugin.openNewTask());
 
+  // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
   const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
   if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
-
-  if (plugin.settings.boardLayout === "board") {
-    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
-    return;
-  }
-  const present = renderedPaths(plugin, tasks);
-  for (const g of filterGroups(plugin, tasks, filter.options.group, today)) {
-    if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
-  }
+  renderPageBody(root, plugin, tasks, filter.options, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
 }
 
-// ── Board-Kopf mit Layout-Umschalter (Liste ⇆ Kanban) ───────────────
-/** Board-Überschrift: übergebenen Titel + rechts den Layout-Umschalter in eine
- *  Kopfzeile packen (der Titel wurde vom Aufrufer bereits erzeugt). */
-function boardHead(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement): void {
+// ── Seiten-Kopf mit „Anzeige"-Knopf ─────────────────────────────────
+/** Board-Überschrift: übergebenen Titel + rechts den Anzeige-Knopf (Layout/Sort/Group). */
+function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement): void {
   const head = root.createDiv({ cls: "bt-board-head" });
   head.appendChild(titleEl);
-  layoutToggle(head, plugin);
-}
-
-/** Segmentierter Umschalter „Liste | Board". Persistiert global in den Einstellungen
- *  und zeichnet die Dashboard-Leaf neu. */
-function layoutToggle(parent: HTMLElement, plugin: BeautyTasksPlugin): void {
-  const seg = parent.createDiv({ cls: "bt-tabs bt-layout-toggle" });
-  const mk = (mode: "list" | "board", label: string): void => {
-    const b = seg.createEl("button", { cls: "bt-tab" + (plugin.settings.boardLayout === mode ? " is-active" : ""), text: label });
-    b.onclick = () => {
-      if (plugin.settings.boardLayout === mode) return;
-      plugin.settings.boardLayout = mode;
-      void plugin.saveSettings();
-      plugin.renderMain();
-    };
-  };
-  mk("list", t("layout_list"));
-  mk("board", t("layout_board"));
+  anzeigeButton(head, plugin);
 }
 
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──

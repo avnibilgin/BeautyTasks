@@ -8,8 +8,9 @@ import { TaskIndex } from "./taskIndex";
 // (Vorschlag 1) dieselbe Auswertung wiederverwenden kann.
 
 export type FilterRange = "any" | "today" | "overdue" | "next7" | "nodate";
-export type FilterSort = "smart" | "due" | "priority" | "created" | "title";
-export type FilterGroup = "none" | "date" | "priority" | "project";
+export type FilterSort = "smart" | "due" | "deadline" | "priority" | "created" | "title";
+export type FilterGroup = "none" | "date" | "deadline" | "priority" | "label" | "project";
+export type PageLayout = "list" | "board";
 
 export interface FilterCriteria {
   range: FilterRange;      // Zeitraum-Facette (Default „any" = alle)
@@ -20,18 +21,20 @@ export interface FilterCriteria {
 }
 
 export interface ViewOptions {
+  layout: PageLayout;      // Liste oder Kanban-Board
   sort: FilterSort;
   group: FilterGroup;
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
 }
 
 export const DEFAULT_CRITERIA: FilterCriteria = { range: "any", priorities: [], labels: [], projects: [], search: "" };
-export const DEFAULT_OPTIONS: ViewOptions = { sort: "smart", group: "none", showDone: false };
+export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
-export const SORTS: FilterSort[] = ["smart", "due", "priority", "created", "title"];
-export const GROUPS: FilterGroup[] = ["none", "date", "priority", "project"];
+export const SORTS: FilterSort[] = ["smart", "due", "deadline", "priority", "created", "title"];
+export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
+export const LAYOUTS: PageLayout[] = ["list", "board"];
 /** Prioritäten wie im Aufgaben-Picker (4 Stufen). */
 export const FILTER_PRIORITIES: Priority[] = ["highest", "high", "medium", "normal"];
 
@@ -85,6 +88,10 @@ export function sortTasks(list: Task[], sort: FilterSort): Task[] {
   const byDue = (a: Task, b: Task): number => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99");
   const byPrio = (a: Task, b: Task): number => PRIO_RANK[a.priority] - PRIO_RANK[b.priority];
   if (sort === "due") return arr.sort((a, b) => byDue(a, b) || a.title.localeCompare(b.title));
+  if (sort === "deadline") {
+    const byDl = (a: Task, b: Task): number => (a.scheduled ?? "9999-99-99").localeCompare(b.scheduled ?? "9999-99-99");
+    return arr.sort((a, b) => byDl(a, b) || byPrio(a, b));
+  }
   if (sort === "priority") return arr.sort((a, b) => byPrio(a, b) || byDue(a, b));
   if (sort === "created") return arr.sort((a, b) => (b.created ?? "").localeCompare(a.created ?? ""));
   if (sort === "title") return arr.sort((a, b) => a.title.localeCompare(b.title));

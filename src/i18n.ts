@@ -131,9 +131,10 @@ const STRINGS: Record<string, Dict> = {
     filter_all: "All", filter_n_selected: "{0} selected",
     filter_range_any: "Any", filter_range_overdue: "Overdue", filter_range_today: "Today & overdue",
     filter_range_next7: "Next 7 days", filter_range_nodate: "No date",
-    filter_sort_smart: "Smart", filter_sort_due: "Due date", filter_sort_priority: "Priority",
+    filter_sort_smart: "Smart", filter_sort_due: "Due date", filter_sort_deadline: "Deadline", filter_sort_priority: "Priority",
     filter_sort_created: "Created", filter_sort_title: "Name",
-    filter_group_none: "None", filter_group_date: "Date", filter_group_priority: "Priority", filter_group_project: "List",
+    filter_group_none: "None", filter_group_date: "Date", filter_group_deadline: "Deadline", filter_group_priority: "Priority", filter_group_label: "Label", filter_group_project: "List",
+    view_display: "Display", panel_layout: "Layout", panel_show_done: "Show completed", no_label: "No label",
   },
   de: {
     view_today: "Heute", view_upcoming: "Demnächst", view_recurring: "Wiederkehrend", view_done: "Erledigt",
@@ -261,9 +262,10 @@ const STRINGS: Record<string, Dict> = {
     filter_all: "Alle", filter_n_selected: "{0} ausgewählt",
     filter_range_any: "Alle", filter_range_overdue: "Überfällig", filter_range_today: "Heute & überfällig",
     filter_range_next7: "Nächste 7 Tage", filter_range_nodate: "Ohne Datum",
-    filter_sort_smart: "Smart", filter_sort_due: "Fälligkeit", filter_sort_priority: "Priorität",
+    filter_sort_smart: "Smart", filter_sort_due: "Fälligkeit", filter_sort_deadline: "Deadline", filter_sort_priority: "Priorität",
     filter_sort_created: "Erstellt", filter_sort_title: "Name",
-    filter_group_none: "Keine", filter_group_date: "Datum", filter_group_priority: "Priorität", filter_group_project: "Liste",
+    filter_group_none: "Keine", filter_group_date: "Datum", filter_group_deadline: "Deadline", filter_group_priority: "Priorität", filter_group_label: "Label", filter_group_project: "Liste",
+    view_display: "Anzeige", panel_layout: "Layout", panel_show_done: "Erledigte anzeigen", no_label: "Kein Label",
   },
 };
 

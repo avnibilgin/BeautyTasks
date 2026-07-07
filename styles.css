@@ -1246,3 +1246,30 @@ body {
 .bt-new-preview-hint { margin-left: auto; color: var(--text-faint); font-size: 11.5px; }
 .bt-new-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .bt-new-modal .bt-actions { display: inline-flex; gap: 8px; }
+
+/* ── „Anzeige"-Knopf + Panel (pro Seite, Alternative C) ─────────────── */
+.bt-view .bt-anzeige {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal);
+  font-size: var(--font-ui-small); font-weight: 600; box-shadow: none; white-space: nowrap;
+}
+.bt-view .bt-anzeige:hover { background: var(--background-modifier-hover); }
+.bt-anzeige-ic { display: inline-flex; }
+.bt-anzeige-ic svg, .bt-anzeige-ic .svg-icon { width: 15px; height: 15px; }
+.bt-anzeige-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent); }
+
+.bt-pop.bt-view-panel { min-width: 240px; padding: 10px 12px; }
+.bt-view-panel .bt-panel-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin: 2px 0 6px; }
+.bt-view-panel .bt-panel-cap:not(:first-child) { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--background-modifier-border); }
+.bt-view-panel .bt-panel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
+.bt-view-panel .bt-panel-k { color: var(--text-normal); }
+.bt-view-panel .bt-panel-dd { font-size: 12.5px; }
+.bt-view-panel .bt-panel-switch { position: relative; width: 34px; height: 19px; border-radius: 999px; background: var(--background-modifier-border); cursor: pointer; flex: 0 0 auto; transition: background 0.15s; }
+.bt-view-panel .bt-panel-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: left 0.15s; }
+.bt-view-panel .bt-panel-switch.is-on { background: var(--interactive-accent); }
+.bt-view-panel .bt-panel-switch.is-on::after { left: 17px; }
+.bt-view-panel .bt-panel-reset {
+  width: 100%; margin-top: 10px; padding-top: 10px; border: none; border-top: 1px solid var(--background-modifier-border);
+  background: transparent; color: var(--interactive-accent); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; box-shadow: none; text-align: center;
+}
+@media (prefers-reduced-motion: reduce) { .bt-view-panel .bt-panel-switch, .bt-view-panel .bt-panel-switch::after { transition: none; } }
