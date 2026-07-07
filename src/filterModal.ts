@@ -14,7 +14,7 @@ import {
   FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
   RANGES, SORTS, GROUPS, FILTER_PRIORITIES, applyFilter, activeFacetCount,
 } from "./filterEngine";
-import { updateFilterNote, readFilter } from "./filterService";
+import { readFilter } from "./filterService";
 
 export class FilterModal extends Modal {
   private name: string;
@@ -152,12 +152,8 @@ export class FilterModal extends Modal {
   private async save(): Promise<void> {
     const name = this.name.trim();
     if (!name) { new Notice(t("filter_need_name")); return; }
-    if (this.editPath) {
-      await updateFilterNote(this.app, this.editPath, this.c, this.o);
-      this.plugin.renderAll();
-    } else {
-      await this.plugin.createFilter(name, this.c, this.o);
-    }
+    if (this.editPath) await this.plugin.updateFilter(this.editPath, this.c, this.o);
+    else await this.plugin.createFilter(name, this.c, this.o);
     this.close();
   }
 

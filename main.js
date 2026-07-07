@@ -3438,12 +3438,8 @@ var FilterModal = class extends import_obsidian9.Modal {
       new import_obsidian9.Notice(t("filter_need_name"));
       return;
     }
-    if (this.editPath) {
-      await updateFilterNote(this.app, this.editPath, this.c, this.o);
-      this.plugin.renderAll();
-    } else {
-      await this.plugin.createFilter(name, this.c, this.o);
-    }
+    if (this.editPath) await this.plugin.updateFilter(this.editPath, this.c, this.o);
+    else await this.plugin.createFilter(name, this.c, this.o);
     this.close();
   }
   async remove() {
@@ -5507,6 +5503,13 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
       else this.renderAll();
     });
     this.registerEvent(ref);
+  }
+  /** Filter aktualisieren. Wie die Projekt-Aktionen wartet ein einmaliger „changed"-Listener
+   *  auf den frisch geparsten Frontmatter, bevor Board/Nav neu gezeichnet werden (sonst zeigt
+   *  die Seite bis zum nächsten Ereignis den alten Stand). */
+  async updateFilter(path, criteria, options) {
+    this.refreshOnChange(path);
+    await updateFilterNote(this.app, path, criteria, options);
   }
   async deleteFilter(path) {
     await deleteFilterNote(this.app, path);

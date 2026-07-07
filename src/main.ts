@@ -10,7 +10,7 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
-import { createFilterNote, deleteFilterNote, listFilters } from "./filterService";
+import { createFilterNote, updateFilterNote, deleteFilterNote, listFilters } from "./filterService";
 import { FilterCriteria, ViewOptions } from "./filterEngine";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
@@ -198,6 +198,13 @@ export default class BeautyTasksPlugin extends Plugin {
       if (created) void this.activateFilter(created.path); else this.renderAll();
     });
     this.registerEvent(ref);
+  }
+  /** Filter aktualisieren. Wie die Projekt-Aktionen wartet ein einmaliger „changed"-Listener
+   *  auf den frisch geparsten Frontmatter, bevor Board/Nav neu gezeichnet werden (sonst zeigt
+   *  die Seite bis zum nächsten Ereignis den alten Stand). */
+  async updateFilter(path: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
+    this.refreshOnChange(path);
+    await updateFilterNote(this.app, path, criteria, options);
   }
   async deleteFilter(path: string): Promise<void> {
     await deleteFilterNote(this.app, path);

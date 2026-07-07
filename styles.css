@@ -1153,8 +1153,14 @@ body {
 /* Board-Kopf: Titel + Bearbeiten-Button nebeneinander. */
 .bt-filter-title { display: flex; align-items: center; gap: 6px; }
 .bt-filter-title h1 { margin: 0; }
-/* Editor-Modal: Unter-Überschriften der Abschnitte. */
-.bt-filter-modal .bt-filter-h { margin: 16px 0 4px; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+/* Editor-Modal: kompakt, KEINE Trennlinien zwischen den Zeilen (nur unter Sektionsköpfen). */
+.bt-filter-modal h3 { margin: 0 0 6px; }
+.bt-filter-modal .setting-item { border-top: none; padding: 5px 0; }
+.bt-filter-modal .bt-filter-h {
+  margin: 13px 0 2px; padding-bottom: 4px; font-size: 0.8em; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
 /* Mehrfachauswahl als kompaktes Dropdown (Priorität/Labels/Listen) – optisch wie die
    Sort/Group/Time-Dropdowns; öffnet ein Popover mit Häkchen-Zeilen. */
 .bt-facet-dd {
