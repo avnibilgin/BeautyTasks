@@ -1151,8 +1151,11 @@ body {
 
 /* ── Filter (Smart Lists) ───────────────────────────────────────── */
 /* Board-Kopf: Titel + Bearbeiten-Button nebeneinander. */
-.bt-filter-title { display: flex; align-items: center; gap: 6px; }
-.bt-filter-title h1 { margin: 0; }
+.bt-filter-title { display: flex; align-items: center; gap: 8px; }
+/* Gleiche Spezifität wie „.bt-view .bt-board-head h1" (margin 6px 0 2px), aber später im
+   File -> gewinnt. Symmetrischer Rand, damit der Edit-Button mittig zur Textzeile sitzt. */
+.bt-view .bt-filter-title h1 { margin: 0; }
+.bt-filter-title .bt-manage-btn .svg-icon { width: 18px; height: 18px; }
 /* Editor-Modal: kompakt, KEINE Trennlinien zwischen den Zeilen (nur unter Sektionsköpfen).
    !important + beide Seiten, weil Themes die Zeilenlinie mal als border-top, mal border-bottom
    setzen und Obsidians .setting-item-Regel sonst gewinnt. */
