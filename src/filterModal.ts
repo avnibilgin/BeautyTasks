@@ -12,7 +12,7 @@ import { projectDisplayName, t } from "./i18n";
 import { PRIO_KEY } from "./taskModal";
 import {
   FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
-  RANGES, SORTS, GROUPS, FILTER_PRIORITIES, applyFilter, activeFacetCount,
+  RANGES, FILTER_PRIORITIES, applyFilter, activeFacetCount,
 } from "./filterEngine";
 import { readFilter } from "./filterService";
 import { buildSwatchRow } from "./colorSwatches";
@@ -53,18 +53,8 @@ export class FilterModal extends Modal {
     colorField.createEl("label", { text: t("status_pick_color") });
     buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; });
 
-    // ── Anordnung (Sortieren/Gruppieren/Erledigte) ──
-    contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_arrange") });
-    new Setting(contentEl).setName(t("filter_sort")).addDropdown((d) => {
-      for (const s of SORTS) d.addOption(s, t("filter_sort_" + s));
-      d.setValue(this.o.sort).onChange((v) => { this.o.sort = v as ViewOptions["sort"]; this.refresh(); });
-    });
-    new Setting(contentEl).setName(t("filter_group")).addDropdown((d) => {
-      for (const g of GROUPS) d.addOption(g, t("filter_group_" + g));
-      d.setValue(this.o.group).onChange((v) => { this.o.group = v as ViewOptions["group"]; this.refresh(); });
-    });
-    new Setting(contentEl).setName(t("filter_show_done")).addToggle((tg) =>
-      tg.setValue(this.o.showDone).onChange((v) => { this.o.showDone = v; this.refresh(); }));
+    // Anordnung (Sortieren/Gruppieren/Erledigte/Layout) lebt im „Anzeige"-Panel der Seite –
+    // der Editor beschreibt nur, WELCHE Aufgaben zum Filter gehören (Kriterien).
 
     // ── Filter-Facetten ──
     contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
@@ -154,8 +144,7 @@ export class FilterModal extends Modal {
   }
 
   private reset(): void {
-    this.c = { ...DEFAULT_CRITERIA };
-    this.o = { ...DEFAULT_OPTIONS };
+    this.c = { ...DEFAULT_CRITERIA };   // nur Kriterien + Farbe; die Anordnung (this.o) bleibt, sie gehört ins Anzeige-Panel
     this.color = null;
     this.build();   // in-place neu aufbauen; Name bleibt erhalten
   }

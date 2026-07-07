@@ -3456,25 +3456,6 @@ var FilterModal = class extends import_obsidian11.Modal {
     buildSwatchRow(colorField.createDiv(), this.color, (c) => {
       this.color = c;
     });
-    contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_arrange") });
-    new import_obsidian11.Setting(contentEl).setName(t("filter_sort")).addDropdown((d) => {
-      for (const s of SORTS) d.addOption(s, t("filter_sort_" + s));
-      d.setValue(this.o.sort).onChange((v) => {
-        this.o.sort = v;
-        this.refresh();
-      });
-    });
-    new import_obsidian11.Setting(contentEl).setName(t("filter_group")).addDropdown((d) => {
-      for (const g of GROUPS) d.addOption(g, t("filter_group_" + g));
-      d.setValue(this.o.group).onChange((v) => {
-        this.o.group = v;
-        this.refresh();
-      });
-    });
-    new import_obsidian11.Setting(contentEl).setName(t("filter_show_done")).addToggle((tg) => tg.setValue(this.o.showDone).onChange((v) => {
-      this.o.showDone = v;
-      this.refresh();
-    }));
     contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
     new import_obsidian11.Setting(contentEl).setName(t("filter_range")).addDropdown((d) => {
       for (const r of RANGES) d.addOption(r, t("filter_range_" + r));
@@ -3582,7 +3563,6 @@ var FilterModal = class extends import_obsidian11.Modal {
   }
   reset() {
     this.c = { ...DEFAULT_CRITERIA };
-    this.o = { ...DEFAULT_OPTIONS };
     this.color = null;
     this.build();
   }
