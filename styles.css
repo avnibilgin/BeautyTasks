@@ -1155,14 +1155,20 @@ body {
 .bt-filter-title h1 { margin: 0; }
 /* Editor-Modal: Unter-Überschriften der Abschnitte. */
 .bt-filter-modal .bt-filter-h { margin: 16px 0 4px; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
-/* Mehrfachauswahl-Chips (Priorität/Labels/Listen). */
-.bt-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.bt-filter-chip {
-  padding: 3px 10px; border-radius: 999px; font-size: 0.85em; cursor: pointer;
-  border: 1px solid var(--background-modifier-border); background: var(--background-secondary);
-  color: var(--text-muted); box-shadow: none;
+/* Mehrfachauswahl als kompaktes Dropdown (Priorität/Labels/Listen) – optisch wie die
+   Sort/Group/Time-Dropdowns; öffnet ein Popover mit Häkchen-Zeilen. */
+.bt-facet-dd {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
+  padding: 4px 8px; border-radius: var(--radius-s); cursor: pointer; box-shadow: none;
+  border: 1px solid var(--background-modifier-border); background: var(--background-modifier-form-field);
+  color: var(--text-normal); font-size: var(--font-ui-small);
 }
-.bt-filter-chip:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
-.bt-filter-chip.is-on { background: var(--interactive-accent); border-color: var(--interactive-accent); color: var(--text-on-accent); }
+.bt-facet-dd:hover { background: var(--background-modifier-hover); }
+.bt-facet-dd-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-facet-dd-chev { display: inline-flex; color: var(--text-muted); margin-left: auto; }
+.bt-facet-dd-chev svg { width: 14px; height: 14px; }
+.bt-facet-pop { max-height: 320px; overflow-y: auto; min-width: 180px; }
+.bt-facet-pop .bt-row-ic { width: 16px; display: inline-flex; flex-shrink: 0; }
+.bt-facet-pop .bt-row-ic svg { width: 15px; height: 15px; }
 /* Live-Trefferzahl im Fuß des Editors. */
 .bt-filter-count { margin: 14px 0 4px; font-weight: 600; color: var(--text-normal); }

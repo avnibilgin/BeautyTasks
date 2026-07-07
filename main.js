@@ -302,6 +302,8 @@ var STRINGS = {
     filter_save: "Save",
     filter_need_name: "Please enter a name.",
     filter_facets_active: "{0} active",
+    filter_all: "All",
+    filter_n_selected: "{0} selected",
     filter_range_any: "Any",
     filter_range_overdue: "Overdue",
     filter_range_today: "Today & overdue",
@@ -573,6 +575,8 @@ var STRINGS = {
     filter_save: "Speichern",
     filter_need_name: "Bitte einen Namen eingeben.",
     filter_facets_active: "{0} aktiv",
+    filter_all: "Alle",
+    filter_n_selected: "{0} ausgew\xE4hlt",
     filter_range_any: "Alle",
     filter_range_overdue: "\xDCberf\xE4llig",
     filter_range_today: "Heute & \xFCberf\xE4llig",
@@ -3325,7 +3329,7 @@ var FilterModal = class extends import_obsidian9.Modal {
         this.refresh();
       });
     });
-    this.chipRow(
+    this.facet(
       contentEl,
       t("filter_priorities"),
       FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })),
@@ -3335,7 +3339,7 @@ var FilterModal = class extends import_obsidian9.Modal {
       }
     );
     const labels = this.plugin.getLabels().map((l) => ({ key: l.name, label: l.name }));
-    if (labels.length) this.chipRow(
+    if (labels.length) this.facet(
       contentEl,
       t("filter_labels"),
       labels,
@@ -3346,7 +3350,7 @@ var FilterModal = class extends import_obsidian9.Modal {
     );
     const { eingang, bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
     const projOpts = [...eingang ? [eingang] : [], ...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) }));
-    if (projOpts.length) this.chipRow(
+    if (projOpts.length) this.facet(
       contentEl,
       t("filter_projects"),
       projOpts,
@@ -3372,21 +3376,51 @@ var FilterModal = class extends import_obsidian9.Modal {
   onClose() {
     this.contentEl.empty();
   }
-  /** Eine Mehrfachauswahl als Reihe umschaltbarer Chips (ODER innerhalb der Facette). */
-  chipRow(parent, label, opts, get, set) {
-    const setting = new import_obsidian9.Setting(parent).setName(label);
-    const wrap = setting.controlEl.createDiv({ cls: "bt-filter-chips" });
-    for (const opt of opts) {
-      const chip = wrap.createEl("button", { cls: "bt-filter-chip", text: opt.label });
-      const sync = () => chip.toggleClass("is-on", get().includes(opt.key));
-      sync();
-      chip.onclick = () => {
-        const cur = get();
-        set(cur.includes(opt.key) ? cur.filter((x) => x !== opt.key) : [...cur, opt.key]);
-        sync();
-        this.refresh();
+  /** Mehrfachauswahl als kompaktes Dropdown (Button + Popover mit Häkchen). Optisch wie die
+   *  Sort/Group/Time-Dropdowns; „Alle" oben leert die Auswahl. ODER innerhalb der Facette. */
+  facet(parent, label, opts, get, set) {
+    const btn = new import_obsidian9.Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
+    const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
+    (0, import_obsidian9.setIcon)(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
+    const summary = () => {
+      const sel = get();
+      if (!sel.length) return t("filter_all");
+      if (sel.length <= 2) return sel.map((k) => opts.find((o) => o.key === k)?.label ?? k).join(", ");
+      return t("filter_n_selected", sel.length);
+    };
+    const syncLbl = () => lbl.setText(summary());
+    syncLbl();
+    btn.onclick = () => openPopover(btn, (pop) => {
+      pop.addClass("bt-facet-pop");
+      const row = (on, text, onClick) => {
+        const r = pop.createDiv({ cls: "bt-row" + (on ? " is-active" : "") });
+        const ic = r.createSpan({ cls: "bt-row-ic" });
+        if (on) (0, import_obsidian9.setIcon)(ic, "check");
+        r.createSpan({ cls: "bt-row-lbl", text });
+        r.onclick = onClick;
       };
-    }
+      const render = () => {
+        pop.empty();
+        pop.addClass("bt-facet-pop");
+        row(get().length === 0, t("filter_all"), () => {
+          set([]);
+          syncLbl();
+          this.refresh();
+          render();
+        });
+        for (const o of opts) {
+          const on = get().includes(o.key);
+          row(on, o.label, () => {
+            const cur = get();
+            set(cur.includes(o.key) ? cur.filter((x) => x !== o.key) : [...cur, o.key]);
+            syncLbl();
+            this.refresh();
+            render();
+          });
+        }
+      };
+      render();
+    });
   }
   refresh() {
     const n = applyFilter(this.plugin.index, this.c, this.o, todayStr()).length;

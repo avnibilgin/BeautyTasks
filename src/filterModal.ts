@@ -2,11 +2,12 @@
 // Kopie aus FilterCriteria + ViewOptions und zeigt live die Trefferzahl. Anlegen = neue
 // type:filter-Notiz, Bearbeiten = bestehende aktualisieren. Facetten sind implizit UND;
 // mehrere Werte je Facette ODER (kein Bool-Operator im UI, bewusste Vereinfachung).
-import { Modal, Setting, Notice } from "obsidian";
+import { Modal, Setting, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority } from "./types";
 import { todayStr } from "./format";
 import { listProjectsAndAreas } from "./taskService";
+import { openPopover } from "./popover";
 import { projectDisplayName, t } from "./i18n";
 import { PRIO_KEY } from "./taskModal";
 import {
@@ -64,18 +65,18 @@ export class FilterModal extends Modal {
       d.setValue(this.c.range).onChange((v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
     });
 
-    this.chipRow(contentEl, t("filter_priorities"),
+    this.facet(contentEl, t("filter_priorities"),
       FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })),
       () => this.c.priorities, (arr) => { this.c.priorities = arr as Priority[]; });
 
     const labels = this.plugin.getLabels().map((l) => ({ key: l.name, label: l.name }));
-    if (labels.length) this.chipRow(contentEl, t("filter_labels"), labels,
+    if (labels.length) this.facet(contentEl, t("filter_labels"), labels,
       () => this.c.labels, (arr) => { this.c.labels = arr; });
 
     const { eingang, bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
     const projOpts = [...(eingang ? [eingang] : []), ...bereiche, ...projekte]
       .map((p) => ({ key: p.name, label: projectDisplayName(p.name) }));
-    if (projOpts.length) this.chipRow(contentEl, t("filter_projects"), projOpts,
+    if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts,
       () => this.c.projects, (arr) => { this.c.projects = arr; });
 
     new Setting(contentEl).setName(t("filter_search")).addText((tx) =>
@@ -93,22 +94,46 @@ export class FilterModal extends Modal {
 
   onClose(): void { this.contentEl.empty(); }
 
-  /** Eine Mehrfachauswahl als Reihe umschaltbarer Chips (ODER innerhalb der Facette). */
-  private chipRow(parent: HTMLElement, label: string, opts: { key: string; label: string }[],
+  /** Mehrfachauswahl als kompaktes Dropdown (Button + Popover mit Häkchen). Optisch wie die
+   *  Sort/Group/Time-Dropdowns; „Alle" oben leert die Auswahl. ODER innerhalb der Facette. */
+  private facet(parent: HTMLElement, label: string, opts: { key: string; label: string }[],
     get: () => string[], set: (arr: string[]) => void): void {
-    const setting = new Setting(parent).setName(label);
-    const wrap = setting.controlEl.createDiv({ cls: "bt-filter-chips" });
-    for (const opt of opts) {
-      const chip = wrap.createEl("button", { cls: "bt-filter-chip", text: opt.label });
-      const sync = () => chip.toggleClass("is-on", get().includes(opt.key));
-      sync();
-      chip.onclick = () => {
-        const cur = get();
-        set(cur.includes(opt.key) ? cur.filter((x) => x !== opt.key) : [...cur, opt.key]);
-        sync();
-        this.refresh();
+    const btn = new Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
+    const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
+    setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
+    const summary = (): string => {
+      const sel = get();
+      if (!sel.length) return t("filter_all");
+      if (sel.length <= 2) return sel.map((k) => opts.find((o) => o.key === k)?.label ?? k).join(", ");
+      return t("filter_n_selected", sel.length);
+    };
+    const syncLbl = (): void => lbl.setText(summary());
+    syncLbl();
+
+    btn.onclick = () => openPopover(btn, (pop) => {
+      pop.addClass("bt-facet-pop");
+      const row = (on: boolean, text: string, onClick: () => void): void => {
+        const r = pop.createDiv({ cls: "bt-row" + (on ? " is-active" : "") });
+        const ic = r.createSpan({ cls: "bt-row-ic" });   // Slot immer da -> Beschriftungen bündig
+        if (on) setIcon(ic, "check");
+        r.createSpan({ cls: "bt-row-lbl", text });
+        r.onclick = onClick;
       };
-    }
+      const render = (): void => {
+        pop.empty();
+        pop.addClass("bt-facet-pop");
+        row(get().length === 0, t("filter_all"), () => { set([]); syncLbl(); this.refresh(); render(); });
+        for (const o of opts) {
+          const on = get().includes(o.key);
+          row(on, o.label, () => {
+            const cur = get();
+            set(cur.includes(o.key) ? cur.filter((x) => x !== o.key) : [...cur, o.key]);
+            syncLbl(); this.refresh(); render();
+          });
+        }
+      };
+      render();
+    });
   }
 
   private refresh(): void {
