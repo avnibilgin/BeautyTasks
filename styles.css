@@ -1148,3 +1148,21 @@ body {
 .bt-whatsnew .bt-wn-item-t { font-weight: 600; }
 .bt-whatsnew .bt-wn-item-d { color: var(--text-muted); font-size: 0.9em; line-height: 1.45; margin-top: 1px; }
 .bt-whatsnew .bt-wn-foot { display: flex; justify-content: flex-end; margin-top: 22px; }
+
+/* ── Filter (Smart Lists) ───────────────────────────────────────── */
+/* Board-Kopf: Titel + Bearbeiten-Button nebeneinander. */
+.bt-filter-title { display: flex; align-items: center; gap: 6px; }
+.bt-filter-title h1 { margin: 0; }
+/* Editor-Modal: Unter-Überschriften der Abschnitte. */
+.bt-filter-modal .bt-filter-h { margin: 16px 0 4px; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+/* Mehrfachauswahl-Chips (Priorität/Labels/Listen). */
+.bt-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bt-filter-chip {
+  padding: 3px 10px; border-radius: 999px; font-size: 0.85em; cursor: pointer;
+  border: 1px solid var(--background-modifier-border); background: var(--background-secondary);
+  color: var(--text-muted); box-shadow: none;
+}
+.bt-filter-chip:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-filter-chip.is-on { background: var(--interactive-accent); border-color: var(--interactive-accent); color: var(--text-on-accent); }
+/* Live-Trefferzahl im Fuß des Editors. */
+.bt-filter-count { margin: 14px 0 4px; font-weight: 600; color: var(--text-normal); }

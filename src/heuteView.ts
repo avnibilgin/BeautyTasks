@@ -4,6 +4,9 @@ import { Task } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
+import { listFilters, readFilter } from "./filterService";
+import { applyFilter, FilterGroup } from "./filterEngine";
+import { FilterModal } from "./filterModal";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
@@ -247,6 +250,68 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   if (upcoming.length) section(root, plugin, t("sec_upcoming"), upcoming, today, false, false, present);
   if (noDate.length) section(root, plugin, t("sec_no_date"), noDate, today, false, false, present);
   if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+}
+
+/** Aufgaben eines Filter-Boards in Abschnitte gruppieren (Reihenfolge innerhalb bleibt die
+ *  bereits von applyFilter gesetzte Sortierung). „none" = ein Abschnitt. */
+function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup, today: string): { title: string; tasks: Task[] }[] {
+  if (group === "none") return [{ title: t("sec_tasks"), tasks }];
+  const buckets = new Map<string, { title: string; tasks: Task[]; order: number }>();
+  const push = (key: string, title: string, order: number, tk: Task): void => {
+    let b = buckets.get(key);
+    if (!b) { b = { title, tasks: [], order }; buckets.set(key, b); }
+    b.tasks.push(tk);
+  };
+  const prioKey = (p: string): string => p === "highest" ? "prio_1" : p === "high" ? "prio_2" : p === "medium" ? "prio_3" : "prio_4";
+  const prioOrder = (p: string): number => p === "highest" ? 0 : p === "high" ? 1 : p === "medium" ? 2 : 3;
+  for (const tk of tasks) {
+    if (group === "date") {
+      if (tk.due && tk.due < today) push("overdue", t("sec_overdue"), 0, tk);
+      else if (tk.due === today) push("today", t("sec_today"), 1, tk);
+      else if (tk.due && tk.due > today) push("upcoming", t("sec_upcoming"), 2, tk);
+      else push("nodate", t("sec_no_date"), 3, tk);
+    } else if (group === "priority") {
+      const k = prioKey(tk.priority);
+      push(k, t(k), prioOrder(tk.priority), tk);
+    } else {   // project
+      if (tk.project) { const nm = projectName(tk.project); push("p:" + nm, "#" + projectDisplayName(nm), 1, tk); }
+      else push("none", t("no_project"), 0, tk);
+    }
+  }
+  return [...buckets.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+}
+
+/** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
+ *  Optionen. Layout (Liste/Kanban) folgt – wie Projekte – dem globalen Umschalter. */
+export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, filterPath: string): void {
+  const today = todayStr();
+  c.empty();
+  c.addClass("bt-view");
+  applyReadableWidth(c, plugin);
+  const root = c.createDiv({ cls: "bt-sizer" });
+  const filter = readFilter(plugin.app, filterPath);
+  if (!filter) { emptyState(root, "filter", "empty_no_filter"); return; }
+
+  // Kopf: Titel + Bearbeiten (öffnet den Editor) + globaler Layout-Umschalter.
+  const head = root.createDiv({ cls: "bt-board-head" });
+  const titleWrap = head.createDiv({ cls: "bt-filter-title" });
+  titleWrap.createEl("h1", { text: filter.name });
+  iconBtn(titleWrap, "settings-2", t("filter_edit"), () => new FilterModal(plugin, filterPath).open());
+  layoutToggle(head, plugin);
+
+  addBar(root, plugin, () => plugin.openNewTask());
+
+  const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
+  if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
+
+  if (plugin.settings.boardLayout === "board") {
+    renderKanbanBoard(root, plugin, tasks, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
+    return;
+  }
+  const present = renderedPaths(plugin, tasks);
+  for (const g of filterGroups(plugin, tasks, filter.options.group, today)) {
+    if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+  }
 }
 
 // ── Board-Kopf mit Layout-Umschalter (Liste ⇆ Kanban) ───────────────
@@ -596,7 +661,8 @@ function navItem(c: HTMLElement, o: NavItemOpts): void {
 /** Ein-/ausklappbare Abschnittsüberschrift: Chevron-Toggle (Zustand persistent) + „+",
  *  das nur beim Hover/Fokus der Zeile erscheint. Gibt zurück, ob der Abschnitt eingeklappt ist. */
 function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: string,
-  tip: string, placeholder: string, redraw: () => void, submit: (v: string) => Promise<unknown>): boolean {
+  tip: string, placeholder: string, redraw: () => void, submit: (v: string) => Promise<unknown>,
+  onAddClick?: () => void): boolean {
   const collapsed = plugin.isNavCollapsed(id);
   const head = c.createDiv({ cls: "bt-nav-head" });
 
@@ -609,6 +675,7 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   const add = head.createDiv({ cls: "bt-nav-head-add", attr: { role: "button", tabindex: "0", "aria-label": tip, "data-tooltip-position": "top" } });
   setIcon(add, "plus");
   activate(add, () => {
+    if (onAddClick) { onAddClick(); return; }   // Sektionen mit eigenem Editor (z. B. Filter) öffnen ein Modal statt Inline-Eingabe
     const input = createEl("input", { type: "text", cls: "bt-nav-add-input", attr: { placeholder } });
     head.insertAdjacentElement("afterend", input);
     const close = () => { input.onblur = null; redraw(); };
@@ -688,6 +755,20 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
 
+  // Filter-Sektion: „+" öffnet den Filter-Editor (Modal statt Inline-Eingabe – ein Filter
+  // braucht mehr als nur einen Namen). Jeder Filter zeigt seine Live-Trefferzahl.
+  const today = todayStr();
+  const filters = listFilters(plugin.app);
+  const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
+    async () => undefined, () => new FilterModal(plugin).open());
+  if (!filtersCollapsed) for (const fl of filters) {
+    navItem(c, {
+      cls: "bt-nav-filter", icon: fl.icon, iconColor: fl.color, label: fl.name,
+      count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
+      active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
+    });
+  }
+
   // Bereiche: Header „+" legt eine Notiz direkt als Bereich (type: area) an.
   const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), t("placeholder_area_name"), redraw,
     (v) => plugin.createProject(v, true));
@@ -734,6 +815,7 @@ export class MainView extends ItemView {
     this.renderComp = this.addChild(new Component());
     this.plugin.titleRenderComp = this.renderComp;
     if (this.plugin.manageOpen) renderManageInto(this.contentEl, this.plugin);
+    else if (this.plugin.currentFilter) renderFilterBoardInto(this.contentEl, this.plugin, this.plugin.currentFilter);
     else if (this.plugin.currentLabel) renderLabelBoardInto(this.contentEl, this.plugin, this.plugin.currentLabel);
     else if (this.plugin.currentProject) renderProjectBoardInto(this.contentEl, this.plugin, this.plugin.currentProject);
     else renderViewInto(this.contentEl, this.plugin, this.plugin.currentView);

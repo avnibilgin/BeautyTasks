@@ -10,6 +10,8 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
+import { createFilterNote, deleteFilterNote, listFilters } from "./filterService";
+import { FilterCriteria, ViewOptions } from "./filterEngine";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
 import { t, setLocale } from "./i18n";
@@ -24,6 +26,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentView: ViewId = "heute";
   currentProject: string | null = null;
   currentLabel: string | null = null;                   // aktives Label-Board
+  currentFilter: string | null = null;                  // aktiver gespeicherter Filter (type:filter-Pfad)
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
   manageSection: "projects" | "areas" | "labels" | "statuses" = "projects";    // obere Ebene
@@ -175,13 +178,32 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   async activateView(id: ViewId): Promise<void> {
-    this.currentView = id; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; this.doneTab = "done";
+    this.currentView = id; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; this.doneTab = "done";
     if (this.settings.lastView !== id) { this.settings.lastView = id; void this.saveSettings(); }   // für startView === "last"
     await this.showMain();
   }
-  async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
-  async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; await this.showMain(); }
+  async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
+  async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
+  async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
+
+  // ── Gespeicherte Filter (type:filter-Notizen) ──
+  /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-
+   *  Listener auf den frisch geparsten Frontmatter, bevor zum neuen Filter-Board gewechselt wird. */
+  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
+    const base = await createFilterNote(this.app, this.settings, name, criteria, options);
+    const ref = this.app.metadataCache.on("changed", () => {
+      this.app.metadataCache.offref(ref);
+      const created = listFilters(this.app).find((fl) => fl.name === base);
+      if (created) void this.activateFilter(created.path); else this.renderAll();
+    });
+    this.registerEvent(ref);
+  }
+  async deleteFilter(path: string): Promise<void> {
+    await deleteFilterNote(this.app, path);
+    if (this.currentFilter === path) { this.currentFilter = null; await this.activateView("heute"); }
+    else this.renderAll();
+  }
 
   /** Aus der Suche gewählte Aufgabe in ihrer Liste zeigen: zum Projekt-/Inbox-Board
    *  (bzw. passenden Datums-/Erledigt-View) springen und die Zeile kurz hervorheben

@@ -50,6 +50,7 @@ export interface Task {
 export interface BeautyTasksSettings {
   itemsFolder: string;
   projectsFolder: string;   // Projekte UND Bereiche liegen hier (Bereich = type:area)
+  filtersFolder: string;    // gespeicherte Filter (type: filter) liegen hier
   attachmentsFolder: string;
   knownLabels: string[];   // Register: auch Labels ohne Aufgabe (im Manager angelegt)
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
@@ -72,6 +73,7 @@ export interface BeautyTasksSettings {
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   itemsFolder: "BeautyTasks/Items",
   projectsFolder: "BeautyTasks/Projects",
+  filtersFolder: "BeautyTasks/Filters",
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],
