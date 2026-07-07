@@ -1156,16 +1156,20 @@ body {
 /* Editor-Modal: kompakt, KEINE Trennlinien zwischen den Zeilen (nur unter Sektionsköpfen).
    !important + beide Seiten, weil Themes die Zeilenlinie mal als border-top, mal border-bottom
    setzen und Obsidians .setting-item-Regel sonst gewinnt. */
-.bt-filter-modal h3 { margin: 0 0 8px; }
+.bt-filter-modal { width: 440px; max-width: 92vw; }
+.bt-filter-modal h3 { margin: 0 0 6px; }
 .bt-filter-modal .setting-item {
-  border: 0 !important; box-shadow: none !important; padding: 4px 0; align-items: center;
+  border: 0 !important; box-shadow: none !important; padding: 2px 0; align-items: center;
 }
 .bt-filter-modal .setting-item-name { font-size: var(--font-ui-small); }
 .bt-filter-modal .bt-filter-h {
-  margin: 14px 0 3px; padding-bottom: 5px; font-size: 0.72em; font-weight: 700;
+  margin: 10px 0 2px; padding-bottom: 4px; font-size: 0.72em; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
   border-bottom: 1px solid var(--background-modifier-border);
 }
+/* Fußzeile & Buttons wie im TaskModal (schlicht + mod-cta primär). */
+.bt-filter-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.bt-filter-modal .bt-actions { display: inline-flex; gap: 8px; }
 /* Mehrfachauswahl als kompaktes Dropdown (Priorität/Labels/Listen) – optisch wie die
    Sort/Group/Time-Dropdowns; öffnet ein Popover mit Häkchen-Zeilen. */
 .bt-facet-dd {
@@ -1182,4 +1186,4 @@ body {
 .bt-facet-pop .bt-row-ic { width: 16px; display: inline-flex; flex-shrink: 0; }
 .bt-facet-pop .bt-row-ic svg { width: 15px; height: 15px; }
 /* Live-Trefferzahl im Fuß des Editors. */
-.bt-filter-count { margin: 14px 0 4px; font-weight: 600; color: var(--text-normal); }
+.bt-filter-count { margin: 12px 0 2px; font-weight: 600; color: var(--text-normal); }

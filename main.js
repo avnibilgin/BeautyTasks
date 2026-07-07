@@ -3365,13 +3365,12 @@ var FilterModal = class extends import_obsidian9.Modal {
     }));
     this.countEl = contentEl.createDiv({ cls: "bt-filter-count" });
     this.refresh();
-    const foot = new import_obsidian9.Setting(contentEl);
-    foot.addButton((b) => b.setButtonText(t("filter_reset")).onClick(() => this.reset()));
-    if (this.editPath) foot.addButton((b) => {
-      b.buttonEl.addClass("mod-warning");
-      b.setButtonText(t("filter_delete")).onClick(() => void this.remove());
-    });
-    foot.addButton((b) => b.setButtonText(t("filter_save")).setCta().onClick(() => void this.save()));
+    const foot = contentEl.createDiv({ cls: "bt-foot" });
+    foot.createDiv();
+    const actions = foot.createDiv({ cls: "bt-actions" });
+    actions.createEl("button", { text: t("filter_reset") }).onclick = () => this.reset();
+    if (this.editPath) actions.createEl("button", { cls: "mod-warning", text: t("filter_delete") }).onclick = () => void this.remove();
+    actions.createEl("button", { cls: "mod-cta", text: t("filter_save") }).onclick = () => void this.save();
   }
   onClose() {
     this.contentEl.empty();

@@ -82,14 +82,16 @@ export class FilterModal extends Modal {
     new Setting(contentEl).setName(t("filter_search")).addText((tx) =>
       tx.setPlaceholder(t("filter_search_ph")).setValue(this.c.search).onChange((v) => { this.c.search = v; this.refresh(); }));
 
-    // ── Fuß: Live-Zähler + Aktionen ──
+    // ── Fuß: Live-Zähler + Aktionen (gleiche Struktur/Buttons wie das TaskModal) ──
     this.countEl = contentEl.createDiv({ cls: "bt-filter-count" });
     this.refresh();
 
-    const foot = new Setting(contentEl);
-    foot.addButton((b) => b.setButtonText(t("filter_reset")).onClick(() => this.reset()));
-    if (this.editPath) foot.addButton((b) => { b.buttonEl.addClass("mod-warning"); b.setButtonText(t("filter_delete")).onClick(() => void this.remove()); });
-    foot.addButton((b) => b.setButtonText(t("filter_save")).setCta().onClick(() => void this.save()));
+    const foot = contentEl.createDiv({ cls: "bt-foot" });
+    foot.createDiv();   // Platzhalter links -> Buttons rechtsbündig (wie im TaskModal)
+    const actions = foot.createDiv({ cls: "bt-actions" });
+    actions.createEl("button", { text: t("filter_reset") }).onclick = () => this.reset();
+    if (this.editPath) actions.createEl("button", { cls: "mod-warning", text: t("filter_delete") }).onclick = () => void this.remove();
+    actions.createEl("button", { cls: "mod-cta", text: t("filter_save") }).onclick = () => void this.save();
   }
 
   onClose(): void { this.contentEl.empty(); }
