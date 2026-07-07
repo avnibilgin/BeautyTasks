@@ -22,7 +22,7 @@ __export(main_exports, {
   default: () => BeautyTasksPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -32,6 +32,7 @@ var DEFAULT_SETTINGS = {
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],
+  labelColors: {},
   locale: "auto",
   showDescriptionInList: true,
   navCollapsed: {},
@@ -282,6 +283,12 @@ var STRINGS = {
     filter_add: "New filter",
     sec_tasks: "Tasks",
     manage_empty_filters: "No filters yet.",
+    new_project_title: "New project",
+    new_area_title: "New area",
+    new_label_title: "New label",
+    btn_create: "Create",
+    new_need_name: "Please enter a name.",
+    new_preview_hint: "Preview",
     empty_no_filter: "This filter no longer exists.",
     empty_no_filter_tasks: "No task matches this filter.",
     filter_new: "New filter",
@@ -557,6 +564,12 @@ var STRINGS = {
     filter_add: "Neuer Filter",
     sec_tasks: "Aufgaben",
     manage_empty_filters: "Noch keine Filter.",
+    new_project_title: "Neues Projekt",
+    new_area_title: "Neuer Bereich",
+    new_label_title: "Neues Label",
+    btn_create: "Erstellen",
+    new_need_name: "Bitte einen Namen eingeben.",
+    new_preview_hint: "Vorschau",
     empty_no_filter: "Diesen Filter gibt es nicht mehr.",
     empty_no_filter_tasks: "Keine Aufgabe passt zu diesem Filter.",
     filter_new: "Neuer Filter",
@@ -947,7 +960,7 @@ function listManaged(app) {
   const archived = all.filter((p) => p.archived).sort(byName);
   return { active, archived };
 }
-async function createProjectNote(app, settings, name, asArea = false) {
+async function createProjectNote(app, settings, name, asArea = false, color = null) {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(name);
@@ -958,7 +971,7 @@ async function createProjectNote(app, settings, name, asArea = false) {
     n++;
     if (n > 200) break;
   }
-  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", created: todayIso() });
+  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? void 0, created: todayIso() });
   await app.vault.create(dest, fm + "\n# " + name + "\n");
   return base;
 }
@@ -1396,7 +1409,7 @@ async function runMigration(app, settings) {
 }
 
 // src/heuteView.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/datePicker.ts
 var import_obsidian5 = require("obsidian");
@@ -3498,8 +3511,113 @@ var FilterModal = class extends import_obsidian9.Modal {
   }
 };
 
-// src/manageView.ts
+// src/newItemModal.ts
 var import_obsidian10 = require("obsidian");
+var COLOR_PRESETS = ["#e05c4a", "#f97316", "#f59e0b", "#4caf50", "#3b82f6", "#7c5cff", "#a855f7", "#ec4899"];
+var ICON = { project: "folder", area: "circle", label: "hash" };
+var TITLE = { project: "new_project_title", area: "new_area_title", label: "new_label_title" };
+var PH = { project: "placeholder_project_name", area: "placeholder_area_name", label: "placeholder_label" };
+var NewItemModal = class extends import_obsidian10.Modal {
+  constructor(plugin, kind) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.kind = kind;
+    this.name = "";
+    this.color = null;
+  }
+  onOpen() {
+    const { contentEl, modalEl } = this;
+    modalEl.addClass("bt-new-modal");
+    contentEl.createEl("h3", { text: t(TITLE[this.kind]) });
+    const nameField = contentEl.createDiv({ cls: "bt-new-field" });
+    nameField.createEl("label", { text: t("filter_name") });
+    const input = nameField.createEl("input", { cls: "bt-new-input", attr: { type: "text", placeholder: t(PH[this.kind]) } });
+    input.oninput = () => {
+      this.name = input.value;
+      this.updatePreview();
+    };
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void this.submit();
+      }
+    };
+    const colorField = contentEl.createDiv({ cls: "bt-new-field" });
+    colorField.createEl("label", { text: t("status_pick_color") });
+    this.buildSwatches(colorField.createDiv({ cls: "bt-new-swatches" }));
+    const prev = contentEl.createDiv({ cls: "bt-new-preview" });
+    this.previewIc = prev.createSpan({ cls: "bt-new-preview-ic" });
+    (0, import_obsidian10.setIcon)(this.previewIc, ICON[this.kind]);
+    this.previewNm = prev.createSpan({ cls: "bt-new-preview-nm" });
+    prev.createSpan({ cls: "bt-new-preview-hint", text: t("new_preview_hint") });
+    this.updatePreview();
+    const foot = contentEl.createDiv({ cls: "bt-foot" });
+    foot.createDiv();
+    const actions = foot.createDiv({ cls: "bt-actions" });
+    actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
+    actions.createEl("button", { cls: "mod-cta", text: t("btn_create") }).onclick = () => void this.submit();
+    window.setTimeout(() => input.focus(), 0);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  buildSwatches(row) {
+    const mark = (el) => {
+      row.querySelectorAll(".bt-color-cell").forEach((s) => s.removeClass("is-active"));
+      el.addClass("is-active");
+    };
+    const none = row.createEl("button", { cls: "bt-color-cell bt-color-none is-active", attr: { "aria-label": t("status_color_none") } });
+    (0, import_obsidian10.setIcon)(none, "ban");
+    none.onclick = () => {
+      this.color = null;
+      mark(none);
+      this.updatePreview();
+    };
+    for (const c of COLOR_PRESETS) {
+      const b = row.createEl("button", { cls: "bt-color-cell", attr: { "aria-label": c } });
+      b.style.setProperty("--bt-swatch", c);
+      b.onclick = () => {
+        this.color = c;
+        mark(b);
+        this.updatePreview();
+      };
+    }
+    const custom = row.createEl("button", { cls: "bt-color-cell bt-color-custom", attr: { "aria-label": t("color_custom") } });
+    (0, import_obsidian10.setIcon)(custom, "pipette");
+    const input = custom.createEl("input", { cls: "bt-color-input", attr: { type: "color" } });
+    input.oninput = () => {
+      this.color = input.value;
+      custom.style.setProperty("--bt-swatch", input.value);
+      mark(custom);
+      this.updatePreview();
+    };
+  }
+  updatePreview() {
+    this.previewNm.setText(this.name.trim() || t(PH[this.kind]));
+    this.previewIc.style.color = this.color ?? "var(--text-muted)";
+  }
+  async submit() {
+    const name = this.name.trim();
+    if (!name) {
+      new import_obsidian10.Notice(t("new_need_name"));
+      return;
+    }
+    if (this.kind === "label") {
+      const nu = normalizeLabel(name);
+      await this.plugin.addLabel(name);
+      if (nu) {
+        await this.plugin.setLabelVisible(nu, true);
+        if (this.color) await this.plugin.setLabelColor(nu, this.color);
+      }
+    } else {
+      await this.plugin.createProject(name, this.kind === "area", this.color);
+    }
+    this.close();
+  }
+};
+
+// src/manageView.ts
+var import_obsidian11 = require("obsidian");
 function sortControl(parent, plugin, sec) {
   const wrap = parent.createDiv({ cls: "bt-sort-control" });
   wrap.createSpan({ cls: "bt-sort-lbl", text: t("sort_by") });
@@ -3522,7 +3640,7 @@ function reorderHandle(row, plugin, sec, key, i, n) {
 }
 function iconBtn(parent, icon, label, onClick) {
   const b = parent.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": label, "data-tooltip-position": "top" } });
-  (0, import_obsidian10.setIcon)(b.createSpan(), icon);
+  (0, import_obsidian11.setIcon)(b.createSpan(), icon);
   b.onclick = (e) => {
     e.stopPropagation();
     onClick();
@@ -3702,6 +3820,12 @@ function labelRow(list, plugin, l, redraw, reorder) {
     vis ? t("tip_hide_sidebar") : t("tip_show_sidebar"),
     () => void plugin.setLabelVisible(l.name, !vis)
   );
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(
+    colB,
+    plugin.getLabelColor(l.name),
+    (c) => void plugin.setLabelColor(l.name, c),
+    { onPreview: (c) => plugin.setColorPreview(l.name, c), onClose: () => plugin.clearColorPreview() }
+  ));
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
 }
@@ -3740,7 +3864,7 @@ function startFilterRename(row, plugin, fl, redraw) {
       return;
     }
     const r = await plugin.renameFilter(fl.path, nu);
-    if (r === null) new import_obsidian10.Notice(t("err_enter_taskname"));
+    if (r === null) new import_obsidian11.Notice(t("err_enter_taskname"));
     redraw();
   };
   const actions = row.createDiv({ cls: "bt-manage-actions" });
@@ -3802,7 +3926,7 @@ function startRename(row, plugin, it, redraw) {
       return;
     }
     const r = await plugin.renameProject(it.path, nu);
-    if (r === null) new import_obsidian10.Notice(t("err_enter_taskname"));
+    if (r === null) new import_obsidian11.Notice(t("err_enter_taskname"));
     redraw();
   };
   const actions = row.createDiv({ cls: "bt-manage-actions" });
@@ -3842,7 +3966,7 @@ var ICON_PRESETS = [
   "inbox",
   "zap"
 ];
-var COLOR_PRESETS = ["#e05c4a", "#f97316", "#f59e0b", "#4caf50", "#3b82f6", "#7c5cff", "#a855f7", "#ec4899"];
+var COLOR_PRESETS2 = ["#e05c4a", "#f97316", "#f59e0b", "#4caf50", "#3b82f6", "#7c5cff", "#a855f7", "#ec4899"];
 function renderStatusManager(root, plugin, redraw) {
   addRow(root, t("status_add"), t("placeholder_status_name"), (v) => plugin.addStatus(v), redraw);
   root.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
@@ -3858,7 +3982,7 @@ function statusRow(list, plugin, s, i, n, redraw) {
   if (i === 0) up.disabled = true;
   if (i === n - 1) down.disabled = true;
   const dot = row.createSpan({ cls: "bt-status-dot" });
-  (0, import_obsidian10.setIcon)(dot, statusIcon(s.id));
+  (0, import_obsidian11.setIcon)(dot, statusIcon(s.id));
   dot.style.color = statusTint(s.id);
   const name = row.createSpan({ cls: "bt-manage-name bt-status-name", text: statusLabel(s.id) });
   name.onclick = () => startStatusRename(row, plugin, s, redraw);
@@ -3905,7 +4029,7 @@ function openKindPicker(anchor, plugin, s) {
     ["open", "done", "cancelled"].forEach((k) => {
       const row = pop.createDiv({ cls: "bt-row" + (s.kind === k ? " is-active" : "") });
       const ic = row.createSpan({ cls: "bt-row-ic" });
-      (0, import_obsidian10.setIcon)(ic, KIND_ICON2[k]);
+      (0, import_obsidian11.setIcon)(ic, KIND_ICON2[k]);
       row.createSpan({ cls: "bt-row-lbl", text: t(KIND_KEY[k]) });
       row.onclick = () => {
         void plugin.setStatusKind(s.id, k);
@@ -3919,7 +4043,7 @@ function openIconPicker(anchor, plugin, s) {
     pop.addClass("bt-icon-grid");
     for (const ic of ICON_PRESETS) {
       const b = pop.createEl("button", { cls: "bt-icon-cell" + (s.icon === ic ? " is-active" : ""), attr: { "aria-label": ic } });
-      (0, import_obsidian10.setIcon)(b, ic);
+      (0, import_obsidian11.setIcon)(b, ic);
       b.onclick = () => {
         void plugin.setStatusIcon(s.id, ic);
         close();
@@ -3931,12 +4055,12 @@ function openColorPicker(anchor, current2, onPick, opts = {}) {
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-color-grid");
     const none = pop.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current2 ? " is-active" : ""), attr: { "aria-label": t("status_color_none") } });
-    (0, import_obsidian10.setIcon)(none, "ban");
+    (0, import_obsidian11.setIcon)(none, "ban");
     none.onclick = () => {
       onPick(null);
       close();
     };
-    for (const c of COLOR_PRESETS) {
+    for (const c of COLOR_PRESETS2) {
       const b = pop.createEl("button", { cls: "bt-color-cell" + (current2 === c ? " is-active" : ""), attr: { "aria-label": c } });
       b.style.setProperty("--bt-swatch", c);
       b.onclick = () => {
@@ -3944,10 +4068,10 @@ function openColorPicker(anchor, current2, onPick, opts = {}) {
         close();
       };
     }
-    const isPreset = !current2 || COLOR_PRESETS.includes(current2);
+    const isPreset = !current2 || COLOR_PRESETS2.includes(current2);
     const custom = pop.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active"), attr: { "aria-label": t("color_custom") } });
     if (!isPreset && current2) custom.style.setProperty("--bt-swatch", current2);
-    else (0, import_obsidian10.setIcon)(custom, "pipette");
+    else (0, import_obsidian11.setIcon)(custom, "pipette");
     const input = custom.createEl("input", { type: "color", cls: "bt-color-input" });
     if (current2 && /^#[0-9a-f]{6}$/i.test(current2)) input.value = current2;
     input.oninput = () => opts.onPreview?.(input.value);
@@ -4084,12 +4208,12 @@ function renderViewInto(c, plugin, view) {
       }
       const bar = root.createDiv({ cls: "bt-trash-actions" });
       const rAll = bar.createEl("button", { cls: "bt-trash-btn" });
-      (0, import_obsidian11.setIcon)(rAll.createSpan(), "archive-restore");
+      (0, import_obsidian12.setIcon)(rAll.createSpan(), "archive-restore");
       rAll.createSpan({ text: t("trash_restore_all") });
       rAll.onclick = () => void plugin.restoreAllCancelled();
       const emptyWrap = bar.createDiv({ cls: "bt-trash-act" });
       const emptyBtn = emptyWrap.createEl("button", { cls: "bt-trash-btn is-danger" });
-      (0, import_obsidian11.setIcon)(emptyBtn.createSpan(), "trash-2");
+      (0, import_obsidian12.setIcon)(emptyBtn.createSpan(), "trash-2");
       emptyBtn.createSpan({ text: t("trash_empty") });
       emptyBtn.onclick = () => confirmInline(emptyWrap, t("confirm_empty_trash_q"), () => void plugin.emptyTrash(), redraw);
       section(root, plugin, t("nav_trash"), items, today, false, true);
@@ -4140,7 +4264,7 @@ var projectName = (path) => path.split("/").pop().replace(/\.md$/, "");
 function emptyState(root, icon, key) {
   root.addClass("is-empty");
   const box = root.createDiv({ cls: "bt-empty" });
-  (0, import_obsidian11.setIcon)(box.createDiv({ cls: "bt-empty-ic" }), icon);
+  (0, import_obsidian12.setIcon)(box.createDiv({ cls: "bt-empty-ic" }), icon);
   box.createDiv({ cls: "bt-empty-text", text: t(key) });
 }
 function addBar(root, plugin, onAdd, section2, linkLabel) {
@@ -4152,7 +4276,7 @@ function addBar(root, plugin, onAdd, section2, linkLabel) {
   if (!section2 || !linkLabel) return;
   const link = bar.createDiv({ cls: "bt-board-link", attr: { role: "button", tabindex: "0", "aria-label": linkLabel } });
   const lic = link.createSpan({ cls: "bt-board-link-ic" });
-  (0, import_obsidian11.setIcon)(lic, "arrow-left-square");
+  (0, import_obsidian12.setIcon)(lic, "arrow-left-square");
   link.createSpan({ text: linkLabel });
   activate(link, () => void plugin.activateManage(section2));
 }
@@ -4378,7 +4502,7 @@ function section(parent, plugin, title, tasks, today, collapsible = false, trash
     const chev = head.createSpan({ cls: "bt-collapse-ic" });
     const apply = () => {
       sec.toggleClass("is-collapsed", plugin.doneCollapsed);
-      (0, import_obsidian11.setIcon)(chev, plugin.doneCollapsed ? "chevron-right" : "chevron-down");
+      (0, import_obsidian12.setIcon)(chev, plugin.doneCollapsed ? "chevron-right" : "chevron-down");
     };
     apply();
     head.onclick = () => {
@@ -4405,7 +4529,7 @@ function renderLinkedText(el, plugin, text, sourcePath) {
     return;
   }
   el.addClass("bt-md-inline");
-  void import_obsidian11.MarkdownRenderer.render(plugin.app, text, el, sourcePath, plugin.titleRenderComp).catch(() => {
+  void import_obsidian12.MarkdownRenderer.render(plugin.app, text, el, sourcePath, plugin.titleRenderComp).catch(() => {
     el.empty();
     el.setText(text);
   });
@@ -4416,7 +4540,7 @@ function renderLinkedText(el, plugin, text, sourcePath) {
     e.stopPropagation();
     if (a.classList.contains("internal-link")) {
       const href = a.getAttribute("data-href") || a.getAttribute("href") || "";
-      void plugin.app.workspace.openLinkText(href, sourcePath, import_obsidian11.Keymap.isModEvent(e));
+      void plugin.app.workspace.openLinkText(href, sourcePath, import_obsidian12.Keymap.isModEvent(e));
     } else {
       const href = a.getAttribute("href");
       if (href) window.open(href);
@@ -4446,7 +4570,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   const check = row.createDiv({ cls: "bt-check" });
   if (trash) {
     check.addClass("bt-check-x");
-    (0, import_obsidian11.setIcon)(check, "x");
+    (0, import_obsidian12.setIcon)(check, "x");
   } else if (isDone(task.status)) {
     check.addClass("is-done");
     const c = statusColor(task.status);
@@ -4457,7 +4581,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   } else {
     if (task.status !== firstOpenStatus()) {
       check.addClass("bt-check-status");
-      (0, import_obsidian11.setIcon)(check, statusIcon(task.status));
+      (0, import_obsidian12.setIcon)(check, statusIcon(task.status));
       check.style.setProperty("--bt-status-col", statusTint(task.status));
     } else {
       const c = statusColor(task.status);
@@ -4499,7 +4623,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   if (comments > 0) {
     const chip = meta.createSpan({ cls: "bt-comments" });
     const ic = chip.createSpan({ cls: "bt-comments-ic" });
-    (0, import_obsidian11.setIcon)(ic, "paperclip");
+    (0, import_obsidian12.setIcon)(ic, "paperclip");
     chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
   }
   if (trash) {
@@ -4562,7 +4686,7 @@ function attachCheckActions(check, plugin, task) {
   check.addEventListener("touchcancel", clear);
 }
 function showStatusMenu(plugin, task, x, y) {
-  const menu = new import_obsidian11.Menu();
+  const menu = new import_obsidian12.Menu();
   for (const s of allStatuses()) {
     if (s.kind === "cancelled") menu.addSeparator();
     menu.addItem((it) => {
@@ -4579,7 +4703,7 @@ function showStatusMenu(plugin, task, x, y) {
 }
 function openPath(plugin, path) {
   const f = plugin.app.vault.getAbstractFileByPath(path);
-  if (f instanceof import_obsidian11.TFile) void plugin.app.workspace.getLeaf(false).openFile(f);
+  if (f instanceof import_obsidian12.TFile) void plugin.app.workspace.getLeaf(false).openFile(f);
 }
 function activate(el, handler) {
   el.onclick = handler;
@@ -4593,7 +4717,7 @@ function activate(el, handler) {
 function navItem(c, o) {
   const item = c.createDiv({ cls: "bt-nav-item" + (o.active ? " is-active" : "") + (o.cls ? " " + o.cls : ""), attr: { role: "button", tabindex: "0" } });
   const ic = item.createSpan({ cls: "bt-nav-ic" });
-  (0, import_obsidian11.setIcon)(ic, o.icon);
+  (0, import_obsidian12.setIcon)(ic, o.icon);
   if (o.iconColor) ic.setCssStyles({ color: o.iconColor });
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
   if (o.count) item.createSpan({ cls: "bt-nav-count", text: String(o.count) });
@@ -4606,7 +4730,7 @@ function navHead(c, plugin, id, title, tip, placeholder, redraw, submit, onAddCl
   toggle.createSpan({ cls: "bt-nav-head-lbl", text: title });
   activate(toggle, () => void plugin.toggleNavSection(id));
   const add = head.createDiv({ cls: "bt-nav-head-add", attr: { role: "button", tabindex: "0", "aria-label": tip, "data-tooltip-position": "top" } });
-  (0, import_obsidian11.setIcon)(add, "plus");
+  (0, import_obsidian12.setIcon)(add, "plus");
   activate(add, () => {
     if (onAddClick) {
       onAddClick();
@@ -4641,7 +4765,7 @@ function navHead(c, plugin, id, title, tip, placeholder, redraw, submit, onAddCl
     window.setTimeout(() => input.focus(), 0);
   });
   const chev = head.createDiv({ cls: "bt-nav-head-chevron", attr: { "aria-hidden": "true" } });
-  (0, import_obsidian11.setIcon)(chev, collapsed ? "chevron-right" : "chevron-down");
+  (0, import_obsidian12.setIcon)(chev, collapsed ? "chevron-right" : "chevron-down");
   chev.onclick = () => void plugin.toggleNavSection(id);
   return collapsed;
 }
@@ -4706,14 +4830,20 @@ function renderNavInto(c, plugin) {
       onClick: () => void plugin.activateFilter(fl.path)
     });
   }
-  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), t("placeholder_label"), redraw, async (v) => {
-    const nu = normalizeLabel(v);
-    const ok = await plugin.addLabel(v);
-    if (ok && nu) await plugin.setLabelVisible(nu, true);
-  });
+  const labelsCollapsed = navHead(
+    c,
+    plugin,
+    "labels",
+    t("tab_labels"),
+    t("add_label"),
+    "",
+    redraw,
+    async () => void 0,
+    () => new NewItemModal(plugin, "label").open()
+  );
   if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
     const count = plugin.index.byLabel(name).length;
-    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
+    navItem(c, { cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
   const areasCollapsed = navHead(
     c,
@@ -4721,9 +4851,10 @@ function renderNavInto(c, plugin) {
     "areas",
     t("group_area"),
     t("pick_new_area"),
-    t("placeholder_area_name"),
+    "",
     redraw,
-    (v) => plugin.createProject(v, true)
+    async () => void 0,
+    () => new NewItemModal(plugin, "area").open()
   );
   if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
   const projCollapsed = navHead(
@@ -4732,9 +4863,10 @@ function renderNavInto(c, plugin) {
     "projects",
     t("group_project"),
     t("pick_new_project"),
-    t("placeholder_project_name"),
+    "",
     redraw,
-    (v) => plugin.createProject(v)
+    async () => void 0,
+    () => new NewItemModal(plugin, "project").open()
   );
   if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });
@@ -4746,7 +4878,7 @@ function navCount(plugin, id) {
   if (id === "wiederkehrend") return plugin.index.open().filter((tk) => tk.recurrence).length;
   return 0;
 }
-var MainView = class extends import_obsidian11.ItemView {
+var MainView = class extends import_obsidian12.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -4776,7 +4908,7 @@ var MainView = class extends import_obsidian11.ItemView {
   draw() {
     if (!this.contentEl) return;
     if (this.renderComp) this.removeChild(this.renderComp);
-    this.renderComp = this.addChild(new import_obsidian11.Component());
+    this.renderComp = this.addChild(new import_obsidian12.Component());
     this.plugin.titleRenderComp = this.renderComp;
     if (this.plugin.manageOpen) renderManageInto(this.contentEl, this.plugin);
     else if (this.plugin.currentFilter) renderFilterBoardInto(this.contentEl, this.plugin, this.plugin.currentFilter);
@@ -4793,7 +4925,7 @@ var MainView = class extends import_obsidian11.ItemView {
     if (titleEl) titleEl.setText(this.getDisplayText());
   }
 };
-var NavView = class extends import_obsidian11.ItemView {
+var NavView = class extends import_obsidian12.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -4822,9 +4954,9 @@ var NavView = class extends import_obsidian11.ItemView {
 };
 
 // src/quickAddModal.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var PRIO_NUM = { highest: 1, high: 2, medium: 3, normal: null, low: null, lowest: null };
-var QuickAddModal = class extends import_obsidian12.Modal {
+var QuickAddModal = class extends import_obsidian13.Modal {
   constructor(plugin, project) {
     super(plugin.app);
     this.plugin = plugin;
@@ -4859,10 +4991,10 @@ var QuickAddModal = class extends import_obsidian12.Modal {
     this.chipBar = row.createDiv({ cls: "bt-chips bt-qa-chips" });
     const right = row.createDiv({ cls: "bt-qa-foot-right" });
     const full = right.createEl("button", { cls: "bt-qa-icon", attr: { "aria-label": t("qa_open_full"), "data-tooltip-position": "top" } });
-    (0, import_obsidian12.setIcon)(full, "maximize-2");
+    (0, import_obsidian13.setIcon)(full, "maximize-2");
     full.onclick = () => this.openInFull();
     const submit = right.createEl("button", { cls: "mod-cta bt-qa-submit", attr: { "aria-label": t("btn_add_task"), "data-tooltip-position": "top" } });
-    (0, import_obsidian12.setIcon)(submit, "arrow-up");
+    (0, import_obsidian13.setIcon)(submit, "arrow-up");
     submit.onclick = () => void this.submit();
     this.parse();
     this.renderChips();
@@ -4898,7 +5030,7 @@ var QuickAddModal = class extends import_obsidian12.Modal {
       chip.setAttribute("aria-label", tooltip);
       chip.setAttribute("data-tooltip-position", "top");
     }
-    (0, import_obsidian12.setIcon)(chip.createSpan({ cls: "bt-chip-ic" }), icon);
+    (0, import_obsidian13.setIcon)(chip.createSpan({ cls: "bt-chip-ic" }), icon);
     if (isSet) chip.createSpan({ cls: "bt-chip-lbl", text: label });
     chip.onclick = (e) => {
       e.stopPropagation();
@@ -4906,7 +5038,7 @@ var QuickAddModal = class extends import_obsidian12.Modal {
     };
     if (isSet) {
       const x = chip.createSpan({ cls: "bt-chip-x" });
-      (0, import_obsidian12.setIcon)(x, "x");
+      (0, import_obsidian13.setIcon)(x, "x");
       x.onclick = (e) => {
         e.stopPropagation();
         onClear();
@@ -4984,10 +5116,10 @@ var QuickAddModal = class extends import_obsidian12.Modal {
           if (f && !tag.toLowerCase().includes(f)) continue;
           const on = this.f.labels.includes(tag);
           const r = list.createDiv({ cls: "bt-row bt-tag-row" + (on ? " is-active" : "") });
-          (0, import_obsidian12.setIcon)(r.createSpan({ cls: "bt-row-ic" }), "hash");
+          (0, import_obsidian13.setIcon)(r.createSpan({ cls: "bt-row-ic" }), "hash");
           r.createSpan({ cls: "bt-row-lbl", text: tag });
           const box = r.createSpan({ cls: "bt-tag-box" });
-          if (on) (0, import_obsidian12.setIcon)(box, "check");
+          if (on) (0, import_obsidian13.setIcon)(box, "check");
           r.onclick = () => {
             this.f.labels = on ? this.f.labels.filter((x) => x !== tag) : [...this.f.labels, tag];
             this.parsedLabels = this.parsedLabels.filter((x) => x !== tag);
@@ -5019,11 +5151,11 @@ var QuickAddModal = class extends import_obsidian12.Modal {
     const all = [eingang, ...bereiche, ...projekte].filter(Boolean);
     const sel = all.find((p) => p.name === this.f.project);
     const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
-    (0, import_obsidian12.setIcon)(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
+    (0, import_obsidian13.setIcon)(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
     if (sel?.color) ic.setCssStyles({ color: sel.color });
     this.projektBtn.createSpan({ text: this.f.project ? projectDisplayName(this.f.project) : t("no_project") });
     const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" });
-    (0, import_obsidian12.setIcon)(car, "chevron-down");
+    (0, import_obsidian13.setIcon)(car, "chevron-down");
   }
   openProject(anchor) {
     openPopover(anchor, (pop, close) => {
@@ -5053,7 +5185,7 @@ var QuickAddModal = class extends import_obsidian12.Modal {
   async submit() {
     const title = this.titleValue();
     if (!title) {
-      new import_obsidian12.Notice(t("err_enter_taskname"));
+      new import_obsidian13.Notice(t("err_enter_taskname"));
       return;
     }
     await createTaskNote(this.app, this.plugin.settings, {
@@ -5065,7 +5197,7 @@ var QuickAddModal = class extends import_obsidian12.Modal {
       labels: this.f.labels,
       project: this.f.project
     });
-    new import_obsidian12.Notice(t("qa_added"));
+    new import_obsidian13.Notice(t("qa_added"));
     this.f.title = "";
     this.cleanTitle = "";
     this.f.due = null;
@@ -5088,8 +5220,8 @@ var QuickAddModal = class extends import_obsidian12.Modal {
 };
 
 // src/settingsTab.ts
-var import_obsidian13 = require("obsidian");
-var FolderSuggest = class extends import_obsidian13.AbstractInputSuggest {
+var import_obsidian14 = require("obsidian");
+var FolderSuggest = class extends import_obsidian14.AbstractInputSuggest {
   constructor(appRef, textInputEl, onPick) {
     super(appRef, textInputEl);
     this.appRef = appRef;
@@ -5099,7 +5231,7 @@ var FolderSuggest = class extends import_obsidian13.AbstractInputSuggest {
     const q = query.toLowerCase();
     const out = [];
     for (const f of this.appRef.vault.getAllLoadedFiles()) {
-      if (f instanceof import_obsidian13.TFolder && f.path.toLowerCase().includes(q)) {
+      if (f instanceof import_obsidian14.TFolder && f.path.toLowerCase().includes(q)) {
         out.push(f);
         if (out.length >= 100) break;
       }
@@ -5115,7 +5247,7 @@ var FolderSuggest = class extends import_obsidian13.AbstractInputSuggest {
     this.close();
   }
 };
-var BeautyTasksSettingTab = class extends import_obsidian13.PluginSettingTab {
+var BeautyTasksSettingTab = class extends import_obsidian14.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -5124,12 +5256,12 @@ var BeautyTasksSettingTab = class extends import_obsidian13.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     const p = this.plugin;
-    new import_obsidian13.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
+    new import_obsidian14.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
     const folderRow = (name, desc, get, set) => {
-      new import_obsidian13.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
+      new import_obsidian14.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
         text.setValue(get());
         const save = (raw) => {
-          const v = (0, import_obsidian13.normalizePath)(raw.trim());
+          const v = (0, import_obsidian14.normalizePath)(raw.trim());
           if (v && v !== ".") {
             set(v);
             void p.saveSettings();
@@ -5145,8 +5277,8 @@ var BeautyTasksSettingTab = class extends import_obsidian13.PluginSettingTab {
     folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => p.settings.itemsFolder = v);
     folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => p.settings.projectsFolder = v);
     folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => p.settings.attachmentsFolder = v);
-    new import_obsidian13.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
-    new import_obsidian13.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
+    new import_obsidian14.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
+    new import_obsidian14.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
       dd.addOption("auto", t("set_language_auto"));
       dd.addOption("en", "English");
       dd.addOption("de", "Deutsch");
@@ -5158,7 +5290,7 @@ var BeautyTasksSettingTab = class extends import_obsidian13.PluginSettingTab {
         p.renderAll();
       });
     });
-    new import_obsidian13.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
+    new import_obsidian14.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
       for (const id of VIEW_IDS) dd.addOption(id, viewTitle(id));
       dd.addOption("last", t("set_start_view_last"));
       dd.setValue(p.settings.startView);
@@ -5167,27 +5299,27 @@ var BeautyTasksSettingTab = class extends import_obsidian13.PluginSettingTab {
         await p.saveSettings();
       });
     });
-    new import_obsidian13.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
+    new import_obsidian14.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
       p.settings.parseNaturalLanguage = v;
       await p.saveSettings();
     }));
-    new import_obsidian13.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
+    new import_obsidian14.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
       p.settings.showDescriptionInList = v;
       await p.saveSettings();
       p.renderAll();
     }));
-    new import_obsidian13.Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) => tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
+    new import_obsidian14.Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) => tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
       p.settings.chipsIconsOnly = v;
       await p.saveSettings();
     }));
-    new import_obsidian13.Setting(containerEl).setName(t("set_data_heading")).setHeading();
-    new import_obsidian13.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
-    new import_obsidian13.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
+    new import_obsidian14.Setting(containerEl).setName(t("set_data_heading")).setHeading();
+    new import_obsidian14.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
+    new import_obsidian14.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
   }
 };
 
 // src/importExport.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var EXPORT_FORMAT = "beautytasks";
 var EXPORT_VERSION = 2;
 var baseName4 = (p) => p.split("/").pop().replace(/\.md$/, "");
@@ -5241,10 +5373,10 @@ async function writeExportFile(plugin) {
   const d = /* @__PURE__ */ new Date();
   const z4 = (n2) => String(n2).padStart(2, "0");
   const stamp = `${d.getFullYear()}-${z4(d.getMonth() + 1)}-${z4(d.getDate())}-${z4(d.getHours())}${z4(d.getMinutes())}`;
-  let dest = (0, import_obsidian14.normalizePath)(`${base}/beautytasks-export-${stamp}.json`);
+  let dest = (0, import_obsidian15.normalizePath)(`${base}/beautytasks-export-${stamp}.json`);
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian14.normalizePath)(`${base}/beautytasks-export-${stamp} ${n}.json`);
+    dest = (0, import_obsidian15.normalizePath)(`${base}/beautytasks-export-${stamp} ${n}.json`);
     n++;
     if (n > 200) break;
   }
@@ -5266,10 +5398,10 @@ function parseExport(raw) {
 async function writeImportedTask(app, settings, et) {
   await ensureFolder(app, settings.itemsFolder);
   const slug = slugify(et.title);
-  let dest = (0, import_obsidian14.normalizePath)(settings.itemsFolder + "/" + slug + ".md");
+  let dest = (0, import_obsidian15.normalizePath)(settings.itemsFolder + "/" + slug + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian14.normalizePath)(settings.itemsFolder + "/" + slug + " " + n + ".md");
+    dest = (0, import_obsidian15.normalizePath)(settings.itemsFolder + "/" + slug + " " + n + ".md");
     n++;
     if (n > 500) break;
   }
@@ -5300,10 +5432,10 @@ async function writeImportedList(app, settings, list) {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(list.name);
-  let dest = (0, import_obsidian14.normalizePath)(folder + "/" + base + ".md");
+  let dest = (0, import_obsidian15.normalizePath)(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian14.normalizePath)(folder + "/" + base + " " + n + ".md");
+    dest = (0, import_obsidian15.normalizePath)(folder + "/" + base + " " + n + ".md");
     n++;
     if (n > 200) break;
   }
@@ -5368,7 +5500,7 @@ async function importData(plugin, data) {
   }
   return { created, skipped, listsCreated, labelsAdded };
 }
-var JsonFilePickerModal = class extends import_obsidian14.FuzzySuggestModal {
+var JsonFilePickerModal = class extends import_obsidian15.FuzzySuggestModal {
   constructor(app, onPick) {
     super(app);
     this.onPick = onPick;
@@ -5406,8 +5538,8 @@ function pickOsJsonFile(onText) {
 }
 
 // src/whatsNew.ts
-var import_obsidian15 = require("obsidian");
-var WhatsNewModal = class extends import_obsidian15.Modal {
+var import_obsidian16 = require("obsidian");
+var WhatsNewModal = class extends import_obsidian16.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -5426,7 +5558,7 @@ var WhatsNewModal = class extends import_obsidian15.Modal {
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
       const row = list.createDiv({ cls: "bt-wn-item" });
-      (0, import_obsidian15.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
+      (0, import_obsidian16.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
       const body = row.createDiv({ cls: "bt-wn-body" });
       body.createDiv({ cls: "bt-wn-item-t", text: it.title });
       body.createDiv({ cls: "bt-wn-item-d", text: it.desc });
@@ -5440,7 +5572,7 @@ var WhatsNewModal = class extends import_obsidian15.Modal {
 };
 
 // src/main.ts
-var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
+var BeautyTasksPlugin = class extends import_obsidian17.Plugin {
   constructor() {
     super(...arguments);
     this.currentView = "heute";
@@ -5518,7 +5650,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     this.addCommand({
       id: "count-tasks",
       name: t("cmd_count_tasks"),
-      callback: () => new import_obsidian16.Notice(t("notice_count", this.index.all().length, this.index.open().length))
+      callback: () => new import_obsidian17.Notice(t("notice_count", this.index.all().length, this.index.open().length))
     });
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
@@ -5526,14 +5658,14 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
       id: "import-from-lists",
       name: t("cmd_import"),
       callback: async () => {
-        new import_obsidian16.Notice(t("notice_import_running"));
+        new import_obsidian17.Notice(t("notice_import_running"));
         try {
           const n = await runMigration(this.app, this.settings);
-          new import_obsidian16.Notice(t("notice_imported", n));
+          new import_obsidian17.Notice(t("notice_imported", n));
           window.setTimeout(() => this.index.build(), 800);
         } catch (e) {
           console.error("BeautyTasks import error", e);
-          new import_obsidian16.Notice(t("notice_import_failed"));
+          new import_obsidian17.Notice(t("notice_import_failed"));
         }
       }
     });
@@ -5563,7 +5695,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
    *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
   applyLocale() {
-    setLocale(this.settings.locale === "auto" ? import_obsidian16.moment.locale() : this.settings.locale);
+    setLocale(this.settings.locale === "auto" ? import_obsidian17.moment.locale() : this.settings.locale);
   }
   /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
   resolveStartView() {
@@ -5725,8 +5857,8 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   /** Neues Projekt (oder direkt Bereich) anlegen. Nav/Board lesen den metadataCache, der
    *  nach create erst kurz später aktualisiert wird -> einmaliger „changed"-Listener zeichnet
    *  dann neu, damit der neue Eintrag sofort in der Seitenleiste erscheint. */
-  async createProject(name, asArea = false) {
-    await createProjectNote(this.app, this.settings, name, asArea);
+  async createProject(name, asArea = false, color = null) {
+    await createProjectNote(this.app, this.settings, name, asArea, color);
     const ref = this.app.metadataCache.on("changed", () => {
       this.app.metadataCache.offref(ref);
       this.renderAll();
@@ -5779,26 +5911,26 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   async exportTasksJson() {
     try {
       const path = await writeExportFile(this);
-      new import_obsidian16.Notice(t("notice_export_done", path));
+      new import_obsidian17.Notice(t("notice_export_done", path));
     } catch (e) {
       console.error("BeautyTasks export error", e);
-      new import_obsidian16.Notice(t("notice_export_failed"));
+      new import_obsidian17.Notice(t("notice_export_failed"));
     }
   }
   /** JSON-Rohtext einlesen, Aufgaben anlegen (Duplikat-Schutz), Index neu aufbauen. */
   async importTasksFromText(raw) {
     const data = parseExport(raw);
     if (!data) {
-      new import_obsidian16.Notice(t("notice_import_invalid"));
+      new import_obsidian17.Notice(t("notice_import_invalid"));
       return;
     }
     try {
       const r = await importData(this, data);
-      new import_obsidian16.Notice(t("notice_import_summary", r.created, r.skipped));
+      new import_obsidian17.Notice(t("notice_import_summary", r.created, r.skipped));
       window.setTimeout(() => this.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks JSON import error", e);
-      new import_obsidian16.Notice(t("notice_import_failed"));
+      new import_obsidian17.Notice(t("notice_import_failed"));
     }
   }
   /** Import über die In-Vault-Auswahl (alle .json-Dateien). */
@@ -5837,13 +5969,17 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(oldName)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = [...new Set(arr.map((x) => x === oldName ? nu : x))];
       });
     }
     this.settings.knownLabels = [...new Set(this.settings.knownLabels.map((x) => x === oldName ? nu : x))];
     this.settings.visibleLabels = [...new Set(this.settings.visibleLabels.map((x) => x === oldName ? nu : x))];
+    if (this.settings.labelColors[oldName]) {
+      this.settings.labelColors[nu] = this.settings.labelColors[oldName];
+      delete this.settings.labelColors[oldName];
+    }
     if (this.currentLabel === oldName) this.currentLabel = nu;
     await this.saveSettings();
     this.renderAll();
@@ -5854,14 +5990,26 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(name)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = arr.filter((x) => x !== name);
       });
     }
     this.settings.knownLabels = this.settings.knownLabels.filter((x) => x !== name);
     this.settings.visibleLabels = this.settings.visibleLabels.filter((x) => x !== name);
+    delete this.settings.labelColors[name];
     if (this.currentLabel === name) this.currentLabel = null;
+    await this.saveSettings();
+    this.renderAll();
+  }
+  // ── Label-Farbe (Labels sind keine Notizen -> Speicher in den Settings) ──
+  getLabelColor(name) {
+    return this.settings.labelColors[name] ?? null;
+  }
+  async setLabelColor(name, color) {
+    this.colorPreview = null;
+    if (color) this.settings.labelColors[name] = color;
+    else delete this.settings.labelColors[name];
     await this.saveSettings();
     this.renderAll();
   }
@@ -6009,7 +6157,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
     if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) {
-      new import_obsidian16.Notice(t("status_need_done"));
+      new import_obsidian17.Notice(t("status_need_done"));
       return;
     }
     s.kind = kind;
@@ -6043,24 +6191,24 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s) return;
     if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) {
-      new import_obsidian16.Notice(t("status_need_done"));
+      new import_obsidian17.Notice(t("status_need_done"));
       return;
     }
     if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) {
-      new import_obsidian16.Notice(t("status_need_open"));
+      new import_obsidian17.Notice(t("status_need_open"));
       return;
     }
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = target;
       });
     }
     this.settings.statuses = list.filter((x) => x.id !== id);
     await this.commitStatuses();
-    if (affected.length) new import_obsidian16.Notice(t("status_reassigned", affected.length, statusLabel(target)));
+    if (affected.length) new import_obsidian17.Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
   // ── Aufgaben-Aktionen ──
   openNewTask(project, label, today = false, status) {
@@ -6105,7 +6253,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   fireReminder(task) {
     const body = task.title;
     try {
-      if (typeof Notification !== "undefined" && !import_obsidian16.Platform.isMobile) {
+      if (typeof Notification !== "undefined" && !import_obsidian17.Platform.isMobile) {
         const n = new Notification("BeautyTasks", { body });
         n.onclick = () => {
           window.focus();
@@ -6114,11 +6262,11 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
       }
     } catch {
     }
-    new import_obsidian16.Notice("\u23F0 " + body, 1e4);
+    new import_obsidian17.Notice("\u23F0 " + body, 1e4);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian16.TFile)) return;
+    if (!(f instanceof import_obsidian17.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (isoVal) fm[field] = isoVal;
       else delete fm[field];
@@ -6126,7 +6274,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   }
   async setTaskDuration(task, minutes) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian16.TFile)) return;
+    if (!(f instanceof import_obsidian17.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (minutes) fm.duration = minutes;
       else delete fm.duration;
@@ -6144,7 +6292,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   async setTaskStatus(task, status) {
     if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian16.TFile)) return;
+    if (!(f instanceof import_obsidian17.TFile)) return;
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
@@ -6181,7 +6329,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((t2) => t2.status !== "cancelled");
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = "cancelled";
         fm.cancelled = stamp;
       });
@@ -6192,51 +6340,51 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => tk.status === "cancelled");
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = "todo";
         delete fm.cancelled;
       });
     }
-    new import_obsidian16.Notice(t("msg_restored", task.title));
+    new import_obsidian17.Notice(t("msg_restored", task.title));
   }
   /** Einzelne Aufgabe endgültig löschen (in Obsidians Papierkorb – dort wiederherstellbar). */
   async deleteTaskForever(path) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (f instanceof import_obsidian16.TFile) await this.app.fileManager.trashFile(f);
+    if (f instanceof import_obsidian17.TFile) await this.app.fileManager.trashFile(f);
   }
   /** Alle abgebrochenen Aufgaben wiederherstellen (reversibel, ohne Rückfrage). */
   async restoreAllCancelled() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian16.Notice(t("report_trash_empty_restore"));
+      new import_obsidian17.Notice(t("report_trash_empty_restore"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = "todo";
         delete fm.cancelled;
       });
     }
-    new import_obsidian16.Notice(t("report_tasks_restored", items.length));
+    new import_obsidian17.Notice(t("report_tasks_restored", items.length));
   }
   /** Papierkorb leeren: alle abgebrochenen Aufgaben in Obsidians Papierkorb verschieben. */
   async emptyTrash() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian16.Notice(t("msg_trash_empty"));
+      new import_obsidian17.Notice(t("msg_trash_empty"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian16.TFile) await this.app.fileManager.trashFile(f);
+      if (f instanceof import_obsidian17.TFile) await this.app.fileManager.trashFile(f);
     }
-    new import_obsidian16.Notice(t("msg_trash_emptied", items.length));
+    new import_obsidian17.Notice(t("msg_trash_emptied", items.length));
   }
   async loadSettings() {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
-    if (saved?.chipsIconsOnly === void 0 && import_obsidian16.Platform.isMobile) {
+    if (saved?.chipsIconsOnly === void 0 && import_obsidian17.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
     initStatuses(this.settings.statuses);

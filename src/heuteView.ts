@@ -3,10 +3,11 @@ import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, normalizeLabel, isAreaPath } from "./taskService";
+import { listProjectsAndAreas, isAreaPath } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
 import { applyFilter, FilterGroup } from "./filterEngine";
 import { FilterModal } from "./filterModal";
+import { NewItemModal } from "./newItemModal";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
@@ -762,25 +763,22 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     });
   }
 
-  // Labels-Sektion (über den Bereichen): Header mit Chevron + „+", darunter die sichtbaren Labels.
-  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), t("placeholder_label"), redraw, async (v) => {
-    const nu = normalizeLabel(v);
-    const ok = await plugin.addLabel(v);
-    if (ok && nu) await plugin.setLabelVisible(nu, true);   // aus der Nav erstellt -> gleich sichtbar
-  });
+  // Labels-Sektion (über den Bereichen): „+" öffnet das Neu-Modal (Name + Farbe).
+  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), "", redraw,
+    async () => undefined, () => new NewItemModal(plugin, "label").open());
   if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
     const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
-    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
+    navItem(c, { cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
 
-  // Bereiche: Header „+" legt eine Notiz direkt als Bereich (type: area) an.
-  const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), t("placeholder_area_name"), redraw,
-    (v) => plugin.createProject(v, true));
+  // Bereiche: „+" öffnet das Neu-Modal (Name + Farbe), legt als type:area an.
+  const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), "", redraw,
+    async () => undefined, () => new NewItemModal(plugin, "area").open());
   if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
 
-  // Projekte: Header „+" legt ein neues Projekt an.
-  const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), t("placeholder_project_name"), redraw,
-    (v) => plugin.createProject(v));
+  // Projekte: „+" öffnet das Neu-Modal (Name + Farbe).
+  const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), "", redraw,
+    async () => undefined, () => new NewItemModal(plugin, "project").open());
   if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
 
   // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.

@@ -203,6 +203,9 @@ function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: strin
   const vis = plugin.isLabelVisible(l.name);
   iconBtn(actions, vis ? "eye" : "eye-off", vis ? t("tip_hide_sidebar") : t("tip_show_sidebar"),
     () => void plugin.setLabelVisible(l.name, !vis));
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, plugin.getLabelColor(l.name),
+    (c) => void plugin.setLabelColor(l.name, c),
+    { onPreview: (c) => plugin.setColorPreview(l.name, c), onClose: () => plugin.clearColorPreview() }));
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
 }

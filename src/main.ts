@@ -280,8 +280,8 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Neues Projekt (oder direkt Bereich) anlegen. Nav/Board lesen den metadataCache, der
    *  nach create erst kurz später aktualisiert wird -> einmaliger „changed"-Listener zeichnet
    *  dann neu, damit der neue Eintrag sofort in der Seitenleiste erscheint. */
-  async createProject(name: string, asArea = false): Promise<void> {
-    await createProjectNote(this.app, this.settings, name, asArea);
+  async createProject(name: string, asArea = false, color: string | null = null): Promise<void> {
+    await createProjectNote(this.app, this.settings, name, asArea, color);
     const ref = this.app.metadataCache.on("changed", () => { this.app.metadataCache.offref(ref); this.renderAll(); });
     this.registerEvent(ref);
   }
@@ -389,6 +389,10 @@ export default class BeautyTasksPlugin extends Plugin {
     }
     this.settings.knownLabels = [...new Set(this.settings.knownLabels.map((x) => (x === oldName ? nu : x)))];
     this.settings.visibleLabels = [...new Set(this.settings.visibleLabels.map((x) => (x === oldName ? nu : x)))];
+    if (this.settings.labelColors[oldName]) {   // Farbe auf den neuen Namen umziehen
+      this.settings.labelColors[nu] = this.settings.labelColors[oldName];
+      delete this.settings.labelColors[oldName];
+    }
     if (this.currentLabel === oldName) this.currentLabel = nu;
     await this.saveSettings();
     this.renderAll();
@@ -406,7 +410,17 @@ export default class BeautyTasksPlugin extends Plugin {
     }
     this.settings.knownLabels = this.settings.knownLabels.filter((x) => x !== name);
     this.settings.visibleLabels = this.settings.visibleLabels.filter((x) => x !== name);
+    delete this.settings.labelColors[name];
     if (this.currentLabel === name) this.currentLabel = null;
+    await this.saveSettings();
+    this.renderAll();
+  }
+
+  // ── Label-Farbe (Labels sind keine Notizen -> Speicher in den Settings) ──
+  getLabelColor(name: string): string | null { return this.settings.labelColors[name] ?? null; }
+  async setLabelColor(name: string, color: string | null): Promise<void> {
+    this.colorPreview = null;
+    if (color) this.settings.labelColors[name] = color; else delete this.settings.labelColors[name];
     await this.saveSettings();
     this.renderAll();
   }

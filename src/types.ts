@@ -54,6 +54,7 @@ export interface BeautyTasksSettings {
   attachmentsFolder: string;
   knownLabels: string[];   // Register: auch Labels ohne Aufgabe (im Manager angelegt)
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
+  labelColors: Record<string, string>;   // Label-Name -> Farbe (Hex); Labels sind keine Notizen, daher hier
   locale: string;          // "auto" (folgt Obsidian) | "en" (Kanon) | "de"
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
@@ -77,6 +78,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],
+  labelColors: {},
   locale: "auto",
   showDescriptionInList: true,
   navCollapsed: {},
