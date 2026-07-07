@@ -1230,9 +1230,9 @@ body {
 }
 .bt-new-input:focus { outline: none; border-color: var(--interactive-accent); box-shadow: 0 0 0 3px var(--background-modifier-border-hover); }
 .bt-swatch-row { display: flex; flex-wrap: wrap; gap: 7px; }
-/* Farbbereich im Filter-Editor: eigener, zentrierter Container mit mehr Padding, plus
-   deutlich Luft bis zur Sektion „Anordnung". */
-.bt-filter-modal .bt-filter-color { margin-bottom: 40px; }
+/* Farbbereich im Filter-Editor: eigener, zentrierter Container mit mehr Padding. Oben Luft
+   zum Namen, unten etwas weniger bis zur Sektion „Anordnung". */
+.bt-filter-modal .bt-filter-color { margin-top: 16px; margin-bottom: 24px; }
 .bt-filter-modal .bt-filter-color .bt-swatch-row {
   justify-content: center; gap: 9px; padding: 14px;
   border: 1px solid var(--background-modifier-border); border-radius: 10px;
