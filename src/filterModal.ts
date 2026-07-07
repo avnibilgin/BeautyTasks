@@ -49,7 +49,7 @@ export class FilterModal extends Modal {
       tx.setPlaceholder(t("filter_name_ph")).setValue(this.name).onChange((v) => { this.name = v; }));
 
     // Farbe direkt unter dem Namen (gleiche Swatch-Reihe wie im Neu-Modal).
-    const colorField = contentEl.createDiv({ cls: "bt-new-field" });
+    const colorField = contentEl.createDiv({ cls: "bt-new-field bt-filter-color" });
     colorField.createEl("label", { text: t("status_pick_color") });
     buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; });
 

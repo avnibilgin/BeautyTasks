@@ -3403,7 +3403,7 @@ var FilterModal = class extends import_obsidian10.Modal {
     new import_obsidian10.Setting(contentEl).setName(t("filter_name")).addText((tx) => tx.setPlaceholder(t("filter_name_ph")).setValue(this.name).onChange((v) => {
       this.name = v;
     }));
-    const colorField = contentEl.createDiv({ cls: "bt-new-field" });
+    const colorField = contentEl.createDiv({ cls: "bt-new-field bt-filter-color" });
     colorField.createEl("label", { text: t("status_pick_color") });
     buildSwatchRow(colorField.createDiv(), this.color, (c) => {
       this.color = c;

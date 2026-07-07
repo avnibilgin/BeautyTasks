@@ -1221,6 +1221,8 @@ body {
 }
 .bt-new-input:focus { outline: none; border-color: var(--interactive-accent); box-shadow: 0 0 0 3px var(--background-modifier-border-hover); }
 .bt-swatch-row { display: flex; flex-wrap: wrap; gap: 7px; }
+/* Im Filter-Editor etwas mehr Luft zwischen Farb-Reihe und der Sektion „Anordnung". */
+.bt-filter-modal .bt-filter-color { margin-bottom: 20px; }
 /* Live-Vorschau des Eintrags (Icon in der gewählten Farbe + Name). */
 .bt-new-preview { display: flex; align-items: center; gap: 9px; margin: 4px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--background-secondary); font-size: 13.5px; }
 .bt-new-preview-ic { display: inline-flex; }
