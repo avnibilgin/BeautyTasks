@@ -1946,6 +1946,22 @@ async function updateFilterNote(app, path, criteria, options) {
   if (!(f instanceof import_obsidian6.TFile)) return;
   await app.fileManager.processFrontMatter(f, (fm) => applyToFrontmatter(fm, criteria, options));
 }
+async function renameFilterNote(app, path, newName) {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof import_obsidian6.TFile)) return null;
+  const base = slugify(newName);
+  const folder = f.parent?.path ?? "";
+  let dest = (0, import_obsidian6.normalizePath)((folder ? folder + "/" : "") + base + ".md");
+  if (dest !== path && app.vault.getAbstractFileByPath(dest)) return null;
+  await app.fileManager.renameFile(f, dest);
+  const nf = app.vault.getAbstractFileByPath(dest);
+  if (nf instanceof import_obsidian6.TFile) {
+    const body = await app.vault.read(nf);
+    const replaced = body.replace(/^# .*$/m, "# " + newName);
+    if (replaced !== body) await app.vault.modify(nf, replaced);
+  }
+  return base;
+}
 async function setFilterNavHidden(app, path, hidden) {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof import_obsidian6.TFile)) return;
@@ -3674,8 +3690,41 @@ function filterRow(list, plugin, fl, redraw, reorder) {
     fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setFilterVisible(fl.path, fl.hidden)
   );
-  iconBtn(actions, "pencil", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
+}
+function startFilterRename(row, plugin, fl, redraw) {
+  row.empty();
+  row.addClass("is-editing");
+  const input = row.createEl("input", { type: "text", cls: "bt-manage-input" });
+  input.value = fl.name;
+  const save = async () => {
+    const nu = input.value.trim();
+    if (!nu || nu === fl.name) {
+      redraw();
+      return;
+    }
+    const r = await plugin.renameFilter(fl.path, nu);
+    if (r === null) new import_obsidian10.Notice(t("err_enter_taskname"));
+    redraw();
+  };
+  const actions = row.createDiv({ cls: "bt-manage-actions" });
+  iconBtn(actions, "check", t("btn_save"), () => void save());
+  iconBtn(actions, "x", t("btn_cancel"), redraw);
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void save();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      redraw();
+    }
+  };
+  window.setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 0);
 }
 function startLabelRename(row, plugin, l, redraw) {
   row.empty();
@@ -5556,6 +5605,13 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   async updateFilter(path, criteria, options) {
     this.refreshOnChange(path);
     await updateFilterNote(this.app, path, criteria, options);
+  }
+  /** Filter umbenennen (Datei + „# Überschrift"). Gibt neuen Basenamen zurück oder null bei
+   *  Kollision. renameFile löst ein vault-„rename" aus; zur Sicherheit zusätzlich neu zeichnen. */
+  async renameFilter(path, newName) {
+    const r = await renameFilterNote(this.app, path, newName);
+    this.renderAll();
+    return r;
   }
   /** Filter in der Seitenleiste ein-/ausblenden (nav_hidden), refresh nach Cache-Update. */
   async setFilterVisible(path, visible) {

@@ -10,7 +10,7 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
-import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, listFilters, readFilter, FilterItem } from "./filterService";
+import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, applyFilter } from "./filterEngine";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
@@ -205,6 +205,13 @@ export default class BeautyTasksPlugin extends Plugin {
   async updateFilter(path: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
     this.refreshOnChange(path);
     await updateFilterNote(this.app, path, criteria, options);
+  }
+  /** Filter umbenennen (Datei + „# Überschrift"). Gibt neuen Basenamen zurück oder null bei
+   *  Kollision. renameFile löst ein vault-„rename" aus; zur Sicherheit zusätzlich neu zeichnen. */
+  async renameFilter(path: string, newName: string): Promise<string | null> {
+    const r = await renameFilterNote(this.app, path, newName);
+    this.renderAll();
+    return r;
   }
   /** Filter in der Seitenleiste ein-/ausblenden (nav_hidden), refresh nach Cache-Update. */
   async setFilterVisible(path: string, visible: boolean): Promise<void> {

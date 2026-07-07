@@ -215,8 +215,32 @@ function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem,
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   iconBtn(actions, fl.hidden ? "eye-off" : "eye", fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setFilterVisible(fl.path, fl.hidden));
-  iconBtn(actions, "pencil", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  // Eigenes Icon für den vollen Editor (Kriterien/Sortierung); Stift = nur Umbenennen (wie Labels).
+  iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
+}
+
+function startFilterRename(row: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void): void {
+  row.empty();
+  row.addClass("is-editing");
+  const input = row.createEl("input", { type: "text", cls: "bt-manage-input" });
+  input.value = fl.name;
+  const save = async () => {
+    const nu = input.value.trim();
+    if (!nu || nu === fl.name) { redraw(); return; }
+    const r = await plugin.renameFilter(fl.path, nu);
+    if (r === null) new Notice(t("err_enter_taskname"));   // Kollision o. ä. -> Hinweis, Liste neu
+    redraw();
+  };
+  const actions = row.createDiv({ cls: "bt-manage-actions" });
+  iconBtn(actions, "check", t("btn_save"), () => void save());
+  iconBtn(actions, "x", t("btn_cancel"), redraw);
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); void save(); }
+    else if (e.key === "Escape") { e.preventDefault(); redraw(); }
+  };
+  window.setTimeout(() => { input.focus(); input.select(); }, 0);
 }
 
 function startLabelRename(row: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void): void {
