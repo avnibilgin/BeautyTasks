@@ -290,7 +290,7 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const filter = readFilter(plugin.app, filterPath);
-  if (!filter) { emptyState(root, "filter", "empty_no_filter"); return; }
+  if (!filter) { emptyState(root, "tag", "empty_no_filter"); return; }
 
   // Kopf: Titel + Bearbeiten (öffnet den Editor) + globaler Layout-Umschalter.
   const head = root.createDiv({ cls: "bt-board-head" });
@@ -744,19 +744,8 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     }
   };
 
-  // Labels-Sektion (über den Bereichen): Header mit Chevron + „+", darunter die sichtbaren Labels.
-  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), t("placeholder_label"), redraw, async (v) => {
-    const nu = normalizeLabel(v);
-    const ok = await plugin.addLabel(v);
-    if (ok && nu) await plugin.setLabelVisible(nu, true);   // aus der Nav erstellt -> gleich sichtbar
-  });
-  if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
-    const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
-    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
-  }
-
-  // Filter-Sektion: „+" öffnet den Filter-Editor (Modal statt Inline-Eingabe – ein Filter
-  // braucht mehr als nur einen Namen). Jeder Filter zeigt seine Live-Trefferzahl.
+  // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor (Modal statt Inline-Eingabe –
+  // ein Filter braucht mehr als nur einen Namen). Jeder Filter zeigt seine Live-Trefferzahl.
   const today = todayStr();
   const filters = listFilters(plugin.app);
   const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
@@ -767,6 +756,17 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
       active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
     });
+  }
+
+  // Labels-Sektion (über den Bereichen): Header mit Chevron + „+", darunter die sichtbaren Labels.
+  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), t("placeholder_label"), redraw, async (v) => {
+    const nu = normalizeLabel(v);
+    const ok = await plugin.addLabel(v);
+    if (ok && nu) await plugin.setLabelVisible(nu, true);   // aus der Nav erstellt -> gleich sichtbar
+  });
+  if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
+    const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
+    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
 
   // Bereiche: Header „+" legt eine Notiz direkt als Bereich (type: area) an.

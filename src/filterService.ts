@@ -38,7 +38,8 @@ function readOptions(fm: Record<string, unknown>): ViewOptions {
 function toItem(f: TFile, fm: Record<string, unknown>): FilterItem {
   return {
     name: f.basename, path: f.path,
-    icon: typeof fm.icon === "string" && fm.icon ? fm.icon : "filter",
+    icon: "tag",   // fest (noch kein Icon-Picker) – gilt auch für Alt-Filter mit gespeichertem icon
+
     color: typeof fm.color === "string" ? fm.color : null,
     criteria: readCriteria(fm), options: readOptions(fm),
   };
@@ -84,7 +85,7 @@ export async function createFilterNote(
   let dest = normalizePath(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
-  const fm: Record<string, unknown> = { type: "filter", id: newId("f"), icon: "filter", created: todayIso() };
+  const fm: Record<string, unknown> = { type: "filter", id: newId("f"), created: todayIso() };
   applyToFrontmatter(fm, criteria, options);
   await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");
   return base;

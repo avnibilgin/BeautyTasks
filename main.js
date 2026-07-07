@@ -1889,7 +1889,8 @@ function toItem(f, fm) {
   return {
     name: f.basename,
     path: f.path,
-    icon: typeof fm.icon === "string" && fm.icon ? fm.icon : "filter",
+    icon: "tag",
+    // fest (noch kein Icon-Picker) – gilt auch für Alt-Filter mit gespeichertem icon
     color: typeof fm.color === "string" ? fm.color : null,
     criteria: readCriteria(fm),
     options: readOptions(fm)
@@ -1932,7 +1933,7 @@ async function createFilterNote(app, settings, name, criteria, options) {
     n++;
     if (n > 200) break;
   }
-  const fm = { type: "filter", id: newId("f"), icon: "filter", created: todayIso() };
+  const fm = { type: "filter", id: newId("f"), created: todayIso() };
   applyToFrontmatter(fm, criteria, options);
   await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");
   return base;
@@ -4122,7 +4123,7 @@ function renderFilterBoardInto(c, plugin, filterPath) {
   const root = c.createDiv({ cls: "bt-sizer" });
   const filter = readFilter(plugin.app, filterPath);
   if (!filter) {
-    emptyState(root, "filter", "empty_no_filter");
+    emptyState(root, "tag", "empty_no_filter");
     return;
   }
   const head = root.createDiv({ cls: "bt-board-head" });
@@ -4540,15 +4541,6 @@ function renderNavInto(c, plugin) {
       });
     }
   };
-  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), t("placeholder_label"), redraw, async (v) => {
-    const nu = normalizeLabel(v);
-    const ok = await plugin.addLabel(v);
-    if (ok && nu) await plugin.setLabelVisible(nu, true);
-  });
-  if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
-    const count = plugin.index.byLabel(name).length;
-    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
-  }
   const today = todayStr();
   const filters = listFilters(plugin.app);
   const filtersCollapsed = navHead(
@@ -4572,6 +4564,15 @@ function renderNavInto(c, plugin) {
       active: plugin.currentFilter === fl.path,
       onClick: () => void plugin.activateFilter(fl.path)
     });
+  }
+  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), t("placeholder_label"), redraw, async (v) => {
+    const nu = normalizeLabel(v);
+    const ok = await plugin.addLabel(v);
+    if (ok && nu) await plugin.setLabelVisible(nu, true);
+  });
+  if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
+    const count = plugin.index.byLabel(name).length;
+    navItem(c, { cls: "bt-nav-label", icon: "hash", label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
   }
   const areasCollapsed = navHead(
     c,
