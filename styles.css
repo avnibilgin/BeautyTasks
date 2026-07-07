@@ -1174,15 +1174,20 @@ body {
 .bt-filter-modal { width: 440px; max-width: 92vw; }
 .bt-filter-modal h3 { margin: 0 0 4px; }
 .bt-filter-modal .setting-item {
-  border: 0 !important; box-shadow: none !important; padding: 0; min-height: 30px; align-items: center;
+  /* !important schlägt Obsidians .modal:not(.mod-settings) .setting-item… (höhere Spezifität),
+     ohne die Core-Regel global anzufassen. Nur vertikal, damit die Zeilen bündig zu den
+     Sektionsköpfen bleiben. */
+  border: 0 !important; box-shadow: none !important; padding: 6px 0 !important; align-items: center;
 }
 .bt-filter-modal .setting-item-name { font-size: var(--font-ui-small); }
 /* Alle Steuerelemente im Modal flach (kein Schatten) UND mit sichtbarem Rand –
-   native Dropdowns haben von Haus aus keinen Rand, daher hier angleichen. */
+   native Dropdowns haben von Haus aus keinen Rand, daher hier angleichen. WICHTIG:
+   background-COLOR (nicht background-Shorthand), sonst wird das native Chevron-Hintergrundbild
+   des <select> mitgelöscht -> Dropdown ohne Pfeil (z. B. „Zeitraum"). */
 .bt-filter-modal .bt-facet-dd, .bt-filter-modal .dropdown { box-shadow: none !important; }
 .bt-filter-modal .dropdown {
   border: 1px solid var(--background-modifier-border);
-  background: var(--background-modifier-form-field);
+  background-color: var(--background-modifier-form-field);
 }
 .bt-filter-modal .bt-filter-h {
   margin: 8px 0 1px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
@@ -1208,7 +1213,11 @@ body {
 .bt-facet-pop .bt-row-ic { width: 16px; display: inline-flex; flex-shrink: 0; }
 .bt-facet-pop .bt-row-ic svg { width: 15px; height: 15px; }
 /* Live-Trefferzahl im Fuß des Editors. */
-.bt-filter-count { margin: 10px 0 2px; font-weight: 600; color: var(--text-normal); }
+/* Trennlinie über dem Zähler – gleiche Linie wie unter den Sektionsköpfen. */
+.bt-filter-count {
+  margin: 14px 0 2px; padding-top: 12px; font-weight: 600; color: var(--text-normal);
+  border-top: 1px solid var(--background-modifier-border);
+}
 
 /* ── „Neu"-Modal (Projekt/Bereich/Label anlegen, Variante B) ─────── */
 .bt-new-modal { width: 380px; max-width: 92vw; }
@@ -1221,8 +1230,14 @@ body {
 }
 .bt-new-input:focus { outline: none; border-color: var(--interactive-accent); box-shadow: 0 0 0 3px var(--background-modifier-border-hover); }
 .bt-swatch-row { display: flex; flex-wrap: wrap; gap: 7px; }
-/* Im Filter-Editor etwas mehr Luft zwischen Farb-Reihe und der Sektion „Anordnung". */
-.bt-filter-modal .bt-filter-color { margin-bottom: 20px; }
+/* Farbbereich im Filter-Editor: eigener, zentrierter Container mit mehr Padding, plus
+   deutlich Luft bis zur Sektion „Anordnung". */
+.bt-filter-modal .bt-filter-color { margin-bottom: 40px; }
+.bt-filter-modal .bt-filter-color .bt-swatch-row {
+  justify-content: center; gap: 9px; padding: 14px;
+  border: 1px solid var(--background-modifier-border); border-radius: 10px;
+  background: var(--background-secondary);
+}
 /* Live-Vorschau des Eintrags (Icon in der gewählten Farbe + Name). */
 .bt-new-preview { display: flex; align-items: center; gap: 9px; margin: 4px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--background-secondary); font-size: 13.5px; }
 .bt-new-preview-ic { display: inline-flex; }
