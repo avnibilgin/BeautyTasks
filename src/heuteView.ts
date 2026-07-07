@@ -747,7 +747,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor (Modal statt Inline-Eingabe –
   // ein Filter braucht mehr als nur einen Namen). Jeder Filter zeigt seine Live-Trefferzahl.
   const today = todayStr();
-  const filters = listFilters(plugin.app);
+  const filters = plugin.sortFilters(listFilters(plugin.app));
   const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
     async () => undefined, () => new FilterModal(plugin).open());
   if (!filtersCollapsed) for (const fl of filters) {

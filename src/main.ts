@@ -10,8 +10,8 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
-import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, listFilters } from "./filterService";
-import { FilterCriteria, ViewOptions } from "./filterEngine";
+import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, listFilters, readFilter, FilterItem } from "./filterService";
+import { FilterCriteria, ViewOptions, applyFilter } from "./filterEngine";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
 import { t, setLocale } from "./i18n";
@@ -398,14 +398,16 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Seitenleisten-Sortierung (Projekte/Bereiche/Labels) ──
   navSortMode(sec: NavSection): NavSortMode { return this.settings.navSort?.[sec] ?? "name"; }
   async setNavSort(sec: NavSection, mode: NavSortMode): Promise<void> {
-    const cur = this.settings.navSort ?? { projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode };
+    const cur = this.settings.navSort ?? { projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode, filters: "name" as NavSortMode };
     cur[sec] = mode;
     this.settings.navSort = cur;
     await this.saveSettings();
     this.renderAll();
   }
   private navCount(sec: NavSection, key: string): number {
-    return sec === "labels" ? this.index.byLabel(key).length : this.index.byProject(key).length;
+    if (sec === "labels") return this.index.byLabel(key).length;
+    if (sec === "filters") { const fl = readFilter(this.app, key); return fl ? applyFilter(this.index, fl.criteria, fl.options, todayStr()).length : 0; }
+    return this.index.byProject(key).length;
   }
   /** Liste nach dem aktiven Modus sortieren: Name (alphabetisch) · Anzahl (viele zuerst) · Manuell. */
   private orderNav<T>(sec: NavSection, items: T[], keyOf: (t: T) => string, nameOf: (t: T) => string): T[] {
@@ -428,12 +430,17 @@ export default class BeautyTasksPlugin extends Plugin {
   sortLabels<T extends { name: string }>(items: T[]): T[] {
     return this.orderNav("labels", items, (x) => x.name, (x) => x.name);
   }
+  /** Filter-Liste (Seitenleiste UND ListManager) in eingestellter Reihenfolge. */
+  sortFilters(items: FilterItem[]): FilterItem[] {
+    return this.orderNav("filters", items, (f) => f.path, (f) => f.name);
+  }
   /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
   private currentNavKeys(sec: NavSection): string[] {
     if (sec === "labels") {
       const items = this.getLabels().map((l) => ({ name: l.name }));
       return this.orderNav("labels", items, (x) => x.name, (x) => x.name).map((x) => x.name);
     }
+    if (sec === "filters") return this.sortFilters(listFilters(this.app)).map((f) => f.path);
     const wantType = sec === "areas" ? "area" : "project";
     const items = listManaged(this.app).active.filter((p) => p.type === wantType);
     return this.sortProjItems(sec, items).map((p) => p.path);
@@ -444,7 +451,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const i = keys.indexOf(key), j = i + dir;
     if (i < 0 || j < 0 || j >= keys.length) return;
     [keys[i], keys[j]] = [keys[j], keys[i]];
-    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [] };
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [] };
     order[sec] = keys;
     this.settings.navOrder = order;
     await this.saveSettings();

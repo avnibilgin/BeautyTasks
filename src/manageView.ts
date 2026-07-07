@@ -83,10 +83,12 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     btn.createSpan({ cls: "bt-add-icon" });
     btn.createSpan({ text: t("filter_add") });
     btn.onclick = () => new FilterModal(plugin).open();
-    const filters = listFilters(plugin.app);
+    sortControl(root, plugin, "filters");
+    const filters = plugin.sortFilters(listFilters(plugin.app));
     if (!filters.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_filters") }); return; }
+    const manual = plugin.navSortMode("filters") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
-    for (const fl of filters) filterRow(list, plugin, fl, redraw);
+    filters.forEach((fl, i) => filterRow(list, plugin, fl, redraw, manual ? { sec: "filters", i, n: filters.length } : undefined));
     return;
   }
 
@@ -204,8 +206,9 @@ function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: strin
 
 /** Filter-Zeile im ListManager: Name (Klick öffnet das Board) · Anzahl · Sichtbarkeit ·
  *  Bearbeiten (öffnet den Filter-Editor) · Löschen. Sichtbarkeit wie bei Projekten (nav_hidden). */
-function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void): void {
+function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorder) reorderHandle(row, plugin, reorder.sec, fl.path, reorder.i, reorder.n);
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
   name.onclick = () => void plugin.activateFilter(fl.path);
   row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });

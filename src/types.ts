@@ -8,7 +8,7 @@ export type Priority = "highest" | "high" | "medium" | "normal" | "low" | "lowes
 export type StatusKind = "open" | "done" | "cancelled";
 
 /** Seitenleisten-Sektionen mit sortierbarer Reihenfolge. */
-export type NavSection = "projects" | "areas" | "labels";
+export type NavSection = "projects" | "areas" | "labels" | "filters";
 /** Sortiermodus einer Sektion: manuelle Reihenfolge · alphabetisch · nach Aufgabenzahl. */
 export type NavSortMode = "manual" | "name" | "count";
 

@@ -3522,13 +3522,15 @@ function renderManageInto(c, plugin) {
     btn.createSpan({ cls: "bt-add-icon" });
     btn.createSpan({ text: t("filter_add") });
     btn.onclick = () => new FilterModal(plugin).open();
-    const filters = listFilters(plugin.app);
+    sortControl(root, plugin, "filters");
+    const filters = plugin.sortFilters(listFilters(plugin.app));
     if (!filters.length) {
       root.createEl("p", { cls: "bt-empty", text: t("manage_empty_filters") });
       return;
     }
+    const manual2 = plugin.navSortMode("filters") === "manual";
     const list2 = root.createDiv({ cls: "bt-manage-list" });
-    for (const fl of filters) filterRow(list2, plugin, fl, redraw);
+    filters.forEach((fl, i) => filterRow(list2, plugin, fl, redraw, manual2 ? { sec: "filters", i, n: filters.length } : void 0));
     return;
   }
   if (plugin.manageSection === "labels") {
@@ -3659,8 +3661,9 @@ function labelRow(list, plugin, l, redraw, reorder) {
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
 }
-function filterRow(list, plugin, fl, redraw) {
+function filterRow(list, plugin, fl, redraw, reorder) {
   const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorder) reorderHandle(row, plugin, reorder.sec, fl.path, reorder.i, reorder.n);
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
   name.onclick = () => void plugin.activateFilter(fl.path);
   row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
@@ -4584,7 +4587,7 @@ function renderNavInto(c, plugin) {
     }
   };
   const today = todayStr();
-  const filters = listFilters(plugin.app);
+  const filters = plugin.sortFilters(listFilters(plugin.app));
   const filtersCollapsed = navHead(
     c,
     plugin,
@@ -5749,14 +5752,19 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     return this.settings.navSort?.[sec] ?? "name";
   }
   async setNavSort(sec, mode) {
-    const cur = this.settings.navSort ?? { projects: "name", areas: "name", labels: "name" };
+    const cur = this.settings.navSort ?? { projects: "name", areas: "name", labels: "name", filters: "name" };
     cur[sec] = mode;
     this.settings.navSort = cur;
     await this.saveSettings();
     this.renderAll();
   }
   navCount(sec, key) {
-    return sec === "labels" ? this.index.byLabel(key).length : this.index.byProject(key).length;
+    if (sec === "labels") return this.index.byLabel(key).length;
+    if (sec === "filters") {
+      const fl = readFilter(this.app, key);
+      return fl ? applyFilter(this.index, fl.criteria, fl.options, todayStr()).length : 0;
+    }
+    return this.index.byProject(key).length;
   }
   /** Liste nach dem aktiven Modus sortieren: Name (alphabetisch) · Anzahl (viele zuerst) · Manuell. */
   orderNav(sec, items, keyOf, nameOf) {
@@ -5779,12 +5787,17 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   sortLabels(items) {
     return this.orderNav("labels", items, (x) => x.name, (x) => x.name);
   }
+  /** Filter-Liste (Seitenleiste UND ListManager) in eingestellter Reihenfolge. */
+  sortFilters(items) {
+    return this.orderNav("filters", items, (f) => f.path, (f) => f.name);
+  }
   /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
   currentNavKeys(sec) {
     if (sec === "labels") {
       const items2 = this.getLabels().map((l) => ({ name: l.name }));
       return this.orderNav("labels", items2, (x) => x.name, (x) => x.name).map((x) => x.name);
     }
+    if (sec === "filters") return this.sortFilters(listFilters(this.app)).map((f) => f.path);
     const wantType = sec === "areas" ? "area" : "project";
     const items = listManaged(this.app).active.filter((p) => p.type === wantType);
     return this.sortProjItems(sec, items).map((p) => p.path);
@@ -5795,7 +5808,7 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     const i = keys.indexOf(key), j = i + dir;
     if (i < 0 || j < 0 || j >= keys.length) return;
     [keys[i], keys[j]] = [keys[j], keys[i]];
-    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [] };
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [] };
     order[sec] = keys;
     this.settings.navOrder = order;
     await this.saveSettings();
