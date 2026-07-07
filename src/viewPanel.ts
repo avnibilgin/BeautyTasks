@@ -30,7 +30,6 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       pop.empty();
       pop.addClass("bt-view-panel");
 
-      cap(t("panel_layout"));
       const seg = pop.createDiv({ cls: "bt-tabs bt-layout-toggle" });
       for (const l of LAYOUTS) {
         const b = seg.createEl("button", { cls: "bt-tab" + (o.layout === l ? " is-active" : ""), text: t("layout_" + l) });

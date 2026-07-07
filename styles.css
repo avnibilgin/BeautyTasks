@@ -993,8 +993,47 @@ body {
 .bt-view .bt-manage-actions.bt-confirm { gap: 6px; }
 .bt-view .bt-confirm-q { font-size: 0.85em; color: var(--bt-overdue); }
 
+/* ── Aufgeräumte ListManager-Zeile: Farbpunkt · Sichtbarkeits-Schalter · Hover-Aktionen ── */
+/* Farbpunkt: ohne eigene Farbe zeigt --c die Kategorie-Default-Farbe (vom Aufrufer gesetzt). */
+.bt-view .bt-mrow-dot {
+  width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; cursor: pointer;
+  background: var(--c, var(--text-muted)); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+}
+/* Sichtbarkeits-Schalter: bewusst kompakt & ruhig, damit die Spalte nicht dominiert. */
+.bt-mrow-switch {
+  position: relative; width: 28px; height: 16px; border-radius: 999px; flex: 0 0 auto; cursor: pointer;
+  background: var(--background-modifier-border);
+}
+.bt-mrow-switch.is-on { background: var(--interactive-accent); }
+.bt-mrow-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left 0.12s; }
+.bt-mrow-switch.is-on::after { left: 14px; }
+/* Selten-Aktionen erst bei Hover/Fokus (Platz reserviert -> kein Umbruch); Reorder-Griff genauso.
+   Bei aktiver Löschen-Bestätigung sichtbar halten. Status-Zeilen behalten ihren Griff dauerhaft. */
+.bt-view .bt-manage-actions.bt-hover-acts { opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+/* Griff im Ruhezustand ganz aus dem Layout nehmen (nicht nur unsichtbar) -> kein Einzug links,
+   der Punkt startet wie im Name/Anzahl-Modus ganz links. Bei Hover erscheint er. */
+.bt-view .bt-manage-row:not(.bt-status-row) .bt-status-move { display: none; }
+.bt-view .bt-manage-row:hover .bt-hover-acts,
+.bt-view .bt-manage-row:focus-within .bt-hover-acts,
+.bt-view .bt-manage-actions.bt-hover-acts.bt-confirm { opacity: 1; pointer-events: auto; }
+.bt-view .bt-manage-row:not(.bt-status-row):hover .bt-status-move,
+.bt-view .bt-manage-row:not(.bt-status-row):focus-within .bt-status-move { display: inline-flex; }
+@media (prefers-reduced-motion: reduce) { .bt-mrow-switch::after, .bt-view .bt-manage-actions.bt-hover-acts, .bt-view .bt-status-move { transition: none; } }
+
 /* „Verwalten" am Fuß der Nav, leicht abgesetzt. */
 .bt-nav-manage { margin-top: 10px; }
+
+/* Empty-State-Zeile unter einem leeren Sektionskopf (Filter/Labels): dezent, gestrichelt,
+   Hover -> Akzent. Verschwindet automatisch, sobald ein Eintrag existiert. */
+.bt-nav-hint {
+  display: flex; align-items: center; gap: 8px; margin: 1px 4px 3px; padding: 6px 8px; line-height: 1;
+  border: 1px dashed var(--background-modifier-border); border-radius: 7px;
+  color: var(--text-muted); cursor: pointer; font-size: var(--font-ui-small);
+}
+.bt-nav-hint-lbl { line-height: 1; }
+.bt-nav-hint:hover { color: var(--interactive-accent); border-color: var(--interactive-accent); background: var(--background-modifier-hover); }
+.bt-nav-hint-ic { display: grid; place-items: center; flex: 0 0 auto; position: relative; top: 0; }
+.bt-nav-hint-ic svg { display: block; width: 13px; height: 13px; }
 
 /* Bild-Lightbox: schwebt über dem Modal, dunkler Scrim (bewusst themenunabhängig). */
 .bt-lightbox {
@@ -1239,6 +1278,12 @@ body {
   background: var(--background-secondary);
 }
 /* Live-Vorschau des Eintrags (Icon in der gewählten Farbe + Name). */
+/* Sichtbarkeits-Zeile im Neu/Bearbeiten-Modal: Label links, größerer Schalter rechts, mehr Luft. */
+.bt-new-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0; }
+.bt-new-row > label { font-size: 13px; color: var(--text-normal); font-weight: 600; }
+:is(.bt-new-modal, .bt-filter-modal) .bt-mrow-switch { width: 38px; height: 22px; }
+:is(.bt-new-modal, .bt-filter-modal) .bt-mrow-switch::after { width: 16px; height: 16px; top: 3px; left: 3px; }
+:is(.bt-new-modal, .bt-filter-modal) .bt-mrow-switch.is-on::after { left: 19px; }
 .bt-new-preview { display: flex; align-items: center; gap: 9px; margin: 4px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--background-secondary); font-size: 13.5px; }
 .bt-new-preview-ic { display: inline-flex; }
 .bt-new-preview-ic svg, .bt-new-preview-ic .svg-icon { width: 16px; height: 16px; }
@@ -1247,9 +1292,21 @@ body {
 .bt-new-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .bt-new-modal .bt-actions { display: inline-flex; gap: 8px; }
 
+/* ── Kopf-Aktionsgruppe (Stift · ListManager-Link · Anzeige), rechts gebündelt ── */
+.bt-view .bt-board-head .bt-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+/* Icon-Buttons als eigenständige Buttons – gleiche Höhe/Rand/Radius wie „Anzeige" (nur icon-only, quadratisch). */
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn {
+  display: grid; place-items: center; line-height: 0;
+  width: 32px; height: 32px; padding: 0; border-radius: 8px; color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border); background: var(--background-primary);
+}
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn > span { display: grid; place-items: center; margin: 0; }
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn svg { display: block; width: 16px; height: 16px; }
+
 /* ── „Anzeige"-Knopf + Panel (pro Seite, Alternative C) ─────────────── */
 .bt-view .bt-anzeige {
-  display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 11px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal);
   font-size: var(--font-ui-small); font-weight: 600; box-shadow: none; white-space: nowrap;
 }
@@ -1259,9 +1316,18 @@ body {
 .bt-anzeige-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent); }
 
 .bt-pop.bt-view-panel { min-width: 240px; padding: 10px 12px; }
+/* Layout-Segmentierung: das Popover hängt an body (nicht in .bt-view), daher hier eigene
+   Tab-Styles. Buttons füllen gleichmäßig die Breite; aktiv = Akzentfarbe (wie im ListManager). */
+.bt-view-panel .bt-tabs { display: flex; gap: 6px; margin: 2px 0 0; }
+.bt-view-panel .bt-tab {
+  flex: 1; text-align: center; cursor: pointer; padding: 5px 10px; border-radius: 6px; box-shadow: none;
+  font-size: var(--font-ui-small); border: 1px solid var(--background-modifier-border); background: transparent; color: var(--text-muted);
+}
+.bt-view-panel .bt-tab:hover { color: var(--text-normal); }
+.bt-view-panel .bt-tab.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); font-weight: 600; }
 .bt-view-panel .bt-panel-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin: 2px 0 6px; }
-.bt-view-panel .bt-panel-cap:not(:first-child) { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--background-modifier-border); }
-.bt-view-panel .bt-panel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
+.bt-view-panel .bt-panel-cap:not(:first-child) { margin: 0 -12px 6px; padding: 10px 12px 0; border-top: 1px solid var(--background-modifier-border); }
+.bt-view-panel .bt-panel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 13px; }
 .bt-view-panel .bt-panel-k { color: var(--text-normal); }
 .bt-view-panel .bt-panel-dd { font-size: 12.5px; }
 .bt-view-panel .bt-panel-switch { position: relative; width: 34px; height: 19px; border-radius: 999px; background: var(--background-modifier-border); cursor: pointer; flex: 0 0 auto; transition: background 0.15s; }
@@ -1269,7 +1335,9 @@ body {
 .bt-view-panel .bt-panel-switch.is-on { background: var(--interactive-accent); }
 .bt-view-panel .bt-panel-switch.is-on::after { left: 17px; }
 .bt-view-panel .bt-panel-reset {
-  width: 100%; margin-top: 10px; padding-top: 10px; border: none; border-top: 1px solid var(--background-modifier-border);
+  /* volle Breite bis an die Panel-Ränder (Innenpadding via negative Ränder überziehen). */
+  display: block; width: calc(100% + 24px); margin: 10px -12px 0; padding: 10px 12px 0;
+  border: none; border-top: 1px solid var(--background-modifier-border);
   background: transparent; color: var(--interactive-accent); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; box-shadow: none; text-align: center;
 }
 @media (prefers-reduced-motion: reduce) { .bt-view-panel .bt-panel-switch, .bt-view-panel .bt-panel-switch::after { transition: none; } }

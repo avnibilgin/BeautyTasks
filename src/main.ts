@@ -234,8 +234,8 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Gespeicherte Filter (type:filter-Notizen) ──
   /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-
    *  Listener auf den frisch geparsten Frontmatter, bevor zum neuen Filter-Board gewechselt wird. */
-  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null): Promise<void> {
-    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color);
+  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null, hidden = false): Promise<void> {
+    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color, hidden);
     const ref = this.app.metadataCache.on("changed", () => {
       this.app.metadataCache.offref(ref);
       const created = listFilters(this.app).find((fl) => fl.name === base);
@@ -323,8 +323,8 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Neues Projekt (oder direkt Bereich) anlegen. Nav/Board lesen den metadataCache, der
    *  nach create erst kurz später aktualisiert wird -> einmaliger „changed"-Listener zeichnet
    *  dann neu, damit der neue Eintrag sofort in der Seitenleiste erscheint. */
-  async createProject(name: string, asArea = false, color: string | null = null): Promise<void> {
-    await createProjectNote(this.app, this.settings, name, asArea, color);
+  async createProject(name: string, asArea = false, color: string | null = null, hidden = false): Promise<void> {
+    await createProjectNote(this.app, this.settings, name, asArea, color, hidden);
     const ref = this.app.metadataCache.on("changed", () => { this.app.metadataCache.offref(ref); this.renderAll(); });
     this.registerEvent(ref);
   }

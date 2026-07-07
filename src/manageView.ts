@@ -1,4 +1,4 @@
-import { setIcon, Notice } from "obsidian";
+import { setIcon, Notice, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { listManaged, ProjItem } from "./taskService";
 import { listFilters, FilterItem } from "./filterService";
@@ -159,29 +159,53 @@ function addRow(parent: HTMLElement, label: string, placeholder: string, onSubmi
   };
 }
 
+/** Klickbarer Farbpunkt (zeigt die Farbe, öffnet den Picker) – ersetzt das Palette-Icon.
+ *  Ohne eigene Farbe wird die Kategorie-Default-Farbe gezeigt (dieselbe wie in der Seitenleiste
+ *  bei Anlegen ohne Farbwahl). previewKey = Nav-Schlüssel für die Live-Vorschau. */
+function colorDot(row: HTMLElement, plugin: BeautyTasksPlugin, current: string | null, previewKey: string, defaultColor: string, onPick: (c: string | null) => void): void {
+  const dot = row.createDiv({ cls: "bt-mrow-dot", attr: { "aria-label": t("status_pick_color"), "data-tooltip-position": "top" } });
+  dot.style.setProperty("--c", current ?? defaultColor);
+  dot.onclick = (e) => { e.stopPropagation(); openColorPicker(dot, current, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() }); };
+}
+
+/** Sichtbarkeits-Schalter (immer sichtbar) – ersetzt das Auge-Icon. */
+function visSwitch(row: HTMLElement, on: boolean, onToggle: () => void): void {
+  const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), "aria-label": on ? t("tip_hide_sidebar") : t("tip_show_sidebar"), "data-tooltip-position": "top", tabindex: "0" } });
+  sw.onclick = (e) => { e.stopPropagation(); onToggle(); };
+  sw.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } };
+}
+
+/** Überlauf-Kebab (Projekte/Bereiche): seltene Aktion „Umwandeln" (Projekt ↔ Bereich). */
+function rowMenu(actions: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem): void {
+  const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+  setIcon(kebab.createSpan(), "more-horizontal");
+  kebab.onclick = (e) => {
+    e.stopPropagation();
+    const isArea = it.type === "area";
+    const menu = new Menu();
+    menu.addItem((m) => m.setTitle(isArea ? t("tip_unmark_area") : t("tip_mark_area")).setIcon(isArea ? "square" : "circle").onClick(() => void plugin.setProjectArea(it.path, !isArea)));
+    menu.showAtMouseEvent(e);
+  };
+}
+
 function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorder) reorderHandle(row, plugin, reorder.sec, it.path, reorder.i, reorder.n);
   const isArea = it.type === "area";
 
+  colorDot(row, plugin, it.color, it.path, isArea ? "var(--bt-nav-area)" : "var(--bt-nav-project)", (c) => void plugin.setProjectColor(it.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
   name.onclick = () => void plugin.activateProject(it.path);
-  row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });   // offene Aufgaben (wie bei Labels/Status)
 
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  // Projekt ↔ Bereich umschalten. Icon spiegelt den aktuellen Typ: Projekt = Seitenleisten-
-  // Icon (it.icon, i.d.R. „folder"), Bereich = „circle" – gleiche Farbe wie die übrigen Icons.
-  iconBtn(actions, isArea ? "circle" : it.icon, isArea ? t("tip_unmark_area") : t("tip_mark_area"),
-    () => void plugin.setProjectArea(it.path, !isArea));
-  iconBtn(actions, it.hidden ? "eye-off" : "eye", it.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
-    () => void plugin.setProjectVisible(it.path, it.hidden));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, it.color,
-    (c) => void plugin.setProjectColor(it.path, c),
-    { onPreview: (c) => plugin.setColorPreview(it.path, c), onClose: () => plugin.clearColorPreview() }));
+  // Hover-Aktionen LINKS neben Zähler + Schalter; „Umwandeln" im Kebab; Schalter ganz rechts.
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "pencil", t("btn_rename"), () => startRename(row, plugin, it, redraw));
-  // Bereiche sind wie Projekte archivier-/löschbar (eigene Kategorie im ListManager).
   iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
+  rowMenu(actions, plugin, it);
+
+  row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
+  visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 
 function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void): void {
@@ -196,18 +220,14 @@ function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, 
 function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorder) reorderHandle(row, plugin, reorder.sec, l.name, reorder.i, reorder.n);
+  colorDot(row, plugin, plugin.getLabelColor(l.name), l.name, "var(--bt-nav-label)", (c) => void plugin.setLabelColor(l.name, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
-  name.onclick = () => void plugin.activateLabel(l.name);   // Verlinkung: Klick öffnet das Label-Board
-  row.createSpan({ cls: "bt-manage-count", text: String(l.count) });
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  const vis = plugin.isLabelVisible(l.name);
-  iconBtn(actions, vis ? "eye" : "eye-off", vis ? t("tip_hide_sidebar") : t("tip_show_sidebar"),
-    () => void plugin.setLabelVisible(l.name, !vis));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, plugin.getLabelColor(l.name),
-    (c) => void plugin.setLabelColor(l.name, c),
-    { onPreview: (c) => plugin.setColorPreview(l.name, c), onClose: () => plugin.clearColorPreview() }));
+  name.onclick = () => void plugin.activateLabel(l.name);   // Klick öffnet das Label-Board
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
+  row.createSpan({ cls: "bt-manage-count", text: String(l.count) });
+  visSwitch(row, plugin.isLabelVisible(l.name), () => void plugin.setLabelVisible(l.name, !plugin.isLabelVisible(l.name)));
 }
 
 /** Filter-Zeile im ListManager: Name (Klick öffnet das Board) · Anzahl · Sichtbarkeit ·
@@ -215,19 +235,15 @@ function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: strin
 function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorder) reorderHandle(row, plugin, reorder.sec, fl.path, reorder.i, reorder.n);
+  colorDot(row, plugin, fl.color, fl.path, "var(--text-muted)", (c) => void plugin.setFilterColor(fl.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
   name.onclick = () => void plugin.activateFilter(fl.path);
-  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  iconBtn(actions, fl.hidden ? "eye-off" : "eye", fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
-    () => void plugin.setFilterVisible(fl.path, fl.hidden));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, fl.color,
-    (c) => void plugin.setFilterColor(fl.path, c),
-    { onPreview: (c) => plugin.setColorPreview(fl.path, c), onClose: () => plugin.clearColorPreview() }));
-  // Eigenes Icon für den vollen Editor (Kriterien/Sortierung); Stift = nur Umbenennen (wie Labels).
-  iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
+  iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());   // Kriterien-Editor
   iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
+  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
+  visSwitch(row, !fl.hidden, () => void plugin.setFilterVisible(fl.path, fl.hidden));
 }
 
 function startFilterRename(row: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void): void {

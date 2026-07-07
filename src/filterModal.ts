@@ -22,6 +22,8 @@ export class FilterModal extends Modal {
   private c: FilterCriteria;
   private o: ViewOptions;
   private color: string | null;
+  private visible: boolean;
+  private readonly wasVisible: boolean;
   private readonly editPath: string | null;
   private countEl!: HTMLElement;
 
@@ -33,6 +35,8 @@ export class FilterModal extends Modal {
     this.c = { ...DEFAULT_CRITERIA, ...(existing?.criteria ?? {}) };
     this.o = { ...DEFAULT_OPTIONS, ...(existing?.options ?? {}) };
     this.color = existing?.color ?? null;
+    this.visible = existing ? !existing.hidden : true;   // neuer Filter: standardmäßig sichtbar
+    this.wasVisible = this.visible;
   }
 
   onOpen(): void {
@@ -52,6 +56,14 @@ export class FilterModal extends Modal {
     const colorField = contentEl.createDiv({ cls: "bt-new-field bt-filter-color" });
     colorField.createEl("label", { text: t("status_pick_color") });
     buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; });
+
+    // Sichtbarkeit in der Seitenleiste (Schalter, wie im Neu/Bearbeiten-Modal).
+    const visRow = contentEl.createDiv({ cls: "bt-new-row" });
+    visRow.createEl("label", { text: t("show_in_sidebar") });
+    const sw = visRow.createDiv({ cls: "bt-mrow-switch" + (this.visible ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(this.visible), tabindex: "0" } });
+    const flip = (): void => { this.visible = !this.visible; sw.toggleClass("is-on", this.visible); sw.setAttr("aria-checked", String(this.visible)); };
+    sw.onclick = flip;
+    sw.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
 
     // Anordnung (Sortieren/Gruppieren/Erledigte/Layout) lebt im „Anzeige"-Panel der Seite –
     // der Editor beschreibt nur, WELCHE Aufgaben zum Filter gehören (Kriterien).
@@ -152,8 +164,12 @@ export class FilterModal extends Modal {
   private async save(): Promise<void> {
     const name = this.name.trim();
     if (!name) { new Notice(t("filter_need_name")); return; }
-    if (this.editPath) await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
-    else await this.plugin.createFilter(name, this.c, this.o, this.color);
+    if (this.editPath) {
+      await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
+      if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(this.editPath, this.visible);
+    } else {
+      await this.plugin.createFilter(name, this.c, this.o, this.color, !this.visible);
+    }
     this.close();
   }
 

@@ -171,20 +171,12 @@ function emptyState(root: HTMLElement, icon: string, key: string): void {
  *  Link zurück ins ListManager (Projekte- bzw. Labels-Tab) – wie im alten BeautyTasks.
  *  Der Link ist optional: der Eingang ist ein Systemordner (kein normales Projekt) und
  *  bekommt daher KEINEN „Projekte"-Link. */
-function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void,
-  section?: "projects" | "areas" | "labels", linkLabel?: string): void {
+function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void): void {
   const bar = root.createDiv({ cls: "bt-board-bar" });
-
   const add = bar.createDiv({ cls: "bt-add" });
   add.createSpan({ cls: "bt-add-icon" });
   add.createSpan({ text: t("btn_add_task") });
   add.onclick = onAdd;
-
-  if (!section || !linkLabel) return;
-  const link = bar.createDiv({ cls: "bt-board-link", attr: { role: "button", tabindex: "0", "aria-label": linkLabel } });
-  const lic = link.createSpan({ cls: "bt-board-link-ic" }); setIcon(lic, "arrow-left-square");
-  link.createSpan({ text: linkLabel });
-  activate(link, () => void plugin.activateManage(section));
 }
 
 /** Projekt-Board: alle Aufgaben eines Projekts, nach Status/Datum gruppiert. */
@@ -195,13 +187,12 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  pageHeader(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }));
-
-  // Bereich (type: area) → Board-Link „Bereiche" und ListManager-Tab „areas"; sonst „Projekte".
+  // Kopf: Link zum ListManager (Tooltip = „Projekte"/„Bereiche"); Eingang ist ein Systemordner → kein Link.
   const isArea = isAreaPath(plugin.app, projectPath);
   const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
-  if (isInbox) addBar(root, plugin, () => plugin.openNewTask(name));
-  else addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
+  pageHeader(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }),
+    isInbox ? {} : { manage: { section: isArea ? "areas" : "projects", label: isArea ? t("group_area") : t("group_project") } });
+  addBar(root, plugin, () => plugin.openNewTask(name));
 
   // Nach Namen vergleichen: gleichnamige Notizen hätten sonst verschiedene Pfade.
   const tasks = plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
@@ -221,9 +212,9 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  pageHeader(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }));
-
-  addBar(root, plugin, () => plugin.openNewTask(undefined, label), "labels", t("tab_labels"));
+  pageHeader(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
+    { manage: { section: "labels", label: t("tab_labels") } });
+  addBar(root, plugin, () => plugin.openNewTask(undefined, label));
 
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
   if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
@@ -292,13 +283,11 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   const filter = readFilter(plugin.app, filterPath);
   if (!filter) { emptyState(root, "tag", "empty_no_filter"); return; }
 
-  // Kopf: Titel + Bearbeiten (Kriterien-Editor) + Anzeige-Knopf (Layout/Sort/Group).
-  const head = root.createDiv({ cls: "bt-board-head" });
-  const titleWrap = head.createDiv({ cls: "bt-filter-title" });
-  titleWrap.createEl("h1", { text: filter.name });
-  iconBtn(titleWrap, "settings-2", t("filter_edit"), () => new FilterModal(plugin, filterPath).open());
-  anzeigeButton(head, plugin);
-
+  // Kopf: Titel + [Stift Kriterien-Editor] [Link „Filter"] [Anzeige].
+  pageHeader(root, plugin, root.createEl("h1", { text: filter.name }), {
+    edit: () => new FilterModal(plugin, filterPath).open(),
+    manage: { section: "filters", label: t("nav_filters") },
+  });
   addBar(root, plugin, () => plugin.openNewTask());
 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
@@ -307,12 +296,19 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   renderPageBody(root, plugin, tasks, filter.options, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
 }
 
-// ── Seiten-Kopf mit „Anzeige"-Knopf ─────────────────────────────────
-/** Board-Überschrift: übergebenen Titel + rechts den Anzeige-Knopf (Layout/Sort/Group). */
-function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement): void {
+// ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
+interface HeaderOpts {
+  edit?: () => void;   // Stift (nur Filter): öffnet den Kriterien-Editor
+  manage?: { section: "projects" | "areas" | "labels" | "filters"; label: string };   // Link zum ListManager (Tooltip = Ziel)
+}
+/** Board-Überschrift: Titel + rechte Gruppe [Stift] [ListManager-Link] [Anzeige]. */
+function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement, opts: HeaderOpts = {}): void {
   const head = root.createDiv({ cls: "bt-board-head" });
   head.appendChild(titleEl);
-  anzeigeButton(head, plugin);
+  const actions = head.createDiv({ cls: "bt-head-actions" });
+  if (opts.edit) iconBtn(actions, "settings-2", t("filter_edit"), opts.edit);
+  if (opts.manage) { const m = opts.manage; iconBtn(actions, "list-plus", m.label, () => void plugin.activateManage(m.section)); }
+  anzeigeButton(actions, plugin);
 }
 
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
@@ -615,7 +611,7 @@ function openPath(plugin: BeautyTasksPlugin, path: string): void {
 }
 
 // ── Linke Navigation ─────────────────────────────────────────────
-interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; active?: boolean; onClick: () => void; }
+interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; active?: boolean; onClick: () => void; onContext?: () => void; }
 
 /** Div klick- UND tastaturbedienbar machen (role=button/tabindex kommen vom Aufrufer):
  *  Klick + Enter/Space lösen dieselbe Aktion aus. So bleibt die Optik 1:1 wie zuvor. */
@@ -631,6 +627,15 @@ function navItem(c: HTMLElement, o: NavItemOpts): void {
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
   if (o.count) item.createSpan({ cls: "bt-nav-count", text: String(o.count) });
   activate(item, o.onClick);
+  if (o.onContext) item.oncontextmenu = (e) => { e.preventDefault(); o.onContext!(); };   // Rechtsklick = Bearbeiten
+}
+
+/** Dezente Empty-State-Zeile unter einem Sektionskopf („+ … erstellen"). */
+function navHintRow(c: HTMLElement, icon: string, label: string, onClick: () => void): void {
+  const row = c.createDiv({ cls: "bt-nav-hint", attr: { role: "button", tabindex: "0" } });
+  setIcon(row.createSpan({ cls: "bt-nav-hint-ic" }), icon);
+  row.createSpan({ cls: "bt-nav-hint-lbl", text: label });
+  activate(row, onClick);
 }
 
 /** Ein-/ausklappbare Abschnittsüberschrift: Chevron-Toggle (Zustand persistent) + „+",
@@ -713,47 +718,59 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   }
 
   // cls = Kategorie-Klasse (bt-nav-area / bt-nav-project) für eine gemeinsame Icon-Farbe je Gruppe.
-  const projItems = (items: { name: string; path: string; icon: string; color: string | null; hidden: boolean }[], cls: string) => {
+  // Rechtsklick auf einen Eintrag öffnet das Bearbeiten-Modal (Name · Farbe · Sichtbarkeit).
+  const projItems = (items: { name: string; path: string; icon: string; color: string | null; hidden: boolean }[], cls: string, kind: "project" | "area") => {
     for (const p of items.filter((x) => !x.hidden)) {   // in der Verwaltung ausgeblendete weglassen
       navItem(c, {
         cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name, count: plugin.index.byProject(p.path).length,
         active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
+        onContext: () => new NewItemModal(plugin, kind, { key: p.path, name: p.name, color: p.color, visible: !p.hidden }).open(),
       });
     }
   };
 
-  // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor (Modal statt Inline-Eingabe –
-  // ein Filter braucht mehr als nur einen Namen). Jeder Filter zeigt seine Live-Trefferzahl.
+  // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor. Rechtsklick = bearbeiten.
   const today = todayStr();
   const filters = plugin.sortFilters(listFilters(plugin.app));
   const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
     async () => undefined, () => new FilterModal(plugin).open());
-  if (!filtersCollapsed) for (const fl of filters) {
-    if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
-    navItem(c, {
-      cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
-      count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
-      active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
-    });
+  if (!filtersCollapsed) {
+    for (const fl of filters) {
+      if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
+      navItem(c, {
+        cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
+        count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
+        active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
+        onContext: () => new FilterModal(plugin, fl.path).open(),
+      });
+    }
+    if (!filters.length) navHintRow(c, "plus", t("create_filter"), () => new FilterModal(plugin).open());
   }
 
-  // Labels-Sektion (über den Bereichen): „+" öffnet das Neu-Modal (Name + Farbe).
+  // Labels-Sektion: „+" öffnet das Neu-Modal. Rechtsklick = bearbeiten; leer = „+ Label erstellen".
   const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "label").open());
-  if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
-    const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
-    navItem(c, { cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
+  if (!labelsCollapsed) {
+    for (const name of plugin.getVisibleLabels()) {
+      const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
+      navItem(c, {
+        cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count,
+        active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name),
+        onContext: () => new NewItemModal(plugin, "label", { key: name, name, color: plugin.getLabelColor(name), visible: plugin.isLabelVisible(name) }).open(),
+      });
+    }
+    if (!plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
   }
 
   // Bereiche: „+" öffnet das Neu-Modal (Name + Farbe), legt als type:area an.
   const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "area").open());
-  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
+  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area", "area");
 
   // Projekte: „+" öffnet das Neu-Modal (Name + Farbe).
   const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "project").open());
-  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
+  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
 
   // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });

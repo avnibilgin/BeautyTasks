@@ -73,7 +73,7 @@ function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: V
 
 /** Neue Filter-Notiz anlegen; gibt den Basenamen zurück. */
 export async function createFilterNote(
-  app: App, settings: BeautyTasksSettings, name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null,
+  app: App, settings: BeautyTasksSettings, name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null, hidden = false,
 ): Promise<string> {
   const folder = settings.filtersFolder;
   await ensureFolder(app, folder);
@@ -82,6 +82,7 @@ export async function createFilterNote(
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
   const fm: Record<string, unknown> = { type: "filter", id: newId("f"), created: todayIso() };
+  if (hidden) fm.nav_hidden = true;
   applyToFrontmatter(fm, criteria, options, color);
   await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");
   return base;

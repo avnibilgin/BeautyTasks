@@ -286,6 +286,12 @@ var STRINGS = {
     new_project_title: "New project",
     new_area_title: "New area",
     new_label_title: "New label",
+    edit_project_title: "Edit project",
+    edit_area_title: "Edit area",
+    edit_label_title: "Edit label",
+    show_in_sidebar: "Show in sidebar",
+    create_filter: "Create filter",
+    create_label: "Create label",
     btn_create: "Create",
     new_need_name: "Please enter a name.",
     new_preview_hint: "Preview",
@@ -333,7 +339,8 @@ var STRINGS = {
     view_display: "Display",
     panel_layout: "Layout",
     panel_show_done: "Show completed",
-    no_label: "No label"
+    no_label: "No label",
+    more_actions: "More"
   },
   de: {
     view_today: "Heute",
@@ -574,6 +581,12 @@ var STRINGS = {
     new_project_title: "Neues Projekt",
     new_area_title: "Neuer Bereich",
     new_label_title: "Neues Label",
+    edit_project_title: "Projekt bearbeiten",
+    edit_area_title: "Bereich bearbeiten",
+    edit_label_title: "Label bearbeiten",
+    show_in_sidebar: "In Seitenleiste zeigen",
+    create_filter: "Filter erstellen",
+    create_label: "Label erstellen",
     btn_create: "Erstellen",
     new_need_name: "Bitte einen Namen eingeben.",
     new_preview_hint: "Vorschau",
@@ -621,7 +634,8 @@ var STRINGS = {
     view_display: "Anzeige",
     panel_layout: "Layout",
     panel_show_done: "Erledigte anzeigen",
-    no_label: "Kein Label"
+    no_label: "Kein Label",
+    more_actions: "Mehr"
   }
 };
 var DEFAULT_LOCALE = "en";
@@ -974,7 +988,7 @@ function listManaged(app) {
   const archived = all.filter((p) => p.archived).sort(byName);
   return { active, archived };
 }
-async function createProjectNote(app, settings, name, asArea = false, color = null) {
+async function createProjectNote(app, settings, name, asArea = false, color = null, hidden = false) {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(name);
@@ -985,7 +999,7 @@ async function createProjectNote(app, settings, name, asArea = false, color = nu
     n++;
     if (n > 200) break;
   }
-  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? void 0, created: todayIso() });
+  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? void 0, nav_hidden: hidden ? true : void 0, created: todayIso() });
   await app.vault.create(dest, fm + "\n# " + name + "\n");
   return base;
 }
@@ -2001,7 +2015,7 @@ function applyToFrontmatter(fm, c, o, color) {
   writeViewOptions(fm, o);
   setOrDel("color", color);
 }
-async function createFilterNote(app, settings, name, criteria, options, color = null) {
+async function createFilterNote(app, settings, name, criteria, options, color = null, hidden = false) {
   const folder = settings.filtersFolder;
   await ensureFolder(app, folder);
   const base = slugify(name);
@@ -2013,6 +2027,7 @@ async function createFilterNote(app, settings, name, criteria, options, color = 
     if (n > 200) break;
   }
   const fm = { type: "filter", id: newId("f"), created: todayIso() };
+  if (hidden) fm.nav_hidden = true;
   applyToFrontmatter(fm, criteria, options, color);
   await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");
   return base;
@@ -3439,6 +3454,8 @@ var FilterModal = class extends import_obsidian11.Modal {
     this.c = { ...DEFAULT_CRITERIA, ...existing?.criteria ?? {} };
     this.o = { ...DEFAULT_OPTIONS, ...existing?.options ?? {} };
     this.color = existing?.color ?? null;
+    this.visible = existing ? !existing.hidden : true;
+    this.wasVisible = this.visible;
   }
   onOpen() {
     this.modalEl.addClass("bt-filter-modal");
@@ -3456,6 +3473,21 @@ var FilterModal = class extends import_obsidian11.Modal {
     buildSwatchRow(colorField.createDiv(), this.color, (c) => {
       this.color = c;
     });
+    const visRow = contentEl.createDiv({ cls: "bt-new-row" });
+    visRow.createEl("label", { text: t("show_in_sidebar") });
+    const sw = visRow.createDiv({ cls: "bt-mrow-switch" + (this.visible ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(this.visible), tabindex: "0" } });
+    const flip = () => {
+      this.visible = !this.visible;
+      sw.toggleClass("is-on", this.visible);
+      sw.setAttr("aria-checked", String(this.visible));
+    };
+    sw.onclick = flip;
+    sw.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        flip();
+      }
+    };
     contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
     new import_obsidian11.Setting(contentEl).setName(t("filter_range")).addDropdown((d) => {
       for (const r of RANGES) d.addOption(r, t("filter_range_" + r));
@@ -3572,8 +3604,12 @@ var FilterModal = class extends import_obsidian11.Modal {
       new import_obsidian11.Notice(t("filter_need_name"));
       return;
     }
-    if (this.editPath) await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
-    else await this.plugin.createFilter(name, this.c, this.o, this.color);
+    if (this.editPath) {
+      await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
+      if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(this.editPath, this.visible);
+    } else {
+      await this.plugin.createFilter(name, this.c, this.o, this.color, !this.visible);
+    }
     this.close();
   }
   async remove() {
@@ -3587,22 +3623,26 @@ var FilterModal = class extends import_obsidian11.Modal {
 var import_obsidian12 = require("obsidian");
 var ICON = { project: "folder", area: "circle", label: "hash" };
 var TITLE = { project: "new_project_title", area: "new_area_title", label: "new_label_title" };
+var EDIT_TITLE = { project: "edit_project_title", area: "edit_area_title", label: "edit_label_title" };
 var PH = { project: "placeholder_project_name", area: "placeholder_area_name", label: "placeholder_label" };
 var NewItemModal = class extends import_obsidian12.Modal {
-  constructor(plugin, kind) {
+  constructor(plugin, kind, edit) {
     super(plugin.app);
     this.plugin = plugin;
     this.kind = kind;
-    this.name = "";
-    this.color = null;
+    this.edit = edit;
+    this.name = edit?.name ?? "";
+    this.color = edit?.color ?? null;
+    this.visible = edit ? edit.visible : true;
   }
   onOpen() {
     const { contentEl, modalEl } = this;
     modalEl.addClass("bt-new-modal");
-    contentEl.createEl("h3", { text: t(TITLE[this.kind]) });
+    contentEl.createEl("h3", { text: t((this.edit ? EDIT_TITLE : TITLE)[this.kind]) });
     const nameField = contentEl.createDiv({ cls: "bt-new-field" });
     nameField.createEl("label", { text: t("filter_name") });
     const input = nameField.createEl("input", { cls: "bt-new-input", attr: { type: "text", placeholder: t(PH[this.kind]) } });
+    input.value = this.name;
     input.oninput = () => {
       this.name = input.value;
       this.updatePreview();
@@ -3619,6 +3659,21 @@ var NewItemModal = class extends import_obsidian12.Modal {
       this.color = c;
       this.updatePreview();
     });
+    const visRow = contentEl.createDiv({ cls: "bt-new-row" });
+    visRow.createEl("label", { text: t("show_in_sidebar") });
+    const sw = visRow.createDiv({ cls: "bt-mrow-switch" + (this.visible ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(this.visible), tabindex: "0" } });
+    const flip = () => {
+      this.visible = !this.visible;
+      sw.toggleClass("is-on", this.visible);
+      sw.setAttr("aria-checked", String(this.visible));
+    };
+    sw.onclick = flip;
+    sw.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        flip();
+      }
+    };
     const prev = contentEl.createDiv({ cls: "bt-new-preview" });
     this.previewIc = prev.createSpan({ cls: "bt-new-preview-ic" });
     (0, import_obsidian12.setIcon)(this.previewIc, ICON[this.kind]);
@@ -3629,8 +3684,11 @@ var NewItemModal = class extends import_obsidian12.Modal {
     foot.createDiv();
     const actions = foot.createDiv({ cls: "bt-actions" });
     actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
-    actions.createEl("button", { cls: "mod-cta", text: t("btn_create") }).onclick = () => void this.submit();
-    window.setTimeout(() => input.focus(), 0);
+    actions.createEl("button", { cls: "mod-cta", text: t(this.edit ? "btn_save" : "btn_create") }).onclick = () => void this.submit();
+    window.setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
   }
   onClose() {
     this.contentEl.empty();
@@ -3645,17 +3703,35 @@ var NewItemModal = class extends import_obsidian12.Modal {
       new import_obsidian12.Notice(t("new_need_name"));
       return;
     }
+    if (this.edit) await this.applyEdit(name);
+    else await this.applyNew(name);
+    this.close();
+  }
+  /** Anlegen: Notiz/Label erstellen, Farbe + Sichtbarkeit setzen. */
+  async applyNew(name) {
     if (this.kind === "label") {
       const nu = normalizeLabel(name);
       await this.plugin.addLabel(name);
       if (nu) {
-        await this.plugin.setLabelVisible(nu, true);
+        if (this.visible) await this.plugin.setLabelVisible(nu, true);
         if (this.color) await this.plugin.setLabelColor(nu, this.color);
       }
     } else {
-      await this.plugin.createProject(name, this.kind === "area", this.color);
+      await this.plugin.createProject(name, this.kind === "area", this.color, !this.visible);
     }
-    this.close();
+  }
+  /** Bearbeiten: Farbe & Sichtbarkeit anwenden, ZULETZT umbenennen (Rename zieht Farbe/Sichtbarkeit mit). */
+  async applyEdit(name) {
+    const e = this.edit;
+    if (this.kind === "label") {
+      if (this.color !== e.color) await this.plugin.setLabelColor(e.key, this.color);
+      if (this.visible !== e.visible) await this.plugin.setLabelVisible(e.key, this.visible);
+      if (name !== e.name) await this.plugin.renameLabel(e.key, name);
+    } else {
+      if (this.color !== e.color) await this.plugin.setProjectColor(e.key, this.color);
+      if (this.visible !== e.visible) await this.plugin.setProjectVisible(e.key, this.visible);
+      if (name !== e.name) await this.plugin.renameProject(e.key, name);
+    }
   }
 };
 
@@ -3687,7 +3763,6 @@ function openViewPanel(anchor, plugin) {
     const render = () => {
       pop.empty();
       pop.addClass("bt-view-panel");
-      cap(t("panel_layout"));
       const seg = pop.createDiv({ cls: "bt-tabs bt-layout-toggle" });
       for (const l of LAYOUTS) {
         const b = seg.createEl("button", { cls: "bt-tab" + (o.layout === l ? " is-active" : ""), text: t("layout_" + l) });
@@ -3885,35 +3960,52 @@ function addRow(parent, label, placeholder, onSubmit, redraw) {
     window.setTimeout(() => input.focus(), 0);
   };
 }
+function colorDot(row, plugin, current2, previewKey, defaultColor, onPick) {
+  const dot = row.createDiv({ cls: "bt-mrow-dot", attr: { "aria-label": t("status_pick_color"), "data-tooltip-position": "top" } });
+  dot.style.setProperty("--c", current2 ?? defaultColor);
+  dot.onclick = (e) => {
+    e.stopPropagation();
+    openColorPicker(dot, current2, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() });
+  };
+}
+function visSwitch(row, on, onToggle) {
+  const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), "aria-label": on ? t("tip_hide_sidebar") : t("tip_show_sidebar"), "data-tooltip-position": "top", tabindex: "0" } });
+  sw.onclick = (e) => {
+    e.stopPropagation();
+    onToggle();
+  };
+  sw.onkeydown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggle();
+    }
+  };
+}
+function rowMenu(actions, plugin, it) {
+  const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+  (0, import_obsidian14.setIcon)(kebab.createSpan(), "more-horizontal");
+  kebab.onclick = (e) => {
+    e.stopPropagation();
+    const isArea = it.type === "area";
+    const menu = new import_obsidian14.Menu();
+    menu.addItem((m) => m.setTitle(isArea ? t("tip_unmark_area") : t("tip_mark_area")).setIcon(isArea ? "square" : "circle").onClick(() => void plugin.setProjectArea(it.path, !isArea)));
+    menu.showAtMouseEvent(e);
+  };
+}
 function activeRow(list, plugin, it, redraw, reorder) {
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorder) reorderHandle(row, plugin, reorder.sec, it.path, reorder.i, reorder.n);
   const isArea = it.type === "area";
+  colorDot(row, plugin, it.color, it.path, isArea ? "var(--bt-nav-area)" : "var(--bt-nav-project)", (c) => void plugin.setProjectColor(it.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
   name.onclick = () => void plugin.activateProject(it.path);
-  row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  iconBtn(
-    actions,
-    isArea ? "circle" : it.icon,
-    isArea ? t("tip_unmark_area") : t("tip_mark_area"),
-    () => void plugin.setProjectArea(it.path, !isArea)
-  );
-  iconBtn(
-    actions,
-    it.hidden ? "eye-off" : "eye",
-    it.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
-    () => void plugin.setProjectVisible(it.path, it.hidden)
-  );
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(
-    colB,
-    it.color,
-    (c) => void plugin.setProjectColor(it.path, c),
-    { onPreview: (c) => plugin.setColorPreview(it.path, c), onClose: () => plugin.clearColorPreview() }
-  ));
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "pencil", t("btn_rename"), () => startRename(row, plugin, it, redraw));
   iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
+  rowMenu(actions, plugin, it);
+  row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
+  visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 function archiveRow(list, plugin, it, redraw) {
   const row = list.createDiv({ cls: "bt-manage-row is-archived" });
@@ -3926,48 +4018,27 @@ function archiveRow(list, plugin, it, redraw) {
 function labelRow(list, plugin, l, redraw, reorder) {
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorder) reorderHandle(row, plugin, reorder.sec, l.name, reorder.i, reorder.n);
+  colorDot(row, plugin, plugin.getLabelColor(l.name), l.name, "var(--bt-nav-label)", (c) => void plugin.setLabelColor(l.name, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
   name.onclick = () => void plugin.activateLabel(l.name);
-  row.createSpan({ cls: "bt-manage-count", text: String(l.count) });
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  const vis = plugin.isLabelVisible(l.name);
-  iconBtn(
-    actions,
-    vis ? "eye" : "eye-off",
-    vis ? t("tip_hide_sidebar") : t("tip_show_sidebar"),
-    () => void plugin.setLabelVisible(l.name, !vis)
-  );
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(
-    colB,
-    plugin.getLabelColor(l.name),
-    (c) => void plugin.setLabelColor(l.name, c),
-    { onPreview: (c) => plugin.setColorPreview(l.name, c), onClose: () => plugin.clearColorPreview() }
-  ));
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
+  row.createSpan({ cls: "bt-manage-count", text: String(l.count) });
+  visSwitch(row, plugin.isLabelVisible(l.name), () => void plugin.setLabelVisible(l.name, !plugin.isLabelVisible(l.name)));
 }
 function filterRow(list, plugin, fl, redraw, reorder) {
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorder) reorderHandle(row, plugin, reorder.sec, fl.path, reorder.i, reorder.n);
+  colorDot(row, plugin, fl.color, fl.path, "var(--text-muted)", (c) => void plugin.setFilterColor(fl.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
   name.onclick = () => void plugin.activateFilter(fl.path);
-  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  iconBtn(
-    actions,
-    fl.hidden ? "eye-off" : "eye",
-    fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
-    () => void plugin.setFilterVisible(fl.path, fl.hidden)
-  );
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(
-    colB,
-    fl.color,
-    (c) => void plugin.setFilterColor(fl.path, c),
-    { onPreview: (c) => plugin.setColorPreview(fl.path, c), onClose: () => plugin.clearColorPreview() }
-  ));
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
   iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
+  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
+  visSwitch(row, !fl.hidden, () => void plugin.setFilterVisible(fl.path, fl.hidden));
 }
 function startFilterRename(row, plugin, fl, redraw) {
   row.empty();
@@ -4401,18 +4472,12 @@ function emptyState(root, icon, key) {
   (0, import_obsidian15.setIcon)(box.createDiv({ cls: "bt-empty-ic" }), icon);
   box.createDiv({ cls: "bt-empty-text", text: t(key) });
 }
-function addBar(root, plugin, onAdd, section2, linkLabel) {
+function addBar(root, plugin, onAdd) {
   const bar = root.createDiv({ cls: "bt-board-bar" });
   const add = bar.createDiv({ cls: "bt-add" });
   add.createSpan({ cls: "bt-add-icon" });
   add.createSpan({ text: t("btn_add_task") });
   add.onclick = onAdd;
-  if (!section2 || !linkLabel) return;
-  const link = bar.createDiv({ cls: "bt-board-link", attr: { role: "button", tabindex: "0", "aria-label": linkLabel } });
-  const lic = link.createSpan({ cls: "bt-board-link-ic" });
-  (0, import_obsidian15.setIcon)(lic, "arrow-left-square");
-  link.createSpan({ text: linkLabel });
-  activate(link, () => void plugin.activateManage(section2));
 }
 function renderProjectBoardInto(c, plugin, projectPath) {
   const today = todayStr();
@@ -4421,11 +4486,15 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  pageHeader(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }));
   const isArea = isAreaPath(plugin.app, projectPath);
   const isInbox2 = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
-  if (isInbox2) addBar(root, plugin, () => plugin.openNewTask(name));
-  else addBar(root, plugin, () => plugin.openNewTask(name), isArea ? "areas" : "projects", isArea ? t("group_area") : t("group_project"));
+  pageHeader(
+    root,
+    plugin,
+    root.createEl("h1", { text: projectDisplayName(name) }),
+    isInbox2 ? {} : { manage: { section: isArea ? "areas" : "projects", label: isArea ? t("group_area") : t("group_project") } }
+  );
+  addBar(root, plugin, () => plugin.openNewTask(name));
   const tasks = plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
   if (!tasks.length) {
     if (isInbox2) emptyState(root, "inbox", "empty_no_inbox_tasks");
@@ -4441,8 +4510,13 @@ function renderLabelBoardInto(c, plugin, label) {
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  pageHeader(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }));
-  addBar(root, plugin, () => plugin.openNewTask(void 0, label), "labels", t("tab_labels"));
+  pageHeader(
+    root,
+    plugin,
+    root.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
+    { manage: { section: "labels", label: t("tab_labels") } }
+  );
+  addBar(root, plugin, () => plugin.openNewTask(void 0, label));
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
   if (!tasks.length) {
     emptyState(root, "hash", "empty_no_label_tasks");
@@ -4510,11 +4584,10 @@ function renderFilterBoardInto(c, plugin, filterPath) {
     emptyState(root, "tag", "empty_no_filter");
     return;
   }
-  const head = root.createDiv({ cls: "bt-board-head" });
-  const titleWrap = head.createDiv({ cls: "bt-filter-title" });
-  titleWrap.createEl("h1", { text: filter.name });
-  iconBtn(titleWrap, "settings-2", t("filter_edit"), () => new FilterModal(plugin, filterPath).open());
-  anzeigeButton(head, plugin);
+  pageHeader(root, plugin, root.createEl("h1", { text: filter.name }), {
+    edit: () => new FilterModal(plugin, filterPath).open(),
+    manage: { section: "filters", label: t("nav_filters") }
+  });
   addBar(root, plugin, () => plugin.openNewTask());
   const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
   if (!tasks.length) {
@@ -4523,10 +4596,16 @@ function renderFilterBoardInto(c, plugin, filterPath) {
   }
   renderPageBody(root, plugin, tasks, filter.options, today, (status) => plugin.openNewTask(void 0, void 0, false, status));
 }
-function pageHeader(root, plugin, titleEl) {
+function pageHeader(root, plugin, titleEl, opts = {}) {
   const head = root.createDiv({ cls: "bt-board-head" });
   head.appendChild(titleEl);
-  anzeigeButton(head, plugin);
+  const actions = head.createDiv({ cls: "bt-head-actions" });
+  if (opts.edit) iconBtn(actions, "settings-2", t("filter_edit"), opts.edit);
+  if (opts.manage) {
+    const m = opts.manage;
+    iconBtn(actions, "list-plus", m.label, () => void plugin.activateManage(m.section));
+  }
+  anzeigeButton(actions, plugin);
 }
 function sortColumn(list, kind) {
   if (kind === "done") return list.sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
@@ -4822,6 +4901,16 @@ function navItem(c, o) {
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
   if (o.count) item.createSpan({ cls: "bt-nav-count", text: String(o.count) });
   activate(item, o.onClick);
+  if (o.onContext) item.oncontextmenu = (e) => {
+    e.preventDefault();
+    o.onContext();
+  };
+}
+function navHintRow(c, icon, label, onClick) {
+  const row = c.createDiv({ cls: "bt-nav-hint", attr: { role: "button", tabindex: "0" } });
+  (0, import_obsidian15.setIcon)(row.createSpan({ cls: "bt-nav-hint-ic" }), icon);
+  row.createSpan({ cls: "bt-nav-hint-lbl", text: label });
+  activate(row, onClick);
 }
 function navHead(c, plugin, id, title, tip, placeholder, redraw, submit, onAddClick) {
   const collapsed = plugin.isNavCollapsed(id);
@@ -4892,7 +4981,7 @@ function renderNavInto(c, plugin) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.manageOpen && plugin.currentView === id;
     navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
   }
-  const projItems = (items, cls) => {
+  const projItems = (items, cls, kind) => {
     for (const p of items.filter((x) => !x.hidden)) {
       navItem(c, {
         cls,
@@ -4901,7 +4990,8 @@ function renderNavInto(c, plugin) {
         label: p.name,
         count: plugin.index.byProject(p.path).length,
         active: plugin.currentProject === p.path,
-        onClick: () => void plugin.activateProject(p.path)
+        onClick: () => void plugin.activateProject(p.path),
+        onContext: () => new NewItemModal(plugin, kind, { key: p.path, name: p.name, color: p.color, visible: !p.hidden }).open()
       });
     }
   };
@@ -4918,17 +5008,21 @@ function renderNavInto(c, plugin) {
     async () => void 0,
     () => new FilterModal(plugin).open()
   );
-  if (!filtersCollapsed) for (const fl of filters) {
-    if (fl.hidden) continue;
-    navItem(c, {
-      cls: "bt-nav-filter",
-      icon: fl.icon,
-      iconColor: navColor(fl.path, fl.color),
-      label: fl.name,
-      count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
-      active: plugin.currentFilter === fl.path,
-      onClick: () => void plugin.activateFilter(fl.path)
-    });
+  if (!filtersCollapsed) {
+    for (const fl of filters) {
+      if (fl.hidden) continue;
+      navItem(c, {
+        cls: "bt-nav-filter",
+        icon: fl.icon,
+        iconColor: navColor(fl.path, fl.color),
+        label: fl.name,
+        count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
+        active: plugin.currentFilter === fl.path,
+        onClick: () => void plugin.activateFilter(fl.path),
+        onContext: () => new FilterModal(plugin, fl.path).open()
+      });
+    }
+    if (!filters.length) navHintRow(c, "plus", t("create_filter"), () => new FilterModal(plugin).open());
   }
   const labelsCollapsed = navHead(
     c,
@@ -4941,9 +5035,21 @@ function renderNavInto(c, plugin) {
     async () => void 0,
     () => new NewItemModal(plugin, "label").open()
   );
-  if (!labelsCollapsed) for (const name of plugin.getVisibleLabels()) {
-    const count = plugin.index.byLabel(name).length;
-    navItem(c, { cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name) });
+  if (!labelsCollapsed) {
+    for (const name of plugin.getVisibleLabels()) {
+      const count = plugin.index.byLabel(name).length;
+      navItem(c, {
+        cls: "bt-nav-label",
+        icon: "hash",
+        iconColor: navColor(name, plugin.getLabelColor(name)),
+        label: name,
+        count,
+        active: plugin.currentLabel === name,
+        onClick: () => void plugin.activateLabel(name),
+        onContext: () => new NewItemModal(plugin, "label", { key: name, name, color: plugin.getLabelColor(name), visible: plugin.isLabelVisible(name) }).open()
+      });
+    }
+    if (!plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
   }
   const areasCollapsed = navHead(
     c,
@@ -4956,7 +5062,7 @@ function renderNavInto(c, plugin) {
     async () => void 0,
     () => new NewItemModal(plugin, "area").open()
   );
-  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area");
+  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area", "area");
   const projCollapsed = navHead(
     c,
     plugin,
@@ -4968,7 +5074,7 @@ function renderNavInto(c, plugin) {
     async () => void 0,
     () => new NewItemModal(plugin, "project").open()
   );
-  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project");
+  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });
 }
 function navCount(plugin, id) {
@@ -5929,8 +6035,8 @@ var BeautyTasksPlugin = class extends import_obsidian20.Plugin {
   // ── Gespeicherte Filter (type:filter-Notizen) ──
   /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-
    *  Listener auf den frisch geparsten Frontmatter, bevor zum neuen Filter-Board gewechselt wird. */
-  async createFilter(name, criteria, options, color = null) {
-    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color);
+  async createFilter(name, criteria, options, color = null, hidden = false) {
+    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color, hidden);
     const ref = this.app.metadataCache.on("changed", () => {
       this.app.metadataCache.offref(ref);
       const created = listFilters(this.app).find((fl) => fl.name === base);
@@ -6017,8 +6123,8 @@ var BeautyTasksPlugin = class extends import_obsidian20.Plugin {
   /** Neues Projekt (oder direkt Bereich) anlegen. Nav/Board lesen den metadataCache, der
    *  nach create erst kurz später aktualisiert wird -> einmaliger „changed"-Listener zeichnet
    *  dann neu, damit der neue Eintrag sofort in der Seitenleiste erscheint. */
-  async createProject(name, asArea = false, color = null) {
-    await createProjectNote(this.app, this.settings, name, asArea, color);
+  async createProject(name, asArea = false, color = null, hidden = false) {
+    await createProjectNote(this.app, this.settings, name, asArea, color, hidden);
     const ref = this.app.metadataCache.on("changed", () => {
       this.app.metadataCache.offref(ref);
       this.renderAll();

@@ -119,6 +119,8 @@ const STRINGS: Record<string, Dict> = {
     rem_tab_relative: "Before the task", rem_tab_absolute: "Date & time…", rem_need_time: "Set a time first",
     nav_filters: "Filters", filter_add: "New filter", sec_tasks: "Tasks", manage_empty_filters: "No filters yet.",
     new_project_title: "New project", new_area_title: "New area", new_label_title: "New label",
+    edit_project_title: "Edit project", edit_area_title: "Edit area", edit_label_title: "Edit label",
+    show_in_sidebar: "Show in sidebar", create_filter: "Create filter", create_label: "Create label",
     btn_create: "Create", new_need_name: "Please enter a name.", new_preview_hint: "Preview",
     empty_no_filter: "This filter no longer exists.", empty_no_filter_tasks: "No task matches this filter.",
     filter_new: "New filter", filter_edit: "Edit filter", filter_name: "Name", filter_name_ph: "Filter name …",
@@ -134,7 +136,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Smart", filter_sort_due: "Due date", filter_sort_deadline: "Deadline", filter_sort_priority: "Priority",
     filter_sort_created: "Created", filter_sort_title: "Name",
     filter_group_none: "None", filter_group_date: "Date", filter_group_deadline: "Deadline", filter_group_priority: "Priority", filter_group_label: "Label", filter_group_project: "List",
-    view_display: "Display", panel_layout: "Layout", panel_show_done: "Show completed", no_label: "No label",
+    view_display: "Display", panel_layout: "Layout", panel_show_done: "Show completed", no_label: "No label", more_actions: "More",
   },
   de: {
     view_today: "Heute", view_upcoming: "Demnächst", view_recurring: "Wiederkehrend", view_done: "Erledigt",
@@ -250,6 +252,8 @@ const STRINGS: Record<string, Dict> = {
     rem_tab_relative: "Vor der Aufgabe", rem_tab_absolute: "Datum & Uhrzeit…", rem_need_time: "Setz zuerst eine Uhrzeit",
     nav_filters: "Filter", filter_add: "Neuer Filter", sec_tasks: "Aufgaben", manage_empty_filters: "Noch keine Filter.",
     new_project_title: "Neues Projekt", new_area_title: "Neuer Bereich", new_label_title: "Neues Label",
+    edit_project_title: "Projekt bearbeiten", edit_area_title: "Bereich bearbeiten", edit_label_title: "Label bearbeiten",
+    show_in_sidebar: "In Seitenleiste zeigen", create_filter: "Filter erstellen", create_label: "Label erstellen",
     btn_create: "Erstellen", new_need_name: "Bitte einen Namen eingeben.", new_preview_hint: "Vorschau",
     empty_no_filter: "Diesen Filter gibt es nicht mehr.", empty_no_filter_tasks: "Keine Aufgabe passt zu diesem Filter.",
     filter_new: "Neuer Filter", filter_edit: "Filter bearbeiten", filter_name: "Name", filter_name_ph: "Filtername …",
@@ -265,7 +269,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Smart", filter_sort_due: "Fälligkeit", filter_sort_deadline: "Deadline", filter_sort_priority: "Priorität",
     filter_sort_created: "Erstellt", filter_sort_title: "Name",
     filter_group_none: "Keine", filter_group_date: "Datum", filter_group_deadline: "Deadline", filter_group_priority: "Priorität", filter_group_label: "Label", filter_group_project: "Liste",
-    view_display: "Anzeige", panel_layout: "Layout", panel_show_done: "Erledigte anzeigen", no_label: "Kein Label",
+    view_display: "Anzeige", panel_layout: "Layout", panel_show_done: "Erledigte anzeigen", no_label: "Kein Label", more_actions: "Mehr",
   },
 };
 

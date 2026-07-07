@@ -147,14 +147,14 @@ export function listManaged(app: App): { active: ProjItem[]; archived: ProjItem[
 
 /** Neues Projekt (oder mit asArea=true direkt einen Bereich) anlegen; gibt den Basenamen
  *  zurück. Bereiche entstehen sonst per Umwandeln eines Projekts (setProjectType). */
-export async function createProjectNote(app: App, settings: BeautyTasksSettings, name: string, asArea = false, color: string | null = null): Promise<string> {
+export async function createProjectNote(app: App, settings: BeautyTasksSettings, name: string, asArea = false, color: string | null = null, hidden = false): Promise<string> {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(name);
   let dest = normalizePath(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
-  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, created: todayIso() });
+  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, nav_hidden: hidden ? true : undefined, created: todayIso() });
   await app.vault.create(dest, fm + "\n# " + name + "\n");
   return base;
 }
