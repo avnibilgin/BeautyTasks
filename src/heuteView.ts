@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
@@ -547,7 +547,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const extras = row.createDiv({ cls: "bt-extras" });
     const name = task.project.split("/").pop()!.replace(/\.md$/, "");
     const bl = extras.createEl("a", { cls: "bt-backlink", text: "#" + projectDisplayName(name) });
-    bl.onclick = (e) => { e.stopPropagation(); openPath(plugin, task.project!); };
+    bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board (nicht zur Notiz)
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
   row.onclick = () => plugin.openEditTask(task);
@@ -605,10 +605,6 @@ function showStatusMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: num
   menu.showAtPosition({ x, y });
 }
 
-function openPath(plugin: BeautyTasksPlugin, path: string): void {
-  const f = plugin.app.vault.getAbstractFileByPath(path);
-  if (f instanceof TFile) void plugin.app.workspace.getLeaf(false).openFile(f);
-}
 
 // ── Linke Navigation ─────────────────────────────────────────────
 interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; active?: boolean; onClick: () => void; onContext?: () => void; }

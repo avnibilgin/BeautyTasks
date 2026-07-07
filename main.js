@@ -4820,7 +4820,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
     const bl = extras.createEl("a", { cls: "bt-backlink", text: "#" + projectDisplayName(name) });
     bl.onclick = (e) => {
       e.stopPropagation();
-      openPath(plugin, task.project);
+      void plugin.activateProject(task.project);
     };
   }
   row.onclick = () => plugin.openEditTask(task);
@@ -4879,10 +4879,6 @@ function showStatusMenu(plugin, task, x, y) {
     });
   }
   menu.showAtPosition({ x, y });
-}
-function openPath(plugin, path) {
-  const f = plugin.app.vault.getAbstractFileByPath(path);
-  if (f instanceof import_obsidian15.TFile) void plugin.app.workspace.getLeaf(false).openFile(f);
 }
 function activate(el, handler) {
   el.onclick = handler;
