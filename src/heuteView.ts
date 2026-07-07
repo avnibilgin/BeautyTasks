@@ -712,6 +712,9 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const redraw = () => renderNavInto(c, plugin);
 
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
+  const navColor = (path: string, stored: string | null): string | null =>
+    plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
 
   // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
   navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
@@ -722,7 +725,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Inbox ganz oben, OHNE Abschnittsüberschrift (über den Ansichten).
   if (eingang && !eingang.hidden) {
     navItem(c, {
-      cls: "bt-nav-inbox", icon: eingang.icon, iconColor: eingang.color, label: projectDisplayName(eingang.name),
+      cls: "bt-nav-inbox", icon: eingang.icon, iconColor: navColor(eingang.path, eingang.color), label: projectDisplayName(eingang.name),
       count: plugin.index.byProject(eingang.path).length, active: plugin.currentProject === eingang.path,
       onClick: () => void plugin.activateProject(eingang.path),
     });
@@ -738,7 +741,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const projItems = (items: { name: string; path: string; icon: string; color: string | null; hidden: boolean }[], cls: string) => {
     for (const p of items.filter((x) => !x.hidden)) {   // in der Verwaltung ausgeblendete weglassen
       navItem(c, {
-        cls, icon: p.icon, iconColor: p.color, label: p.name, count: plugin.index.byProject(p.path).length,
+        cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name, count: plugin.index.byProject(p.path).length,
         active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
       });
     }
@@ -753,7 +756,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   if (!filtersCollapsed) for (const fl of filters) {
     if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
     navItem(c, {
-      cls: "bt-nav-filter", icon: fl.icon, iconColor: fl.color, label: fl.name,
+      cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
       count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
       active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
     });

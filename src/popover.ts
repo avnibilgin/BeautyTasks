@@ -3,7 +3,7 @@ import { setIcon } from "obsidian";
 /** Einfaches Popover, an activeDocument.body gehängt (eigene Ebene über dem Modal),
  *  schließt bei Klick außerhalb. Wie .am-pop in BeautyTasks. Doc/Win werden beim
  *  Öffnen erfasst (Popout-Kompatibilität, kein activeDocument-Drift bei Cleanup). */
-export function openPopover(anchor: HTMLElement, build: (pop: HTMLElement, close: () => void) => void): void {
+export function openPopover(anchor: HTMLElement, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
   const doc = anchor.ownerDocument;
   const win = doc.defaultView ?? activeWindow;
   // Innerhalb eines Modals INS Modal einhängen (sonst reißt Obsidians Fokus-Trap den
@@ -11,10 +11,14 @@ export function openPopover(anchor: HTMLElement, build: (pop: HTMLElement, close
   // bleibt viewport-relativ (kein Transform am .modal), Positionierung stimmt weiterhin.
   const host = anchor.closest<HTMLElement>(".modal") ?? doc.body;
   const pop = host.createDiv({ cls: "bt-pop" });
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     pop.remove();
     doc.removeEventListener("mousedown", onDoc, true);
     win.removeEventListener("resize", close);
+    onClose?.();
   };
   const inModal = host !== doc.body;
   const onDoc = (e: MouseEvent) => {

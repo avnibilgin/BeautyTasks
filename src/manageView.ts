@@ -175,7 +175,9 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
     () => void plugin.setProjectArea(it.path, !isArea));
   iconBtn(actions, it.hidden ? "eye-off" : "eye", it.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setProjectVisible(it.path, it.hidden));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, it.color, (c) => void plugin.setProjectColor(it.path, c)));
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, it.color,
+    (c) => void plugin.setProjectColor(it.path, c),
+    { onPreview: (c) => plugin.setColorPreview(it.path, c), onClose: () => plugin.clearColorPreview() }));
   iconBtn(actions, "pencil", t("btn_rename"), () => startRename(row, plugin, it, redraw));
   // Bereiche sind wie Projekte archivier-/löschbar (eigene Kategorie im ListManager).
   iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
@@ -216,7 +218,9 @@ function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem,
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   iconBtn(actions, fl.hidden ? "eye-off" : "eye", fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setFilterVisible(fl.path, fl.hidden));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, fl.color, (c) => void plugin.setFilterColor(fl.path, c)));
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, fl.color,
+    (c) => void plugin.setFilterColor(fl.path, c),
+    { onPreview: (c) => plugin.setColorPreview(fl.path, c), onClose: () => plugin.clearColorPreview() }));
   // Eigenes Icon für den vollen Editor (Kriterien/Sortierung); Stift = nur Umbenennen (wie Labels).
   iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
   iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
@@ -374,8 +378,13 @@ function openIconPicker(anchor: HTMLElement, plugin: BeautyTasksPlugin, s: Store
 }
 
 /** Generischer Farb-Picker (Status · Projekte · Bereiche · Filter): kuratiertes Raster +
- *  „keine Farbe" + eine „Custom"-Kachel für den nativen Farbwähler (Vorschlag D). */
-export function openColorPicker(anchor: HTMLElement, current: string | null, onPick: (c: string | null) => void): void {
+ *  „keine Farbe" + eine „Custom"-Kachel für den nativen Farbwähler (Vorschlag D).
+ *  onPreview (optional): Live-Vorschau beim Ziehen im nativen Wähler (kein Persistieren);
+ *  onClose (optional): Aufräumen, wenn ohne Auswahl geschlossen wird (Vorschau verwerfen). */
+export function openColorPicker(
+  anchor: HTMLElement, current: string | null, onPick: (c: string | null) => void,
+  opts: { onPreview?: (c: string) => void; onClose?: () => void } = {},
+): void {
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-color-grid");
     const none = pop.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current ? " is-active" : ""), attr: { "aria-label": t("status_color_none") } });
@@ -386,16 +395,17 @@ export function openColorPicker(anchor: HTMLElement, current: string | null, onP
       b.style.setProperty("--bt-swatch", c);
       b.onclick = () => { onPick(c); close(); };
     }
-    // „Custom": öffnet den nativen Farbwähler (freie Farbe, wie Todoists Custom).
+    // „Custom": der native Farbwähler liegt als transparenter Input ÜBER der Kachel, damit
+    // sich das OS-Fenster genau hier öffnet (nicht in der Bildschirmecke).
     const isPreset = !current || COLOR_PRESETS.includes(current);
     const custom = pop.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active"), attr: { "aria-label": t("color_custom") } });
     if (!isPreset && current) custom.style.setProperty("--bt-swatch", current);
     else setIcon(custom, "pipette");
-    const input = pop.createEl("input", { type: "color", cls: "bt-color-input" });
+    const input = custom.createEl("input", { type: "color", cls: "bt-color-input" });
     if (current && /^#[0-9a-f]{6}$/i.test(current)) input.value = current;
-    custom.onclick = () => input.click();
-    input.onchange = () => { onPick(input.value); close(); };
-  });
+    input.oninput = () => opts.onPreview?.(input.value);     // Live-Vorschau beim Ziehen
+    input.onchange = () => { onPick(input.value); close(); };  // Bestätigen = persistieren
+  }, opts.onClose);
 }
 
 /** Inline-Bestätigung: ersetzt die Aktions-Buttons durch „Frage? ✓ ✗". */

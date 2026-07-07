@@ -27,6 +27,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentProject: string | null = null;
   currentLabel: string | null = null;                   // aktives Label-Board
   currentFilter: string | null = null;                  // aktiver gespeicherter Filter (type:filter-Pfad)
+  colorPreview: { key: string; color: string } | null = null;   // Live-Vorschau der Icon-Farbe (Farb-Picker), NICHT persistiert
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
   manageSection: "projects" | "areas" | "labels" | "filters" | "statuses" = "projects";    // obere Ebene
@@ -220,6 +221,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   /** Icon-Farbe eines Filters setzen (null = keine), refresh nach Cache-Update. */
   async setFilterColor(path: string, color: string | null): Promise<void> {
+    this.colorPreview = null;
     this.refreshOnChange(path);
     await setFilterColor(this.app, path, color);
   }
@@ -296,8 +298,14 @@ export default class BeautyTasksPlugin extends Plugin {
     this.refreshOnChange(path);
     await setNavHidden(this.app, path, !visible);
   }
+  /** Live-Vorschau der Icon-Farbe (Ziehen im Farbwähler): nur die Nav neu zeichnen, KEIN
+   *  Schreiben auf die Platte. Wird beim Bestätigen/Schließen verworfen bzw. persistiert. */
+  setColorPreview(key: string, color: string): void { this.colorPreview = { key, color }; this.renderNav(); }
+  clearColorPreview(): void { if (this.colorPreview) { this.colorPreview = null; this.renderNav(); } }
+
   /** Icon-Farbe eines Projekts/Bereichs setzen (null = keine), refresh nach Cache-Update. */
   async setProjectColor(path: string, color: string | null): Promise<void> {
+    this.colorPreview = null;   // Vorschau verwerfen; der Cache-Refresh zeigt gleich die echte Farbe
     this.refreshOnChange(path);
     await setProjectColor(this.app, path, color);
   }
