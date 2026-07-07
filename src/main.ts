@@ -9,8 +9,8 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
-import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
+import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, applyFilter } from "./filterEngine";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp } from "./format";
@@ -218,6 +218,11 @@ export default class BeautyTasksPlugin extends Plugin {
     this.refreshOnChange(path);
     await setFilterNavHidden(this.app, path, !visible);
   }
+  /** Icon-Farbe eines Filters setzen (null = keine), refresh nach Cache-Update. */
+  async setFilterColor(path: string, color: string | null): Promise<void> {
+    this.refreshOnChange(path);
+    await setFilterColor(this.app, path, color);
+  }
   async deleteFilter(path: string): Promise<void> {
     await deleteFilterNote(this.app, path);
     if (this.currentFilter === path) { this.currentFilter = null; await this.activateView("heute"); }
@@ -290,6 +295,11 @@ export default class BeautyTasksPlugin extends Plugin {
   async setProjectVisible(path: string, visible: boolean): Promise<void> {
     this.refreshOnChange(path);
     await setNavHidden(this.app, path, !visible);
+  }
+  /** Icon-Farbe eines Projekts/Bereichs setzen (null = keine), refresh nach Cache-Update. */
+  async setProjectColor(path: string, color: string | null): Promise<void> {
+    this.refreshOnChange(path);
+    await setProjectColor(this.app, path, color);
   }
   /** Umbenennen löst ein vault-„rename" aus -> der Index benachrichtigt bereits; zur
    *  Sicherheit zusätzlich neu zeichnen. Gibt Basename zurück oder null bei Kollision. */

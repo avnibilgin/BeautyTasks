@@ -68,6 +68,7 @@ var STRINGS = {
     status_pick_icon: "Icon",
     status_pick_color: "Color",
     status_color_none: "No color",
+    color_custom: "Custom color",
     btn_move_up: "Move up",
     btn_move_down: "Move down",
     status_need_done: "Keep at least one \u201CDone\u201D status.",
@@ -342,6 +343,7 @@ var STRINGS = {
     status_pick_icon: "Icon",
     status_pick_color: "Farbe",
     status_color_none: "Keine Farbe",
+    color_custom: "Eigene Farbe",
     btn_move_up: "Nach oben",
     btn_move_down: "Nach unten",
     status_need_done: 'Mindestens ein \u201EErledigt"-Status muss bleiben.',
@@ -994,6 +996,14 @@ async function setNavHidden(app, path, hidden) {
   await app.fileManager.processFrontMatter(file, (fm) => {
     if (hidden) fm.nav_hidden = true;
     else delete fm.nav_hidden;
+  });
+}
+async function setProjectColor(app, path, color) {
+  const file = app.vault.getAbstractFileByPath(path);
+  if (!(file instanceof import_obsidian.TFile)) return;
+  await app.fileManager.processFrontMatter(file, (fm) => {
+    if (color) fm.color = color;
+    else delete fm.color;
   });
 }
 async function renameProjectNote(app, path, newName) {
@@ -1961,6 +1971,14 @@ async function renameFilterNote(app, path, newName) {
     if (replaced !== body) await app.vault.modify(nf, replaced);
   }
   return base;
+}
+async function setFilterColor(app, path, color) {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof import_obsidian6.TFile)) return;
+  await app.fileManager.processFrontMatter(f, (fm) => {
+    if (color) fm.color = color;
+    else delete fm.color;
+  });
 }
 async function setFilterNavHidden(app, path, hidden) {
   const f = app.vault.getAbstractFileByPath(path);
@@ -3648,6 +3666,7 @@ function activeRow(list, plugin, it, redraw, reorder) {
     it.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setProjectVisible(it.path, it.hidden)
   );
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, it.color, (c) => void plugin.setProjectColor(it.path, c)));
   iconBtn(actions, "pencil", t("btn_rename"), () => startRename(row, plugin, it, redraw));
   iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
@@ -3690,6 +3709,7 @@ function filterRow(list, plugin, fl, redraw, reorder) {
     fl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"),
     () => void plugin.setFilterVisible(fl.path, fl.hidden)
   );
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, fl.color, (c) => void plugin.setFilterColor(fl.path, c)));
   iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());
   iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
@@ -3837,7 +3857,7 @@ function statusRow(list, plugin, s, i, n, redraw) {
     openKindPicker(kindBtn, plugin, s);
   };
   const iconB = iconBtn(actions, "shapes", t("status_pick_icon"), () => openIconPicker(iconB, plugin, s));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, plugin, s));
+  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, s.color ?? null, (c) => void plugin.setStatusColor(s.id, c)));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteStatus(s.id), redraw));
 }
 function startStatusRename(row, plugin, s, redraw) {
@@ -3893,23 +3913,34 @@ function openIconPicker(anchor, plugin, s) {
     }
   });
 }
-function openColorPicker(anchor, plugin, s) {
+function openColorPicker(anchor, current2, onPick) {
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-color-grid");
-    const none = pop.createEl("button", { cls: "bt-color-cell bt-color-none" + (!s.color ? " is-active" : ""), attr: { "aria-label": t("status_color_none") } });
+    const none = pop.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current2 ? " is-active" : ""), attr: { "aria-label": t("status_color_none") } });
     (0, import_obsidian10.setIcon)(none, "ban");
     none.onclick = () => {
-      void plugin.setStatusColor(s.id, null);
+      onPick(null);
       close();
     };
     for (const c of COLOR_PRESETS) {
-      const b = pop.createEl("button", { cls: "bt-color-cell" + (s.color === c ? " is-active" : ""), attr: { "aria-label": c } });
+      const b = pop.createEl("button", { cls: "bt-color-cell" + (current2 === c ? " is-active" : ""), attr: { "aria-label": c } });
       b.style.setProperty("--bt-swatch", c);
       b.onclick = () => {
-        void plugin.setStatusColor(s.id, c);
+        onPick(c);
         close();
       };
     }
+    const isPreset = !current2 || COLOR_PRESETS.includes(current2);
+    const custom = pop.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active"), attr: { "aria-label": t("color_custom") } });
+    if (!isPreset && current2) custom.style.setProperty("--bt-swatch", current2);
+    else (0, import_obsidian10.setIcon)(custom, "pipette");
+    const input = pop.createEl("input", { type: "color", cls: "bt-color-input" });
+    if (current2 && /^#[0-9a-f]{6}$/i.test(current2)) input.value = current2;
+    custom.onclick = () => input.click();
+    input.onchange = () => {
+      onPick(input.value);
+      close();
+    };
   });
 }
 function confirmInline(actions, question, onConfirm, redraw) {
@@ -5618,6 +5649,11 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
     this.refreshOnChange(path);
     await setFilterNavHidden(this.app, path, !visible);
   }
+  /** Icon-Farbe eines Filters setzen (null = keine), refresh nach Cache-Update. */
+  async setFilterColor(path, color) {
+    this.refreshOnChange(path);
+    await setFilterColor(this.app, path, color);
+  }
   async deleteFilter(path) {
     await deleteFilterNote(this.app, path);
     if (this.currentFilter === path) {
@@ -5690,6 +5726,11 @@ var BeautyTasksPlugin = class extends import_obsidian16.Plugin {
   async setProjectVisible(path, visible) {
     this.refreshOnChange(path);
     await setNavHidden(this.app, path, !visible);
+  }
+  /** Icon-Farbe eines Projekts/Bereichs setzen (null = keine), refresh nach Cache-Update. */
+  async setProjectColor(path, color) {
+    this.refreshOnChange(path);
+    await setProjectColor(this.app, path, color);
   }
   /** Umbenennen löst ein vault-„rename" aus -> der Index benachrichtigt bereits; zur
    *  Sicherheit zusätzlich neu zeichnen. Gibt Basename zurück oder null bei Kollision. */

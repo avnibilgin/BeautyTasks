@@ -203,6 +203,13 @@ export async function setNavHidden(app: App, path: string, hidden: boolean): Pro
   });
 }
 
+/** Icon-Farbe eines Projekts/Bereichs setzen (Frontmatter `color`; null = entfernen). */
+export async function setProjectColor(app: App, path: string, color: string | null): Promise<void> {
+  const file = app.vault.getAbstractFileByPath(path);
+  if (!(file instanceof TFile)) return;
+  await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { if (color) fm.color = color; else delete fm.color; });
+}
+
 /** Projekt umbenennen: Datei umbenennen (Obsidian aktualisiert Links) + H1-Überschrift. */
 export async function renameProjectNote(app: App, path: string, newName: string): Promise<string | null> {
   const file = app.vault.getAbstractFileByPath(path);

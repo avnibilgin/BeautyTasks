@@ -1129,6 +1129,15 @@ body {
   background: var(--background-primary); border: 1px solid var(--background-modifier-border);
 }
 .bt-pop .bt-color-none svg, .bt-pop .bt-color-none .svg-icon { width: 15px; height: 15px; color: var(--text-faint); }
+/* „Custom"-Kachel: Regenbogen als Hinweis auf freie Farbwahl; bei gesetzter freier Farbe
+   zeigt sie diese (--bt-swatch) statt des Regenbogens. Der native Farb-Input ist versteckt. */
+.bt-pop .bt-color-custom {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: conic-gradient(from 0deg, #e05c4a, #f59e0b, #4caf50, #3b82f6, #7c5cff, #ec4899, #e05c4a);
+}
+.bt-pop .bt-color-custom[style*="--bt-swatch"] { background: var(--bt-swatch); }
+.bt-pop .bt-color-custom svg, .bt-pop .bt-color-custom .svg-icon { width: 14px; height: 14px; color: #fff; filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); }
+.bt-pop .bt-color-input { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
 
 /* ── Sortier-Umschalter im ListManager (Manuell · Name · Anzahl) ── */
 /* Rechtsbündig wie eine Filterleiste; an der Textlinie ausgerichtet (Baseline), damit

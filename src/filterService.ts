@@ -117,6 +117,13 @@ export async function renameFilterNote(app: App, path: string, newName: string):
   return base;
 }
 
+/** Icon-Farbe eines Filters setzen (Frontmatter `color`; null = entfernen). */
+export async function setFilterColor(app: App, path: string, color: string | null): Promise<void> {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof TFile)) return;
+  await app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { if (color) fm.color = color; else delete fm.color; });
+}
+
 /** Filter in der Seitenleiste ein-/ausblenden (Frontmatter `nav_hidden`). */
 export async function setFilterNavHidden(app: App, path: string, hidden: boolean): Promise<void> {
   const f = app.vault.getAbstractFileByPath(path);
