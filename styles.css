@@ -1119,26 +1119,26 @@ body {
 .bt-pop .bt-icon-cell svg, .bt-pop .bt-icon-cell .svg-icon { width: 20px; height: 20px; }
 
 /* Runde Farbkreise: Button selbst ist die Fläche (gleiche Breite/Höhe + 50 %). */
-:is(.bt-pop, .bt-new-swatches) .bt-color-cell {
+:is(.bt-pop, .bt-swatch-row) .bt-color-cell {
   width: 26px; height: 26px; padding: 0; border-radius: 50%; box-shadow: none; cursor: pointer;
   border: 2px solid transparent; background: var(--bt-swatch, transparent);
 }
-:is(.bt-pop, .bt-new-swatches) .bt-color-cell.is-active { border-color: var(--text-normal); box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 3px var(--interactive-accent); }
-:is(.bt-pop, .bt-new-swatches) .bt-color-none {
+:is(.bt-pop, .bt-swatch-row) .bt-color-cell.is-active { border-color: var(--text-normal); box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 3px var(--interactive-accent); }
+:is(.bt-pop, .bt-swatch-row) .bt-color-none {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--background-primary); border: 1px solid var(--background-modifier-border);
 }
-:is(.bt-pop, .bt-new-swatches) .bt-color-none svg, :is(.bt-pop, .bt-new-swatches) .bt-color-none .svg-icon { width: 15px; height: 15px; color: var(--text-faint); }
+:is(.bt-pop, .bt-swatch-row) .bt-color-none svg, :is(.bt-pop, .bt-swatch-row) .bt-color-none .svg-icon { width: 15px; height: 15px; color: var(--text-faint); }
 /* „Custom"-Kachel: Regenbogen als Hinweis auf freie Farbwahl; bei gesetzter freier Farbe
    zeigt sie diese (--bt-swatch) statt des Regenbogens. Der native Farb-Input ist versteckt. */
-:is(.bt-pop, .bt-new-swatches) .bt-color-custom {
+:is(.bt-pop, .bt-swatch-row) .bt-color-custom {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   background: conic-gradient(from 0deg, #e05c4a, #f59e0b, #4caf50, #3b82f6, #7c5cff, #ec4899, #e05c4a);
 }
-:is(.bt-pop, .bt-new-swatches) .bt-color-custom[style*="--bt-swatch"] { background: var(--bt-swatch); }
-:is(.bt-pop, .bt-new-swatches) .bt-color-custom svg, :is(.bt-pop, .bt-new-swatches) .bt-color-custom .svg-icon { width: 14px; height: 14px; color: #fff; filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); }
+:is(.bt-pop, .bt-swatch-row) .bt-color-custom[style*="--bt-swatch"] { background: var(--bt-swatch); }
+:is(.bt-pop, .bt-swatch-row) .bt-color-custom svg, :is(.bt-pop, .bt-swatch-row) .bt-color-custom .svg-icon { width: 14px; height: 14px; color: #fff; filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); }
 /* Nativer Farb-Input füllt die Kachel (opak transparent) -> OS-Picker öffnet genau hier. */
-:is(.bt-pop, .bt-new-swatches) .bt-color-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: none; opacity: 0; cursor: pointer; }
+:is(.bt-pop, .bt-swatch-row) .bt-color-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: none; opacity: 0; cursor: pointer; }
 
 /* ── Sortier-Umschalter im ListManager (Manuell · Name · Anzahl) ── */
 /* Rechtsbündig wie eine Filterleiste; an der Textlinie ausgerichtet (Baseline), damit
@@ -1220,7 +1220,7 @@ body {
   background: var(--background-modifier-form-field); border: 1px solid var(--background-modifier-border); border-radius: 8px;
 }
 .bt-new-input:focus { outline: none; border-color: var(--interactive-accent); box-shadow: 0 0 0 3px var(--background-modifier-border-hover); }
-.bt-new-swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+.bt-swatch-row { display: flex; flex-wrap: wrap; gap: 7px; }
 /* Live-Vorschau des Eintrags (Icon in der gewählten Farbe + Name). */
 .bt-new-preview { display: flex; align-items: center; gap: 9px; margin: 4px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--background-secondary); font-size: 13.5px; }
 .bt-new-preview-ic { display: inline-flex; }

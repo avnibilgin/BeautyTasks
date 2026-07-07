@@ -15,11 +15,13 @@ import {
   RANGES, SORTS, GROUPS, FILTER_PRIORITIES, applyFilter, activeFacetCount,
 } from "./filterEngine";
 import { readFilter } from "./filterService";
+import { buildSwatchRow } from "./colorSwatches";
 
 export class FilterModal extends Modal {
   private name: string;
   private c: FilterCriteria;
   private o: ViewOptions;
+  private color: string | null;
   private readonly editPath: string | null;
   private countEl!: HTMLElement;
 
@@ -30,6 +32,7 @@ export class FilterModal extends Modal {
     this.name = existing?.name ?? "";
     this.c = { ...DEFAULT_CRITERIA, ...(existing?.criteria ?? {}) };
     this.o = { ...DEFAULT_OPTIONS, ...(existing?.options ?? {}) };
+    this.color = existing?.color ?? null;
   }
 
   onOpen(): void {
@@ -44,6 +47,11 @@ export class FilterModal extends Modal {
 
     new Setting(contentEl).setName(t("filter_name")).addText((tx) =>
       tx.setPlaceholder(t("filter_name_ph")).setValue(this.name).onChange((v) => { this.name = v; }));
+
+    // Farbe direkt unter dem Namen (gleiche Swatch-Reihe wie im Neu-Modal).
+    const colorField = contentEl.createDiv({ cls: "bt-new-field" });
+    colorField.createEl("label", { text: t("status_pick_color") });
+    buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; });
 
     // ── Anordnung (Sortieren/Gruppieren/Erledigte) ──
     contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_arrange") });
@@ -148,14 +156,15 @@ export class FilterModal extends Modal {
   private reset(): void {
     this.c = { ...DEFAULT_CRITERIA };
     this.o = { ...DEFAULT_OPTIONS };
+    this.color = null;
     this.build();   // in-place neu aufbauen; Name bleibt erhalten
   }
 
   private async save(): Promise<void> {
     const name = this.name.trim();
     if (!name) { new Notice(t("filter_need_name")); return; }
-    if (this.editPath) await this.plugin.updateFilter(this.editPath, this.c, this.o);
-    else await this.plugin.createFilter(name, this.c, this.o);
+    if (this.editPath) await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
+    else await this.plugin.createFilter(name, this.c, this.o, this.color);
     this.close();
   }
 

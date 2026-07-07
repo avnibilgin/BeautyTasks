@@ -62,8 +62,8 @@ export function readFilter(app: App, path: string): FilterItem | null {
   return fm?.type === "filter" ? toItem(f, fm) : null;
 }
 
-/** Kriterien + Optionen als Frontmatter-Felder schreiben (nur nicht-leere; Defaults weggelassen). */
-function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: ViewOptions): void {
+/** Kriterien + Optionen (+ Farbe) als Frontmatter-Felder schreiben (nur nicht-leere). */
+function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: ViewOptions, color: string | null): void {
   const setOrDel = (k: string, v: unknown): void => { if (v == null) delete fm[k]; else fm[k] = v; };
   setOrDel("range", c.range === "any" ? null : c.range);
   setOrDel("priorities", c.priorities.length ? c.priorities : null);
@@ -73,11 +73,12 @@ function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: V
   fm.sort = o.sort;
   fm.group = o.group;
   setOrDel("showDone", o.showDone ? true : null);
+  setOrDel("color", color);
 }
 
 /** Neue Filter-Notiz anlegen; gibt den Basenamen zurück. */
 export async function createFilterNote(
-  app: App, settings: BeautyTasksSettings, name: string, criteria: FilterCriteria, options: ViewOptions,
+  app: App, settings: BeautyTasksSettings, name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null,
 ): Promise<string> {
   const folder = settings.filtersFolder;
   await ensureFolder(app, folder);
@@ -86,16 +87,16 @@ export async function createFilterNote(
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
   const fm: Record<string, unknown> = { type: "filter", id: newId("f"), created: todayIso() };
-  applyToFrontmatter(fm, criteria, options);
+  applyToFrontmatter(fm, criteria, options, color);
   await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");
   return base;
 }
 
-/** Kriterien/Optionen einer bestehenden Filter-Notiz aktualisieren. */
-export async function updateFilterNote(app: App, path: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
+/** Kriterien/Optionen/Farbe einer bestehenden Filter-Notiz aktualisieren. */
+export async function updateFilterNote(app: App, path: string, criteria: FilterCriteria, options: ViewOptions, color: string | null): Promise<void> {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof TFile)) return;
-  await app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => applyToFrontmatter(fm, criteria, options));
+  await app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => applyToFrontmatter(fm, criteria, options, color));
 }
 
 /** Filter-Notiz umbenennen (Datei + „# Überschrift"). Gibt neuen Basenamen zurück oder null. */

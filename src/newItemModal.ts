@@ -4,11 +4,11 @@
 import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { normalizeLabel } from "./taskService";
+import { buildSwatchRow } from "./colorSwatches";
 import { t } from "./i18n";
 
 export type NewItemKind = "project" | "area" | "label";
 
-const COLOR_PRESETS = ["#e05c4a", "#f97316", "#f59e0b", "#4caf50", "#3b82f6", "#7c5cff", "#a855f7", "#ec4899"];
 const ICON: Record<NewItemKind, string> = { project: "folder", area: "circle", label: "hash" };
 const TITLE: Record<NewItemKind, string> = { project: "new_project_title", area: "new_area_title", label: "new_label_title" };
 const PH: Record<NewItemKind, string> = { project: "placeholder_project_name", area: "placeholder_area_name", label: "placeholder_label" };
@@ -36,7 +36,7 @@ export class NewItemModal extends Modal {
     // Farbe (Swatches inline)
     const colorField = contentEl.createDiv({ cls: "bt-new-field" });
     colorField.createEl("label", { text: t("status_pick_color") });
-    this.buildSwatches(colorField.createDiv({ cls: "bt-new-swatches" }));
+    buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; this.updatePreview(); });
 
     // Live-Vorschau
     const prev = contentEl.createDiv({ cls: "bt-new-preview" });
@@ -57,30 +57,6 @@ export class NewItemModal extends Modal {
   }
 
   onClose(): void { this.contentEl.empty(); }
-
-  private buildSwatches(row: HTMLElement): void {
-    const mark = (el: HTMLElement): void => {
-      row.querySelectorAll(".bt-color-cell").forEach((s) => s.removeClass("is-active"));
-      el.addClass("is-active");
-    };
-    const none = row.createEl("button", { cls: "bt-color-cell bt-color-none is-active", attr: { "aria-label": t("status_color_none") } });
-    setIcon(none, "ban");
-    none.onclick = () => { this.color = null; mark(none); this.updatePreview(); };
-    for (const c of COLOR_PRESETS) {
-      const b = row.createEl("button", { cls: "bt-color-cell", attr: { "aria-label": c } });
-      b.style.setProperty("--bt-swatch", c);
-      b.onclick = () => { this.color = c; mark(b); this.updatePreview(); };
-    }
-    const custom = row.createEl("button", { cls: "bt-color-cell bt-color-custom", attr: { "aria-label": t("color_custom") } });
-    setIcon(custom, "pipette");
-    const input = custom.createEl("input", { cls: "bt-color-input", attr: { type: "color" } });
-    input.oninput = () => {   // NICHT custom.empty() – das würde den Input mitten im Event mitlöschen
-      this.color = input.value;
-      custom.style.setProperty("--bt-swatch", input.value);   // CSS legt die Farbe hinter die Pipette
-      mark(custom);
-      this.updatePreview();
-    };
-  }
 
   private updatePreview(): void {
     this.previewNm.setText(this.name.trim() || t(PH[this.kind]));

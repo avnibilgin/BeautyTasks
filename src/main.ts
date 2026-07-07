@@ -191,8 +191,8 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Gespeicherte Filter (type:filter-Notizen) ──
   /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-
    *  Listener auf den frisch geparsten Frontmatter, bevor zum neuen Filter-Board gewechselt wird. */
-  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
-    const base = await createFilterNote(this.app, this.settings, name, criteria, options);
+  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null): Promise<void> {
+    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color);
     const ref = this.app.metadataCache.on("changed", () => {
       this.app.metadataCache.offref(ref);
       const created = listFilters(this.app).find((fl) => fl.name === base);
@@ -203,9 +203,9 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Filter aktualisieren. Wie die Projekt-Aktionen wartet ein einmaliger „changed"-Listener
    *  auf den frisch geparsten Frontmatter, bevor Board/Nav neu gezeichnet werden (sonst zeigt
    *  die Seite bis zum nächsten Ereignis den alten Stand). */
-  async updateFilter(path: string, criteria: FilterCriteria, options: ViewOptions): Promise<void> {
+  async updateFilter(path: string, criteria: FilterCriteria, options: ViewOptions, color: string | null): Promise<void> {
     this.refreshOnChange(path);
-    await updateFilterNote(this.app, path, criteria, options);
+    await updateFilterNote(this.app, path, criteria, options, color);
   }
   /** Filter umbenennen (Datei + „# Überschrift"). Gibt neuen Basenamen zurück oder null bei
    *  Kollision. renameFile löst ein vault-„rename" aus; zur Sicherheit zusätzlich neu zeichnen. */
