@@ -14,4 +14,7 @@ export class App {}
 export class TFile {}
 export class Component {}
 export class FuzzySuggestModal {}
+export class Modal {}
+export class Setting {}
+export class Notice {}
 export function setIcon(): void { /* no-op im Test */ }

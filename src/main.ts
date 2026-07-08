@@ -19,6 +19,7 @@ import { t, setLocale } from "./i18n";
 import { BeautyTasksSettingTab } from "./settingsTab";
 import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
+import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
 
 export default class BeautyTasksPlugin extends Plugin {
@@ -105,6 +106,7 @@ export default class BeautyTasksPlugin extends Plugin {
     });
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
+    this.addCommand({ id: "import-tasknotes", name: t("cmd_import_tasknotes"), callback: () => this.importFromTaskNotes() });
     this.addCommand({
       id: "import-from-lists", name: t("cmd_import"),
       callback: async () => {
@@ -409,6 +411,10 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Import über den OS-Dateidialog (Datei außerhalb des Vaults). */
   importTasksFromOs(): void {
     pickOsJsonFile((text) => void this.importTasksFromText(text));
+  }
+  /** Migration aus dem TaskNotes-Plugin (Dialog: Quelle wählen, nicht-destruktiv importieren). */
+  importFromTaskNotes(): void {
+    new ImportTaskNotesModal(this).open();
   }
 
   // ── Label-Verwaltung (Strings auf den Aufgaben + Register für leere Labels) ──

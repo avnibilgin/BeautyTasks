@@ -89,5 +89,8 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc"))
       .addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault()))
       .addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
+
+    new Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc"))
+      .addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
   }
 }

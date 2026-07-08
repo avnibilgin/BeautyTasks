@@ -16,9 +16,9 @@ export class WhatsNewModal extends Modal {
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
     const items: Highlight[] = [
+      { icon: "import",              title: t("wn_import_t"),  desc: t("wn_import_d") },
       { icon: "mouse-pointer-click", title: t("wn_menu_t"),    desc: t("wn_menu_d") },
       { icon: "arrow-up-down",       title: t("wn_reorder_t"), desc: t("wn_reorder_d") },
-      { icon: "eye",                 title: t("wn_hidden_t"),  desc: t("wn_hidden_d") },
       { icon: "trash-2",             title: t("wn_safe_t"),    desc: t("wn_safe_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });

@@ -12,7 +12,7 @@ const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "")
 
 /** Portable Repräsentation einer Aufgabe: Referenzen (Projekt/Bereich/Eltern) als Basename,
  *  nicht als Vault-Pfad – so bleibt der Export beim Umzug in einen anderen Vault gültig. */
-interface ExportTask {
+export interface ExportTask {
   id: string;
   externalId: string | null;
   title: string;
@@ -38,14 +38,14 @@ interface ExportTask {
 
 /** Listen-Definition (Projekt/Bereich). Trägt den Typ, den die Aufgaben-Referenz allein nicht
  *  kennt – so kommen Bereiche beim Import wieder als Bereich (nicht als Projekt) zurück. */
-interface ExportList {
+export interface ExportList {
   name: string;
   type: "project" | "area";
   color: string | null;
   archived: boolean;
 }
 
-interface ExportData {
+export interface ExportData {
   format: typeof EXPORT_FORMAT;
   version: number;
   exportedAt: string;
@@ -56,6 +56,12 @@ interface ExportData {
 }
 
 export interface ImportResult { created: number; skipped: number; listsCreated: number; labelsAdded: number; }
+
+/** ExportData aus fertigen Records zusammensetzen – für Importer aus Fremdformaten (z. B. TaskNotes),
+ *  die direkt Aufgaben-/Listen-Records erzeugen und den gemeinsamen importData()-Writer nutzen. */
+export function makeImportData(lists: ExportList[], labels: string[], tasks: ExportTask[]): ExportData {
+  return { format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(), taskCount: tasks.length, lists, labels, tasks };
+}
 
 /** Alle Aufgaben (+ Label-Register) in ein portables Objekt serialisieren. */
 function buildExportData(plugin: BeautyTasksPlugin): ExportData {
