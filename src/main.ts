@@ -29,6 +29,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentLabel: string | null = null;                   // aktives Label-Board
   currentFilter: string | null = null;                  // aktiver gespeicherter Filter (type:filter-Pfad)
   colorPreview: { key: string; color: string } | null = null;   // Live-Vorschau der Icon-Farbe (Farb-Picker), NICHT persistiert
+  reorderSec: NavSection | null = null;                 // aktiver Drag-Sortiermodus in der Seitenleiste (transient)
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
   manageSection: "projects" | "areas" | "labels" | "filters" | "statuses" = "projects";    // obere Ebene
@@ -337,6 +338,16 @@ export default class BeautyTasksPlugin extends Plugin {
     this.refreshOnChange(path);
     await setProjectArchived(this.app, path, archived);
   }
+  /** Projekt/Bereich archivieren und eine „Rückgängig"-Notice zeigen (Kontextmenü + Bearbeiten-Modal). */
+  archiveWithUndo(path: string, name: string): void {
+    void this.archiveProject(path, true);
+    const frag = createFragment((f) => {
+      f.appendText(t("archived_notice", name) + " ");
+      const undo = f.createEl("a", { text: t("archive_undo"), href: "#" });
+      undo.onclick = (e) => { e.preventDefault(); void this.archiveProject(path, false); };
+    });
+    new Notice(frag, 8000);
+  }
   async setProjectVisible(path: string, visible: boolean): Promise<void> {
     this.refreshOnChange(path);
     await setNavHidden(this.app, path, !visible);
@@ -527,16 +538,47 @@ export default class BeautyTasksPlugin extends Plugin {
     const items = listManaged(this.app).active.filter((p) => p.type === wantType);
     return this.sortProjItems(sec, items).map((p) => p.path);
   }
-  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
-  async moveNavItem(sec: NavSection, key: string, dir: -1 | 1): Promise<void> {
-    const keys = this.currentNavKeys(sec);
-    const i = keys.indexOf(key), j = i + dir;
-    if (i < 0 || j < 0 || j >= keys.length) return;
-    [keys[i], keys[j]] = [keys[j], keys[i]];
+  /** Manuelle Reihenfolge einer Sektion setzen (materialisiert navOrder). Gemeinsame Persistenz
+   *  für ↑/↓-Verschieben UND Drag-Sortiermodus – schreibt genau ein Feld: navOrder[sec]. */
+  async setNavOrder(sec: NavSection, keys: string[]): Promise<void> {
     const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [] };
     order[sec] = keys;
     this.settings.navOrder = order;
     await this.saveSettings();
+    this.renderAll();
+  }
+  /** Neue Reihenfolge der SICHTBAREN Schlüssel (aus dem Drag-Sortiermodus) anwenden.
+   *  Ausgeblendete behalten ihre bisherige Position, damit ihr Umsortieren nicht verloren geht. */
+  async reorderVisible(sec: NavSection, visibleKeys: string[]): Promise<void> {
+    const full = this.currentNavKeys(sec);
+    const visSet = new Set(visibleKeys);
+    let vi = 0;
+    const merged = full.map((k) => (visSet.has(k) ? visibleKeys[vi++] : k));
+    for (const k of visibleKeys) if (!full.includes(k)) merged.push(k);   // Sicherheitsnetz: neue Schlüssel
+    await this.setNavOrder(sec, merged);
+  }
+  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
+  async moveNavItem(sec: NavSection, key: string, dir: -1 | 1): Promise<void> {
+    await this.ensureManualSort(sec);   // ↑/↓ wirken nur im Manuell-Modus
+    const keys = this.currentNavKeys(sec);
+    const i = keys.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    await this.setNavOrder(sec, keys);
+  }
+  /** Sicherstellen, dass eine Sektion im Manuell-Modus ist (Voraussetzung fürs Umsortieren). */
+  async ensureManualSort(sec: NavSection): Promise<void> {
+    if (this.navSortMode(sec) !== "manual") await this.setNavSort(sec, "manual");
+  }
+  /** Drag-Sortiermodus für eine Sektion starten (schaltet vorher auf Manuell). */
+  async startReorder(sec: NavSection): Promise<void> {
+    await this.ensureManualSort(sec);   // ruft bereits renderAll(), falls umgeschaltet
+    this.reorderSec = sec;
+    this.renderAll();
+  }
+  /** Drag-Sortiermodus beenden. */
+  endReorder(): void {
+    this.reorderSec = null;
     this.renderAll();
   }
   // ── Nav-Abschnitte ein-/ausklappen (Zustand persistent, beim Neustart wiederhergestellt) ──

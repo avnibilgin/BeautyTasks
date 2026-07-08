@@ -1238,9 +1238,11 @@ body {
 .bt-filter-modal .bt-actions { display: inline-flex; gap: 8px; }
 /* Mehrfachauswahl als kompaktes Dropdown (Priorität/Labels/Listen) – optisch wie die
    Sort/Group/Time-Dropdowns; öffnet ein Popover mit Häkchen-Zeilen. */
+/* Trigger-Button aller Facetten (Zeitraum/Priorität/Labels/Listen): einheitlich als
+   Formularfeld gestylt – gleiche Höhe/Rand/Hintergrund wie ein natives Obsidian-Dropdown. */
 .bt-facet-dd {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
-  padding: 4px 8px; border-radius: var(--radius-s); cursor: pointer; box-shadow: none;
+  display: inline-flex; align-items: center; gap: 6px; min-width: 168px; max-width: 220px;
+  height: var(--input-height); padding: 0 10px; border-radius: var(--radius-s); cursor: pointer; box-shadow: none;
   border: 1px solid var(--background-modifier-border); background: var(--background-modifier-form-field);
   color: var(--text-normal); font-size: var(--font-ui-small);
 }
@@ -1259,7 +1261,7 @@ body {
 }
 
 /* ── „Neu"-Modal (Projekt/Bereich/Label anlegen, Variante B) ─────── */
-.bt-new-modal { width: 380px; max-width: 92vw; }
+.bt-new-modal { width: 440px; max-width: 92vw; }
 .bt-new-modal h3 { margin: 0 0 14px; font-size: 17px; letter-spacing: -0.01em; }
 .bt-new-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .bt-new-field > label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
@@ -1269,14 +1271,14 @@ body {
 }
 .bt-new-input:focus { outline: none; border-color: var(--interactive-accent); box-shadow: 0 0 0 3px var(--background-modifier-border-hover); }
 .bt-swatch-row { display: flex; flex-wrap: wrap; gap: 7px; }
-/* Farbbereich im Filter-Editor: eigener, zentrierter Container mit mehr Padding. Oben Luft
-   zum Namen, unten etwas weniger bis zur Sektion „Anordnung". */
-.bt-filter-modal .bt-filter-color { margin-top: 16px; margin-bottom: 24px; }
-.bt-filter-modal .bt-filter-color .bt-swatch-row {
+/* Farbbereich (Filter-Editor UND Neu/Bearbeiten-Modal): eigener, zentrierter Container mit
+   mehr Padding und Rahmen – einheitlicher Stil über alle Modals. */
+.bt-color-box {
   justify-content: center; gap: 9px; padding: 14px;
   border: 1px solid var(--background-modifier-border); border-radius: 10px;
   background: var(--background-secondary);
 }
+.bt-filter-modal .bt-filter-color { margin-top: 16px; margin-bottom: 24px; }
 /* Live-Vorschau des Eintrags (Icon in der gewählten Farbe + Name). */
 /* Sichtbarkeits-Zeile im Neu/Bearbeiten-Modal: Label links, größerer Schalter rechts, mehr Luft. */
 .bt-new-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0; }
@@ -1341,3 +1343,27 @@ body {
   background: transparent; color: var(--interactive-accent); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; box-shadow: none; text-align: center;
 }
 @media (prefers-reduced-motion: reduce) { .bt-view-panel .bt-panel-switch, .bt-view-panel .bt-panel-switch::after { transition: none; } }
+
+/* ── Bestätigungs-/Prompt-Modal ── */
+.bt-confirm-modal { width: 360px; max-width: 92vw; }
+.bt-confirm-modal h3 { margin: 0 0 10px; font-size: 17px; letter-spacing: -0.01em; }
+.bt-confirm-modal .bt-confirm-msg { margin: 0 0 14px; color: var(--text-muted); }
+.bt-confirm-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.bt-confirm-modal .bt-actions { display: inline-flex; gap: 8px; }
+
+/* ── Seitenleisten-Sortiermodus (Drag) ── */
+.bt-reorder-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; margin: 2px 0 4px; border-radius: 6px; background: var(--background-modifier-hover); }
+.bt-reorder-lbl { font-size: 0.82em; color: var(--text-muted); }
+.bt-reorder-list { display: flex; flex-direction: column; gap: 2px; }
+.bt-reorder-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; font-size: 0.9em; color: var(--text-normal); background: var(--background-secondary); }
+.bt-reorder-row.is-dragging { background: var(--background-modifier-hover); box-shadow: var(--shadow-s); }
+.bt-reorder-row .bt-nav-ic svg { width: 16px; height: 16px; }
+.bt-nav-grip { display: inline-flex; flex-shrink: 0; cursor: grab; color: var(--text-faint); touch-action: none; }
+.bt-nav-grip:active { cursor: grabbing; }
+.bt-nav-grip svg { width: 16px; height: 16px; }
+.bt-nav-grip:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Bereich-Icon (circle-small) auch im Kontextmenü gefüllt – in Standard-Icon-Farbe (wie der
+   Menütext, currentColor). Nur dieses eine Icon; Umriss-Icons im Menü bleiben unberührt. */
+.menu-item-icon .lucide-circle-small,
+.menu-item-icon.lucide-circle-small { fill: currentColor; }

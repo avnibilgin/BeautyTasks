@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task } from "./types";
+import { Task, NavSection } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath } from "./taskService";
@@ -8,6 +8,7 @@ import { listFilters, readFilter } from "./filterService";
 import { applyFilter, sortTasks, FilterGroup, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
+import { buildItemMenu, showHiddenSubmenu } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline } from "./manageView";
 import { parseRecurrence } from "./recurrence";
@@ -607,7 +608,7 @@ function showStatusMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: num
 
 
 // ── Linke Navigation ─────────────────────────────────────────────
-interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; active?: boolean; onClick: () => void; onContext?: () => void; }
+interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; }
 
 /** Div klick- UND tastaturbedienbar machen (role=button/tabindex kommen vom Aufrufer):
  *  Klick + Enter/Space lösen dieselbe Aktion aus. So bleibt die Optik 1:1 wie zuvor. */
@@ -623,7 +624,7 @@ function navItem(c: HTMLElement, o: NavItemOpts): void {
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
   if (o.count) item.createSpan({ cls: "bt-nav-count", text: String(o.count) });
   activate(item, o.onClick);
-  if (o.onContext) item.oncontextmenu = (e) => { e.preventDefault(); o.onContext!(); };   // Rechtsklick = Bearbeiten
+  if (o.onContext) item.oncontextmenu = (e) => { e.preventDefault(); o.onContext!(e); };   // Rechtsklick = Kontextmenü
 }
 
 /** Dezente Empty-State-Zeile unter einem Sektionskopf („+ … erstellen"). */
@@ -679,7 +680,69 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   setIcon(chev, collapsed ? "chevron-right" : "chevron-down");
   chev.onclick = () => void plugin.toggleNavSection(id);
 
+  // Rechtsklick auf den Sektionskopf: „Ausgeblendete einblenden ▸" (nur wenn es welche gibt).
+  if (id === "projects" || id === "areas" || id === "labels" || id === "filters") {
+    head.oncontextmenu = (e) => {
+      const menu = new Menu();
+      if (showHiddenSubmenu(menu, plugin, id)) { e.preventDefault(); menu.showAtMouseEvent(e); }
+    };
+  }
+
   return collapsed;
+}
+
+interface ReorderEntry { key: string; name: string; icon: string; color: string | null; }
+
+/** Sidebar-Sortiermodus für EINE Sektion: „Fertig"-Leiste + per Pointer ziehbare Zeilen.
+ *  Persistiert am Drop über plugin.reorderVisible (schreibt navOrder[sec]). */
+function renderReorderList(c: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection, entries: ReorderEntry[]): void {
+  const bar = c.createDiv({ cls: "bt-reorder-bar" });
+  bar.createSpan({ cls: "bt-reorder-lbl", text: t("reorder_active") });
+  const done = bar.createEl("button", { cls: "bt-reorder-done mod-cta", text: t("reorder_done") });
+  done.onclick = () => plugin.endReorder();
+
+  const list = c.createDiv({ cls: "bt-reorder-list" });
+  for (const e of entries) {
+    const row = list.createDiv({ cls: "bt-reorder-row", attr: { "data-key": e.key } });
+    const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+    setIcon(grip, "grip-vertical");
+    const ic = row.createSpan({ cls: "bt-nav-ic" }); setIcon(ic, e.icon);
+    if (e.color) ic.setCssStyles({ color: e.color });
+    row.createSpan({ cls: "bt-nav-lbl", text: e.name });
+    grip.onkeydown = (ev) => {
+      if (ev.key === "ArrowUp") { ev.preventDefault(); void plugin.moveNavItem(sec, e.key, -1); }
+      else if (ev.key === "ArrowDown") { ev.preventDefault(); void plugin.moveNavItem(sec, e.key, 1); }
+    };
+    attachRowDrag(row, grip, list, plugin, sec);
+  }
+}
+
+/** Pointer-basiertes Umordnen einer Zeile (Maus + Touch, Popout-sicher über list.ownerDocument). */
+function attachRowDrag(row: HTMLElement, grip: HTMLElement, list: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection): void {
+  grip.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    const doc = list.ownerDocument;   // Ziel-Fenster einmal festhalten (Rule 29a)
+    row.addClass("is-dragging");
+    const onMove = (me: PointerEvent) => {
+      const y = me.clientY;
+      const siblings = (Array.from(list.children) as HTMLElement[]).filter((el) => el !== row);
+      let placed = false;
+      for (const sib of siblings) {
+        const r = sib.getBoundingClientRect();
+        if (y < r.top + r.height / 2) { list.insertBefore(row, sib); placed = true; break; }
+      }
+      if (!placed) list.appendChild(row);
+    };
+    const onUp = () => {
+      row.removeClass("is-dragging");
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      const keys = (Array.from(list.children) as HTMLElement[]).map((el) => el.getAttr("data-key")).filter((k): k is string => !!k);
+      void plugin.reorderVisible(sec, keys);
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
 }
 
 export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
@@ -714,15 +777,23 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   }
 
   // cls = Kategorie-Klasse (bt-nav-area / bt-nav-project) für eine gemeinsame Icon-Farbe je Gruppe.
-  // Rechtsklick auf einen Eintrag öffnet das Bearbeiten-Modal (Name · Farbe · Sichtbarkeit).
+  // Rechtsklick auf einen Eintrag öffnet das Kontextmenü (Bearbeiten, Ausblenden, Sortieren, …).
   const projItems = (items: { name: string; path: string; icon: string; color: string | null; hidden: boolean }[], cls: string, kind: "project" | "area") => {
-    for (const p of items.filter((x) => !x.hidden)) {   // in der Verwaltung ausgeblendete weglassen
+    const sec: NavSection = kind === "area" ? "areas" : "projects";
+    const visible = items.filter((x) => !x.hidden);   // in der Verwaltung ausgeblendete weglassen
+    if (plugin.reorderSec === sec) {
+      renderReorderList(c, plugin, sec, visible.map((p) => ({ key: p.path, name: p.name, icon: p.icon, color: p.color })));
+      return;
+    }
+    for (const p of visible) {
       navItem(c, {
         cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name, count: plugin.index.byProject(p.path).length,
         active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
-        onContext: () => new NewItemModal(plugin, kind, { key: p.path, name: p.name, color: p.color, visible: !p.hidden }).open(),
+        onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec, key: p.path, name: p.name, hidden: p.hidden, color: p.color, type: kind }); m.showAtMouseEvent(e); },
       });
     }
+    // Leer (frisches Setup): dezenter „+ …erstellen"-Hinweis wie bei Labels/Filtern.
+    if (!items.length) navHintRow(c, "plus", t(kind === "area" ? "create_area" : "create_project"), () => new NewItemModal(plugin, kind).open());
   };
 
   // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor. Rechtsklick = bearbeiten.
@@ -730,14 +801,16 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const filters = plugin.sortFilters(listFilters(plugin.app));
   const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
     async () => undefined, () => new FilterModal(plugin).open());
-  if (!filtersCollapsed) {
+  if (plugin.reorderSec === "filters") {
+    renderReorderList(c, plugin, "filters", filters.filter((f) => !f.hidden).map((f) => ({ key: f.path, name: f.name, icon: f.icon, color: f.color })));
+  } else if (!filtersCollapsed) {
     for (const fl of filters) {
       if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
       navItem(c, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
         count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
         active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
-        onContext: () => new FilterModal(plugin, fl.path).open(),
+        onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });
     }
     if (!filters.length) navHintRow(c, "plus", t("create_filter"), () => new FilterModal(plugin).open());
@@ -746,13 +819,15 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Labels-Sektion: „+" öffnet das Neu-Modal. Rechtsklick = bearbeiten; leer = „+ Label erstellen".
   const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "label").open());
-  if (!labelsCollapsed) {
+  if (plugin.reorderSec === "labels") {
+    renderReorderList(c, plugin, "labels", plugin.getVisibleLabels().map((n) => ({ key: n, name: n, icon: "hash", color: plugin.getLabelColor(n) })));
+  } else if (!labelsCollapsed) {
     for (const name of plugin.getVisibleLabels()) {
       const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
       navItem(c, {
         cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count,
         active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name),
-        onContext: () => new NewItemModal(plugin, "label", { key: name, name, color: plugin.getLabelColor(name), visible: plugin.isLabelVisible(name) }).open(),
+        onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
       });
     }
     if (!plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
@@ -761,12 +836,12 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // Bereiche: „+" öffnet das Neu-Modal (Name + Farbe), legt als type:area an.
   const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "area").open());
-  if (!areasCollapsed) projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area", "area");
+  if (!areasCollapsed || plugin.reorderSec === "areas") projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area", "area");
 
   // Projekte: „+" öffnet das Neu-Modal (Name + Farbe).
   const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "project").open());
-  if (!projCollapsed) projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
+  if (!projCollapsed || plugin.reorderSec === "projects") projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
 
   // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.
   navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });

@@ -4,6 +4,7 @@ import { listManaged, ProjItem } from "./taskService";
 import { listFilters, FilterItem } from "./filterService";
 import { applyFilter } from "./filterEngine";
 import { FilterModal } from "./filterModal";
+import { buildItemMenu } from "./navMenu";
 import { statusLabel, statusIcon, statusTint, StatusKind, StoredStatus } from "./statuses";
 import { NavSection, NavSortMode } from "./types";
 import { todayStr } from "./format";
@@ -181,9 +182,8 @@ function rowMenu(actions: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem):
   setIcon(kebab.createSpan(), "more-horizontal");
   kebab.onclick = (e) => {
     e.stopPropagation();
-    const isArea = it.type === "area";
     const menu = new Menu();
-    menu.addItem((m) => m.setTitle(isArea ? t("tip_unmark_area") : t("tip_mark_area")).setIcon(isArea ? "square" : "circle").onClick(() => void plugin.setProjectArea(it.path, !isArea)));
+    buildItemMenu(menu, plugin, { sec: it.type === "area" ? "areas" : "projects", key: it.path, name: it.name, hidden: it.hidden, color: it.color, type: it.type });
     menu.showAtMouseEvent(e);
   };
 }

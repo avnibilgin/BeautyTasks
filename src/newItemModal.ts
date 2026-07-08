@@ -5,6 +5,7 @@ import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { normalizeLabel } from "./taskService";
 import { buildSwatchRow } from "./colorSwatches";
+import { ConfirmModal } from "./confirmModal";
 import { t } from "./i18n";
 
 export type NewItemKind = "project" | "area" | "label";
@@ -46,7 +47,7 @@ export class NewItemModal extends Modal {
     // Farbe (Swatches inline)
     const colorField = contentEl.createDiv({ cls: "bt-new-field" });
     colorField.createEl("label", { text: t("status_pick_color") });
-    buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; this.updatePreview(); });
+    buildSwatchRow(colorField.createDiv({ cls: "bt-color-box" }), this.color, (c) => { this.color = c; this.updatePreview(); });
 
     // Sichtbarkeit in der Seitenleiste (Schalter)
     const visRow = contentEl.createDiv({ cls: "bt-new-row" });
@@ -64,9 +65,16 @@ export class NewItemModal extends Modal {
     prev.createSpan({ cls: "bt-new-preview-hint", text: t("new_preview_hint") });
     this.updatePreview();
 
-    // Fuß
+    // Fuß: links destruktiv (nur im Bearbeiten-Modus), rechts Abbrechen/Speichern (Layout A).
     const foot = contentEl.createDiv({ cls: "bt-foot" });
-    foot.createDiv();
+    const danger = foot.createDiv({ cls: "bt-actions" });
+    if (this.edit) {
+      if (this.kind !== "label") danger.createEl("button", { text: t("btn_archive") }).onclick = () => {
+        this.plugin.archiveWithUndo(this.edit!.key, this.edit!.name);
+        this.close();
+      };
+      danger.createEl("button", { cls: "mod-warning", text: t("btn_delete") }).onclick = () => this.confirmDelete();
+    }
     const actions = foot.createDiv({ cls: "bt-actions" });
     actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
     actions.createEl("button", { cls: "mod-cta", text: t(this.edit ? "btn_save" : "btn_create") }).onclick = () => void this.submit();
@@ -79,6 +87,18 @@ export class NewItemModal extends Modal {
   private updatePreview(): void {
     this.previewNm.setText(this.name.trim() || t(PH[this.kind]));
     this.previewIc.style.color = this.color ?? "var(--text-muted)";
+  }
+
+  /** Löschen mit Sicherheitsabfrage (nur im Bearbeiten-Modus). */
+  private confirmDelete(): void {
+    const e = this.edit!;
+    new ConfirmModal(this.app,
+      { title: t("confirm_delete_title", e.name), message: t("confirm_delete_body") },
+      () => {
+        if (this.kind === "label") void this.plugin.deleteLabel(e.key);
+        else void this.plugin.deleteProject(e.key);
+        this.close();
+      }).open();
   }
 
   private async submit(): Promise<void> {

@@ -16,6 +16,7 @@ import {
 } from "./filterEngine";
 import { readFilter } from "./filterService";
 import { buildSwatchRow } from "./colorSwatches";
+import { ConfirmModal } from "./confirmModal";
 
 export class FilterModal extends Modal {
   private name: string;
@@ -55,7 +56,7 @@ export class FilterModal extends Modal {
     // Farbe direkt unter dem Namen (gleiche Swatch-Reihe wie im Neu-Modal).
     const colorField = contentEl.createDiv({ cls: "bt-new-field bt-filter-color" });
     colorField.createEl("label", { text: t("status_pick_color") });
-    buildSwatchRow(colorField.createDiv(), this.color, (c) => { this.color = c; });
+    buildSwatchRow(colorField.createDiv({ cls: "bt-color-box" }), this.color, (c) => { this.color = c; });
 
     // Sichtbarkeit in der Seitenleiste (Schalter, wie im Neu/Bearbeiten-Modal).
     const visRow = contentEl.createDiv({ cls: "bt-new-row" });
@@ -70,10 +71,9 @@ export class FilterModal extends Modal {
 
     // ── Filter-Facetten ──
     contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
-    new Setting(contentEl).setName(t("filter_range")).addDropdown((d) => {
-      for (const r of RANGES) d.addOption(r, t("filter_range_" + r));
-      d.setValue(this.c.range).onChange((v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
-    });
+    this.select(contentEl, t("filter_range"),
+      RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
+      () => this.c.range, (v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
 
     this.facet(contentEl, t("filter_priorities"),
       FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })),
@@ -96,11 +96,13 @@ export class FilterModal extends Modal {
     this.countEl = contentEl.createDiv({ cls: "bt-filter-count" });
     this.refresh();
 
+    // Fuß: links destruktiv (Löschen, nur beim Bearbeiten), rechts Zurücksetzen/Speichern (Layout A).
     const foot = contentEl.createDiv({ cls: "bt-foot" });
-    foot.createDiv();   // Platzhalter links -> Buttons rechtsbündig (wie im TaskModal)
+    const danger = foot.createDiv({ cls: "bt-actions" });
+    if (this.editPath) danger.createEl("button", { cls: "mod-warning", text: t("filter_delete") }).onclick = () =>
+      new ConfirmModal(this.app, { title: t("confirm_delete_title", this.name || t("nav_filters")), message: t("confirm_delete_body") }, () => void this.remove()).open();
     const actions = foot.createDiv({ cls: "bt-actions" });
     actions.createEl("button", { text: t("filter_reset") }).onclick = () => this.reset();
-    if (this.editPath) actions.createEl("button", { cls: "mod-warning", text: t("filter_delete") }).onclick = () => void this.remove();
     actions.createEl("button", { cls: "mod-cta", text: t("filter_save") }).onclick = () => void this.save();
   }
 
@@ -145,6 +147,29 @@ export class FilterModal extends Modal {
         }
       };
       render();
+    });
+  }
+
+  /** Einfachauswahl als kompaktes Dropdown (Button + Popover mit Häkchen) – optisch identisch
+   *  zu den Mehrfach-Facetten, aber genau EIN Wert; Klick wählt und schließt. */
+  private select(parent: HTMLElement, label: string, opts: { key: string; label: string }[],
+    get: () => string, set: (v: string) => void): void {
+    const btn = new Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
+    const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
+    setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
+    const syncLbl = (): void => lbl.setText(opts.find((o) => o.key === get())?.label ?? "");
+    syncLbl();
+
+    btn.onclick = () => openPopover(btn, (pop, close) => {
+      pop.addClass("bt-facet-pop");
+      for (const o of opts) {
+        const on = get() === o.key;
+        const r = pop.createDiv({ cls: "bt-row" + (on ? " is-active" : "") });
+        const ic = r.createSpan({ cls: "bt-row-ic" });
+        if (on) setIcon(ic, "check");
+        r.createSpan({ cls: "bt-row-lbl", text: o.label });
+        r.onclick = () => { set(o.key); syncLbl(); this.refresh(); close(); };
+      }
     });
   }
 

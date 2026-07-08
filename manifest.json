@@ -1,7 +1,7 @@
 {
   "id": "beautytasks",
   "name": "BeautyTasks",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "minAppVersion": "1.7.2",
   "description": "Todoist-style tasks & projects — one Markdown note per task, no dependencies.",
   "author": "Avni Bilgin",
