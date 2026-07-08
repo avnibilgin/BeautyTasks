@@ -735,6 +735,10 @@ body {
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px hsla(var(--interactive-accent-hsl), 0.5);
 }
+/* Eigene Trennlinie(n) des hervorgehobenen Eintrags ausblenden – sonst übermalt das
+   ::after (bzw. der border-bottom der letzten Unteraufgabe) den unteren Akzent-Rahmen. */
+.bt-task.is-focus::after { display: none; }
+.bt-task.is-focus.bt-last-sub { border-bottom-color: transparent; }
 
 /* Runde Checkbox */
 .bt-check {

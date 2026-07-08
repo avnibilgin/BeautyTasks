@@ -6422,6 +6422,7 @@ var BeautyTasksPlugin = class extends import_obsidian22.Plugin {
     this.addRibbonIcon("check-circle", t("ribbon_open"), () => void this.openBeautyTasks());
     this.addSettingTab(new BeautyTasksSettingTab(this.app, this));
     this.registerEvent(this.app.workspace.on("layout-change", () => this.renderAll()));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => void this.onNoteRenamed(file, oldPath)));
     this.addCommand({ id: "open", name: t("ribbon_open"), callback: () => void this.openBeautyTasks() });
     for (const id of VIEW_IDS) {
       this.addCommand({ id: "open-" + id, name: t("cmd_open_view", viewTitle(id)), callback: () => void this.activateView(id) });
@@ -6834,6 +6835,13 @@ var BeautyTasksPlugin = class extends import_obsidian22.Plugin {
         fm.labels = [...new Set(arr.map((x) => x === oldName ? nu : x))];
       });
     }
+    for (const fl of listFilters(this.app)) {
+      if (!fl.criteria.labels.includes(oldName)) continue;
+      const ff = this.app.vault.getAbstractFileByPath(fl.path);
+      if (ff instanceof import_obsidian22.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
+        if (Array.isArray(fm.labels)) fm.labels = [...new Set(fm.labels.map(String).map((x) => x === oldName ? nu : x))];
+      });
+    }
     this.settings.knownLabels = [...new Set(this.settings.knownLabels.map((x) => x === oldName ? nu : x))];
     this.settings.visibleLabels = [...new Set(this.settings.visibleLabels.map((x) => x === oldName ? nu : x))];
     if (this.settings.labelColors[oldName]) {
@@ -6844,6 +6852,72 @@ var BeautyTasksPlugin = class extends import_obsidian22.Plugin {
     await this.saveSettings();
     this.renderAll();
     return true;
+  }
+  // ── Referenz-Integrität beim Umbenennen (nativ ODER Plugin, setting-unabhängig) ──
+  /** Wikilink/Klartext → Basename (ohne .md); null, wenn kein String. */
+  wikiBase(v) {
+    if (typeof v !== "string") return null;
+    const m = v.match(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/);
+    const raw = (m ? m[1] : v).trim();
+    return raw ? raw.split("/").pop().replace(/\.md$/i, "") : null;
+  }
+  /** Reagiert auf jedes Umbenennen einer verwalteten Notiz und zieht alle Referenzen selbst nach. */
+  async onNoteRenamed(file, oldPath) {
+    if (!(file instanceof import_obsidian22.TFile) || file.extension !== "md") return;
+    const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.type;
+    if (type !== "project" && type !== "area" && type !== "filter" && type !== "task") return;
+    const oldBase = oldPath.split("/").pop().replace(/\.md$/i, "");
+    const newBase = file.basename;
+    if (type !== "task" && oldPath !== file.path) this.remapNavOrder(oldPath, file.path);
+    if (this.currentProject === oldPath) this.currentProject = file.path;
+    if (this.currentFilter === oldPath) this.currentFilter = file.path;
+    if (oldBase !== newBase) {
+      if (type === "project" || type === "area") await this.remapListRefs(oldBase, newBase);
+      else if (type === "task") await this.remapParentRefs(oldBase, newBase);
+    }
+    this.renderAll();
+  }
+  /** Projekt/Bereich umbenannt: Aufgaben-`project` (Wikilink) UND Filter-`projects` (Klartext) nachziehen. */
+  async remapListRefs(oldBase, newBase) {
+    for (const task of this.index.all()) {
+      if (this.wikiBase(task.project) !== oldBase) continue;
+      const f = this.app.vault.getAbstractFileByPath(task.path);
+      if (f instanceof import_obsidian22.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+        if (this.wikiBase(fm.project) === oldBase) fm.project = "[[" + newBase + "]]";
+      });
+    }
+    for (const fl of listFilters(this.app)) {
+      if (!fl.criteria.projects.includes(oldBase)) continue;
+      const f = this.app.vault.getAbstractFileByPath(fl.path);
+      if (f instanceof import_obsidian22.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+        if (Array.isArray(fm.projects)) fm.projects = [...new Set(fm.projects.map(String).map((x) => x === oldBase ? newBase : x))];
+      });
+    }
+  }
+  /** Aufgabe umbenannt: `parent`-Referenzen der Unteraufgaben nachziehen. */
+  async remapParentRefs(oldBase, newBase) {
+    for (const task of this.index.all()) {
+      if (this.wikiBase(task.parent) !== oldBase) continue;
+      const f = this.app.vault.getAbstractFileByPath(task.path);
+      if (f instanceof import_obsidian22.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+        if (this.wikiBase(fm.parent) === oldBase) fm.parent = "[[" + newBase + "]]";
+      });
+    }
+  }
+  /** navOrder-Schlüssel (Pfad) von alt → neu umhängen (project/area/filter). */
+  remapNavOrder(oldPath, newPath) {
+    const o = this.settings.navOrder;
+    if (!o) return;
+    let changed = false;
+    for (const sec of ["projects", "areas", "filters"]) {
+      const arr = o[sec];
+      const i = arr ? arr.indexOf(oldPath) : -1;
+      if (arr && i >= 0) {
+        arr[i] = newPath;
+        changed = true;
+      }
+    }
+    if (changed) void this.saveSettings();
   }
   /** Label aus ALLEN Aufgaben (Register + Sichtbarkeit) entfernen. */
   async deleteLabel(name) {

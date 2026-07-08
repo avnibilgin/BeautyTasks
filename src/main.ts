@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
 import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
@@ -92,6 +92,10 @@ export default class BeautyTasksPlugin extends Plugin {
     // der Klick-Geste ausführen -> das Klickziel verschwindet vor mouseup, der erste Klick
     // im neuen Bereich geht verloren. Badges/Inhalte bleiben via index.subscribe aktuell.
     this.registerEvent(this.app.workspace.on("layout-change", () => this.renderAll()));
+    // Referenz-Integrität bei JEDEM Umbenennen (nativ ODER über das Plugin) selbst sicherstellen –
+    // unabhängig von Obsidians „interne Links aktualisieren"-Einstellung (die Klartext-Kriterien in
+    // Filtern ohnehin nie anfasst). Deckt Projekt/Bereich/Filter/Aufgabe ab.
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => void this.onNoteRenamed(file, oldPath)));
 
     this.addCommand({ id: "open", name: t("ribbon_open"), callback: () => void this.openBeautyTasks() });
     for (const id of VIEW_IDS) {
@@ -447,6 +451,14 @@ export default class BeautyTasksPlugin extends Plugin {
         fm.labels = [...new Set(arr.map((x) => (x === oldName ? nu : x)))];
       });
     }
+    // Filter-Kriterien, die dieses Label per Klartext referenzieren, mitziehen (Obsidian fasst das nie an).
+    for (const fl of listFilters(this.app)) {
+      if (!fl.criteria.labels.includes(oldName)) continue;
+      const ff = this.app.vault.getAbstractFileByPath(fl.path);
+      if (ff instanceof TFile) await this.app.fileManager.processFrontMatter(ff, (fm: Record<string, unknown>) => {
+        if (Array.isArray(fm.labels)) fm.labels = [...new Set((fm.labels as unknown[]).map(String).map((x) => (x === oldName ? nu : x)))];
+      });
+    }
     this.settings.knownLabels = [...new Set(this.settings.knownLabels.map((x) => (x === oldName ? nu : x)))];
     this.settings.visibleLabels = [...new Set(this.settings.visibleLabels.map((x) => (x === oldName ? nu : x)))];
     if (this.settings.labelColors[oldName]) {   // Farbe auf den neuen Namen umziehen
@@ -457,6 +469,72 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.saveSettings();
     this.renderAll();
     return true;
+  }
+
+  // ── Referenz-Integrität beim Umbenennen (nativ ODER Plugin, setting-unabhängig) ──
+  /** Wikilink/Klartext → Basename (ohne .md); null, wenn kein String. */
+  private wikiBase(v: unknown): string | null {
+    if (typeof v !== "string") return null;
+    const m = v.match(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/);
+    const raw = (m ? m[1] : v).trim();
+    return raw ? raw.split("/").pop()!.replace(/\.md$/i, "") : null;
+  }
+  /** Reagiert auf jedes Umbenennen einer verwalteten Notiz und zieht alle Referenzen selbst nach. */
+  private async onNoteRenamed(file: TAbstractFile, oldPath: string): Promise<void> {
+    if (!(file instanceof TFile) || file.extension !== "md") return;
+    const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.type as unknown;
+    if (type !== "project" && type !== "area" && type !== "filter" && type !== "task") return;
+
+    const oldBase = oldPath.split("/").pop()!.replace(/\.md$/i, "");
+    const newBase = file.basename;
+
+    if (type !== "task" && oldPath !== file.path) this.remapNavOrder(oldPath, file.path);   // navOrder ist pfadbasiert
+    if (this.currentProject === oldPath) this.currentProject = file.path;
+    if (this.currentFilter === oldPath) this.currentFilter = file.path;
+
+    if (oldBase !== newBase) {
+      if (type === "project" || type === "area") await this.remapListRefs(oldBase, newBase);
+      else if (type === "task") await this.remapParentRefs(oldBase, newBase);
+    }
+    this.renderAll();
+  }
+  /** Projekt/Bereich umbenannt: Aufgaben-`project` (Wikilink) UND Filter-`projects` (Klartext) nachziehen. */
+  private async remapListRefs(oldBase: string, newBase: string): Promise<void> {
+    for (const task of this.index.all()) {
+      if (this.wikiBase(task.project) !== oldBase) continue;
+      const f = this.app.vault.getAbstractFileByPath(task.path);
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        if (this.wikiBase(fm.project) === oldBase) fm.project = "[[" + newBase + "]]";
+      });
+    }
+    for (const fl of listFilters(this.app)) {
+      if (!fl.criteria.projects.includes(oldBase)) continue;
+      const f = this.app.vault.getAbstractFileByPath(fl.path);
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        if (Array.isArray(fm.projects)) fm.projects = [...new Set((fm.projects as unknown[]).map(String).map((x) => (x === oldBase ? newBase : x)))];
+      });
+    }
+  }
+  /** Aufgabe umbenannt: `parent`-Referenzen der Unteraufgaben nachziehen. */
+  private async remapParentRefs(oldBase: string, newBase: string): Promise<void> {
+    for (const task of this.index.all()) {
+      if (this.wikiBase(task.parent) !== oldBase) continue;
+      const f = this.app.vault.getAbstractFileByPath(task.path);
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        if (this.wikiBase(fm.parent) === oldBase) fm.parent = "[[" + newBase + "]]";
+      });
+    }
+  }
+  /** navOrder-Schlüssel (Pfad) von alt → neu umhängen (project/area/filter). */
+  private remapNavOrder(oldPath: string, newPath: string): void {
+    const o = this.settings.navOrder;
+    if (!o) return;
+    let changed = false;
+    for (const sec of ["projects", "areas", "filters"] as const) {
+      const arr = o[sec]; const i = arr ? arr.indexOf(oldPath) : -1;
+      if (arr && i >= 0) { arr[i] = newPath; changed = true; }
+    }
+    if (changed) void this.saveSettings();
   }
   /** Label aus ALLEN Aufgaben (Register + Sichtbarkeit) entfernen. */
   async deleteLabel(name: string): Promise<void> {
