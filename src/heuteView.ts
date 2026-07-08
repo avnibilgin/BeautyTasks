@@ -643,10 +643,12 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   const collapsed = plugin.isNavCollapsed(id);
   const head = c.createDiv({ cls: "bt-nav-head" });
 
-  // Label links (füllt die Zeile) = tastatur-/klickbarer Umschalter.
-  const toggle = head.createDiv({ cls: "bt-nav-head-toggle", attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) } });
+  // Label links (füllt die Zeile): Klick/Enter führt in die jeweilige ListManager-Übersicht.
+  // (Das Auf-/Zuklappen liegt jetzt beim Chevron rechts.)
+  const manageSec = (id === "projects" || id === "areas" || id === "labels" || id === "filters") ? id : null;
+  const toggle = head.createDiv({ cls: "bt-nav-head-toggle", attr: { role: "button", tabindex: "0" } });
   toggle.createSpan({ cls: "bt-nav-head-lbl", text: title });
-  activate(toggle, () => void plugin.toggleNavSection(id));
+  activate(toggle, () => manageSec ? void plugin.activateManage(manageSec) : void plugin.toggleNavSection(id));
 
   // „+" (nur bei Hover/Fokus) direkt links vom Chevron.
   const add = head.createDiv({ cls: "bt-nav-head-add", attr: { role: "button", tabindex: "0", "aria-label": tip, "data-tooltip-position": "top" } });
@@ -674,11 +676,10 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
     window.setTimeout(() => input.focus(), 0);
   });
 
-  // Chevron ganz rechts (über der Badge-Spalte). Tastatur läuft über den Label-Toggle,
-  // daher hier nur Maus-Affordanz + Zustandsanzeige (aria-hidden, nicht tabbierbar).
-  const chev = head.createDiv({ cls: "bt-nav-head-chevron", attr: { "aria-hidden": "true" } });
+  // Chevron rechts: vollwertiger, tastaturbedienbarer Klapp-Button (auf/zu) mit aria-expanded.
+  const chev = head.createDiv({ cls: "bt-nav-head-chevron", attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed), "aria-label": t("nav_toggle_section"), "data-tooltip-position": "top" } });
   setIcon(chev, collapsed ? "chevron-right" : "chevron-down");
-  chev.onclick = () => void plugin.toggleNavSection(id);
+  activate(chev, () => void plugin.toggleNavSection(id));
 
   // Rechtsklick auf den Sektionskopf: „Ausgeblendete einblenden ▸" (nur wenn es welche gibt).
   if (id === "projects" || id === "areas" || id === "labels" || id === "filters") {
@@ -843,8 +844,6 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     async () => undefined, () => new NewItemModal(plugin, "project").open());
   if (!projCollapsed || plugin.reorderSec === "projects") projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
 
-  // „Verwalten" unten: Projekte/Bereiche archivieren, ein-/ausblenden, umwandeln, löschen.
-  navItem(c, { cls: "bt-nav-manage", icon: "list-plus", label: t("manage_full"), active: plugin.manageOpen, onClick: () => void plugin.activateManage() });
 }
 
 function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {

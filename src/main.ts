@@ -33,7 +33,7 @@ export default class BeautyTasksPlugin extends Plugin {
   reorderSec: NavSection | null = null;                 // aktiver Drag-Sortiermodus in der Seitenleiste (transient)
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
-  manageSection: "projects" | "areas" | "labels" | "filters" | "statuses" = "projects";    // obere Ebene
+  manageSection: "projects" | "areas" | "labels" | "filters" = "projects";    // welcher Bereich im ListManager
   manageTab: "active" | "archive" = "active";           // Unterteilung nur bei Projekten
   doneTab: "done" | "trash" = "done";                   // „Erledigt"-Ansicht: Liste vs. Papierkorb
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
@@ -194,7 +194,7 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels" | "filters" | "statuses"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels" | "filters"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
 
   // ── Anzeige pro Seite (Layout/Sortieren/Gruppieren/Erledigte) ──
   /** Welche Seite ist gerade offen + ihre „Fernbedienungs-Größe". */

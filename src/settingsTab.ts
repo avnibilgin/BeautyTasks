@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { VIEW_IDS, viewTitle } from "./heuteView";
+import { renderStatusEditor } from "./statusEditor";
 import { t } from "./i18n";
 
 /** Ordner-Autovervollständigung für ein Text-Eingabefeld (Obsidian-Standard-API). */
@@ -79,6 +80,10 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.settings.chipsIconsOnly = v;
         await p.saveSettings();
       }));
+
+    // ── Status (früher im ListManager; Custom-Status ist Konfiguration → gehört hierher) ──
+    new Setting(containerEl).setName(t("tab_statuses")).setHeading();
+    renderStatusEditor(containerEl.createDiv({ cls: "bt-settings-status" }), p);
 
     // ── Import & Export ──
     new Setting(containerEl).setName(t("set_data_heading")).setHeading();

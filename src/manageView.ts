@@ -5,7 +5,6 @@ import { listFilters, FilterItem } from "./filterService";
 import { applyFilter } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { buildItemMenu } from "./navMenu";
-import { statusLabel, statusIcon, statusTint, StatusKind, StoredStatus } from "./statuses";
 import { NavSection, NavSortMode } from "./types";
 import { todayStr } from "./format";
 import { openPopover } from "./popover";
@@ -54,27 +53,22 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
   const root = c.createDiv({ cls: "bt-sizer" });
   const redraw = () => renderManageInto(c, plugin);
 
-  // Kopf: Überschrift links, drei Kategorie-Tabs rechts auf gleicher Höhe.
+  // Kopf: nur die Überschrift der aktuellen Sektion. Die Navigation zwischen den Sektionen
+  // läuft jetzt über die (dauerhaft sichtbaren) Seitenleisten-Köpfe – keine Tab-Reihe mehr.
   const header = root.createDiv({ cls: "bt-manage-header" });
-  const titleKey = plugin.manageSection === "statuses" ? "tab_statuses"
-    : plugin.manageSection === "filters" ? "nav_filters"
-      : plugin.manageSection === "labels" ? "tab_labels"
-        : plugin.manageSection === "areas" ? "group_area" : "group_project";
+  const titleKey = plugin.manageSection === "filters" ? "nav_filters"
+    : plugin.manageSection === "labels" ? "tab_labels"
+      : plugin.manageSection === "areas" ? "group_area" : "group_project";
   header.createEl("h1", { text: t(titleKey) });
-  const sections = header.createDiv({ cls: "bt-tabs" });
-  const mkSection = (id: "projects" | "areas" | "labels" | "filters" | "statuses", label: string) => {
-    const b = sections.createEl("button", { cls: "bt-tab" + (plugin.manageSection === id ? " is-active" : ""), text: label });
-    b.onclick = () => { plugin.manageSection = id; renderManageInto(c, plugin); };
-  };
-  mkSection("projects", t("group_project"));
-  mkSection("areas", t("group_area"));
-  mkSection("labels", t("tab_labels"));
-  mkSection("filters", t("nav_filters"));
-  mkSection("statuses", t("tab_statuses"));
-
-  if (plugin.manageSection === "statuses") {
-    renderStatusManager(root, plugin, redraw);
-    return;
+  // Aktiv/Archiv oben rechts (nur Projekte/Bereiche) – an der Stelle der früheren Tab-Reihe.
+  if (plugin.manageSection === "projects" || plugin.manageSection === "areas") {
+    const tabs = header.createDiv({ cls: "bt-tabs" });
+    const mkTab = (id: "active" | "archive", label: string) => {
+      const b = tabs.createEl("button", { cls: "bt-tab" + (plugin.manageTab === id ? " is-active" : ""), text: label });
+      b.onclick = () => { plugin.manageTab = id; renderManageInto(c, plugin); };
+    };
+    mkTab("active", t("tab_active"));
+    mkTab("archive", t("tab_archive"));
   }
 
   if (plugin.manageSection === "filters") {
@@ -114,15 +108,6 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     isAreaSection ? t("placeholder_area_name") : t("placeholder_project_name"),
     (v) => plugin.createProject(v, isAreaSection), redraw);
 
-  // Darunter: Aktiv | Archiv.
-  const subtabs = root.createDiv({ cls: "bt-subtabs" });
-  const mkTab = (id: "active" | "archive", label: string) => {
-    const b = subtabs.createEl("button", { cls: "bt-subtab" + (plugin.manageTab === id ? " is-active" : ""), text: label });
-    b.onclick = () => { plugin.manageTab = id; renderManageInto(c, plugin); };
-  };
-  mkTab("active", t("tab_active"));
-  mkTab("archive", t("tab_archive"));
-
   const { active, archived } = listManaged(plugin.app);
 
   if (plugin.manageTab === "archive") {
@@ -143,7 +128,7 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
 }
 
 /** „+ Neu"-Zeile: Button, der sich beim Klick in ein Eingabefeld verwandelt (Enter = anlegen). */
-function addRow(parent: HTMLElement, label: string, placeholder: string, onSubmit: (v: string) => Promise<unknown>, redraw: () => void): void {
+export function addRow(parent: HTMLElement, label: string, placeholder: string, onSubmit: (v: string) => Promise<unknown>, redraw: () => void): void {
   const wrap = parent.createDiv({ cls: "bt-manage-add" });
   const btn = wrap.createDiv({ cls: "bt-add" });
   btn.createSpan({ cls: "bt-add-icon" });
@@ -311,90 +296,7 @@ function startRename(row: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, 
   window.setTimeout(() => { input.focus(); input.select(); }, 0);
 }
 
-// ── Status-Verwaltung ────────────────────────────────────────────────
-const KIND_KEY: Record<StatusKind, string> = { open: "status_kind_open", done: "status_kind_done", cancelled: "status_kind_cancelled" };
-const KIND_ICON: Record<StatusKind, string> = { open: "circle", done: "check-circle", cancelled: "x-circle" };
-// Kuratierte Icon-Auswahl (keine freien Lucide-Namen → nichts kann leer rendern).
-const ICON_PRESETS = ["circle", "contrast", "circle-dot", "circle-dashed", "check-circle", "x-circle",
-  "clock", "loader", "pause", "play", "flag", "star", "alert-circle", "eye", "inbox", "zap"];
 const COLOR_PRESETS = ["#e05c4a", "#f97316", "#f59e0b", "#4caf50", "#3b82f6", "#7c5cff", "#a855f7", "#ec4899"];
-
-function renderStatusManager(root: HTMLElement, plugin: BeautyTasksPlugin, redraw: () => void): void {
-  addRow(root, t("status_add"), t("placeholder_status_name"), (v) => plugin.addStatus(v), redraw);
-  root.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
-  const statuses = plugin.getStatuses();
-  const list = root.createDiv({ cls: "bt-manage-list" });
-  statuses.forEach((s, i) => statusRow(list, plugin, s, i, statuses.length, redraw));
-}
-
-function statusRow(list: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus, i: number, n: number, redraw: () => void): void {
-  const row = list.createDiv({ cls: "bt-manage-row bt-status-row" });
-
-  // Sortier-Pfeile (mobil-sicher).
-  const move = row.createDiv({ cls: "bt-status-move" });
-  const up = iconBtn(move, "chevron-up", t("btn_move_up"), () => void plugin.moveStatus(s.id, -1));
-  const down = iconBtn(move, "chevron-down", t("btn_move_down"), () => void plugin.moveStatus(s.id, 1));
-  if (i === 0) up.disabled = true;
-  if (i === n - 1) down.disabled = true;
-
-  // Vorschau: Icon in der Status-Farbe – genau wie später auf dem Board.
-  const dot = row.createSpan({ cls: "bt-status-dot" });
-  setIcon(dot, statusIcon(s.id));
-  dot.style.color = statusTint(s.id);
-
-  const name = row.createSpan({ cls: "bt-manage-name bt-status-name", text: statusLabel(s.id) });
-  name.onclick = () => startStatusRename(row, plugin, s, redraw);
-
-  const cnt = plugin.statusTaskCount(s.id);
-  if (cnt) row.createSpan({ cls: "bt-manage-count", text: String(cnt) });
-
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  // kind-Pill → Popover mit den drei Arten.
-  const kindBtn = actions.createEl("button", { cls: "bt-tab bt-status-kind", text: t(KIND_KEY[s.kind]) });
-  kindBtn.onclick = (e) => { e.stopPropagation(); openKindPicker(kindBtn, plugin, s); };
-  // Icon- und Farb-Picker.
-  const iconB = iconBtn(actions, "shapes", t("status_pick_icon"), () => openIconPicker(iconB, plugin, s));
-  const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, s.color ?? null, (c) => void plugin.setStatusColor(s.id, c)));
-  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteStatus(s.id), redraw));
-}
-
-function startStatusRename(row: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus, redraw: () => void): void {
-  row.empty();
-  row.addClass("is-editing");
-  const input = row.createEl("input", { type: "text", cls: "bt-manage-input" });
-  input.value = statusLabel(s.id);
-  const save = async () => { await plugin.renameStatus(s.id, input.value); redraw(); };
-  const actions = row.createDiv({ cls: "bt-manage-actions" });
-  iconBtn(actions, "check", t("btn_save"), () => void save());
-  iconBtn(actions, "x", t("btn_cancel"), redraw);
-  input.onkeydown = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); void save(); }
-    else if (e.key === "Escape") { e.preventDefault(); redraw(); }
-  };
-  window.setTimeout(() => { input.focus(); input.select(); }, 0);
-}
-
-function openKindPicker(anchor: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus): void {
-  openPopover(anchor, (pop, close) => {
-    (["open", "done", "cancelled"] as StatusKind[]).forEach((k) => {
-      const row = pop.createDiv({ cls: "bt-row" + (s.kind === k ? " is-active" : "") });
-      const ic = row.createSpan({ cls: "bt-row-ic" }); setIcon(ic, KIND_ICON[k]);
-      row.createSpan({ cls: "bt-row-lbl", text: t(KIND_KEY[k]) });
-      row.onclick = () => { void plugin.setStatusKind(s.id, k); close(); };
-    });
-  });
-}
-
-function openIconPicker(anchor: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus): void {
-  openPopover(anchor, (pop, close) => {
-    pop.addClass("bt-icon-grid");
-    for (const ic of ICON_PRESETS) {
-      const b = pop.createEl("button", { cls: "bt-icon-cell" + (s.icon === ic ? " is-active" : ""), attr: { "aria-label": ic } });
-      setIcon(b, ic);
-      b.onclick = () => { void plugin.setStatusIcon(s.id, ic); close(); };
-    }
-  });
-}
 
 /** Generischer Farb-Picker (Status · Projekte · Bereiche · Filter): kuratiertes Raster +
  *  „keine Farbe" + eine „Custom"-Kachel für den nativen Farbwähler (Vorschlag D).

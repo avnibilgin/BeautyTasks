@@ -606,7 +606,8 @@ body {
 /* Sichtbarer Tastatur-Fokus (Regel 40) – nur bei Keyboard-Fokus, nicht bei Maus. */
 .bt-nav-item:focus-visible,
 .bt-nav-head-toggle:focus-visible,
-.bt-nav-head-add:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
+.bt-nav-head-add:focus-visible,
+.bt-nav-head-chevron:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
 
 /* Abschnittsüberschrift: Label links (füllt die Zeile), „+" (nur bei Hover) und Chevron rechts. */
 .bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
@@ -619,7 +620,7 @@ body {
 .bt-nav-head-add {
   display: inline-flex; align-items: center; flex-shrink: 0;
   padding: 1px; border-radius: var(--radius-s); cursor: pointer; opacity: 0;
-  color: var(--bt-add);   /* dieselbe „+"-Farbe wie bei „Add task" */
+  color: var(--text-muted);   /* wie die Sektionstitel-Textfarbe (nicht rot) */
 }
 /* „+" erscheint nur beim Hover der Überschriftenzeile – oder bei Tastatur-Fokus (A11y). */
 .bt-nav-head:hover .bt-nav-head-add,
@@ -628,7 +629,7 @@ body {
 .bt-nav-head-add svg { width: 14px; height: 14px; }
 /* Chevron ganz rechts, grob über der Badge-Spalte der Einträge. */
 /* Chevron: gleiche Farbe wie das Label, aber leicht dezenter (etwas geringere Deckkraft). */
-.bt-nav-head-chevron { display: inline-flex; align-items: center; flex-shrink: 0; cursor: pointer; color: var(--text-muted); opacity: 0.7; }
+.bt-nav-head-chevron { display: inline-flex; align-items: center; flex-shrink: 0; cursor: pointer; color: var(--text-muted); opacity: 0.7; padding: 5px; margin: -5px; border-radius: 6px; }
 .bt-nav-head-chevron:hover { color: var(--text-normal); opacity: 1; }
 .bt-nav-head-chevron svg { width: 16px; height: 16px; }
 /* Nur Layout – Hintergrund/Rahmen/Radius/Fokus-Ring kommen aus Obsidians nativem
@@ -1145,6 +1146,17 @@ body {
 /* Der Kind-Button IST ein .bt-tab (erbt Rahmen, 6px-Radius und Schatten der Kopf-Tabs) –
    hier nur etwas kompakter und ohne den Aktiv-Akzent. */
 .bt-view .bt-status-kind { padding: 3px 12px; }
+/* Status-Editor in den Einstellungen: als Karte wie die übrigen Settings-Einträge (dezent
+   dunkler) und mit an Obsidian angelehnten Abständen oben/unten. */
+.bt-status-editor {
+  background: var(--background-secondary);
+  border-radius: var(--radius-m);
+  padding: 10px 16px 12px;
+  margin: 0.75em 0;
+}
+.bt-status-editor .bt-manage-add { margin: 4px 0 6px; }
+.bt-status-editor .bt-manage-hint { margin: 0 0 8px; }
+.bt-status-editor .bt-manage-list { margin: 0; }
 
 /* Icon-/Farb-Picker-Popover. min-width:0 + width:max-content überschreiben die 190px des
    Basis-Popovers, damit das Raster genau zu seinen festen Spalten passt (kein Quetschen). */
