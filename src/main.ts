@@ -70,8 +70,11 @@ export default class BeautyTasksPlugin extends Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
-      // „Neu"-Modal nur für bestehende Nutzer bei echtem Versionswechsel (nicht bei Erstinstallation).
-      if (wasExisting && prevVersion !== this.manifest.version) new WhatsNewModal(this).open();
+      // „Neu"-Modal nur für bestehende Nutzer und nur bei einem MINOR/MAJOR-Sprung (z. B. 1.7→1.8),
+      // NICHT bei reinen Patches (1.8.0→1.8.1) – sonst nervt es bei Bugfix-Releases. Der Command
+      // „Neuigkeiten anzeigen" öffnet es jederzeit manuell.
+      const minorKey = (v: string): string => v.split(".").slice(0, 2).join(".");
+      if (wasExisting && minorKey(prevVersion ?? "") !== minorKey(this.manifest.version)) new WhatsNewModal(this).open();
       if (this.settings.lastSeenVersion !== this.manifest.version) {
         this.settings.lastSeenVersion = this.manifest.version;
         await this.saveSettings();
@@ -104,6 +107,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTask() });
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
+    this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({
       id: "count-tasks", name: t("cmd_count_tasks"),
       callback: () => new Notice(t("notice_count", this.index.all().length, this.index.open().length)),

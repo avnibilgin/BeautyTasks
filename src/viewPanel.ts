@@ -36,10 +36,13 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         b.onclick = () => apply({ layout: l });
       }
 
-      const doneRow = pop.createDiv({ cls: "bt-panel-row" });
-      doneRow.createSpan({ cls: "bt-panel-k", text: t("panel_show_done") });
-      const sw = doneRow.createDiv({ cls: "bt-panel-switch" + (o.showDone ? " is-on" : "") });
-      sw.onclick = () => apply({ showDone: !o.showDone });
+      // „Erledigte anzeigen" ergibt in „Demnächst" (reine Zukunfts-Agenda) keinen Sinn -> dort weglassen.
+      if (page.key !== "demnaechst") {
+        const doneRow = pop.createDiv({ cls: "bt-panel-row" });
+        doneRow.createSpan({ cls: "bt-panel-k", text: t("panel_show_done") });
+        const sw = doneRow.createDiv({ cls: "bt-panel-switch" + (o.showDone ? " is-on" : "") });
+        sw.onclick = () => apply({ showDone: !o.showDone });
+      }
 
       if (page.tier === "full") {
         cap(t("filter_arrange"));

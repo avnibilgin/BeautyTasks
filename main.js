@@ -215,6 +215,7 @@ var STRINGS = {
     cmd_count_tasks: "Count tasks",
     cmd_import: "Import from Tasks/Lists",
     cmd_search: "Search tasks",
+    cmd_whatsnew: "Show what's new",
     cmd_export_json: "Export tasks (JSON)",
     cmd_import_json: "Import tasks (JSON)",
     cmd_import_tasknotes: "Import from TaskNotes",
@@ -545,6 +546,7 @@ var STRINGS = {
     cmd_count_tasks: "Aufgaben z\xE4hlen",
     cmd_import: "Aus Tasks/Lists importieren",
     cmd_search: "Aufgaben suchen",
+    cmd_whatsnew: "Neuigkeiten anzeigen",
     cmd_export_json: "Aufgaben exportieren (JSON)",
     cmd_import_json: "Aufgaben importieren (JSON)",
     cmd_import_tasknotes: "Aus TaskNotes importieren",
@@ -1321,9 +1323,6 @@ var TaskIndex = class extends import_obsidian2.Component {
   }
   upcoming(today) {
     return this.open().filter((t2) => !!t2.due && t2.due > today).sort((a, b) => a.due.localeCompare(b.due));
-  }
-  noDate() {
-    return this.open().filter((t2) => !t2.due);
   }
   done() {
     return this.all().filter((t2) => t2.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
@@ -4052,10 +4051,12 @@ function openViewPanel(anchor, plugin) {
         const b = seg.createEl("button", { cls: "bt-tab" + (o.layout === l ? " is-active" : ""), text: t("layout_" + l) });
         b.onclick = () => apply({ layout: l });
       }
-      const doneRow = pop.createDiv({ cls: "bt-panel-row" });
-      doneRow.createSpan({ cls: "bt-panel-k", text: t("panel_show_done") });
-      const sw = doneRow.createDiv({ cls: "bt-panel-switch" + (o.showDone ? " is-on" : "") });
-      sw.onclick = () => apply({ showDone: !o.showDone });
+      if (page.key !== "demnaechst") {
+        const doneRow = pop.createDiv({ cls: "bt-panel-row" });
+        doneRow.createSpan({ cls: "bt-panel-k", text: t("panel_show_done") });
+        const sw = doneRow.createDiv({ cls: "bt-panel-switch" + (o.showDone ? " is-on" : "") });
+        sw.onclick = () => apply({ showDone: !o.showDone });
+      }
       if (page.tier === "full") {
         cap(t("filter_arrange"));
         ddRow(pop, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v }));
@@ -4578,18 +4579,13 @@ function renderViewInto(c, plugin, view) {
   } else if (view === "demnaechst") {
     const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
-    const nd = idx.noDate();
-    const done = opts.showDone ? idx.done() : [];
-    if (!groups.length && !nd.length && !done.length) {
+    if (!groups.length) {
       emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled");
     } else if (opts.layout === "board") {
-      const bt = [...groups.flatMap((g) => g.tasks), ...nd, ...done];
-      renderKanbanBoard(root, plugin, bt, today, (status) => plugin.openNewTask(void 0, void 0, false, status));
+      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, (status) => plugin.openNewTask(void 0, void 0, false, status));
     } else {
-      const present = renderedPaths(plugin, [...groups.flatMap((g) => g.tasks), ...nd, ...done]);
+      const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
       for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
-      if (nd.length) section(root, plugin, t("sec_no_date"), nd, today, false, false, present);
-      if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -6480,7 +6476,8 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();
-      if (wasExisting && prevVersion !== this.manifest.version) new WhatsNewModal(this).open();
+      const minorKey = (v) => v.split(".").slice(0, 2).join(".");
+      if (wasExisting && minorKey(prevVersion ?? "") !== minorKey(this.manifest.version)) new WhatsNewModal(this).open();
       if (this.settings.lastSeenVersion !== this.manifest.version) {
         this.settings.lastSeenVersion = this.manifest.version;
         await this.saveSettings();
@@ -6500,6 +6497,7 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
     this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTask() });
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
+    this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({
       id: "count-tasks",
       name: t("cmd_count_tasks"),

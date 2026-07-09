@@ -69,19 +69,16 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
   } else if (view === "demnaechst") {
+    // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
+    // Eingang/Projekt bzw. später „Irgendwann") und KEINE erledigten (gehören in „Erledigt").
     const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
-    const nd = idx.noDate();
-    const done = opts.showDone ? idx.done() : [];
-    if (!groups.length && !nd.length && !done.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
+    if (!groups.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "board") {
-      const bt = [...groups.flatMap((g) => g.tasks), ...nd, ...done];
-      renderKanbanBoard(root, plugin, bt, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
+      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, (status) => plugin.openNewTask(undefined, undefined, false, status));
     } else {
-      const present = renderedPaths(plugin, [...groups.flatMap((g) => g.tasks), ...nd, ...done]);
+      const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
       for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
-      if (nd.length) section(root, plugin, t("sec_no_date"), nd, today, false, false, present);
-      if (done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);

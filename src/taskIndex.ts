@@ -163,7 +163,6 @@ export class TaskIndex extends Component {
   upcoming(today: string): Task[] {
     return this.open().filter((t) => !!t.due && t.due > today).sort((a, b) => a.due!.localeCompare(b.due!));
   }
-  noDate(): Task[] { return this.open().filter((t) => !t.due); }
   done(): Task[] {
     return this.all().filter((t) => t.status === "done")
       .sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
