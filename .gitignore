@@ -7,6 +7,9 @@ node_modules/
 # Lokale Plugin-Daten (persönliche Einstellungen/Zustand)
 data.json
 
+# Hot-Reload-Marker (nur lokale Entwicklung, kein Release-Artefakt)
+.hotreload
+
 # Editor / OS
 .idea/
 .vscode/
