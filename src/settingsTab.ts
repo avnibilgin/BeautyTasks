@@ -53,6 +53,14 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       dd.addOption("auto", t("set_language_auto"));
       dd.addOption("en", "English");
       dd.addOption("de", "Deutsch");
+      dd.addOption("es", "Español");
+      dd.addOption("pt", "Português (Brasil)");
+      dd.addOption("fr", "Français");
+      dd.addOption("it", "Italiano");
+      dd.addOption("tr", "Türkçe");
+      dd.addOption("ru", "Русский");
+      dd.addOption("zh", "简体中文");
+      dd.addOption("ja", "日本語");
       dd.setValue(p.settings.locale);
       // Sofort auf die Plugin-UI anwenden; die Settings-Labels wechseln beim erneuten Öffnen.
       dd.onChange(async (v) => { p.settings.locale = v; await p.saveSettings(); p.applyLocale(); p.renderAll(); });

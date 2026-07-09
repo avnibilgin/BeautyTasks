@@ -44,10 +44,21 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         sw.onclick = () => apply({ showDone: !o.showDone });
       }
 
-      if (page.tier === "full") {
+      // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
+      // Überfällig/Heute-Split). „Demnächst" bleibt bewusst eine reine, ungruppierte Termin-Agenda.
+      if (page.tier === "full" || page.key === "heute") {
         cap(t("filter_arrange"));
         ddRow(pop, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
-        ddRow(pop, t("filter_group"), groupOptions(page.kind), o.group, "filter_group_", (v) => apply({ group: v as FilterGroup }));
+        // Im Board-Layout nur die spaltenfähigen Gruppierungen anbieten – Datum/Deadline passen nicht
+        // auf ein Kanban (offene Achse, mehrdeutige Bereichs-Buckets). Steht eine davon noch gespeichert,
+        // in der Auswahl als „Keine" zeigen (nicht destruktiv: in der Liste bleibt sie erhalten).
+        const groups = o.layout === "board"
+          ? groupOptions(page.kind).filter((g) => g !== "date" && g !== "deadline")
+          : groupOptions(page.kind);
+        const shownGroup = groups.includes(o.group) ? o.group : "none";
+        // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
+        const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
+        ddRow(pop, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
       }
 
       const reset = pop.createEl("button", { cls: "bt-panel-reset", text: t("filter_reset") });
@@ -58,13 +69,13 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
   });
 }
 
-/** Eine Zeile „Label + Dropdown". */
-function ddRow(pop: HTMLElement, label: string, values: readonly string[], current: string, keyPrefix: string, onChange: (v: string) => void): void {
+/** Eine Zeile „Label + Dropdown". `labelFor` überschreibt optional den Text einzelner Optionen. */
+function ddRow(pop: HTMLElement, label: string, values: readonly string[], current: string, keyPrefix: string, onChange: (v: string) => void, labelFor?: (v: string) => string): void {
   const row = pop.createDiv({ cls: "bt-panel-row" });
   row.createSpan({ cls: "bt-panel-k", text: label });
   const sel = row.createEl("select", { cls: "dropdown bt-panel-dd" });
   for (const v of values) {
-    const opt = sel.createEl("option", { text: t(keyPrefix + v), value: v });
+    const opt = sel.createEl("option", { text: labelFor?.(v) ?? t(keyPrefix + v), value: v });
     if (v === current) opt.selected = true;
   }
   sel.onchange = () => onChange(sel.value);

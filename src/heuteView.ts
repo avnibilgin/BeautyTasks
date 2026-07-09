@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task, NavSection } from "./types";
+import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath } from "./taskService";
@@ -13,11 +13,14 @@ import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
+import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
-// Transienter Zustand während eines Kanban-Drags (Pfad der gezogenen Karte).
+// Transienter Zustand während eines Kanban-Drags: Pfad der Karte + ID der Quell-Spalte
+// (für die Swap-Semantik beim Label-Board – welches Label die Karte hier her gebracht hat).
 let dragPath: string | null = null;
+let dragFromCol: string | null = null;
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -56,16 +59,23 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const opts = plugin.pageViewOptions();
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
     const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
-    if (!overdue.length && !dueToday.length && !(opts.showDone && doneToday.length)) {
+    const open = [...overdue, ...dueToday];
+    if (!open.length && !(opts.showDone && doneToday.length)) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "board") {
-      const bt = [...overdue, ...dueToday, ...(opts.showDone ? doneToday : [])];
-      renderKanbanBoard(root, plugin, bt, today, (status) => plugin.openNewTask(undefined, undefined, true, status));
+      // Board folgt der Gruppierung (Status/Label/Priorität/Projekt) – wie die vollen Seiten.
+      renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
-      // „Heute" behält seine semantischen Sektionen (Überfällig/Heute); Erledigte nur auf Wunsch.
-      const present = renderedPaths(plugin, [...overdue, ...dueToday, ...(opts.showDone ? doneToday : [])]);
-      section(root, plugin, t("sec_overdue"), overdue, today, false, false, present);
-      section(root, plugin, t("sec_today"), dueToday, today, false, false, present);
+      const present = renderedPaths(plugin, opts.showDone ? [...open, ...doneToday] : open);
+      if (opts.group === "none") {
+        // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
+        section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort), today, false, false, present);
+        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort), today, false, false, present);
+      } else {
+        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split (Todoist-Stil).
+        for (const g of filterGroups(plugin, sortTasks(open, opts.sort), opts.group, today))
+          if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+      }
       if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
   } else if (view === "demnaechst") {
@@ -75,7 +85,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const groups = idx.upcomingByDate(today);
     if (!groups.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "board") {
-      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, (status) => plugin.openNewTask(undefined, undefined, false, status));
+      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
       const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
       for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
@@ -203,7 +213,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, (status) => plugin.openNewTask(name, undefined, false, status));
+  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, { project: name });
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -219,7 +229,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
 
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
   if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
-  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, (status) => plugin.openNewTask(undefined, label, false, status));
+  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, { label });
 }
 
 /** Aufgaben eines Filter-Boards in Abschnitte gruppieren (Reihenfolge innerhalb bleibt die
@@ -258,11 +268,11 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
  *  Offene Aufgaben werden gruppiert; Erledigte kommen (auf Wunsch) als einklappbare Sektion ans Ende. */
 function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], opts: ViewOptions, today: string,
-  addStatus: (status: Task["status"]) => void): void {
+  add: BoardAdd): void {
   const open = tasks.filter((t) => isOpen(t.status));
   const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (opts.layout === "board") {
-    renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, addStatus);
+    renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, add);
     return;
   }
   const sorted = sortTasks(open, opts.sort);
@@ -293,7 +303,7 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
   const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
   if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
-  renderPageBody(root, plugin, tasks, filter.options, today, (status) => plugin.openNewTask(undefined, undefined, false, status));
+  renderPageBody(root, plugin, tasks, filter.options, today, {});
 }
 
 // ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
@@ -324,8 +334,94 @@ function sortColumn(list: Task[], kind: StatusKind): Task[] {
   return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
 }
 
-/** Eine Spalte als Drop-Ziel verdrahten: Loslassen setzt den Status der gezogenen Karte. */
-function setupColumnDnd(colEl: HTMLElement, status: string, plugin: BeautyTasksPlugin): void {
+// ── Generisches Spalten-Modell: das Board folgt der Gruppierung (Todoist-Muster) ──
+// Fundament für Status/Label/… – aktuell freigeschaltet: Status (Default) und Label.
+/** Basis-Kontext fürs „+ Aufgabe" einer Spalte (die Spalten-Dimension setzt die Spalte selbst). */
+interface BoardAdd { project?: string | null; label?: string; today?: boolean; }
+interface BoardColumn {
+  id: string;                                   // stabile Spalten-ID (Status-ID bzw. Label-Name / NO_LABEL)
+  title: string;
+  tint: string;                                 // Kopf-Punkt-Farbe
+  kind: StatusKind;                             // steuert sortColumn (Nicht-Status = "open")
+  has: (tk: Task) => boolean;                   // gehört die Aufgabe in diese Spalte?
+  onDrop: (tk: Task, fromColId: string) => void; // Loslassen aus Spalte fromColId
+  onAdd: () => void;                            // „+ Aufgabe" in dieser Spalte
+}
+
+const NO_LABEL = " nolabel";   // Sentinel-ID der „Ohne Label"-Spalte (kein gültiger Label-Name)
+
+/** Status-Spalten (Standard-Kanban): Ziehen setzt den Status. */
+function statusColumns(plugin: BeautyTasksPlugin, add: BoardAdd): BoardColumn[] {
+  return boardStatuses().map((col) => ({
+    id: col.id, title: statusLabel(col.id), tint: statusTint(col.id), kind: col.kind,
+    has: (tk: Task) => tk.status === col.id,
+    onDrop: (tk: Task) => { if (tk.status !== col.id) void plugin.setTaskStatus(tk, col.id); },
+    onAdd: () => plugin.openNewTask(add.project ?? undefined, add.label, add.today ?? false, col.id),
+  }));
+}
+
+/** Label-Spalten (Gruppierung = Label): Ziehen TAUSCHT das Label (Quell-Spalten-Label raus,
+ *  Ziel-Label rein) – andere Labels der Aufgabe bleiben. Spalten = die in der Ansicht VORKOMMENDEN
+ *  Labels (in Seitenleisten-Reihenfolge), plus „Ohne Label" bei Bedarf. */
+function labelColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd): BoardColumn[] {
+  const present = tasks.flatMap((t) => t.labels);
+  const names = plugin.sortLabels([...new Set(present)].map((name) => ({ name }))).map((x) => x.name);
+  const cols: BoardColumn[] = names.map((name) => ({
+    id: name, title: "#" + name, tint: plugin.getLabelColor(name) ?? "var(--bt-label)", kind: "open",
+    has: (tk: Task) => tk.labels.includes(name),
+    onDrop: (tk: Task, fromColId: string) => void plugin.swapTaskLabel(tk, fromColId === NO_LABEL ? null : fromColId, name),
+    onAdd: () => plugin.openNewTask(add.project ?? undefined, name, add.today ?? false, firstOpenStatus()),
+  }));
+  if (tasks.some((t) => t.labels.length === 0)) {
+    cols.push({
+      id: NO_LABEL, title: t("no_label"), tint: "var(--text-muted)", kind: "open",
+      has: (tk: Task) => tk.labels.length === 0,
+      onDrop: (tk: Task, fromColId: string) => void plugin.swapTaskLabel(tk, fromColId === NO_LABEL ? null : fromColId, null),
+      onAdd: () => plugin.openNewTask(add.project ?? undefined, undefined, add.today ?? false, firstOpenStatus()),
+    });
+  }
+  return cols;
+}
+
+const NO_PROJECT = " noproject";   // Sentinel-ID der „Kein Projekt"-Spalte
+
+/** Prioritäts-Spalten (Gruppierung = Priorität): eine Spalte je Stufe (P1–P4); Ziehen setzt die
+ *  Priorität. low/lowest fallen unter „normal" (P4). */
+function priorityColumns(plugin: BeautyTasksPlugin, add: BoardAdd): BoardColumn[] {
+  const eff = (p: Priority): Priority => (p === "low" || p === "lowest") ? "normal" : p;
+  return PRIOS.map((p) => ({
+    id: p.value, title: t(p.key), tint: p.color, kind: "open",
+    has: (tk: Task) => eff(tk.priority) === p.value,
+    onDrop: (tk: Task) => { if (eff(tk.priority) !== p.value) void plugin.setTaskPriority(tk, p.value); },
+    onAdd: () => plugin.openNewTask(add.project ?? undefined, add.label, add.today ?? false),
+  }));
+}
+
+/** Projekt-Spalten (Gruppierung = Projekt): eine Spalte je vorkommendem Projekt/Bereich (+ „Kein
+ *  Projekt"); Ziehen verschiebt die Aufgabe (Label/Status bleiben). */
+function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd): BoardColumn[] {
+  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const colorOf = new Map(([eingang, ...bereiche, ...projekte].filter(Boolean) as { name: string; color: string | null }[]).map((p) => [p.name, p.color] as const));
+  const names = [...new Set(tasks.filter((t) => t.project).map((t) => projectName(t.project!)))].sort((a, b) => a.localeCompare(b, "de"));
+  const cols: BoardColumn[] = names.map((name) => ({
+    id: name, title: projectDisplayName(name), tint: colorOf.get(name) ?? "var(--bt-nav-project)", kind: "open",
+    has: (tk: Task) => !!tk.project && projectName(tk.project) === name,
+    onDrop: (tk: Task) => { if (!tk.project || projectName(tk.project) !== name) void plugin.setTaskProject(tk, name); },
+    onAdd: () => plugin.openNewTask(name, add.label, add.today ?? false),
+  }));
+  if (tasks.some((t) => !t.project)) {
+    cols.push({
+      id: NO_PROJECT, title: t("no_project"), tint: "var(--text-muted)", kind: "open",
+      has: (tk: Task) => !tk.project,
+      onDrop: (tk: Task) => { if (tk.project) void plugin.setTaskProject(tk, null); },
+      onAdd: () => plugin.openNewTask(undefined, add.label, add.today ?? false),
+    });
+  }
+  return cols;
+}
+
+/** Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation. */
+function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin): void {
   colEl.addEventListener("dragover", (e) => {
     if (!dragPath) return;                       // nur eigene Karten (kein Vault-Drag)
     e.preventDefault();
@@ -339,37 +435,42 @@ function setupColumnDnd(colEl: HTMLElement, status: string, plugin: BeautyTasksP
     e.preventDefault();
     colEl.removeClass("is-drop");
     const path = e.dataTransfer?.getData("text/plain") || dragPath;
-    dragPath = null;
+    const fromCol = dragFromCol;
+    dragPath = null; dragFromCol = null;
     if (!path) return;
     const task = plugin.index.get(path);
-    if (task && task.status !== status) void plugin.setTaskStatus(task, status);
+    if (task) col.onDrop(task, fromCol ?? "");
   });
 }
 
-/** Kanban-Board zeichnen: je Board-Status eine Spalte mit ziehbaren Karten und
- *  einem „+ Aufgabe", das direkt mit dem Spalten-Status anlegt. */
+/** Kanban-Board zeichnen: Spalten folgen der Gruppierung (Label → Label-Spalten, sonst Status).
+ *  Ziehbare Karten + „+ Aufgabe" je Spalte (legt mit der Spalten-Dimension an). */
 function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], today: string,
-  addInStatus: (status: Task["status"]) => void): void {
+  opts: ViewOptions, add: BoardAdd): void {
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
+  const cols = opts.group === "label" ? labelColumns(plugin, tasks, add)
+    : opts.group === "priority" ? priorityColumns(plugin, add)
+      : opts.group === "project" ? projectColumns(plugin, tasks, add)
+        : statusColumns(plugin, add);
   const board = root.createDiv({ cls: "bt-kanban" });
-  for (const col of boardStatuses()) {
+  for (const col of cols) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
-    colEl.dataset.status = col.id;
-    setupColumnDnd(colEl, col.id, plugin);
+    colEl.dataset.col = col.id;
+    setupColumnDnd(colEl, col, plugin);
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
-    head.createSpan({ cls: "bt-kanban-dot" }).style.background = statusTint(col.id);
-    head.createSpan({ cls: "bt-kanban-title", text: statusLabel(col.id) });
-    const colTasks = sortColumn(tasks.filter((tk) => tk.status === col.id), col.kind);
+    head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
+    head.createSpan({ cls: "bt-kanban-title", text: col.title });
+    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id });
 
-    const add = colEl.createDiv({ cls: "bt-kanban-add" });
-    add.createSpan({ cls: "bt-add-icon" });
-    add.createSpan({ text: t("btn_add_task") });
-    add.onclick = () => addInStatus(col.id);
+    const addEl = colEl.createDiv({ cls: "bt-kanban-add" });
+    addEl.createSpan({ cls: "bt-add-icon" });
+    addEl.createSpan({ text: t("btn_add_task") });
+    addEl.onclick = () => col.onAdd();
   }
 }
 
@@ -463,7 +564,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string } = {}): void {
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
@@ -476,11 +577,12 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     row.setAttr("draggable", "true");
     row.addEventListener("dragstart", (e) => {
       dragPath = task.path;
+      dragFromCol = opts.colId ?? null;   // Quell-Spalte (Status-ID bzw. Label) für die Drop-Semantik
       row.addClass("is-dragging");
       e.dataTransfer?.setData("text/plain", task.path);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     });
-    row.addEventListener("dragend", () => { dragPath = null; row.removeClass("is-dragging"); });
+    row.addEventListener("dragend", () => { dragPath = null; dragFromCol = null; row.removeClass("is-dragging"); });
   }
 
   const check = row.createDiv({ cls: "bt-check" });

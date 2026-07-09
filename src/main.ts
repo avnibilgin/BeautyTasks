@@ -1,5 +1,5 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
 import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
@@ -880,6 +880,37 @@ export default class BeautyTasksPlugin extends Plugin {
    *  gestempelt und – falls wiederkehrend – die nächste Instanz angelegt (wie das
    *  Tasks-Plugin). Beim Verlassen von „erledigt" wird der Stempel entfernt. Basis
    *  für Checkbox UND Kanban-Drag; `cancelled` läuft weiter über cancelTask. */
+  /** Ein Label an einer Aufgabe tauschen (Kanban „nach Label", Drag zwischen Label-Spalten):
+   *  entfernt `remove` (falls gesetzt) und fügt `add` hinzu (falls gesetzt) – andere Labels bleiben.
+   *  Der metadataCache-Listener zeichnet danach neu (wie bei setTaskStatus). */
+  async swapTaskLabel(task: Task, remove: string | null, add: string | null): Promise<void> {
+    if (remove === add) return;
+    const f = this.app.vault.getAbstractFileByPath(task.path);
+    if (!(f instanceof TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      let arr = Array.isArray(fm.labels) ? (fm.labels as unknown[]).map(String) : [];
+      if (remove) arr = arr.filter((x) => x !== remove);
+      if (add && !arr.includes(add)) arr.push(add);
+      fm.labels = arr;
+    });
+  }
+  /** Priorität einer Aufgabe setzen (Kanban „nach Priorität"). „normal" = kein Frontmatter-Feld. */
+  async setTaskPriority(task: Task, priority: Priority): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(task.path);
+    if (!(f instanceof TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      fm.priority = priority !== "normal" ? priority : null;
+    });
+  }
+  /** Aufgabe einem Projekt/Bereich zuordnen (Kanban „nach Projekt"). null = kein Projekt.
+   *  Referenz als `[[Basename]]` – wie im Task-Modal; der Index löst den Basename auf. */
+  async setTaskProject(task: Task, project: string | null): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(task.path);
+    if (!(f instanceof TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      fm.project = project ? "[[" + project + "]]" : null;
+    });
+  }
   async setTaskStatus(task: Task, status: TaskStatus): Promise<void> {
     if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
