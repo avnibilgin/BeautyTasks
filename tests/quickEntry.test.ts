@@ -18,6 +18,36 @@ describe("parseQuickEntry – Labels", () => {
   });
 });
 
+describe("parseQuickEntry – @Projekt (nur bestehende)", () => {
+  it("ordnet ein bestehendes Projekt zu und entfernt @Name aus dem Titel", () => {
+    const r = parseQuickEntry("Readme schreiben @BeautyTasks", ["BeautyTasks"]);
+    expect(r.project).toBe("BeautyTasks");
+    expect(r.title).toBe("Readme schreiben");
+  });
+  it("trifft den längsten Namen zuerst (Mehrwort vor Teilwort)", () => {
+    const r = parseQuickEntry("Backup @Home Server morgen", ["Home", "Home Server"]);
+    expect(r.project).toBe("Home Server");
+    expect(r.faellig).toBe("2026-06-16");
+    expect(r.title).toBe("Backup");
+  });
+  it("übernimmt die kanonische Schreibweise (case-insensitiv)", () => {
+    expect(parseQuickEntry("x @beautytasks", ["BeautyTasks"]).project).toBe("BeautyTasks");
+  });
+  it("ordnet NICHT zu, wenn das Projekt nicht existiert (Text bleibt stehen)", () => {
+    const r = parseQuickEntry("mail @Unbekannt", ["BeautyTasks"]);
+    expect(r.project).toBeNull();
+    expect(r.title).toBe("mail @Unbekannt");
+  });
+  it("verwechselt @HH:MM nicht mit einem Projekt", () => {
+    const r = parseQuickEntry("Termin @07:30", ["BeautyTasks"]);
+    expect(r.project).toBeNull();
+    expect(r.time).toBe("07:30");
+  });
+  it("ohne Projektliste ist project null", () => {
+    expect(parseQuickEntry("Aufgabe @BeautyTasks").project).toBeNull();
+  });
+});
+
 describe("parseQuickEntry – Datumsphrasen (DE/EN)", () => {
   it("heute / today", () => {
     expect(parseQuickEntry("heute anrufen").faellig).toBe("2026-06-15");

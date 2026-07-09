@@ -183,6 +183,10 @@ var STRINGS = {
     menu_edit: "Edit \u2026",
     menu_reorder: "Change order \u2026",
     menu_reveal_hidden: "Show hidden",
+    menu_goto_projects: "Go to project overview",
+    menu_goto_areas: "Go to area overview",
+    menu_goto_labels: "Go to label overview",
+    menu_goto_filters: "Go to filter overview",
     reorder_active: "Reordering",
     reorder_done: "Done",
     archive_undo: "Undo",
@@ -509,6 +513,10 @@ var STRINGS = {
     menu_edit: "Bearbeiten \u2026",
     menu_reorder: "Reihenfolge \xE4ndern \u2026",
     menu_reveal_hidden: "Ausgeblendete einblenden",
+    menu_goto_projects: "Zur Projekt\xFCbersicht",
+    menu_goto_areas: "Zur Bereichs\xFCbersicht",
+    menu_goto_labels: "Zur Label\xFCbersicht",
+    menu_goto_filters: "Zur Filter\xFCbersicht",
     reorder_active: "Sortieren aktiv",
     reorder_done: "Fertig",
     archive_undo: "R\xFCckg\xE4ngig",
@@ -2214,12 +2222,23 @@ var MONTHS2 = {
 var MONTHNAMES = Object.keys(MONTHS2).sort((a, b) => b.length - a.length).join("|");
 var L = "[A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF]";
 var re = (body) => new RegExp("(?:^|[^A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF])" + body + "(?!" + L + ")", "i");
-function parseQuickEntry(raw) {
+function parseQuickEntry(raw, projects = []) {
   let text = " " + (raw || "") + " ";
   const tags = [];
   const tagRe = /(?:^|\s)#([\p{L}\p{N}_/-]+)/gu;
   for (const m of text.matchAll(tagRe)) tags.push(m[1]);
   text = text.replace(tagRe, " ");
+  let project = null;
+  const known = projects.filter(Boolean);
+  if (known.length) {
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const alt = [...known].sort((a, b) => b.length - a.length).map(esc).join("|");
+    const m = text.match(new RegExp("(?:^|\\s)@(" + alt + ")(?![\\p{L}\\p{N}_])", "iu"));
+    if (m) {
+      project = known.find((p) => p.toLowerCase() === m[1].toLowerCase()) ?? m[1];
+      text = text.replace(m[0], " ");
+    }
+  }
   const today = /* @__PURE__ */ new Date();
   let faellig = "";
   const grab = (rx, fn) => {
@@ -2298,7 +2317,7 @@ function parseQuickEntry(raw) {
     priority = ["highest", "high", "medium", "normal"][+pm[1] - 1];
     text = text.replace(pm[0], " ");
   }
-  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority };
+  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority, project };
 }
 
 // src/searchModal.ts
@@ -3937,8 +3956,19 @@ function deleteItem(plugin, item) {
   if (item.sec === "labels") return plugin.deleteLabel(item.key);
   return plugin.deleteProject(item.key);
 }
-function buildItemMenu(menu, plugin, item) {
+var GOTO_KEY = {
+  projects: "menu_goto_projects",
+  areas: "menu_goto_areas",
+  labels: "menu_goto_labels",
+  filters: "menu_goto_filters"
+};
+function buildItemMenu(menu, plugin, item, source = "sidebar") {
   const isProjLike = item.sec === "projects" || item.sec === "areas";
+  const fromSidebar = source === "sidebar";
+  const onBoard = source === "board";
+  if (onBoard) {
+    menu.addItem((m) => m.setSection("bt-goto").setTitle(t(GOTO_KEY[item.sec])).setIcon("list-plus").onClick(() => void plugin.activateManage(item.sec)));
+  }
   menu.addItem((m) => m.setSection("bt-edit").setTitle(t("menu_edit")).setIcon("pencil").onClick(() => openEdit(plugin, item)));
   if (item.sec === "filters") {
     menu.addItem((m) => m.setSection("bt-edit").setTitle(t("btn_rename")).setIcon("text-cursor-input").onClick(() => new PromptModal(
@@ -3954,9 +3984,13 @@ function buildItemMenu(menu, plugin, item) {
     menu.addItem((m) => m.setSection("bt-edit").setTitle(toArea ? t("tip_mark_area") : t("tip_unmark_area")).setIcon(toArea ? "circle-small" : "folder").onClick(() => void plugin.setProjectArea(item.key, toArea)));
   }
   menu.addItem((m) => m.setSection("bt-arrange").setTitle(item.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar")).setIcon(item.hidden ? "eye" : "eye-off").onClick(() => void setVisible(plugin, item.sec, item.key, item.hidden)));
-  menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("menu_reorder")).setIcon("arrow-up-down").onClick(() => void plugin.startReorder(item.sec)));
-  menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up").onClick(() => void plugin.moveNavItem(item.sec, item.key, -1)));
-  menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down").onClick(() => void plugin.moveNavItem(item.sec, item.key, 1)));
+  if (fromSidebar) {
+    menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("menu_reorder")).setIcon("arrow-up-down").onClick(() => void plugin.startReorder(item.sec)));
+  }
+  if (!onBoard) {
+    menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, -1) : plugin.moveNavItem(item.sec, item.key, -1))));
+    menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
+  }
   if (isProjLike) {
     menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_archive")).setIcon("archive").onClick(() => plugin.archiveWithUndo(item.key, item.name)));
   }
@@ -4072,13 +4106,51 @@ function sortControl(parent, plugin, sec) {
   mk("name", t("sort_name"));
   mk("count", t("sort_count"));
 }
-function reorderHandle(row, plugin, sec, key, i, n) {
-  const move = row.createDiv({ cls: "bt-status-move" });
-  const up = iconBtn(move, "chevron-up", t("btn_move_up"), () => void plugin.moveNavItem(sec, key, -1));
-  const down = iconBtn(move, "chevron-down", t("btn_move_down"), () => void plugin.moveNavItem(sec, key, 1));
-  if (i === 0) up.disabled = true;
-  if (i === n - 1) down.disabled = true;
-  row.prepend(move);
+function reorderHandle(row, list, plugin, sec, key) {
+  row.setAttr("data-key", key);
+  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+  (0, import_obsidian15.setIcon)(grip, "grip-vertical");
+  grip.onkeydown = (e) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      void plugin.moveNavItem(sec, key, -1);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      void plugin.moveNavItem(sec, key, 1);
+    }
+  };
+  attachRowDrag(row, grip, list, (keys) => void plugin.setNavOrder(sec, keys));
+  row.prepend(grip);
+}
+function attachRowDrag(row, grip, list, onDrop) {
+  grip.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    const doc = list.ownerDocument;
+    row.addClass("is-dragging");
+    const onMove = (me) => {
+      const y = me.clientY;
+      const siblings = Array.from(list.children).filter((el) => el !== row);
+      let placed = false;
+      for (const sib of siblings) {
+        const r = sib.getBoundingClientRect();
+        if (y < r.top + r.height / 2) {
+          list.insertBefore(row, sib);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) list.appendChild(row);
+    };
+    const onUp = () => {
+      row.removeClass("is-dragging");
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      const keys = Array.from(list.children).map((el) => el.getAttr("data-key")).filter((k) => !!k);
+      onDrop(keys);
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
 }
 function iconBtn(parent, icon, label, onClick) {
   const b = parent.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": label, "data-tooltip-position": "top" } });
@@ -4123,7 +4195,7 @@ function renderManageInto(c, plugin) {
     }
     const manual2 = plugin.navSortMode("filters") === "manual";
     const list2 = root.createDiv({ cls: "bt-manage-list" });
-    filters.forEach((fl, i) => filterRow(list2, plugin, fl, redraw, manual2 ? { sec: "filters", i, n: filters.length } : void 0));
+    filters.forEach((fl) => filterRow(list2, plugin, fl, redraw, manual2 ? "filters" : void 0));
     return;
   }
   if (plugin.manageSection === "labels") {
@@ -4136,7 +4208,7 @@ function renderManageInto(c, plugin) {
     }
     const manual2 = plugin.navSortMode("labels") === "manual";
     const list2 = root.createDiv({ cls: "bt-manage-list" });
-    labels.forEach((l, i) => labelRow(list2, plugin, l, redraw, manual2 ? { sec: "labels", i, n: labels.length } : void 0));
+    labels.forEach((l) => labelRow(list2, plugin, l, redraw, manual2 ? "labels" : void 0));
     return;
   }
   const isAreaSection = plugin.manageSection === "areas";
@@ -4168,7 +4240,7 @@ function renderManageInto(c, plugin) {
   }
   const manual = plugin.navSortMode(sec) === "manual";
   const list = root.createDiv({ cls: "bt-manage-list" });
-  items.forEach((it, i) => activeRow(list, plugin, it, redraw, manual ? { sec, i, n: items.length } : void 0));
+  items.forEach((it) => activeRow(list, plugin, it, redraw, manual ? sec : void 0));
 }
 function addRow(parent, label, placeholder, onSubmit, redraw) {
   const wrap = parent.createDiv({ cls: "bt-manage-add" });
@@ -4222,13 +4294,13 @@ function rowMenu(actions, plugin, it) {
   kebab.onclick = (e) => {
     e.stopPropagation();
     const menu = new import_obsidian15.Menu();
-    buildItemMenu(menu, plugin, { sec: it.type === "area" ? "areas" : "projects", key: it.path, name: it.name, hidden: it.hidden, color: it.color, type: it.type });
+    buildItemMenu(menu, plugin, { sec: it.type === "area" ? "areas" : "projects", key: it.path, name: it.name, hidden: it.hidden, color: it.color, type: it.type }, "manage");
     menu.showAtMouseEvent(e);
   };
 }
-function activeRow(list, plugin, it, redraw, reorder) {
+function activeRow(list, plugin, it, redraw, reorderSec) {
   const row = list.createDiv({ cls: "bt-manage-row" });
-  if (reorder) reorderHandle(row, plugin, reorder.sec, it.path, reorder.i, reorder.n);
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, it.path);
   const isArea = it.type === "area";
   colorDot(row, plugin, it.color, it.path, isArea ? "var(--bt-nav-area)" : "var(--bt-nav-project)", (c) => void plugin.setProjectColor(it.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
@@ -4249,9 +4321,9 @@ function archiveRow(list, plugin, it, redraw) {
   iconBtn(actions, "archive-restore", t("btn_restore"), () => void plugin.archiveProject(it.path, false));
   iconBtn(actions, "trash-2", t("btn_delete_forever"), () => confirmInline(actions, t("confirm_delete_forever_q"), () => void plugin.deleteProject(it.path), redraw));
 }
-function labelRow(list, plugin, l, redraw, reorder) {
+function labelRow(list, plugin, l, redraw, reorderSec) {
   const row = list.createDiv({ cls: "bt-manage-row" });
-  if (reorder) reorderHandle(row, plugin, reorder.sec, l.name, reorder.i, reorder.n);
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, l.name);
   colorDot(row, plugin, plugin.getLabelColor(l.name), l.name, "var(--bt-nav-label)", (c) => void plugin.setLabelColor(l.name, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
   name.onclick = () => void plugin.activateLabel(l.name);
@@ -4261,9 +4333,9 @@ function labelRow(list, plugin, l, redraw, reorder) {
   row.createSpan({ cls: "bt-manage-count", text: String(l.count) });
   visSwitch(row, plugin.isLabelVisible(l.name), () => void plugin.setLabelVisible(l.name, !plugin.isLabelVisible(l.name)));
 }
-function filterRow(list, plugin, fl, redraw, reorder) {
+function filterRow(list, plugin, fl, redraw, reorderSec) {
   const row = list.createDiv({ cls: "bt-manage-row" });
-  if (reorder) reorderHandle(row, plugin, reorder.sec, fl.path, reorder.i, reorder.n);
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, fl.path);
   colorDot(row, plugin, fl.color, fl.path, "var(--text-muted)", (c) => void plugin.setFilterColor(fl.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
   name.onclick = () => void plugin.activateFilter(fl.path);
@@ -4618,11 +4690,15 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   const name = projectName(projectPath);
   const isArea = isAreaPath(plugin.app, projectPath);
   const isInbox2 = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+  const meta = isInbox2 ? null : (() => {
+    const a = listProjectsAndAreas(plugin.app);
+    return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null;
+  })();
   pageHeader(
     root,
     plugin,
     root.createEl("h1", { text: projectDisplayName(name) }),
-    isInbox2 ? {} : { manage: { section: isArea ? "areas" : "projects", label: isArea ? t("group_area") : t("group_project") } }
+    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {}
   );
   addBar(root, plugin, () => plugin.openNewTask(name));
   const tasks = plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
@@ -4644,7 +4720,7 @@ function renderLabelBoardInto(c, plugin, label) {
     root,
     plugin,
     root.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
-    { manage: { section: "labels", label: t("tab_labels") } }
+    { menu: { sec: "labels", key: label, name: label, hidden: !plugin.isLabelVisible(label), color: plugin.getLabelColor(label) } }
   );
   addBar(root, plugin, () => plugin.openNewTask(void 0, label));
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
@@ -4683,7 +4759,7 @@ function filterGroups(plugin, tasks, group, today) {
     } else {
       if (tk.project) {
         const nm = projectName(tk.project);
-        push("p:" + nm, "#" + projectDisplayName(nm), 1, tk);
+        push("p:" + nm, "@" + projectDisplayName(nm), 1, tk);
       } else push("noproject", t("no_project"), 0, tk);
     }
   }
@@ -4715,8 +4791,7 @@ function renderFilterBoardInto(c, plugin, filterPath) {
     return;
   }
   pageHeader(root, plugin, root.createEl("h1", { text: filter.name }), {
-    edit: () => new FilterModal(plugin, filterPath).open(),
-    manage: { section: "filters", label: t("nav_filters") }
+    menu: { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color }
   });
   addBar(root, plugin, () => plugin.openNewTask());
   const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
@@ -4730,10 +4805,16 @@ function pageHeader(root, plugin, titleEl, opts = {}) {
   const head = root.createDiv({ cls: "bt-board-head" });
   head.appendChild(titleEl);
   const actions = head.createDiv({ cls: "bt-head-actions" });
-  if (opts.edit) iconBtn(actions, "settings-2", t("filter_edit"), opts.edit);
-  if (opts.manage) {
-    const m = opts.manage;
-    iconBtn(actions, "list-plus", m.label, () => void plugin.activateManage(m.section));
+  if (opts.menu) {
+    const it = opts.menu;
+    const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+    (0, import_obsidian16.setIcon)(kebab.createSpan(), "more-horizontal");
+    kebab.onclick = (e) => {
+      e.stopPropagation();
+      const m = new import_obsidian16.Menu();
+      buildItemMenu(m, plugin, it, "board");
+      m.showAtMouseEvent(e);
+    };
   }
   anzeigeButton(actions, plugin);
 }
@@ -4920,6 +5001,10 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
     };
   }
   if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
+  if (task.reminders.length) {
+    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" \xB7 "), "data-tooltip-position": "top" } });
+    (0, import_obsidian16.setIcon)(rem, "alarm-clock");
+  }
   for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label", text: l });
   if (task.scheduled) {
     const chip = meta.createSpan({ cls: "bt-chip bt-sched", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
@@ -4947,7 +5032,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   } else if (task.project && !plugin.currentProject && depth === 0) {
     const extras = row.createDiv({ cls: "bt-extras" });
     const name = task.project.split("/").pop().replace(/\.md$/, "");
-    const bl = extras.createEl("a", { cls: "bt-backlink", text: "#" + projectDisplayName(name) });
+    const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
     bl.onclick = (e) => {
       e.stopPropagation();
       void plugin.activateProject(task.project);
@@ -5111,44 +5196,14 @@ function renderReorderList(c, plugin, sec, entries) {
     grip.onkeydown = (ev) => {
       if (ev.key === "ArrowUp") {
         ev.preventDefault();
-        void plugin.moveNavItem(sec, e.key, -1);
+        void plugin.moveNavItemVisible(sec, e.key, -1);
       } else if (ev.key === "ArrowDown") {
         ev.preventDefault();
-        void plugin.moveNavItem(sec, e.key, 1);
+        void plugin.moveNavItemVisible(sec, e.key, 1);
       }
     };
-    attachRowDrag(row, grip, list, plugin, sec);
+    attachRowDrag(row, grip, list, (keys) => void plugin.reorderVisible(sec, keys));
   }
-}
-function attachRowDrag(row, grip, list, plugin, sec) {
-  grip.addEventListener("pointerdown", (ev) => {
-    ev.preventDefault();
-    const doc = list.ownerDocument;
-    row.addClass("is-dragging");
-    const onMove = (me) => {
-      const y = me.clientY;
-      const siblings = Array.from(list.children).filter((el) => el !== row);
-      let placed = false;
-      for (const sib of siblings) {
-        const r = sib.getBoundingClientRect();
-        if (y < r.top + r.height / 2) {
-          list.insertBefore(row, sib);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) list.appendChild(row);
-    };
-    const onUp = () => {
-      row.removeClass("is-dragging");
-      doc.removeEventListener("pointermove", onMove);
-      doc.removeEventListener("pointerup", onUp);
-      const keys = Array.from(list.children).map((el) => el.getAttr("data-key")).filter((k) => !!k);
-      void plugin.reorderVisible(sec, keys);
-    };
-    doc.addEventListener("pointermove", onMove);
-    doc.addEventListener("pointerup", onUp);
-  });
 }
 function renderNavInto(c, plugin) {
   c.empty();
@@ -5384,7 +5439,10 @@ var QuickAddModal = class extends import_obsidian17.Modal {
     this.duePinned = false;
     // Datum manuell gesetzt/geleert -> Parser überschreibt nicht mehr
     this.parsedLabels = [];
-    this.f = { title: "", project: project ?? "Inbox", due: null, dueTime: null, priority: "normal", labels: [] };
+    // aus dem Titel erkannte Labels (zum Trennen von manuellen)
+    this.parsedProject = null;
+    this.defaultProject = project ?? "Inbox";
+    this.f = { title: "", project: this.defaultProject, due: null, dueTime: null, priority: "normal", labels: [] };
   }
   onOpen() {
     const { contentEl, modalEl } = this;
@@ -5396,6 +5454,7 @@ var QuickAddModal = class extends import_obsidian17.Modal {
       this.f.title = input.value;
       this.parse();
       this.renderChips();
+      this.renderProjekt();
     };
     input.onkeydown = (e) => {
       if (e.key === "Enter") {
@@ -5431,11 +5490,20 @@ var QuickAddModal = class extends import_obsidian17.Modal {
       this.cleanTitle = this.f.title;
       return;
     }
-    const p = parseQuickEntry(this.f.title);
+    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
+    const projNames = [eingang, ...bereiche, ...projekte].filter(Boolean).map((p2) => p2.name);
+    const p = parseQuickEntry(this.f.title, projNames);
     this.cleanTitle = p.title;
     if (!this.duePinned && p.faellig) this.f.due = p.faellig;
     if (!this.duePinned && p.time) this.f.dueTime = p.time;
     if (p.priority) this.f.priority = p.priority;
+    if (p.project) {
+      this.f.project = p.project;
+      this.parsedProject = p.project;
+    } else if (this.parsedProject && this.f.project === this.parsedProject) {
+      this.f.project = this.defaultProject;
+      this.parsedProject = null;
+    }
     const manual = this.f.labels.filter((l) => !this.parsedLabels.includes(l));
     this.parsedLabels = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
     this.f.labels = [...manual, ...this.parsedLabels];
@@ -5583,6 +5651,7 @@ var QuickAddModal = class extends import_obsidian17.Modal {
       const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
       const pick = (name) => {
         this.f.project = name;
+        this.parsedProject = null;
         this.renderProjekt();
         close();
       };
@@ -6365,7 +6434,7 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
     this.colorPreview = null;
     // Live-Vorschau der Icon-Farbe (Farb-Picker), NICHT persistiert
     this.reorderSec = null;
-    // aktiver Drag-Sortiermodus in der Seitenleiste (transient)
+    // aktiver Drag-Sortiermodus in der Seitenleiste (transient, nur Sichtbare)
     this.doneCollapsed = true;
     // „Erledigt"-Sektionen eingeklappt (Default)
     this.manageOpen = false;
@@ -6486,6 +6555,11 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
   resolveStartView() {
     const pick = this.settings.startView === "last" ? this.settings.lastView : this.settings.startView;
     return VIEW_IDS.includes(pick) ? pick : "heute";
+  }
+  /** Zur konfigurierten Startansicht wechseln – z. B. wenn der gerade offene Eintrag
+   *  (Projekt/Bereich/Label/Filter) gelöscht oder archiviert wurde. */
+  async goToStartView() {
+    await this.activateView(this.resolveStartView());
   }
   async activateNav() {
     const { workspace } = this.app;
@@ -6651,10 +6725,8 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
   }
   async deleteFilter(path) {
     await deleteFilterNote(this.app, path);
-    if (this.currentFilter === path) {
-      this.currentFilter = null;
-      await this.activateView("heute");
-    } else this.renderAll();
+    if (this.currentFilter === path) await this.goToStartView();
+    else this.renderAll();
   }
   /** Aus der Suche gewählte Aufgabe in ihrer Liste zeigen: zum Projekt-/Inbox-Board
    *  (bzw. passenden Datums-/Erledigt-View) springen und die Zeile kurz hervorheben
@@ -6717,6 +6789,7 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
   async archiveProject(path, archived) {
     this.refreshOnChange(path);
     await setProjectArchived(this.app, path, archived);
+    if (archived && this.currentProject === path) await this.goToStartView();
   }
   /** Projekt/Bereich archivieren und eine „Rückgängig"-Notice zeigen (Kontextmenü + Bearbeiten-Modal). */
   archiveWithUndo(path, name) {
@@ -6762,6 +6835,10 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
   }
   async deleteProject(path) {
     await deleteProjectNote(this.app, path);
+    if (this.currentProject === path) {
+      await this.goToStartView();
+      return;
+    }
     this.renderAll();
   }
   // ── Import / Export (JSON, verlustfrei) ──
@@ -6933,8 +7010,12 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
     this.settings.knownLabels = this.settings.knownLabels.filter((x) => x !== name);
     this.settings.visibleLabels = this.settings.visibleLabels.filter((x) => x !== name);
     delete this.settings.labelColors[name];
-    if (this.currentLabel === name) this.currentLabel = null;
+    const wasOpen = this.currentLabel === name;
     await this.saveSettings();
+    if (wasOpen) {
+      await this.goToStartView();
+      return;
+    }
     this.renderAll();
   }
   // ── Label-Farbe (Labels sind keine Notizen -> Speicher in den Settings) ──
@@ -7022,8 +7103,17 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
     await this.saveSettings();
     this.renderAll();
   }
-  /** Neue Reihenfolge der SICHTBAREN Schlüssel (aus dem Drag-Sortiermodus) anwenden.
-   *  Ausgeblendete behalten ihre bisherige Position, damit ihr Umsortieren nicht verloren geht. */
+  /** Sichtbare Schlüssel einer Sektion in aktueller Reihenfolge (ohne die ausgeblendeten) –
+   *  das ist genau die Menge, die die Seitenleiste zeigt. Basis fürs Sidebar-Umsortieren. */
+  visibleNavKeys(sec) {
+    if (sec === "labels") return this.getVisibleLabels();
+    if (sec === "filters") return this.sortFilters(listFilters(this.app)).filter((f) => !f.hidden).map((f) => f.path);
+    const want = sec === "areas" ? "area" : "project";
+    const items = listManaged(this.app).active.filter((p) => p.type === want && !p.hidden);
+    return this.sortProjItems(sec, items).map((p) => p.path);
+  }
+  /** Neue Reihenfolge der SICHTBAREN Schlüssel anwenden (Seitenleisten-Umsortieren).
+   *  Ausgeblendete behalten ihre absolute Position, damit ihre Reihenfolge nicht verloren geht. */
   async reorderVisible(sec, visibleKeys) {
     const full = this.currentNavKeys(sec);
     const visSet = new Set(visibleKeys);
@@ -7032,7 +7122,7 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
     for (const k of visibleKeys) if (!full.includes(k)) merged.push(k);
     await this.setNavOrder(sec, merged);
   }
-  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
+  /** ↑/↓ im ÜBERSICHTS-Kontext: verschiebt in der VOLLEN Reihenfolge (inkl. Ausgeblendeter). */
   async moveNavItem(sec, key, dir) {
     await this.ensureManualSort(sec);
     const keys = this.currentNavKeys(sec);
@@ -7041,17 +7131,27 @@ var BeautyTasksPlugin = class extends import_obsidian23.Plugin {
     [keys[i], keys[j]] = [keys[j], keys[i]];
     await this.setNavOrder(sec, keys);
   }
+  /** ↑/↓ im SEITENLEISTEN-Kontext: verschiebt NUR innerhalb der sichtbaren Reihenfolge
+   *  (überspringt Ausgeblendete) – so bewegt sich in der Seitenleiste immer sichtbar etwas. */
+  async moveNavItemVisible(sec, key, dir) {
+    await this.ensureManualSort(sec);
+    const vis = this.visibleNavKeys(sec);
+    const i = vis.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= vis.length) return;
+    [vis[i], vis[j]] = [vis[j], vis[i]];
+    await this.reorderVisible(sec, vis);
+  }
   /** Sicherstellen, dass eine Sektion im Manuell-Modus ist (Voraussetzung fürs Umsortieren). */
   async ensureManualSort(sec) {
     if (this.navSortMode(sec) !== "manual") await this.setNavSort(sec, "manual");
   }
-  /** Drag-Sortiermodus für eine Sektion starten (schaltet vorher auf Manuell). */
+  /** „Reihenfolge ändern" aus der SEITENLEISTE: Drag-Sortiermodus (nur Sichtbare) starten. */
   async startReorder(sec) {
     await this.ensureManualSort(sec);
     this.reorderSec = sec;
     this.renderAll();
   }
-  /** Drag-Sortiermodus beenden. */
+  /** Seitenleisten-Sortiermodus beenden. */
   endReorder() {
     this.reorderSec = null;
     this.renderAll();

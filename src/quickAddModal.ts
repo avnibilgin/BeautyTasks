@@ -24,13 +24,16 @@ export class QuickAddModal extends Modal {
   private cleanTitle = "";
   private duePinned = false;        // Datum manuell gesetzt/geleert -> Parser überschreibt nicht mehr
   private parsedLabels: string[] = []; // aus dem Titel erkannte Labels (zum Trennen von manuellen)
+  private parsedProject: string | null = null; // aus dem Titel erkanntes @Projekt (zum Zurücksetzen)
+  private readonly defaultProject: string;      // Projekt-Fallback, wenn @Projekt wieder entfernt wird
   private input!: HTMLInputElement;
   private chipBar!: HTMLElement;
   private projektBtn!: HTMLButtonElement;
 
   constructor(private plugin: BeautyTasksPlugin, project?: string) {
     super(plugin.app);
-    this.f = { title: "", project: project ?? "Inbox", due: null, dueTime: null, priority: "normal", labels: [] };
+    this.defaultProject = project ?? "Inbox";
+    this.f = { title: "", project: this.defaultProject, due: null, dueTime: null, priority: "normal", labels: [] };
   }
 
   onOpen(): void {
@@ -41,7 +44,7 @@ export class QuickAddModal extends Modal {
     contentEl.empty();
 
     const input = contentEl.createEl("input", { type: "text", cls: "bt-titel", attr: { placeholder: t("qa_placeholder") } });
-    input.oninput = () => { this.f.title = input.value; this.parse(); this.renderChips(); };
+    input.oninput = () => { this.f.title = input.value; this.parse(); this.renderChips(); this.renderProjekt(); };
     input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void this.submit(); } };
     window.setTimeout(() => input.focus(), 0);
     this.input = input;
@@ -76,11 +79,17 @@ export class QuickAddModal extends Modal {
    *  parsedLabels ↔ manuell. Spiegelt die Logik von TaskModal.applyParse. */
   private parse(): void {
     if (!this.plugin.settings.parseNaturalLanguage) { this.cleanTitle = this.f.title; return; }
-    const p = parseQuickEntry(this.f.title);
+    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
+    const projNames = [eingang, ...bereiche, ...projekte].filter(Boolean).map((p) => (p as { name: string }).name);
+    const p = parseQuickEntry(this.f.title, projNames);
     this.cleanTitle = p.title;
     if (!this.duePinned && p.faellig) this.f.due = p.faellig;
     if (!this.duePinned && p.time) this.f.dueTime = p.time;
     if (p.priority) this.f.priority = p.priority;
+    // @Projekt: erkannt -> setzen; wieder aus dem Titel entfernt -> zurück zum Default (nur wenn das
+    // aktuelle Projekt vom Parser stammt, damit eine manuelle Wahl nicht überschrieben wird).
+    if (p.project) { this.f.project = p.project; this.parsedProject = p.project; }
+    else if (this.parsedProject && this.f.project === this.parsedProject) { this.f.project = this.defaultProject; this.parsedProject = null; }
     const manual = this.f.labels.filter((l) => !this.parsedLabels.includes(l));
     this.parsedLabels = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
     this.f.labels = [...manual, ...this.parsedLabels];
@@ -185,7 +194,7 @@ export class QuickAddModal extends Modal {
     openPopover(anchor, (pop, close) => {
       pop.addClass("bt-picker");
       const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-      const pick = (name: string) => { this.f.project = name; this.renderProjekt(); close(); };
+      const pick = (name: string) => { this.f.project = name; this.parsedProject = null; this.renderProjekt(); close(); };
       if (eingang) popRow(pop, eingang.icon, projectDisplayName(eingang.name), () => pick(eingang.name), this.f.project === eingang.name, eingang.color ?? undefined);
       const group = (title: string, items: { name: string; icon: string; color: string | null }[]) => {
         if (!items.length) return;

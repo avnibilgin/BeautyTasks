@@ -44,9 +44,26 @@ function deleteItem(plugin: BeautyTasksPlugin, item: NavMenuItem): Promise<void>
   return plugin.deleteProject(item.key);
 }
 
-/** Baut das vollständige Item-Kontextmenü (typ-spezifisch) in ein bestehendes Menu. */
-export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMenuItem): void {
+/** Übersetzungs-Schlüssel für „Zur …übersicht" je Sektion (Board-Kebab). */
+const GOTO_KEY: Record<NavSection, string> = {
+  projects: "menu_goto_projects", areas: "menu_goto_areas", labels: "menu_goto_labels", filters: "menu_goto_filters",
+};
+
+/** Baut das vollständige Item-Kontextmenü (typ-spezifisch) in ein bestehendes Menu.
+ *  `source` steuert die Weiche:
+ *   - "sidebar": Umsortieren bewegt nur die SICHTBARE Reihenfolge (Drag-Modus / visible-only).
+ *   - "manage":  Umsortieren bewegt die VOLLE Liste; „Reihenfolge ändern" entfällt (Zieh-Griff vorhanden).
+ *   - "board":   Kebab auf einer Einzelseite – ohne alle Sortier-Optionen, dafür mit „Zur …übersicht". */
+export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMenuItem, source: "sidebar" | "manage" | "board" = "sidebar"): void {
   const isProjLike = item.sec === "projects" || item.sec === "areas";
+  const fromSidebar = source === "sidebar";
+  const onBoard = source === "board";
+
+  // — Zur Übersicht — (nur auf der Einzelseite; ersetzt den früheren „list-plus"-Kopf-Button)
+  if (onBoard) {
+    menu.addItem((m) => m.setSection("bt-goto").setTitle(t(GOTO_KEY[item.sec])).setIcon("list-plus")
+      .onClick(() => void plugin.activateManage(item.sec)));
+  }
 
   // — Bearbeiten —
   menu.addItem((m) => m.setSection("bt-edit").setTitle(t("menu_edit")).setIcon("pencil")
@@ -71,12 +88,19 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
     .setTitle(item.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar"))
     .setIcon(item.hidden ? "eye" : "eye-off")
     .onClick(() => void setVisible(plugin, item.sec, item.key, item.hidden)));
-  menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("menu_reorder")).setIcon("arrow-up-down")
-    .onClick(() => void plugin.startReorder(item.sec)));
-  menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up")
-    .onClick(() => void plugin.moveNavItem(item.sec, item.key, -1)));
-  menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down")
-    .onClick(() => void plugin.moveNavItem(item.sec, item.key, 1)));
+  // Sortier-Optionen NICHT auf der Einzelseite (Board): dort gibt es keinen Listenkontext.
+  // „Reihenfolge ändern" nur in der Seitenleiste (öffnet den Sidebar-Drag-Modus); in der Übersicht
+  // gibt es dafür bereits den Zieh-Griff an jeder Zeile.
+  if (fromSidebar) {
+    menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("menu_reorder")).setIcon("arrow-up-down")
+      .onClick(() => void plugin.startReorder(item.sec)));
+  }
+  if (!onBoard) {
+    menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up")
+      .onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, -1) : plugin.moveNavItem(item.sec, item.key, -1))));
+    menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down")
+      .onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
+  }
 
   // — Archivieren / Löschen —
   if (isProjLike) {

@@ -36,9 +36,11 @@ const L = "[A-Za-zÄÖÜäöüß]";
 // bleiben stabil; der konsumierte Grenz-Char wird beim Strippen ohnehin zu Leerraum.
 const re = (body: string) => new RegExp("(?:^|[^A-Za-zÄÖÜäöüß])" + body + "(?!" + L + ")", "i");
 
-export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; }
+export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null; }
 
-export function parseQuickEntry(raw: string): QuickEntry {
+// `projects` = bekannte Projekt-/Bereichsnamen. Nur damit wird @Projekt erkannt (Zuordnung nur
+// zu Bestehenden – Projekte sind Dateien, kein Anlegen bei Tippfehler). Labels dagegen sind frei.
+export function parseQuickEntry(raw: string, projects: string[] = []): QuickEntry {
   let text = " " + (raw || "") + " ";
 
   // Inline-#Labels sammeln + strippen.
@@ -46,6 +48,20 @@ export function parseQuickEntry(raw: string): QuickEntry {
   const tagRe = /(?:^|\s)#([\p{L}\p{N}_/-]+)/gu;
   for (const m of text.matchAll(tagRe)) tags.push(m[1]);
   text = text.replace(tagRe, " ");
+
+  // Inline-@Projekt: NUR bestehende Projekte/Bereiche. Längster Name zuerst, damit „Home Server"
+  // vor „Home" trifft; @ + Ziffer (Uhrzeit) matcht hier nicht, weil nur echte Namen alterniert werden.
+  let project: string | null = null;
+  const known = projects.filter(Boolean);
+  if (known.length) {
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const alt = [...known].sort((a, b) => b.length - a.length).map(esc).join("|");
+    const m = text.match(new RegExp("(?:^|\\s)@(" + alt + ")(?![\\p{L}\\p{N}_])", "iu"));
+    if (m) {
+      project = known.find((p) => p.toLowerCase() === m[1].toLowerCase()) ?? m[1];
+      text = text.replace(m[0], " ");
+    }
+  }
 
   const today = new Date();
   let faellig = "";
@@ -111,5 +127,5 @@ export function parseQuickEntry(raw: string): QuickEntry {
   const pm = text.match(/(?:^|\s)[p!]([1-4])(?![\wäöüßÄÖÜ])/i);
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
 
-  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority };
+  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority, project };
 }

@@ -30,7 +30,7 @@ export default class BeautyTasksPlugin extends Plugin {
   currentLabel: string | null = null;                   // aktives Label-Board
   currentFilter: string | null = null;                  // aktiver gespeicherter Filter (type:filter-Pfad)
   colorPreview: { key: string; color: string } | null = null;   // Live-Vorschau der Icon-Farbe (Farb-Picker), NICHT persistiert
-  reorderSec: NavSection | null = null;                 // aktiver Drag-Sortiermodus in der Seitenleiste (transient)
+  reorderSec: NavSection | null = null;                 // aktiver Drag-Sortiermodus in der Seitenleiste (transient, nur Sichtbare)
   doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
   manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
   manageSection: "projects" | "areas" | "labels" | "filters" = "projects";    // welcher Bereich im ListManager
@@ -161,6 +161,11 @@ export default class BeautyTasksPlugin extends Plugin {
     const pick = this.settings.startView === "last" ? this.settings.lastView : this.settings.startView;
     return (VIEW_IDS as string[]).includes(pick) ? (pick as ViewId) : "heute";
   }
+  /** Zur konfigurierten Startansicht wechseln – z. B. wenn der gerade offene Eintrag
+   *  (Projekt/Bereich/Label/Filter) gelöscht oder archiviert wurde. */
+  private async goToStartView(): Promise<void> {
+    await this.activateView(this.resolveStartView());
+  }
 
   async activateNav(): Promise<void> {
     const { workspace } = this.app;
@@ -277,7 +282,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async deleteFilter(path: string): Promise<void> {
     await deleteFilterNote(this.app, path);
-    if (this.currentFilter === path) { this.currentFilter = null; await this.activateView("heute"); }
+    if (this.currentFilter === path) await this.goToStartView();
     else this.renderAll();
   }
 
@@ -343,6 +348,8 @@ export default class BeautyTasksPlugin extends Plugin {
   async archiveProject(path: string, archived: boolean): Promise<void> {
     this.refreshOnChange(path);
     await setProjectArchived(this.app, path, archived);
+    // Archivieren des gerade offenen Projekts/Bereichs → zur Startansicht (Board wäre sonst „weg").
+    if (archived && this.currentProject === path) await this.goToStartView();
   }
   /** Projekt/Bereich archivieren und eine „Rückgängig"-Notice zeigen (Kontextmenü + Bearbeiten-Modal). */
   archiveWithUndo(path: string, name: string): void {
@@ -378,7 +385,10 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async deleteProject(path: string): Promise<void> {
     await deleteProjectNote(this.app, path);
-    this.renderAll();   // Datei ist nach trashFile sofort weg -> Cache aktuell
+    // Datei ist nach trashFile sofort weg -> Cache aktuell. War es das offene Projekt/Bereich,
+    // zur Startansicht wechseln (sonst bliebe ein leeres Board des gelöschten Eintrags stehen).
+    if (this.currentProject === path) { await this.goToStartView(); return; }
+    this.renderAll();
   }
 
   // ── Import / Export (JSON, verlustfrei) ──
@@ -549,8 +559,9 @@ export default class BeautyTasksPlugin extends Plugin {
     this.settings.knownLabels = this.settings.knownLabels.filter((x) => x !== name);
     this.settings.visibleLabels = this.settings.visibleLabels.filter((x) => x !== name);
     delete this.settings.labelColors[name];
-    if (this.currentLabel === name) this.currentLabel = null;
+    const wasOpen = this.currentLabel === name;
     await this.saveSettings();
+    if (wasOpen) { await this.goToStartView(); return; }   // offenes Label gelöscht → Startansicht
     this.renderAll();
   }
 
@@ -631,8 +642,17 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.saveSettings();
     this.renderAll();
   }
-  /** Neue Reihenfolge der SICHTBAREN Schlüssel (aus dem Drag-Sortiermodus) anwenden.
-   *  Ausgeblendete behalten ihre bisherige Position, damit ihr Umsortieren nicht verloren geht. */
+  /** Sichtbare Schlüssel einer Sektion in aktueller Reihenfolge (ohne die ausgeblendeten) –
+   *  das ist genau die Menge, die die Seitenleiste zeigt. Basis fürs Sidebar-Umsortieren. */
+  private visibleNavKeys(sec: NavSection): string[] {
+    if (sec === "labels") return this.getVisibleLabels();
+    if (sec === "filters") return this.sortFilters(listFilters(this.app)).filter((f) => !f.hidden).map((f) => f.path);
+    const want = sec === "areas" ? "area" : "project";
+    const items = listManaged(this.app).active.filter((p) => p.type === want && !p.hidden);
+    return this.sortProjItems(sec, items).map((p) => p.path);
+  }
+  /** Neue Reihenfolge der SICHTBAREN Schlüssel anwenden (Seitenleisten-Umsortieren).
+   *  Ausgeblendete behalten ihre absolute Position, damit ihre Reihenfolge nicht verloren geht. */
   async reorderVisible(sec: NavSection, visibleKeys: string[]): Promise<void> {
     const full = this.currentNavKeys(sec);
     const visSet = new Set(visibleKeys);
@@ -641,7 +661,7 @@ export default class BeautyTasksPlugin extends Plugin {
     for (const k of visibleKeys) if (!full.includes(k)) merged.push(k);   // Sicherheitsnetz: neue Schlüssel
     await this.setNavOrder(sec, merged);
   }
-  /** Ein Element in der manuellen Reihenfolge um eine Position verschieben. */
+  /** ↑/↓ im ÜBERSICHTS-Kontext: verschiebt in der VOLLEN Reihenfolge (inkl. Ausgeblendeter). */
   async moveNavItem(sec: NavSection, key: string, dir: -1 | 1): Promise<void> {
     await this.ensureManualSort(sec);   // ↑/↓ wirken nur im Manuell-Modus
     const keys = this.currentNavKeys(sec);
@@ -650,17 +670,27 @@ export default class BeautyTasksPlugin extends Plugin {
     [keys[i], keys[j]] = [keys[j], keys[i]];
     await this.setNavOrder(sec, keys);
   }
+  /** ↑/↓ im SEITENLEISTEN-Kontext: verschiebt NUR innerhalb der sichtbaren Reihenfolge
+   *  (überspringt Ausgeblendete) – so bewegt sich in der Seitenleiste immer sichtbar etwas. */
+  async moveNavItemVisible(sec: NavSection, key: string, dir: -1 | 1): Promise<void> {
+    await this.ensureManualSort(sec);
+    const vis = this.visibleNavKeys(sec);
+    const i = vis.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= vis.length) return;
+    [vis[i], vis[j]] = [vis[j], vis[i]];
+    await this.reorderVisible(sec, vis);
+  }
   /** Sicherstellen, dass eine Sektion im Manuell-Modus ist (Voraussetzung fürs Umsortieren). */
   async ensureManualSort(sec: NavSection): Promise<void> {
     if (this.navSortMode(sec) !== "manual") await this.setNavSort(sec, "manual");
   }
-  /** Drag-Sortiermodus für eine Sektion starten (schaltet vorher auf Manuell). */
+  /** „Reihenfolge ändern" aus der SEITENLEISTE: Drag-Sortiermodus (nur Sichtbare) starten. */
   async startReorder(sec: NavSection): Promise<void> {
     await this.ensureManualSort(sec);   // ruft bereits renderAll(), falls umgeschaltet
     this.reorderSec = sec;
     this.renderAll();
   }
-  /** Drag-Sortiermodus beenden. */
+  /** Seitenleisten-Sortiermodus beenden. */
   endReorder(): void {
     this.reorderSec = null;
     this.renderAll();

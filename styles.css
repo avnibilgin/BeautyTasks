@@ -892,6 +892,11 @@ body {
   -webkit-mask-image: var(--bt-tag); mask-image: var(--bt-tag);
 }
 
+/* Erinnerungs-Indikator (alarm-clock) – nur Icon, Details im Tooltip; gleiches Glyph wie der
+   Reminder-Chip im Editor, damit „Erinnerung" überall dasselbe Symbol trägt. */
+.bt-remind { display: inline-flex; align-items: center; color: var(--text-muted); }
+.bt-remind svg { width: 14px; height: 14px; }
+
 /* Kommentar-/Anhang-Chip (Büroklammer + dezente Anzahl, wie Todoist) */
 .bt-comments { display: inline-flex; align-items: center; gap: 3px; color: var(--bt-attach); font-size: 0.85em; }
 .bt-comments-ic { display: inline-flex; }
@@ -1367,17 +1372,22 @@ body {
 .bt-confirm-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .bt-confirm-modal .bt-actions { display: inline-flex; gap: 8px; }
 
-/* ── Seitenleisten-Sortiermodus (Drag) ── */
+/* ── Seitenleisten-Sortiermodus (Drag, nur sichtbare Einträge) ── */
 .bt-reorder-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; margin: 2px 0 4px; border-radius: 6px; background: var(--background-modifier-hover); }
 .bt-reorder-lbl { font-size: 0.82em; color: var(--text-muted); }
 .bt-reorder-list { display: flex; flex-direction: column; gap: 2px; }
 .bt-reorder-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; font-size: 0.9em; color: var(--text-normal); background: var(--background-secondary); }
 .bt-reorder-row.is-dragging { background: var(--background-modifier-hover); box-shadow: var(--shadow-s); }
 .bt-reorder-row .bt-nav-ic svg { width: 16px; height: 16px; }
+/* ── Zieh-Griff (Sidebar-Sortiermodus UND Reihenfolge per Drag in der Übersicht) ── */
 .bt-nav-grip { display: inline-flex; flex-shrink: 0; cursor: grab; color: var(--text-faint); touch-action: none; }
 .bt-nav-grip:active { cursor: grabbing; }
 .bt-nav-grip svg { width: 16px; height: 16px; }
 .bt-nav-grip:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; border-radius: 4px; }
+/* Griff in der Verwaltungs-Zeile: dauerhaft sichtbar (kein Hover-Sprung), links leicht eingezogen. */
+.bt-view .bt-manage-row > .bt-nav-grip { margin-left: -4px; }
+.bt-view .bt-manage-row > .bt-nav-grip:hover { color: var(--text-muted); }
+.bt-view .bt-manage-row.is-dragging { background: var(--background-modifier-hover); border-radius: 6px; }
 
 /* Bereich-Icon (circle-small) auch im Kontextmenü gefüllt – in Standard-Icon-Farbe (wie der
    Menütext, currentColor). Nur dieses eine Icon; Umriss-Icons im Menü bleiben unberührt. */

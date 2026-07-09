@@ -8,10 +8,11 @@ import { listFilters, readFilter } from "./filterService";
 import { applyFilter, sortTasks, FilterGroup, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
-import { renderManageInto, iconBtn, confirmInline } from "./manageView";
+import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
+import { formatReminder } from "./reminders";
 import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
@@ -188,11 +189,13 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const name = projectName(projectPath);
-  // Kopf: Link zum ListManager (Tooltip = „Projekte"/„Bereiche"); Eingang ist ein Systemordner → kein Link.
+  // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist ein Systemordner → kein Menü.
   const isArea = isAreaPath(plugin.app, projectPath);
   const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+  const meta = isInbox ? null
+    : (() => { const a = listProjectsAndAreas(plugin.app); return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null; })();
   pageHeader(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }),
-    isInbox ? {} : { manage: { section: isArea ? "areas" : "projects", label: isArea ? t("group_area") : t("group_project") } });
+    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {});
   addBar(root, plugin, () => plugin.openNewTask(name));
 
   // Nach Namen vergleichen: gleichnamige Notizen hätten sonst verschiedene Pfade.
@@ -214,7 +217,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   pageHeader(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
-    { manage: { section: "labels", label: t("tab_labels") } });
+    { menu: { sec: "labels", key: label, name: label, hidden: !plugin.isLabelVisible(label), color: plugin.getLabelColor(label) } });
   addBar(root, plugin, () => plugin.openNewTask(undefined, label));
 
   const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
@@ -248,7 +251,7 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
       if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, tk);
       else push("nolabel", t("no_label"), 0, tk);
     } else {   // project
-      if (tk.project) { const nm = projectName(tk.project); push("p:" + nm, "#" + projectDisplayName(nm), 1, tk); }
+      if (tk.project) { const nm = projectName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, tk); }
       else push("noproject", t("no_project"), 0, tk);
     }
   }
@@ -286,8 +289,7 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
 
   // Kopf: Titel + [Stift Kriterien-Editor] [Link „Filter"] [Anzeige].
   pageHeader(root, plugin, root.createEl("h1", { text: filter.name }), {
-    edit: () => new FilterModal(plugin, filterPath).open(),
-    manage: { section: "filters", label: t("nav_filters") },
+    menu: { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color },
   });
   addBar(root, plugin, () => plugin.openNewTask());
 
@@ -299,16 +301,21 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
 
 // ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
 interface HeaderOpts {
-  edit?: () => void;   // Stift (nur Filter): öffnet den Kriterien-Editor
-  manage?: { section: "projects" | "areas" | "labels" | "filters"; label: string };   // Link zum ListManager (Tooltip = Ziel)
+  menu?: NavMenuItem;     // Kebab: Item-Kontextmenü (Board-Variante); fehlt → kein Kebab (z. B. Eingang)
 }
-/** Board-Überschrift: Titel + rechte Gruppe [Stift] [ListManager-Link] [Anzeige]. */
+/** Board-Überschrift: Titel + rechte Gruppe [Kebab-Menü] [Anzeige].
+ *  Der Kebab öffnet dasselbe Kontextmenü wie ein Rechtsklick in der Seitenleiste – ohne die
+ *  Sortier-Optionen, dafür mit „Zur …übersicht" (früher der list-plus-Kopf-Button). */
 function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement, opts: HeaderOpts = {}): void {
   const head = root.createDiv({ cls: "bt-board-head" });
   head.appendChild(titleEl);
   const actions = head.createDiv({ cls: "bt-head-actions" });
-  if (opts.edit) iconBtn(actions, "settings-2", t("filter_edit"), opts.edit);
-  if (opts.manage) { const m = opts.manage; iconBtn(actions, "list-plus", m.label, () => void plugin.activateManage(m.section)); }
+  if (opts.menu) {
+    const it = opts.menu;
+    const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+    setIcon(kebab.createSpan(), "more-horizontal");
+    kebab.onclick = (e) => { e.stopPropagation(); const m = new Menu(); buildItemMenu(m, plugin, it, "board"); m.showAtMouseEvent(e); };
+  }
   anzeigeButton(actions, plugin);
 }
 
@@ -522,6 +529,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     };
   }
   if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
+  // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.
+  if (task.reminders.length) {
+    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
+    setIcon(rem, "alarm-clock");
+  }
   for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label", text: l });
   if (task.scheduled) {
     const chip = meta.createSpan({ cls: "bt-chip bt-sched", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
@@ -547,7 +559,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Projekt bereits – nur auf Ebene 0 (Hauptaufgabe ODER promotete Unteraufgabe) anzeigen.
     const extras = row.createDiv({ cls: "bt-extras" });
     const name = task.project.split("/").pop()!.replace(/\.md$/, "");
-    const bl = extras.createEl("a", { cls: "bt-backlink", text: "#" + projectDisplayName(name) });
+    const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
     bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board (nicht zur Notiz)
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
@@ -694,8 +706,9 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
 
 interface ReorderEntry { key: string; name: string; icon: string; color: string | null; }
 
-/** Sidebar-Sortiermodus für EINE Sektion: „Fertig"-Leiste + per Pointer ziehbare Zeilen.
- *  Persistiert am Drop über plugin.reorderVisible (schreibt navOrder[sec]). */
+/** Sidebar-Sortiermodus für EINE Sektion: „Fertig"-Leiste + per Griff ziehbare Zeilen.
+ *  Bewegt NUR die sichtbaren Einträge; persistiert am Drop über plugin.reorderVisible –
+ *  ausgeblendete behalten ihre Position (eigener Mechanismus, getrennt von der Übersicht). */
 function renderReorderList(c: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection, entries: ReorderEntry[]): void {
   const bar = c.createDiv({ cls: "bt-reorder-bar" });
   bar.createSpan({ cls: "bt-reorder-lbl", text: t("reorder_active") });
@@ -711,39 +724,11 @@ function renderReorderList(c: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSe
     if (e.color) ic.setCssStyles({ color: e.color });
     row.createSpan({ cls: "bt-nav-lbl", text: e.name });
     grip.onkeydown = (ev) => {
-      if (ev.key === "ArrowUp") { ev.preventDefault(); void plugin.moveNavItem(sec, e.key, -1); }
-      else if (ev.key === "ArrowDown") { ev.preventDefault(); void plugin.moveNavItem(sec, e.key, 1); }
+      if (ev.key === "ArrowUp") { ev.preventDefault(); void plugin.moveNavItemVisible(sec, e.key, -1); }
+      else if (ev.key === "ArrowDown") { ev.preventDefault(); void plugin.moveNavItemVisible(sec, e.key, 1); }
     };
-    attachRowDrag(row, grip, list, plugin, sec);
+    attachRowDrag(row, grip, list, (keys) => void plugin.reorderVisible(sec, keys));
   }
-}
-
-/** Pointer-basiertes Umordnen einer Zeile (Maus + Touch, Popout-sicher über list.ownerDocument). */
-function attachRowDrag(row: HTMLElement, grip: HTMLElement, list: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection): void {
-  grip.addEventListener("pointerdown", (ev) => {
-    ev.preventDefault();
-    const doc = list.ownerDocument;   // Ziel-Fenster einmal festhalten (Rule 29a)
-    row.addClass("is-dragging");
-    const onMove = (me: PointerEvent) => {
-      const y = me.clientY;
-      const siblings = (Array.from(list.children) as HTMLElement[]).filter((el) => el !== row);
-      let placed = false;
-      for (const sib of siblings) {
-        const r = sib.getBoundingClientRect();
-        if (y < r.top + r.height / 2) { list.insertBefore(row, sib); placed = true; break; }
-      }
-      if (!placed) list.appendChild(row);
-    };
-    const onUp = () => {
-      row.removeClass("is-dragging");
-      doc.removeEventListener("pointermove", onMove);
-      doc.removeEventListener("pointerup", onUp);
-      const keys = (Array.from(list.children) as HTMLElement[]).map((el) => el.getAttr("data-key")).filter((k): k is string => !!k);
-      void plugin.reorderVisible(sec, keys);
-    };
-    doc.addEventListener("pointermove", onMove);
-    doc.addEventListener("pointerup", onUp);
-  });
 }
 
 export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {

@@ -24,14 +24,49 @@ function sortControl(parent: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSec
   mk("count", t("sort_count"));
 }
 
-/** ↑/↓-Pfeile am Zeilenanfang (nur im Manuell-Modus) zum Verschieben. */
-function reorderHandle(row: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection, key: string, i: number, n: number): void {
-  const move = row.createDiv({ cls: "bt-status-move" });
-  const up = iconBtn(move, "chevron-up", t("btn_move_up"), () => void plugin.moveNavItem(sec, key, -1));
-  const down = iconBtn(move, "chevron-down", t("btn_move_down"), () => void plugin.moveNavItem(sec, key, 1));
-  if (i === 0) up.disabled = true;
-  if (i === n - 1) down.disabled = true;
-  row.prepend(move);   // vor Name/Aktionen an den Zeilenanfang
+/** Zieh-Griff am Zeilenanfang (nur im Manuell-Modus). Ziehen ordnet die ganze Liste um –
+ *  inkl. der in der Seitenleiste ausgeblendeten Einträge; ArrowUp/ArrowDown verschieben per Tastatur. */
+function reorderHandle(row: HTMLElement, list: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection, key: string): void {
+  row.setAttr("data-key", key);
+  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+  setIcon(grip, "grip-vertical");
+  grip.onkeydown = (e) => {
+    if (e.key === "ArrowUp") { e.preventDefault(); void plugin.moveNavItem(sec, key, -1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); void plugin.moveNavItem(sec, key, 1); }
+  };
+  // Übersicht: Ziehen ordnet die VOLLE Reihenfolge (inkl. Ausgeblendeter) neu.
+  attachRowDrag(row, grip, list, (keys) => void plugin.setNavOrder(sec, keys));
+  row.prepend(grip);   // vor Farbpunkt/Name/Aktionen an den Zeilenanfang
+}
+
+/** Pointer-basiertes Umordnen einer Zeile per Griff (Maus + Touch, Popout-sicher über
+ *  list.ownerDocument). Generisch: beim Loslassen bekommt `onDrop` die neue Schlüssel-Reihenfolge
+ *  aus dem DOM – der Aufrufer entscheidet, wie persistiert wird (volle Liste vs. nur Sichtbare). */
+export function attachRowDrag(row: HTMLElement, grip: HTMLElement, list: HTMLElement, onDrop: (keys: string[]) => void): void {
+  grip.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    const doc = list.ownerDocument;   // Ziel-Fenster einmal festhalten (Rule 29a)
+    row.addClass("is-dragging");
+    const onMove = (me: PointerEvent) => {
+      const y = me.clientY;
+      const siblings = (Array.from(list.children) as HTMLElement[]).filter((el) => el !== row);
+      let placed = false;
+      for (const sib of siblings) {
+        const r = sib.getBoundingClientRect();
+        if (y < r.top + r.height / 2) { list.insertBefore(row, sib); placed = true; break; }
+      }
+      if (!placed) list.appendChild(row);
+    };
+    const onUp = () => {
+      row.removeClass("is-dragging");
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      const keys = (Array.from(list.children) as HTMLElement[]).map((el) => el.getAttr("data-key")).filter((k): k is string => !!k);
+      onDrop(keys);
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
 }
 
 // Verwaltungs-Ansicht (ListManager): drei Kategorie-Tabs Projekte | Bereiche | Labels,
@@ -83,7 +118,7 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     if (!filters.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_filters") }); return; }
     const manual = plugin.navSortMode("filters") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
-    filters.forEach((fl, i) => filterRow(list, plugin, fl, redraw, manual ? { sec: "filters", i, n: filters.length } : undefined));
+    filters.forEach((fl) => filterRow(list, plugin, fl, redraw, manual ? "filters" : undefined));
     return;
   }
 
@@ -94,7 +129,7 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     if (!labels.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_labels") }); return; }
     const manual = plugin.navSortMode("labels") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
-    labels.forEach((l, i) => labelRow(list, plugin, l, redraw, manual ? { sec: "labels", i, n: labels.length } : undefined));
+    labels.forEach((l) => labelRow(list, plugin, l, redraw, manual ? "labels" : undefined));
     return;
   }
 
@@ -124,7 +159,7 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
   if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t(isAreaSection ? "manage_empty_areas" : "manage_empty_projects") }); return; }
   const manual = plugin.navSortMode(sec) === "manual";
   const list = root.createDiv({ cls: "bt-manage-list" });
-  items.forEach((it, i) => activeRow(list, plugin, it, redraw, manual ? { sec, i, n: items.length } : undefined));
+  items.forEach((it) => activeRow(list, plugin, it, redraw, manual ? sec : undefined));
 }
 
 /** „+ Neu"-Zeile: Button, der sich beim Klick in ein Eingabefeld verwandelt (Enter = anlegen). */
@@ -168,14 +203,14 @@ function rowMenu(actions: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem):
   kebab.onclick = (e) => {
     e.stopPropagation();
     const menu = new Menu();
-    buildItemMenu(menu, plugin, { sec: it.type === "area" ? "areas" : "projects", key: it.path, name: it.name, hidden: it.hidden, color: it.color, type: it.type });
+    buildItemMenu(menu, plugin, { sec: it.type === "area" ? "areas" : "projects", key: it.path, name: it.name, hidden: it.hidden, color: it.color, type: it.type }, "manage");
     menu.showAtMouseEvent(e);
   };
 }
 
-function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
+function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void, reorderSec?: NavSection): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
-  if (reorder) reorderHandle(row, plugin, reorder.sec, it.path, reorder.i, reorder.n);
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, it.path);
   const isArea = it.type === "area";
 
   colorDot(row, plugin, it.color, it.path, isArea ? "var(--bt-nav-area)" : "var(--bt-nav-project)", (c) => void plugin.setProjectColor(it.path, c));
@@ -202,9 +237,9 @@ function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, 
   iconBtn(actions, "trash-2", t("btn_delete_forever"), () => confirmInline(actions, t("confirm_delete_forever_q"), () => void plugin.deleteProject(it.path), redraw));
 }
 
-function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
+function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void, reorderSec?: NavSection): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
-  if (reorder) reorderHandle(row, plugin, reorder.sec, l.name, reorder.i, reorder.n);
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, l.name);
   colorDot(row, plugin, plugin.getLabelColor(l.name), l.name, "var(--bt-nav-label)", (c) => void plugin.setLabelColor(l.name, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
   name.onclick = () => void plugin.activateLabel(l.name);   // Klick öffnet das Label-Board
@@ -217,9 +252,9 @@ function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: strin
 
 /** Filter-Zeile im ListManager: Name (Klick öffnet das Board) · Anzahl · Sichtbarkeit ·
  *  Bearbeiten (öffnet den Filter-Editor) · Löschen. Sichtbarkeit wie bei Projekten (nav_hidden). */
-function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void, reorder?: { sec: NavSection; i: number; n: number }): void {
+function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void, reorderSec?: NavSection): void {
   const row = list.createDiv({ cls: "bt-manage-row" });
-  if (reorder) reorderHandle(row, plugin, reorder.sec, fl.path, reorder.i, reorder.n);
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, fl.path);
   colorDot(row, plugin, fl.color, fl.path, "var(--text-muted)", (c) => void plugin.setFilterColor(fl.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
   name.onclick = () => void plugin.activateFilter(fl.path);
