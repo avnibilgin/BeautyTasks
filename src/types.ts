@@ -3,6 +3,18 @@
 export type TaskStatus = "todo" | "doing" | "done" | "cancelled" | (string & {});
 export type Priority = "highest" | "high" | "medium" | "normal" | "low" | "lowest";
 
+/** Attribut-Chips in den Eingabe-Modalen (Schnelleingabe + voller Editor). Reihenfolge und
+ *  Sichtbarkeit sind über die Einstellungen konfigurierbar (chipOrder/chipTiers). */
+export type ChipId = "status" | "due" | "priority" | "label" | "recurrence" | "deadline" | "reminder" | "parent" | "details";
+/** Sichtbarkeits-Stufe eines Chips:
+ *  shown   = immer in der Chip-Leiste (leer = Add-Icon, gesetzt = Wert)
+ *  onValue = nur sichtbar, sobald ein Wert gesetzt ist; leer nur über „+ Weitere Aktionen"
+ *  hidden  = nie in der Leiste (auch mit Wert nicht) – setzen/ändern nur über „+ Weitere Aktionen". */
+export type ChipTier = "shown" | "onValue" | "hidden";
+/** Kanonische Reihenfolge (= bisheriges Render-Verhalten). Fehlt ein Chip in settings.chipOrder,
+ *  wird er hier ergänzt; fehlt sein Tier, gilt "shown" (nichts ändert sich per Default). */
+export const CHIP_IDS: ChipId[] = ["status", "due", "priority", "label", "recurrence", "deadline", "reminder", "parent", "details"];
+
 /** Art eines Status – steuert Verhalten (nicht nur die Spalte):
  *  open = aktive Phase · done = terminal (Zeitstempel/Wiederholung/Ausblenden) · cancelled = Papierkorb. */
 export type StatusKind = "open" | "done" | "cancelled";
@@ -62,6 +74,8 @@ export interface BeautyTasksSettings {
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
+  chipOrder?: ChipId[];            // Reihenfolge der Attribut-Chips (undefined = CHIP_IDS)
+  chipTiers?: Partial<Record<ChipId, ChipTier>>;   // Sichtbarkeits-Stufe je Chip (fehlt = "shown")
   boardLayout: "list" | "board";   // Projekt-/Label-Boards als Liste oder Kanban (Spalten = Status)
   statuses?: StoredStatus[];        // user-definierbare Status (undefined = eingebaute Defaults, siehe statuses.ts)
   pageViewOptions?: Record<string, Partial<import("./filterEngine").ViewOptions>>;   // Anzeige-Optionen für System-Views (key=ViewId) und Labels (key="label:<name>"); Notiz-Seiten speichern im Frontmatter

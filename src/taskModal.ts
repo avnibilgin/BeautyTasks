@@ -1,43 +1,21 @@
-import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Menu, Platform } from "obsidian";
+import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task, Priority, TaskStatus } from "./types";
+import { Task, TaskStatus, ChipId } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, todayIso, ensureFolder, TaskFields } from "./taskService";
-import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
+import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
-import { boardStatuses, statusLabel, statusIcon, statusTint } from "./statuses";
-import { openDatePicker } from "./datePicker";
-import { formatReminder } from "./reminders";
+import { statusLabel, statusIcon, statusTint } from "./statuses";
 import { parseQuickEntry } from "./quickEntry";
 import { LogEntry, readLog, writeLog, readDescription, writeDescription, nowLogTs, formatLogTime } from "./detailLog";
-import { TaskPickerModal } from "./searchModal";
+import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
+
+// PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
+// damit bestehende Importe (filterModal, quickAddModal) unverändert bleiben.
+export { PRIOS, PRIO_KEY };
 
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
 const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
-
-// 4 Stufen (P1 rot / P2 orange / P3 blau / P4 = ohne). Label-Keys via t().
-export const PRIOS: { value: Priority; key: string; color: string }[] = [
-  { value: "highest", key: "prio_1", color: "#ef4444" },
-  { value: "high", key: "prio_2", color: "#f59e0b" },
-  { value: "medium", key: "prio_3", color: "#3b82f6" },
-  { value: "normal", key: "prio_4", color: "#9ca3af" },
-];
-export const PRIO_KEY: Record<Priority, string> = {
-  highest: "prio_1", high: "prio_2", medium: "prio_3", normal: "prio_4", low: "prio_4", lowest: "prio_4",
-};
-
-const RECUR: { key: string; val: string }[] = [
-  { key: "recur_daily", val: "every day" },
-  { key: "recur_weekly", val: "every week" },
-  { key: "recur_monthly", val: "every month" },
-  { key: "recur_quarterly", val: "every 3 months" },
-  { key: "recur_yearly", val: "every year" },
-];
-const recurLabel = (v: string, basis?: "due" | "done"): string => {
-  const r = RECUR.find((x) => x.val === v);
-  const base = r ? t(r.key) : v;
-  return basis === "done" ? base + " · " + t("recur_when_done") : base;
-};
 
 /** Aufgaben-Modal im Todoist-Stil – 1:1 zu BeautyTasks (randloser Titel, Chip-Reihe,
  *  Projekt-Picker, CTA). Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
@@ -180,144 +158,87 @@ export class TaskModal extends Modal {
   }
 
   // ── Chips ──
+  /** Brücke Modal ⇄ Chip-Registry: Feldzustand + host-spezifische Callbacks. */
+  private chipHost(): ChipHost {
+    return {
+      plugin: this.plugin,
+      app: this.app,
+      f: this.f,
+      rerender: () => this.renderChips(),
+      compactLabels: false,
+      iconsOnly: this.plugin.settings.chipsIconsOnly,
+      applyStatus: (s) => void this.applyStatus(s),
+      pinDue: () => { this.duePinned = true; },
+      existingPath: this.existing?.path,
+      onParentPicked: (proj) => { if (proj) this.f.project = proj; if (!this.opts.hideProjekt) this.renderProjekt(); },
+      toggleDetails: () => this.toggleDetails(),
+      detailsOpen: () => !this.logWrap.hasClass("bt-hidden"),
+      // Elternaufgaben-Chip im festen „+ Subtask"-Modus (opts.parent) ausblenden – Parent steht fest.
+      chipEnabled: (id) => id === "parent" ? !this.opts.parent : true,
+    };
+  }
+
   private renderChips(): void {
     const bar = this.chipBar; bar.empty();
-
-    // Status-Chip ganz vorne: zeigt den aktuellen Status (auch im Modal sichtbar) und öffnet
-    // die Auswahl. Kein „x" – Status ist nie leer. Immer als is-set (Label bleibt sichtbar).
-    const cur = this.f.status ?? "todo";
-    const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
-    const sic = statusChip.createSpan({ cls: "bt-chip-ic" });
-    setIcon(sic, statusIcon(cur));
-    sic.style.color = statusTint(cur);
-    statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
-    statusChip.onclick = (e) => { e.stopPropagation(); this.openStatus(statusChip); };
-
-    this.addChip(bar, "calendar", this.f.due ? formatDateTime(combineDT(this.f.due, this.f.dueTime)) + (this.f.duration ? " · " + formatDuration(this.f.duration) : "") : t("chip_date"), !!this.f.due,
-      (el) => this.openDate(el, "due"), () => { this.f.due = null; this.f.dueTime = null; this.f.duration = null; this.duePinned = true; this.renderChips(); });
-    this.addChip(bar, "flag", this.f.priority && this.f.priority !== "normal" ? t(PRIO_KEY[this.f.priority]) : t("chip_priority"),
-      !!this.f.priority && this.f.priority !== "normal",
-      (el) => this.openPrio(el), () => { this.f.priority = "normal"; this.renderChips(); });
-    this.addChip(bar, "hash", (this.f.labels && this.f.labels.length) ? this.f.labels : t("chip_label"), !!(this.f.labels && this.f.labels.length),
-      (el) => this.openLabels(el), () => { this.f.labels = []; this.renderChips(); });
-    this.addChip(bar, "refresh-ccw", this.f.recurrence ? recurLabel(this.f.recurrence, this.f.recurBasis) : t("chip_recurrence"), !!this.f.recurrence,
-      (el) => this.openRecur(el), () => { this.f.recurrence = null; this.renderChips(); });
-    this.addChip(bar, "clock", this.f.scheduled ? formatDateTime(combineDT(this.f.scheduled, this.f.scheduledTime)) : t("chip_deadline"), !!this.f.scheduled,
-      (el) => this.openDate(el, "scheduled"), () => { this.f.scheduled = null; this.f.scheduledTime = null; this.renderChips(); });
-    this.addChip(bar, "alarm-clock", this.reminderChipLabel(), this.f.reminders.length > 0,
-      (el) => this.openReminders(el), () => { this.f.reminders = []; this.renderChips(); });
-    // Elternaufgabe (macht diese Aufgabe zur Unteraufgabe). Im festen „+ Subtask"-Modus
-    // (opts.parent) ausgeblendet – dort steht der Parent bereits fest.
-    if (!this.opts.parent) {
-      this.addChip(bar, "corner-down-right", this.parentTitle() ?? t("chip_parent"), !!this.f.parent,
-        () => this.openParent(), () => { this.f.parent = null; this.renderChips(); },
-        { truncate: !!this.f.parent });
+    const host = this.chipHost();
+    const settings = this.plugin.settings;
+    // Reihenfolge + Sichtbarkeit aus den Einstellungen (chipOrder/chipTiers): shown = immer,
+    // onValue = nur mit Wert, hidden = nie (nur über „+"). Gesetzte Werte bleiben immer sichtbar.
+    for (const id of resolveChipOrder(settings)) {
+      const c = CHIPS[id];
+      if (host.chipEnabled && !host.chipEnabled(id)) continue;
+      const set = c.isSet(this.f, host);
+      if (!isInline(settings, id, set)) continue;
+      if (c.kind === "status") renderStatusChip(bar, host, c);
+      else if (c.kind === "details") this.renderDetailsChip(bar);
+      else renderValueChip(bar, host, c, set);
     }
-
-    // Details-Chip (Büroklammer): toggelt die Detail-Sektion – ersetzt die frühere
-    // "+ Details"-Zeile. Kein Wert-Chip → Offen-Zustand über .is-open (nicht .is-set),
-    // damit er auch im Icon-only-Modus stets kompakt bleibt.
-    const detailsOpen = !this.logWrap.hasClass("bt-hidden");
-    const details = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (detailsOpen ? " is-open" : "") });
-    if (this.plugin.settings.chipsIconsOnly) { details.setAttribute("aria-label", t("details")); details.setAttribute("data-tooltip-position", "top"); }
-    const dIc = details.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
-    details.createSpan({ cls: "bt-chip-lbl", text: t("details") });
-    details.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
-    this.detailsChip = details;
-
-    // „+"-Aktionsmenü ganz rechts (nur im Edit-Modus): weitere Aktionen zur Aufgabe –
-    // aktuell „Unteraufgabe erstellen" + „Löschen", bewusst erweiterbar. Neue Aufgabe hat
-    // (noch) keine Aktionen → kein Button.
-    if (this.existing) {
-      const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions", attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
-      setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
-      acts.onclick = (e) => { e.stopPropagation(); this.openActionsMenu(acts); };
-    }
+    // „+"-Chip ganz rechts: „Weitere Aktionen" (ausgeblendete Chips) + (Edit) Aufgabenaktionen +
+    // „Aufgabenaktionen bearbeiten". Immer sichtbar; has-set = Badge, wenn Ausgeblendete Werte tragen.
+    const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : ""), attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
+    setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
+    acts.onclick = (e) => { e.stopPropagation(); this.openPlusMenu(acts); };
   }
 
-  /** Chip-Text für Erinnerungen: 0 → „Erinnerung", 1 → deren Text, n → „n Erinnerungen". */
-  private reminderChipLabel(): string {
-    const n = this.f.reminders.length;
-    if (n === 0) return t("chip_reminder");
-    if (n === 1) return formatReminder(this.f.reminders[0]);
-    return t("rem_count", n);
+  /** Details-Chip (Büroklammer): toggelt die Kommentar-/Detail-Sektion (is-open statt is-set). */
+  private renderDetailsChip(bar: HTMLElement): void {
+    const open = !this.logWrap.hasClass("bt-hidden");
+    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : "") });
+    if (this.plugin.settings.chipsIconsOnly) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
+    const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
+    chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
+    chip.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
+    this.detailsChip = chip;
   }
 
-  /** Erinnerungs-Popover (Todoist-Stil): bestehende Liste mit ×, relative Presets
-   *  („Vor der Aufgabe", nur mit Uhrzeit) und ein absoluter „Datum & Uhrzeit"-Eintrag. */
-  private openReminders(anchor: HTMLElement): void {
-    const PRESETS = ["-0m", "-10m", "-30m", "-1h", "-1d"];   // Zeitpunkt, 10 min, 30 min, 1 Std, 1 Tag
+  /** „+"-Popover: „Weitere Aktionen" (ausgeblendete Chips, mit Umrandung + Wert-Vorschau),
+   *  im Edit-Modus zusätzlich die Aufgabenaktionen; unten immer „Aufgabenaktionen bearbeiten". */
+  private openPlusMenu(anchor: HTMLElement): void {
+    const host = this.chipHost();
     openPopover(anchor, (pop, close) => {
-      pop.addClass("bt-rem");
-      const add = (raw: string) => {
-        if (!this.f.reminders.includes(raw)) this.f.reminders = [...this.f.reminders, raw];
-        this.renderChips();
+      pop.addClass("bt-plus");
+      const row = (icon: string, label: string, fn: () => void, danger = false): void => {
+        const r = popRow(pop, icon, label, () => { close(); fn(); });
+        if (danger) r.addClass("bt-row-danger");
       };
-      const render = () => {
-        pop.empty();
-        pop.createDiv({ cls: "bt-pop-head", text: t("reminders_title") });
-
-        // Bestehende Erinnerungen mit Entfernen-×.
-        for (const raw of this.f.reminders) {
-          const row = pop.createDiv({ cls: "bt-row bt-rem-item" });
-          const ic = row.createSpan({ cls: "bt-row-ic" }); setIcon(ic, "alarm-clock");
-          row.createSpan({ cls: "bt-row-lbl", text: formatReminder(raw) });
-          const x = row.createSpan({ cls: "bt-rem-x" }); setIcon(x, "x");
-          x.onclick = (e) => { e.stopPropagation(); this.f.reminders = this.f.reminders.filter((r) => r !== raw); this.renderChips(); render(); };
-        }
-        if (this.f.reminders.length) pop.createDiv({ cls: "bt-rem-sep" });
-
-        // „Vor der Aufgabe" (relativ) – braucht eine Uhrzeit an der Fälligkeit.
-        pop.createDiv({ cls: "bt-pop-sub", text: t("rem_tab_relative") });
-        if (!this.f.dueTime) {
-          pop.createDiv({ cls: "bt-rem-hint", text: t("rem_need_time") });
-        } else {
-          for (const raw of PRESETS) {
-            const row = popRow(pop, "clock", formatReminder(raw), () => { add(raw); render(); });
-            if (this.f.reminders.includes(raw)) row.addClass("is-disabled");
-          }
-        }
-
-        // „Datum & Uhrzeit" (absolut) – öffnet den vorhandenen Date-Picker.
-        pop.createDiv({ cls: "bt-rem-sep" });
-        popRow(pop, "calendar-clock", t("rem_tab_absolute"), () => {
-          close();
-          openDatePicker(anchor, "", (iso) => { if (iso) add(iso); });
-        });
-      };
-      render();
+      let any = renderPlusChips(pop, host, anchor, close);
+      if (this.existing) {
+        if (any) pop.createDiv({ cls: "bt-plus-sep" });
+        row("corner-down-right", t("menu_create_subtask"), () => this.addSubtask());
+        if (this.parentTask()) row("corner-left-up", t("menu_show_parent"), () => this.showParent());
+        row("copy", t("menu_duplicate"), () => void this.duplicate());
+        pop.createDiv({ cls: "bt-plus-sep" });
+        row("link", t("menu_copy_link"), () => this.copyLink());
+        row("file-text", t("menu_open_obsidian"), () => this.openInObsidian());
+        if (!Platform.isMobile) row("external-link", t("menu_open_editor"), () => this.openInEditor());
+        if (!Platform.isMobile) { pop.createDiv({ cls: "bt-plus-sep" }); row("printer", t("menu_print"), () => this.printTask()); }
+        pop.createDiv({ cls: "bt-plus-sep" });
+        row("trash-2", t("btn_delete"), () => void this.remove(), true);
+        any = true;
+      }
+      if (any) pop.createDiv({ cls: "bt-plus-sep" });
+      popRow(pop, "sliders-horizontal", t("edit_task_actions"), () => { close(); openChipSettings(this.app); });
     });
-  }
-
-  /** „+"-Aktionsmenü zur Aufgabe (Edit-Modus), thematisch gruppiert mit Trennlinien. */
-  private openActionsMenu(anchor: HTMLElement): void {
-    const menu = new Menu();
-    // Erstellen/Bearbeiten
-    menu.addItem((i) => i.setTitle(t("menu_create_subtask")).setIcon("corner-down-right").onClick(() => this.addSubtask()));
-    // „Übergeordnete Aufgabe anzeigen" nur bei Unteraufgaben (Elternaufgabe im Index vorhanden).
-    if (this.parentTask()) {
-      menu.addItem((i) => i.setTitle(t("menu_show_parent")).setIcon("corner-left-up").onClick(() => this.showParent()));
-    }
-    menu.addItem((i) => i.setTitle(t("menu_duplicate")).setIcon("copy").onClick(() => void this.duplicate()));
-    menu.addSeparator();
-    // Öffnen/Teilen
-    menu.addItem((i) => i.setTitle(t("menu_copy_link")).setIcon("link").onClick(() => this.copyLink()));
-    menu.addItem((i) => i.setTitle(t("menu_open_obsidian")).setIcon("file-text").onClick(() => this.openInObsidian()));
-    // „Im Editor öffnen" nutzt openWithDefaultApp (Desktop-only) – auf Mobile funktionslos.
-    if (!Platform.isMobile) {
-      menu.addItem((i) => i.setTitle(t("menu_open_editor")).setIcon("external-link").onClick(() => this.openInEditor()));
-    }
-    // Drucken: Obsidian Mobile hat keinen Druck (Webview) – Menüpunkt dort ausblenden.
-    if (!Platform.isMobile) {
-      menu.addSeparator();
-      // Ausgabe
-      menu.addItem((i) => i.setTitle(t("menu_print")).setIcon("printer").onClick(() => this.printTask()));
-    }
-    menu.addSeparator();
-    // Gefährlich
-    menu.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove()));
-    const r = anchor.getBoundingClientRect();
-    menu.showAtPosition({ x: r.left, y: r.bottom + 4 });
   }
 
   /** Aufgabe duplizieren: aktuellen Stand sichern und als neue Aufgabe („(Kopie)") anlegen. */
@@ -419,12 +340,6 @@ export class TaskModal extends Modal {
     return this.plugin.index.all().find((tk) => baseName(tk.path) === this.f.parent) ?? null;
   }
 
-  /** Titel der aktuell gewählten Elternaufgabe (für das Chip-Label) oder null. */
-  private parentTitle(): string | null {
-    if (!this.f.parent) return null;
-    return this.parentTask()?.title ?? this.f.parent;
-  }
-
   /** Elternaufgabe in ihrer Liste anzeigen (wie die Lupe in der Suche: hinspringen + kurz
    *  hervorheben). Modal schließen, damit die hervorgehobene Zeile sichtbar wird. */
   private showParent(): void {
@@ -434,151 +349,12 @@ export class TaskModal extends Modal {
     void this.plugin.revealTask(parent);
   }
 
-  /** Aufgaben-Picker öffnen und die gewählte Aufgabe als Elternaufgabe setzen. Sich selbst
-   *  und alle Nachfahren ausschließen (kein Zyklus); Projekt vom Parent übernehmen. */
-  private openParent(): void {
-    const exclude = new Set<string>();
-    if (this.existing) {
-      exclude.add(this.existing.path);
-      for (const d of this.plugin.index.descendants(this.existing.path)) exclude.add(d.path);
-    }
-    const items = this.plugin.index.all().filter((tk) => tk.status !== "cancelled" && !exclude.has(tk.path));
-    new TaskPickerModal(this.app, items, t("pick_parent"), (parent) => {
-      this.f.parent = baseName(parent.path);
-      if (parent.project) this.f.project = baseName(parent.project);   // wie „+ Subtask": Projekt erben
-      this.renderChips();
-      if (!this.opts.hideProjekt) this.renderProjekt();
-    }).open();
-  }
-
-  private addChip(bar: HTMLElement, icon: string, label: string | string[], isSet: boolean,
-                  onClick: (el: HTMLElement) => void, onClear: () => void,
-                  opts: { truncate?: boolean } = {}): void {
-    const chip = bar.createEl("button", { cls: "bt-chip" + (isSet ? " is-set" : "") + (opts.truncate ? " bt-chip-truncate" : "") });
-    // Icon-only-Modus: leere (ungesetzte) Chips zeigen nur das Icon -> Tooltip mit dem Namen.
-    if (this.plugin.settings.chipsIconsOnly && !isSet) {
-      chip.setAttribute("aria-label", Array.isArray(label) ? label.join(", ") : label);
-      chip.setAttribute("data-tooltip-position", "top");
-    }
-    const ic = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(ic, icon);
-    const lbl = chip.createSpan({ cls: "bt-chip-lbl" });
-    // Das „#"-Chip-Icon signalisiert bereits „Label" -> im Text KEIN zweites „#" (sonst „# #wichtig").
-    if (Array.isArray(label)) label.forEach((p, i) => { if (i) lbl.createSpan({ cls: "bt-chip-sep", text: " | " }); lbl.appendText(p); });
-    else lbl.setText(label);
-    // Langer Elternname wird per CSS mit „…" gekürzt; den vollen Namen als Tooltip anbieten,
-    // aber nur wenn tatsächlich abgeschnitten wurde (scrollWidth > sichtbare Breite).
-    if (opts.truncate) {
-      const full = Array.isArray(label) ? label.join(", ") : label;
-      if (lbl.scrollWidth > lbl.clientWidth) {
-        chip.addClass("is-faded");                 // Fade-Maske am rechten Rand aktivieren
-        chip.setAttribute("aria-label", full);
-        chip.setAttribute("data-tooltip-position", "top");
-      }
-    }
-    chip.onclick = (e) => { e.stopPropagation(); onClick(chip); };
-    if (isSet) { const x = chip.createSpan({ cls: "bt-chip-x" }); setIcon(x, "x"); x.onclick = (e) => { e.stopPropagation(); onClear(); }; }
-  }
-
-  // ── Picker ──
-  private openDate(anchor: HTMLElement, field: "due" | "scheduled"): void {
-    const timeField = field === "due" ? "dueTime" : "scheduledTime";
-    const d = this.f[field];
-    const value = d ? combineDT(d, this.f[timeField]) : "";
-    // Dauer nur am Fälligkeits-Datum anbieten (= Event-Länge im Kalender).
-    const dur = field === "due"
-      ? { value: this.f.duration ?? null, onChange: (d: number | null) => { this.f.duration = d; this.renderChips(); } }
-      : undefined;
-    openDatePicker(anchor, value, (v) => {
-      this.f[field] = v ? dateOf(v) : null;
-      this.f[timeField] = v ? timeOf(v) : null;
-      if (field === "due") this.duePinned = true;
-      this.renderChips();
-    }, dur);
-  }
-
-  private openPrio(anchor: HTMLElement): void {
-    openPopover(anchor, (pop, close) => {
-      for (const p of PRIOS) {
-        popRow(pop, "flag", t(p.key), () => { this.f.priority = p.value; this.renderChips(); close(); }, this.f.priority === p.value, p.color);
-      }
-    });
-  }
-
-  /** Status-Popover (To-Do · In Arbeit · Erledigt). Abbrechen/Papierkorb läuft über das
-   *  „+"-Aktionsmenü, nicht hier – dieses Popover bleibt auf die Arbeits-Status beschränkt. */
-  private openStatus(anchor: HTMLElement): void {
-    openPopover(anchor, (pop, close) => {
-      for (const s of boardStatuses()) {
-        popRow(pop, statusIcon(s.id), statusLabel(s.id), () => { void this.applyStatus(s.id); close(); }, (this.f.status ?? "todo") === s.id);
-      }
-    });
-  }
-
   /** Status übernehmen. Bei bestehender Aufgabe live schreiben (setTaskStatus kümmert sich
    *  um Zeitstempel/Wiederholung); bei neuer Aufgabe fließt f.status beim Anlegen ein. */
   private async applyStatus(status: TaskStatus): Promise<void> {
     this.f.status = status;
     if (this.existing) { await this.plugin.setTaskStatus(this.existing, status); this.existing.status = status; }
     this.renderChips();
-  }
-
-  private openRecur(anchor: HTMLElement): void {
-    openPopover(anchor, (pop, close) => {
-      const render = () => {
-        pop.empty();
-        popRow(pop, "x", t("recur_none"), () => { this.f.recurrence = null; this.renderChips(); close(); }, !this.f.recurrence);
-        for (const r of RECUR) {
-          popRow(pop, "refresh-ccw", t(r.key), () => { this.f.recurrence = r.val; this.renderChips(); render(); }, this.f.recurrence === r.val);
-        }
-        // Basis-Schalter: nächstes Datum ab Fälligkeit (aus) oder ab Erledigung (an).
-        if (this.f.recurrence) {
-          pop.createDiv({ cls: "bt-pop-head", text: t("recur_basis") });
-          popRow(pop, this.f.recurBasis === "done" ? "check-circle-2" : "circle", t("recur_when_done"),
-            () => { this.f.recurBasis = this.f.recurBasis === "done" ? "due" : "done"; this.renderChips(); render(); },
-            this.f.recurBasis === "done");
-        }
-      };
-      render();
-    });
-  }
-
-  /** Label-Picker 1:1 zu BeautyTasks buildTagPicker: Eingabe oben (filtert + Enter legt
-   *  neu an), darunter Liste mit #-Icon, Name und rechtsbündiger Häkchen-Box. */
-  private openLabels(anchor: HTMLElement): void {
-    const known = [...new Set([...this.plugin.index.all().flatMap((task) => task.labels), ...this.plugin.settings.knownLabels])];
-    openPopover(anchor, (pop) => {
-      pop.addClass("bt-tags");
-      const add = pop.createEl("input", { type: "text", cls: "bt-tag-add", attr: { placeholder: t("placeholder_label") } });
-      const list = pop.createDiv({ cls: "bt-tag-list" });
-      const render = () => {
-        list.empty();
-        const f = add.value.trim().toLowerCase().replace(/^#/, "");
-        const all = [...new Set([...known, ...this.f.labels!])].sort((a, b) => a.localeCompare(b, "de"));
-        for (const tag of all) {
-          if (f && !tag.toLowerCase().includes(f)) continue;
-          const on = this.f.labels!.includes(tag);
-          const r = list.createDiv({ cls: "bt-row bt-tag-row" + (on ? " is-active" : "") });
-          const ic = r.createSpan({ cls: "bt-row-ic" }); setIcon(ic, "hash");
-          r.createSpan({ cls: "bt-row-lbl", text: tag });
-          const box = r.createSpan({ cls: "bt-tag-box" }); if (on) setIcon(box, "check");
-          r.onclick = () => {
-            this.f.labels = on ? this.f.labels!.filter((x) => x !== tag) : [...this.f.labels!, tag];
-            this.renderChips(); render();
-          };
-        }
-      };
-      render();
-      add.oninput = () => render();
-      add.onkeydown = (ev) => {
-        if (ev.key !== "Enter") return;
-        ev.preventDefault();
-        const slug = slugify(add.value).toLowerCase().replace(/\s+/g, "-");
-        if (!slug) return;
-        if (!this.f.labels!.includes(slug)) this.f.labels!.push(slug);
-        add.value = ""; this.renderChips(); render();
-      };
-      window.setTimeout(() => add.focus(), 0);
-    });
   }
 
   private renderProjekt(): void {
