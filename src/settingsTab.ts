@@ -152,9 +152,13 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
    *  Beide Flächen haben getrennte Profile (chipProfiles). */
   private renderChipActions(containerEl: HTMLElement): void {
+    const p = this.plugin;
     const SURFACES: ChipSurface[] = ["editor", "quickAdd"];
     let surface: ChipSurface = "editor";
-    const tabs = containerEl.createDiv({ cls: "bt-chip-surface-tabs" });
+    // Kopfzeile: Flächen-Tabs links, „Auf Standard zurücksetzen" (aktuelle Fläche) rechts.
+    const bar = containerEl.createDiv({ cls: "bt-chip-surface-bar" });
+    const tabs = bar.createDiv({ cls: "bt-chip-surface-tabs" });
+    const reset = bar.createEl("button", { cls: "bt-chip-reset", text: t("chip_reset_default") });
     const zonesHost = containerEl.createDiv();
     const drawTabs = (): void => {
       tabs.empty();
@@ -162,6 +166,12 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         const b = tabs.createEl("button", { cls: "bt-chip-surface-tab" + (s === surface ? " is-active" : ""), text: t(s === "editor" ? "chip_surface_editor" : "chip_surface_quickadd") });
         b.onclick = () => { if (s === surface) return; surface = s; drawTabs(); this.renderChipZones(zonesHost, surface); };
       }
+    };
+    // Zurücksetzen: gespeichertes Profil der AKTUELLEN Fläche entfernen -> Ersteinrichtungs-Default greift.
+    reset.onclick = async () => {
+      if (p.settings.chipProfiles) delete p.settings.chipProfiles[surface];
+      await p.saveSettings();
+      this.renderChipZones(zonesHost, surface);
     };
     drawTabs();
     this.renderChipZones(zonesHost, surface);

@@ -279,6 +279,7 @@ var STRINGS = {
     chip_tier_hidden: "Only in the + menu",
     chip_surface_editor: "Full editor",
     chip_surface_quickadd: "Quick add",
+    chip_reset_default: "Reset to default",
     menu_create_subtask: "Create subtask",
     menu_show_parent: "Show parent task",
     menu_duplicate: "Duplicate task",
@@ -626,6 +627,7 @@ var STRINGS = {
     chip_tier_hidden: "Nur im +-Men\xFC",
     chip_surface_editor: "Normale Eingabe",
     chip_surface_quickadd: "Schnelleingabe",
+    chip_reset_default: "Auf Standard zur\xFCcksetzen",
     menu_create_subtask: "Unteraufgabe erstellen",
     menu_show_parent: "\xDCbergeordnete Aufgabe anzeigen",
     menu_duplicate: "Aufgabe duplizieren",
@@ -973,6 +975,7 @@ var STRINGS = {
     chip_tier_hidden: "Solo en el men\xFA +",
     chip_surface_editor: "Editor completo",
     chip_surface_quickadd: "Entrada r\xE1pida",
+    chip_reset_default: "Restablecer predeterminados",
     menu_create_subtask: "Crear subtarea",
     menu_show_parent: "Mostrar tarea superior",
     menu_duplicate: "Duplicar tarea",
@@ -1320,6 +1323,7 @@ var STRINGS = {
     chip_tier_hidden: "Apenas no menu +",
     chip_surface_editor: "Editor completo",
     chip_surface_quickadd: "Adi\xE7\xE3o r\xE1pida",
+    chip_reset_default: "Redefinir para o padr\xE3o",
     menu_create_subtask: "Criar subtarefa",
     menu_show_parent: "Mostrar tarefa superior",
     menu_duplicate: "Duplicar tarefa",
@@ -1667,6 +1671,7 @@ var STRINGS = {
     chip_tier_hidden: "Seulement dans le menu +",
     chip_surface_editor: "\xC9diteur complet",
     chip_surface_quickadd: "Ajout rapide",
+    chip_reset_default: "R\xE9initialiser par d\xE9faut",
     menu_create_subtask: "Cr\xE9er une sous-t\xE2che",
     menu_show_parent: "Afficher la t\xE2che parente",
     menu_duplicate: "Dupliquer la t\xE2che",
@@ -2014,6 +2019,7 @@ var STRINGS = {
     chip_tier_hidden: "Yaln\u0131zca + men\xFCs\xFCnde",
     chip_surface_editor: "Tam d\xFCzenleyici",
     chip_surface_quickadd: "H\u0131zl\u0131 ekleme",
+    chip_reset_default: "Varsay\u0131lana s\u0131f\u0131rla",
     menu_create_subtask: "Alt g\xF6rev olu\u015Ftur",
     menu_show_parent: "\xDCst g\xF6revi g\xF6ster",
     menu_duplicate: "G\xF6revi \xE7o\u011Falt",
@@ -2361,6 +2367,7 @@ var STRINGS = {
     chip_tier_hidden: "\u4EC5\u5728 + \u83DC\u5355\u4E2D",
     chip_surface_editor: "\u5B8C\u6574\u7F16\u8F91\u5668",
     chip_surface_quickadd: "\u5FEB\u901F\u6DFB\u52A0",
+    chip_reset_default: "\u6062\u590D\u9ED8\u8BA4",
     menu_create_subtask: "\u521B\u5EFA\u5B50\u4EFB\u52A1",
     menu_show_parent: "\u663E\u793A\u7236\u4EFB\u52A1",
     menu_duplicate: "\u590D\u5236\u4EFB\u52A1",
@@ -2708,6 +2715,7 @@ var STRINGS = {
     chip_tier_hidden: "\u0422\u043E\u043B\u044C\u043A\u043E \u0432 \u043C\u0435\u043D\u044E +",
     chip_surface_editor: "\u041F\u043E\u043B\u043D\u044B\u0439 \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440",
     chip_surface_quickadd: "\u0411\u044B\u0441\u0442\u0440\u043E\u0435 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435",
+    chip_reset_default: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E",
     menu_create_subtask: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043F\u043E\u0434\u0437\u0430\u0434\u0430\u0447\u0443",
     menu_show_parent: "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0440\u043E\u0434\u0438\u0442\u0435\u043B\u044C\u0441\u043A\u0443\u044E \u0437\u0430\u0434\u0430\u0447\u0443",
     menu_duplicate: "\u0414\u0443\u0431\u043B\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
@@ -3055,6 +3063,7 @@ var STRINGS = {
     chip_tier_hidden: "+ \u30E1\u30CB\u30E5\u30FC\u306E\u307F",
     chip_surface_editor: "\u30D5\u30EB\u30A8\u30C7\u30A3\u30BF\u30FC",
     chip_surface_quickadd: "\u30AF\u30A4\u30C3\u30AF\u8FFD\u52A0",
+    chip_reset_default: "\u30C7\u30D5\u30A9\u30EB\u30C8\u306B\u623B\u3059",
     menu_create_subtask: "\u30B5\u30D6\u30BF\u30B9\u30AF\u3092\u4F5C\u6210",
     menu_show_parent: "\u89AA\u30BF\u30B9\u30AF\u3092\u8868\u793A",
     menu_duplicate: "\u30BF\u30B9\u30AF\u3092\u8907\u88FD",
@@ -3402,6 +3411,7 @@ var STRINGS = {
     chip_tier_hidden: "Solo nel menu +",
     chip_surface_editor: "Editor completo",
     chip_surface_quickadd: "Aggiunta rapida",
+    chip_reset_default: "Ripristina predefiniti",
     menu_create_subtask: "Crea sottoattivit\xE0",
     menu_show_parent: "Mostra attivit\xE0 principale",
     menu_duplicate: "Duplica attivit\xE0",
@@ -9154,9 +9164,12 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
    *  Beide Flächen haben getrennte Profile (chipProfiles). */
   renderChipActions(containerEl) {
+    const p = this.plugin;
     const SURFACES = ["editor", "quickAdd"];
     let surface = "editor";
-    const tabs = containerEl.createDiv({ cls: "bt-chip-surface-tabs" });
+    const bar = containerEl.createDiv({ cls: "bt-chip-surface-bar" });
+    const tabs = bar.createDiv({ cls: "bt-chip-surface-tabs" });
+    const reset = bar.createEl("button", { cls: "bt-chip-reset", text: t("chip_reset_default") });
     const zonesHost = containerEl.createDiv();
     const drawTabs = () => {
       tabs.empty();
@@ -9169,6 +9182,11 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
           this.renderChipZones(zonesHost, surface);
         };
       }
+    };
+    reset.onclick = async () => {
+      if (p.settings.chipProfiles) delete p.settings.chipProfiles[surface];
+      await p.saveSettings();
+      this.renderChipZones(zonesHost, surface);
     };
     drawTabs();
     this.renderChipZones(zonesHost, surface);

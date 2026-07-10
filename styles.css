@@ -1428,7 +1428,10 @@ body {
 
 /* Aufgabenaktionen: Flächen-Umschalter (Normale Eingabe | Schnelleingabe) – Unterstrich-Tabs.
    Element-Selektor (0,1,1) schlägt Obsidians Default-Button-Styling, ohne !important. */
-.bt-chip-surface-tabs { display: flex; gap: 4px; margin: 4px 0 14px; border-bottom: 1px solid var(--background-modifier-border); }
+.bt-chip-surface-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin: 4px 0 14px; border-bottom: 1px solid var(--background-modifier-border); }
+.bt-chip-surface-tabs { display: flex; gap: 4px; }
+.bt-chip-reset { margin-bottom: 4px; padding: 3px 10px; border: none; border-radius: 5px; background: transparent; box-shadow: none; color: var(--text-muted); font-size: 0.82em; cursor: pointer; }
+.bt-chip-reset:hover { color: var(--text-normal); background: var(--background-modifier-hover); box-shadow: none; }
 .bt-chip-surface-tabs button {
   padding: 6px 12px; margin-bottom: -1px;
   border: none; border-bottom: 2px solid transparent; border-radius: 0;
