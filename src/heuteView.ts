@@ -420,6 +420,41 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
   return cols;
 }
 
+/** Edge-Autoscroll beim Karten-Drag (natives HTML5-DnD scrollt eigene Container in Chromium NICHT):
+ *  Kommt der Cursor an den Rand des Boards (horizontal) bzw. der Spaltenliste unter ihm (vertikal),
+ *  scrollt der jeweilige Container fortlaufend – auch beim Stillhalten am Rand (die rAF-Schleife läuft
+ *  mit der zuletzt gemeldeten Randposition weiter). Nur für eigene Karten (`dragPath`). Popout-sicher
+ *  (reiner Element-Scroll). Selbst-Stopp, sobald die Zonen verlassen sind, beim Drag-Ende ODER wenn
+ *  das Board neu gerendert/entfernt wurde (`isConnected`). */
+function attachEdgeAutoscroll(board: HTMLElement): void {
+  const EDGE = 56;   // Randzone (px)
+  const MAX = 18;    // Höchstgeschwindigkeit (px/Frame)
+  let hSpeed = 0, vSpeed = 0, vList: HTMLElement | null = null, rafId = 0;
+  const ramp = (dist: number): number => Math.min(MAX, Math.max(1, Math.ceil(((EDGE - dist) / EDGE) * MAX)));
+  const tick = (): void => {
+    if (!board.isConnected) { rafId = 0; return; }
+    if (hSpeed) board.scrollLeft += hSpeed;
+    if (vSpeed && vList) vList.scrollTop += vSpeed;
+    if (!hSpeed && !vSpeed) { rafId = 0; return; }
+    rafId = window.requestAnimationFrame(tick);
+  };
+  const stop = (): void => { hSpeed = 0; vSpeed = 0; vList = null; if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; } };
+  board.addEventListener("dragover", (e) => {
+    if (!dragPath) return;   // nur eigene Karten, kein Vault-/Text-Drag
+    const r = board.getBoundingClientRect();
+    hSpeed = e.clientX < r.left + EDGE ? -ramp(e.clientX - r.left) : e.clientX > r.right - EDGE ? ramp(r.right - e.clientX) : 0;
+    const list = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>(".bt-kanban-list") : null;
+    if (list) {
+      const lr = list.getBoundingClientRect();
+      vSpeed = e.clientY < lr.top + EDGE ? -ramp(e.clientY - lr.top) : e.clientY > lr.bottom - EDGE ? ramp(lr.bottom - e.clientY) : 0;
+      vList = vSpeed ? list : null;
+    } else { vSpeed = 0; vList = null; }
+    if ((hSpeed || vSpeed) && !rafId) rafId = window.requestAnimationFrame(tick);
+  });
+  board.addEventListener("dragend", stop);
+  board.addEventListener("drop", stop);
+}
+
 /** Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation. */
 function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin): void {
   colEl.addEventListener("dragover", (e) => {
@@ -453,6 +488,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
       : opts.group === "project" ? projectColumns(plugin, tasks, add)
         : statusColumns(plugin, add);
   const board = root.createDiv({ cls: "bt-kanban" });
+  attachEdgeAutoscroll(board);
   for (const col of cols) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.col = col.id;

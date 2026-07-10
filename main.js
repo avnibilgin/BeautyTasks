@@ -8063,6 +8063,51 @@ function projectColumns(plugin, tasks, add) {
   }
   return cols;
 }
+function attachEdgeAutoscroll(board) {
+  const EDGE = 56;
+  const MAX = 18;
+  let hSpeed = 0, vSpeed = 0, vList = null, rafId = 0;
+  const ramp = (dist) => Math.min(MAX, Math.max(1, Math.ceil((EDGE - dist) / EDGE * MAX)));
+  const tick = () => {
+    if (!board.isConnected) {
+      rafId = 0;
+      return;
+    }
+    if (hSpeed) board.scrollLeft += hSpeed;
+    if (vSpeed && vList) vList.scrollTop += vSpeed;
+    if (!hSpeed && !vSpeed) {
+      rafId = 0;
+      return;
+    }
+    rafId = window.requestAnimationFrame(tick);
+  };
+  const stop = () => {
+    hSpeed = 0;
+    vSpeed = 0;
+    vList = null;
+    if (rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  };
+  board.addEventListener("dragover", (e) => {
+    if (!dragPath) return;
+    const r = board.getBoundingClientRect();
+    hSpeed = e.clientX < r.left + EDGE ? -ramp(e.clientX - r.left) : e.clientX > r.right - EDGE ? ramp(r.right - e.clientX) : 0;
+    const list = e.target instanceof HTMLElement ? e.target.closest(".bt-kanban-list") : null;
+    if (list) {
+      const lr = list.getBoundingClientRect();
+      vSpeed = e.clientY < lr.top + EDGE ? -ramp(e.clientY - lr.top) : e.clientY > lr.bottom - EDGE ? ramp(lr.bottom - e.clientY) : 0;
+      vList = vSpeed ? list : null;
+    } else {
+      vSpeed = 0;
+      vList = null;
+    }
+    if ((hSpeed || vSpeed) && !rafId) rafId = window.requestAnimationFrame(tick);
+  });
+  board.addEventListener("dragend", stop);
+  board.addEventListener("drop", stop);
+}
 function setupColumnDnd(colEl, col, plugin) {
   colEl.addEventListener("dragover", (e) => {
     if (!dragPath) return;
@@ -8089,6 +8134,7 @@ function renderKanbanBoard(root, plugin, tasks, today, opts, add) {
   root.addClass("bt-sizer-board");
   const cols = opts.group === "label" ? labelColumns(plugin, tasks, add) : opts.group === "priority" ? priorityColumns(plugin, add) : opts.group === "project" ? projectColumns(plugin, tasks, add) : statusColumns(plugin, add);
   const board = root.createDiv({ cls: "bt-kanban" });
+  attachEdgeAutoscroll(board);
   for (const col of cols) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.col = col.id;
