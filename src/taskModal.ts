@@ -5,7 +5,7 @@ import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, Task
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { parseQuickEntry } from "./quickEntry";
-import { LogEntry, readLog, readDescription, writeDescription } from "./detailLog";
+import { readLog, readDescription, writeDescription } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
 import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
@@ -38,7 +38,7 @@ export class TaskModal extends Modal {
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; seedLog?: LogEntry[] } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean } = {}) {
     super(plugin.app);
     const seed = opts.seed;
     this.f = existing
@@ -123,12 +123,12 @@ export class TaskModal extends Modal {
           this.syncDetails();
         });
       }
-    } else if (this.opts.seedLog?.length) {
-      // Neu aus der Schnelleingabe (⤢): bereits erfasste Kommentare übernehmen, Sektion aufklappen.
-      this.log.setEntries(this.opts.seedLog);
+    }
+    // Aus der Schnelleingabe über den Details-Chip geöffnet: Detailbereich direkt aufklappen.
+    if (this.opts.openDetails) {
       this.logWrap.removeClass("bt-hidden");
-      this.log.render();
       this.syncDetails();
+      window.setTimeout(() => this.log.focusComposer(), 0);
     }
 
     // Fußzeile: Projekt-Picker links, Buttons rechts. Im Unteraufgaben-Modus

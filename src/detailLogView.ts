@@ -27,7 +27,6 @@ export class DetailLogView {
 
   mount(wrap: HTMLElement): void { this.wrap = wrap; this.render(); }
   setEntries(entries: LogEntry[]): void { this.entries = entries; }
-  getEntries(): LogEntry[] { return this.entries; }
   hasEntries(): boolean { return this.entries.length > 0; }
   focusComposer(): void { this.input?.focus(); }
   unload(): void { this.comp?.unload(); }

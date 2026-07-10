@@ -5099,9 +5099,6 @@ var DetailLogView = class {
   setEntries(entries) {
     this.entries = entries;
   }
-  getEntries() {
-    return this.entries;
-  }
   hasEntries() {
     return this.entries.length > 0;
   }
@@ -6040,11 +6037,11 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
           this.syncDetails();
         });
       }
-    } else if (this.opts.seedLog?.length) {
-      this.log.setEntries(this.opts.seedLog);
+    }
+    if (this.opts.openDetails) {
       this.logWrap.removeClass("bt-hidden");
-      this.log.render();
       this.syncDetails();
+      window.setTimeout(() => this.log.focusComposer(), 0);
     }
     const foot = contentEl.createDiv({ cls: "bt-foot" });
     if (!this.opts.hideProjekt) {
@@ -8488,7 +8485,6 @@ var NavView = class extends import_obsidian18.ItemView {
 // src/quickAddModal.ts
 var import_obsidian19 = require("obsidian");
 var QuickAddModal = class extends import_obsidian19.Modal {
-  // gemeinsame Log-Komponente
   constructor(plugin, project) {
     super(plugin.app);
     this.plugin = plugin;
@@ -8502,7 +8498,6 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     this.f = {
       title: "",
       project: this.defaultProject,
-      description: "",
       status: "todo",
       due: null,
       dueTime: null,
@@ -8538,11 +8533,6 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     };
     window.setTimeout(() => input.focus(), 0);
     this.input = input;
-    this.descInput = contentEl.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "1" } });
-    this.descInput.oninput = () => {
-      this.f.description = this.descInput.value;
-      this.growDesc();
-    };
     const row = contentEl.createDiv({ cls: "bt-qa-row" });
     this.projektBtn = row.createEl("button", { cls: "bt-projekt" });
     this.projektBtn.onclick = (e) => this.openProject(e.currentTarget);
@@ -8554,39 +8544,12 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     const submit = right.createEl("button", { cls: "mod-cta bt-qa-submit", attr: { "aria-label": t("btn_add_task"), "data-tooltip-position": "top" } });
     (0, import_obsidian19.setIcon)(submit, "arrow-up");
     submit.onclick = () => void this.submit();
-    this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
-    this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
-    this.log = new DetailLogView(this.app, this.plugin, {
-      srcPath: () => this.plugin.settings.itemsFolder + "/_.md",
-      file: () => null,
-      reveal: () => {
-        this.logWrap.removeClass("bt-hidden");
-        this.syncDetails();
-      },
-      close: () => this.close()
-    });
-    this.log.mount(this.logWrap);
-    this.syncDetails();
     this.parse();
     this.renderChips();
     this.renderProjekt();
-    window.setTimeout(() => this.growDesc(), 0);
   }
   onClose() {
-    this.log?.unload();
     this.contentEl.empty();
-  }
-  /** Beschreibungs-Textarea an ihren Inhalt anpassen (Auto-Grow, gedeckelt). */
-  growDesc() {
-    const el = this.descInput;
-    if (!el) return;
-    el.setCssStyles({ height: "auto" });
-    el.setCssStyles({ height: Math.min(el.scrollHeight, 160) + "px" });
-  }
-  /** Detail-/Log-Sektion zeigen/verstecken, Leerraum verschwindet wenn zu. */
-  syncDetails() {
-    const open = !this.logWrap.hasClass("bt-hidden");
-    this.detailsWrap.toggleClass("bt-hidden", !open);
   }
   /** Natural-Language aus dem Titel: Datum, Uhrzeit, Priorität, #Labels, @Projekt. Manuell (per
    *  Chip) gesetzte Werte bleiben erhalten. Spiegelt die Logik von TaskModal.applyParse. */
@@ -8643,8 +8606,10 @@ var QuickAddModal = class extends import_obsidian19.Modal {
           this.renderProjekt();
         }
       },
-      toggleDetails: () => this.toggleDetails(),
-      detailsOpen: () => !this.logWrap.hasClass("bt-hidden"),
+      // Details in der Schnelleingabe hat keinen Inline-Log -> öffnet den vollen Editor mit
+      // aufgeklapptem Detailbereich (Schnelleingabe bleibt eine reine Ein-Zeilen-Erfassung).
+      toggleDetails: () => this.openInFull(true),
+      detailsOpen: () => false,
       chipEnabled: () => true
     };
   }
@@ -8668,23 +8633,15 @@ var QuickAddModal = class extends import_obsidian19.Modal {
       this.openPlusMenu(acts);
     };
   }
-  /** Details-Chip: klappt den Kommentar-Log auf/zu (identisch zum vollen Editor). */
+  /** Details-Chip: öffnet den vollen Editor mit aufgeklapptem Detailbereich (kein Inline-Log). */
   renderDetailsChip(bar) {
-    const open = !this.logWrap.hasClass("bt-hidden");
-    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : ""), attr: { "aria-label": t("details"), "data-tooltip-position": "top" } });
+    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details", attr: { "aria-label": t("details"), "data-tooltip-position": "top" } });
     (0, import_obsidian19.setIcon)(chip.createSpan({ cls: "bt-chip-ic" }), "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
     chip.onclick = (e) => {
       e.stopPropagation();
-      this.toggleDetails();
+      this.openInFull(true);
     };
-  }
-  toggleDetails() {
-    const willOpen = this.logWrap.hasClass("bt-hidden");
-    this.logWrap.toggleClass("bt-hidden", !willOpen);
-    this.syncDetails();
-    this.renderChips();
-    if (willOpen) window.setTimeout(() => this.log.focusComposer(), 0);
   }
   /** „+"-Popover (Erstell-Modus, schlank): ausgeblendete Chips + „Aufgabenaktionen bearbeiten". */
   openPlusMenu(anchor) {
@@ -8744,10 +8701,9 @@ var QuickAddModal = class extends import_obsidian19.Modal {
       new import_obsidian19.Notice(t("err_enter_taskname"));
       return;
     }
-    const file = await createTaskNote(this.app, this.plugin.settings, {
+    await createTaskNote(this.app, this.plugin.settings, {
       title,
       status: this.f.status,
-      description: this.f.description,
       due: this.f.due,
       dueTime: this.f.dueTime,
       duration: this.f.duration,
@@ -8761,13 +8717,11 @@ var QuickAddModal = class extends import_obsidian19.Modal {
       parent: this.f.parent,
       project: this.f.project
     });
-    await this.log.flush(file);
     new import_obsidian19.Notice(t("qa_added"));
     const project = this.f.project;
     this.f = {
       title: "",
       project,
-      description: "",
       status: "todo",
       due: null,
       dueTime: null,
@@ -8785,19 +8739,14 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     this.duePinned = false;
     this.parsedLabels = [];
     this.parsedProject = null;
-    this.descInput.value = "";
-    this.growDesc();
-    this.log.setEntries([]);
-    this.log.render();
-    this.logWrap.addClass("bt-hidden");
-    this.syncDetails();
     this.input.value = "";
     this.renderChips();
     this.input.focus();
   }
   /** Modal schließen und den vollständigen Stand ins volle TaskModal übergeben: bereinigten Titel
-   *  (NL-Token bereits ausgewertet) + alle gesetzten Chips als Seed. */
-  openInFull() {
+   *  (NL-Token bereits ausgewertet) + alle gesetzten Chips als Seed. openDetails = Detailbereich
+   *  (Beschreibung/Kommentare) direkt aufgeklappt (vom Details-Chip ausgelöst). */
+  openInFull(openDetails = false) {
     const title = this.titleValue();
     const project = this.f.project ?? void 0;
     const seed = {
@@ -8812,12 +8761,10 @@ var QuickAddModal = class extends import_obsidian19.Modal {
       recurrence: this.f.recurrence,
       recurBasis: this.f.recurBasis,
       reminders: [...this.f.reminders],
-      parent: this.f.parent,
-      description: this.f.description || void 0
+      parent: this.f.parent
     };
-    const seedLog = this.log.getEntries();
     this.close();
-    new TaskModal(this.plugin, void 0, project, { defaultTitle: title, seed, seedLog }).open();
+    new TaskModal(this.plugin, void 0, project, { defaultTitle: title, seed, openDetails }).open();
   }
 };
 
