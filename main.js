@@ -5891,8 +5891,18 @@ var CHIPS = {
     }
   }
 };
+var DEFAULT_CHIP_PROFILES = {
+  editor: {
+    order: ["due", "priority", "label", "details", "recurrence", "reminder", "deadline", "parent", "status"],
+    tiers: { deadline: "onValue", parent: "onValue", status: "hidden" }
+  },
+  quickAdd: {
+    order: ["due", "priority", "label", "recurrence", "reminder", "deadline", "parent", "details", "status"],
+    tiers: { recurrence: "onValue", reminder: "onValue", deadline: "onValue", parent: "onValue", details: "hidden", status: "hidden" }
+  }
+};
 function chipProfile(settings, surface) {
-  return settings.chipProfiles?.[surface] ?? {};
+  return settings.chipProfiles?.[surface] ?? DEFAULT_CHIP_PROFILES[surface];
 }
 function resolveChipOrder(settings, surface) {
   const saved = chipProfile(settings, surface).order ?? [];

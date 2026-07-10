@@ -320,9 +320,22 @@ export const CHIPS: Record<ChipId, ChipDef> = {
   },
 };
 
-/** Konfigurations-Profil einer Fläche (leer = Defaults). */
+/** Sinnvolle Standard-Profile für die Ersteinrichtung (greifen, solange die Fläche kein eigenes
+ *  gespeichertes Profil hat). Tiers nur für nicht-„shown" Chips gelistet (Rest = shown). */
+export const DEFAULT_CHIP_PROFILES: Record<ChipSurface, ChipProfile> = {
+  editor: {
+    order: ["due", "priority", "label", "details", "recurrence", "reminder", "deadline", "parent", "status"],
+    tiers: { deadline: "onValue", parent: "onValue", status: "hidden" },
+  },
+  quickAdd: {
+    order: ["due", "priority", "label", "recurrence", "reminder", "deadline", "parent", "details", "status"],
+    tiers: { recurrence: "onValue", reminder: "onValue", deadline: "onValue", parent: "onValue", details: "hidden", status: "hidden" },
+  },
+};
+
+/** Konfigurations-Profil einer Fläche (eigenes gespeichertes ODER der Ersteinrichtungs-Default). */
 export function chipProfile(settings: BeautyTasksSettings, surface: ChipSurface): ChipProfile {
-  return settings.chipProfiles?.[surface] ?? {};
+  return settings.chipProfiles?.[surface] ?? DEFAULT_CHIP_PROFILES[surface];
 }
 
 /** Aufgelöste Chip-Reihenfolge der Fläche: gespeicherte Reihenfolge, um fehlende Ids (kanonisch) ergänzt. */
