@@ -2,7 +2,7 @@ import { App, Component, TFile } from "obsidian";
 import { Task, Priority } from "./types";
 import { splitContent } from "./detailLog";
 import { archivedProjectNames } from "./taskService";
-import { isKnownStatus, isOpen } from "./statuses";
+import { isKnownStatus, isOpen, firstOpenStatus } from "./statuses";
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -114,7 +114,9 @@ export class TaskIndex extends Component {
       path: f.path,
       // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
       title: cache?.headings?.[0]?.heading ?? f.basename,
-      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : "todo",
+      // Unbekannter/leerer Status (z. B. „todo" nach Umbenennung der Status-ID) -> erste offene Phase,
+      // damit die Aufgabe sichtbar bleibt statt in ein Status-Limbo zu fallen.
+      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : firstOpenStatus(),
       priority: (typeof fm.priority === "string" && PRIO.has(fm.priority) ? fm.priority : "normal") as Priority,
       due: asDate(fm.due),
       dueTime: asTime(fm.due),

@@ -7,7 +7,7 @@ import { App, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus, ChipId, ChipTier, ChipSurface, ChipProfile, CHIP_IDS, BeautyTasksSettings } from "./types";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
-import { boardStatuses, statusLabel, statusIcon, statusTint } from "./statuses";
+import { boardStatuses, statusLabel, statusIcon, statusTint, firstOpenStatus } from "./statuses";
 import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { openPopover, popRow } from "./popover";
@@ -119,7 +119,7 @@ function openPrio(host: ChipHost, anchor: HTMLElement): void {
 function openStatus(host: ChipHost, anchor: HTMLElement): void {
   openPopover(anchor, (pop, close) => {
     for (const s of boardStatuses()) {
-      popRow(pop, statusIcon(s.id), statusLabel(s.id), () => { host.applyStatus(s.id); close(); }, (host.f.status ?? "todo") === s.id);
+      popRow(pop, statusIcon(s.id), statusLabel(s.id), () => { host.applyStatus(s.id); close(); }, (host.f.status ?? firstOpenStatus()) === s.id);
     }
   });
 }
@@ -258,7 +258,7 @@ export const CHIPS: Record<ChipId, ChipDef> = {
   status: {
     id: "status", icon: "circle", nameKey: "chip_status", kind: "status",
     isSet: () => true,
-    valueLabel: (f) => statusLabel(f.status ?? "todo"),
+    valueLabel: (f) => statusLabel(f.status ?? firstOpenStatus()),
     open: (host, a) => openStatus(host, a),
     clear: () => { /* Status ist nie leer */ },
   },
@@ -383,7 +383,7 @@ export function renderPlusChips(pop: HTMLElement, host: ChipHost, anchor: HTMLEl
 /** Status-Chip inline rendern (fixes Label, kein ✕) – öffnet die Status-Auswahl. Gemeinsam
  *  für beide Modale. */
 export function renderStatusChip(bar: HTMLElement, host: ChipHost, c: ChipDef): void {
-  const cur = host.f.status ?? "todo";
+  const cur = host.f.status ?? firstOpenStatus();
   const chip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
   const sic = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(sic, statusIcon(cur)); sic.style.color = statusTint(cur);
   chip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });

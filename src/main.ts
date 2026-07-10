@@ -801,7 +801,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) { new Notice(t("status_need_open")); return; }
     // Ersatz gleicher Art (sonst irgendein offener), aber nie der zu löschende selbst.
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id
-      ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
+      ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
@@ -966,7 +966,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => tk.status === "cancelled");
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "todo"; delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });
     }
     new Notice(t("msg_restored", task.title));
   }
@@ -983,7 +983,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!items.length) { new Notice(t("report_trash_empty_restore")); return; }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "todo"; delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });
     }
     new Notice(t("report_tasks_restored", items.length));
   }

@@ -1,6 +1,7 @@
 import { App, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { combineDT } from "./format";
+import { firstOpenStatus } from "./statuses";
 
 export const slugify = (s: string): string =>
   s.replace(/[\\/:*?"<>|#^[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "Task";
@@ -68,7 +69,7 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
   const fm = buildFrontmatter({
     type: "task",
     id: newId("t"),
-    status: f.status ?? "todo",
+    status: f.status ?? firstOpenStatus(),
     priority: f.priority && f.priority !== "normal" ? f.priority : undefined,
     due: f.due ? combineDT(f.due, f.dueTime) : null,
     scheduled: f.scheduled ? combineDT(f.scheduled, f.scheduledTime) : null,

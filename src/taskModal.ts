@@ -7,6 +7,7 @@ import { openPopover, popRow } from "./popover";
 import { parseQuickEntry } from "./quickEntry";
 import { readLog, readDescription, writeDescription } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
+import { firstOpenStatus } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
@@ -272,7 +273,7 @@ export class TaskModal extends Modal {
     if (!title) { new Notice(t("err_enter_taskname")); return; }
     await this.persist();   // laufende Bearbeitung sichern, bevor kopiert wird
     const file = await createTaskNote(this.app, this.plugin.settings, {
-      ...this.f, title: title + " " + t("copy_suffix"), status: "todo",
+      ...this.f, title: title + " " + t("copy_suffix"), status: firstOpenStatus(),
       parent: this.f.parent ?? this.opts.parent ?? null,
     });
     await this.log.flush(file);

@@ -12,6 +12,7 @@ import { createTaskNote, listProjectsAndAreas } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { openPopover, popRow } from "./popover";
 import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings } from "./chips";
+import { firstOpenStatus } from "./statuses";
 import { TaskModal } from "./taskModal";
 
 export class QuickAddModal extends Modal {
@@ -36,7 +37,7 @@ export class QuickAddModal extends Modal {
     super(plugin.app);
     this.defaultProject = project ?? "Inbox";
     this.f = {
-      title: "", project: this.defaultProject, status: "todo",
+      title: "", project: this.defaultProject, status: firstOpenStatus(),
       due: null, dueTime: null, duration: null, scheduled: null, scheduledTime: null,
       priority: "normal", labels: [], recurrence: null, recurBasis: "due", reminders: [], parent: null,
     };
@@ -205,7 +206,7 @@ export class QuickAddModal extends Modal {
     // Für die nächste Aufgabe zurücksetzen (Projekt beibehalten).
     const project = this.f.project;
     this.f = {
-      title: "", project, status: "todo",
+      title: "", project, status: firstOpenStatus(),
       due: null, dueTime: null, duration: null, scheduled: null, scheduledTime: null,
       priority: "normal", labels: [], recurrence: null, recurBasis: "due", reminders: [], parent: null,
     };

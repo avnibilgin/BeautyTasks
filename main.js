@@ -3767,7 +3767,7 @@ async function createTaskNote(app, settings, f) {
   const fm = buildFrontmatter({
     type: "task",
     id: newId("t"),
-    status: f.status ?? "todo",
+    status: f.status ?? firstOpenStatus(),
     priority: f.priority && f.priority !== "normal" ? f.priority : void 0,
     due: f.due ? combineDT(f.due, f.dueTime) : null,
     scheduled: f.scheduled ? combineDT(f.scheduled, f.scheduledTime) : null,
@@ -4020,7 +4020,9 @@ var TaskIndex = class extends import_obsidian2.Component {
       path: f.path,
       // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
       title: cache?.headings?.[0]?.heading ?? f.basename,
-      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : "todo",
+      // Unbekannter/leerer Status (z. B. „todo" nach Umbenennung der Status-ID) -> erste offene Phase,
+      // damit die Aufgabe sichtbar bleibt statt in ein Status-Limbo zu fallen.
+      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : firstOpenStatus(),
       priority: typeof fm.priority === "string" && PRIO.has(fm.priority) ? fm.priority : "normal",
       due: asDate(fm.due),
       dueTime: asTime(fm.due),
@@ -5548,7 +5550,7 @@ function openStatus(host, anchor) {
       popRow(pop, statusIcon(s.id), statusLabel(s.id), () => {
         host.applyStatus(s.id);
         close();
-      }, (host.f.status ?? "todo") === s.id);
+      }, (host.f.status ?? firstOpenStatus()) === s.id);
     }
   });
 }
@@ -5713,7 +5715,7 @@ var CHIPS = {
     nameKey: "chip_status",
     kind: "status",
     isSet: () => true,
-    valueLabel: (f) => statusLabel(f.status ?? "todo"),
+    valueLabel: (f) => statusLabel(f.status ?? firstOpenStatus()),
     open: (host, a) => openStatus(host, a),
     clear: () => {
     }
@@ -5864,7 +5866,7 @@ function renderPlusChips(pop, host, anchor, close) {
   return true;
 }
 function renderStatusChip(bar, host, c) {
-  const cur = host.f.status ?? "todo";
+  const cur = host.f.status ?? firstOpenStatus();
   const chip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
   const sic = chip.createSpan({ cls: "bt-chip-ic" });
   (0, import_obsidian10.setIcon)(sic, statusIcon(cur));
@@ -6201,7 +6203,7 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     const file = await createTaskNote(this.app, this.plugin.settings, {
       ...this.f,
       title: title + " " + t("copy_suffix"),
-      status: "todo",
+      status: firstOpenStatus(),
       parent: this.f.parent ?? this.opts.parent ?? null
     });
     await this.log.flush(file);
@@ -8498,7 +8500,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     this.f = {
       title: "",
       project: this.defaultProject,
-      status: "todo",
+      status: firstOpenStatus(),
       due: null,
       dueTime: null,
       duration: null,
@@ -8722,7 +8724,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     this.f = {
       title: "",
       project,
-      status: "todo",
+      status: firstOpenStatus(),
       due: null,
       dueTime: null,
       duration: null,
@@ -10446,7 +10448,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       new import_obsidian25.Notice(t("status_need_open"));
       return;
     }
-    const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
+    const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
@@ -10620,7 +10622,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
-        fm.status = "todo";
+        fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
@@ -10641,7 +10643,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
       if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
-        fm.status = "todo";
+        fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
