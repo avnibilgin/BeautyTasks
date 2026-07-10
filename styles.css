@@ -1393,3 +1393,38 @@ body {
    Menütext, currentColor). Nur dieses eine Icon; Umriss-Icons im Menü bleiben unberührt. */
 .menu-item-icon .lucide-circle-small,
 .menu-item-icon.lucide-circle-small { fill: currentColor; }
+
+/* ── Chip-„+"-Menü (Weitere Aktionen) ──────────────────────────────────────
+   Eigenes Popover (bt-plus): ausgeblendete Chips mit Umrandung + Wert-Vorschau,
+   im Editor zusätzlich die Aufgabenaktionen. */
+.bt-pop.bt-plus { min-width: 240px; }
+.bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px 6px; }
+.bt-pop.bt-plus .bt-row-danger .bt-row-lbl,
+.bt-pop.bt-plus .bt-row-danger .bt-row-ic { color: var(--text-error); }
+/* „ist gesetzt"-Signal (v. a. Status): Umrandung + gedämpfte Wert-Vorschau rechts */
+.bt-pop.bt-plus .bt-row.bt-row-set { border: 1px solid var(--interactive-accent); }
+.bt-pop.bt-plus .bt-row-val { margin-left: auto; padding-left: 10px; color: var(--text-muted); font-size: 0.92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+
+/* „+"-Chip: kleiner Punkt, wenn dauerhaft ausgeblendete Chips einen Wert tragen */
+.bt-task-modal .bt-chip-actions.has-set { position: relative; }
+.bt-task-modal .bt-chip-actions.has-set::after {
+  content: ""; position: absolute; top: 3px; right: 3px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent);
+}
+
+/* Schnelleingabe: Beschreibungs-Feld (über den Details-Chip auf-/zuklappbar) */
+.bt-quickadd .bt-qa-desc { margin-top: 8px; }
+.bt-quickadd .bt-qa-desc .bt-beschr { width: 100%; box-sizing: border-box; }
+
+/* ── Einstellungen: Aufgabenaktionen (Chips in drei Tier-Zonen sortieren) ──── */
+.bt-chip-actions-desc { margin-bottom: 8px; }
+.bt-chip-zones { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.bt-chip-zone-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 4px; }
+.bt-chip-zone { display: flex; flex-direction: column; gap: 4px; min-height: 34px; padding: 6px; border: 1px dashed var(--background-modifier-border); border-radius: 8px; }
+.bt-chip-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; background: var(--background-secondary); }
+.bt-chip-row.is-dragging { opacity: 0.6; }
+.bt-chip-grip { display: inline-flex; cursor: grab; color: var(--text-faint); touch-action: none; }
+.bt-chip-grip svg { width: 15px; height: 15px; }
+.bt-chip-row-ic { display: inline-flex; color: var(--text-muted); }
+.bt-chip-row-ic svg { width: 15px; height: 15px; }
+.bt-chip-row-lbl { flex: 1; min-width: 0; }

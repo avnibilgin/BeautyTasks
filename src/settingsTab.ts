@@ -1,8 +1,45 @@
-import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath } from "obsidian";
+import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
+import { ChipId, ChipTier } from "./types";
+import { CHIPS, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
 import { t } from "./i18n";
+
+const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
+
+/** Pointer-basiertes Ziehen einer Chip-Zeile ZWISCHEN den drei Tier-Zonen (Maus + Touch,
+ *  Popout-sicher über row.ownerDocument). Beim Loslassen ruft onDrop() – der Aufrufer liest
+ *  Zonen-Zugehörigkeit + Reihenfolge aus dem DOM und persistiert chipTiers/chipOrder. */
+function attachChipDrag(row: HTMLElement, grip: HTMLElement, zones: HTMLElement[], onDrop: () => void): void {
+  grip.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    const doc = row.ownerDocument;
+    row.addClass("is-dragging");
+    const onMove = (me: PointerEvent) => {
+      const y = me.clientY;
+      // Zielzone: die, deren Rechteck den Punkt (vertikal) enthält; sonst die vertikal nächste.
+      let target = zones.find((z) => { const r = z.getBoundingClientRect(); return y >= r.top && y <= r.bottom; });
+      if (!target) {
+        let best = Infinity;
+        for (const z of zones) { const r = z.getBoundingClientRect(); const dy = y < r.top ? r.top - y : y - r.bottom; if (dy < best) { best = dy; target = z; } }
+      }
+      if (!target) return;
+      const sibs = (Array.from(target.children) as HTMLElement[]).filter((el) => el !== row);
+      let placed = false;
+      for (const sib of sibs) { const r = sib.getBoundingClientRect(); if (y < r.top + r.height / 2) { target.insertBefore(row, sib); placed = true; break; } }
+      if (!placed) target.appendChild(row);
+    };
+    const onUp = () => {
+      row.removeClass("is-dragging");
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      onDrop();
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
+}
 
 /** Ordner-Autovervollständigung für ein Text-Eingabefeld (Obsidian-Standard-API). */
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -89,6 +126,11 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
       }));
 
+    // ── Aufgabenaktionen (Chips ein-/ausblenden + sortieren; wirkt auf Editor UND Schnelleingabe) ──
+    new Setting(containerEl).setName(t("set_chip_actions")).setHeading();
+    containerEl.createEl("div", { cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
+    this.renderChipZones(containerEl);
+
     // ── Status (früher im ListManager; Custom-Status ist Konfiguration → gehört hierher) ──
     new Setting(containerEl).setName(t("tab_statuses")).setHeading();
     renderStatusEditor(containerEl.createDiv({ cls: "bt-settings-status" }), p);
@@ -105,5 +147,48 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc"))
       .addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
+  }
+
+  /** Drei Tier-Zonen (Immer anzeigen · Bei Wert anzeigen · Immer im +-Menü). Jede Chip-Zeile lässt
+   *  sich per Griff zwischen den Zonen ziehen; das Ablegen persistiert chipTiers + chipOrder. */
+  private renderChipZones(containerEl: HTMLElement): void {
+    const p = this.plugin;
+    const wrap = containerEl.createDiv({ cls: "bt-chip-zones" });
+    const zones: HTMLElement[] = [];
+
+    // Speichert die aktuelle DOM-Verteilung (Zonen-Zugehörigkeit = Tier, Reihenfolge = chipOrder).
+    const persist = (): void => {
+      const order: ChipId[] = [];
+      const tiers: Partial<Record<ChipId, ChipTier>> = {};
+      for (const z of zones) {
+        const tier = z.getAttr("data-tier") as ChipTier;
+        for (const r of Array.from(z.children) as HTMLElement[]) {
+          const id = r.getAttr("data-id") as ChipId | null;
+          if (!id) continue;
+          order.push(id); tiers[id] = tier;
+        }
+      }
+      p.settings.chipOrder = order;
+      p.settings.chipTiers = tiers;
+      void p.saveSettings();
+    };
+
+    for (const tier of CHIP_TIERS) {
+      const block = wrap.createDiv({ cls: "bt-chip-zone-block" });
+      block.createDiv({ cls: "bt-chip-zone-title", text: t("chip_tier_" + tier) });
+      const zone = block.createDiv({ cls: "bt-chip-zone", attr: { "data-tier": tier } });
+      zones.push(zone);
+    }
+
+    for (const id of resolveChipOrder(p.settings)) {
+      const c = CHIPS[id];
+      const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, id))];
+      const row = zone.createDiv({ cls: "bt-chip-row", attr: { "data-id": id } });
+      const grip = row.createSpan({ cls: "bt-chip-grip", attr: { "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+      setIcon(grip, "grip-vertical");
+      setIcon(row.createSpan({ cls: "bt-chip-row-ic" }), c.icon);
+      row.createSpan({ cls: "bt-chip-row-lbl", text: t(c.nameKey) });
+      attachChipDrag(row, grip, zones, persist);
+    }
   }
 }

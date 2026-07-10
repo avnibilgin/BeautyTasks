@@ -3,7 +3,7 @@
 // (Datum, Priorität, Status, Wiederholung, Labels, Erinnerungen, Übergeordnet) und die
 // Sichtbarkeits-/Reihenfolge-Logik (chipOrder/chipTiers). Beide Modale rendern über CHIPS und
 // nutzen dieselben Picker – keine Duplikate mehr.
-import { App, setIcon, Notice } from "obsidian";
+import { App, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus, ChipId, ChipTier, CHIP_IDS, BeautyTasksSettings } from "./types";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
@@ -360,7 +360,7 @@ export function plusHasSetHidden(host: ChipHost): boolean {
 export function renderPlusChips(pop: HTMLElement, host: ChipHost, anchor: HTMLElement, close: () => void): boolean {
   const list = plusChips(host);
   if (!list.length) return false;
-  pop.createDiv({ cls: "bt-pop-head", text: t("more_actions") });
+  pop.createDiv({ cls: "bt-pop-head", text: t("more_chip_actions") });
   for (const c of list) {
     const set = c.isSet(host.f, host);
     const row = popRow(pop, c.icon, t(c.nameKey), () => { close(); c.open(host, anchor); });

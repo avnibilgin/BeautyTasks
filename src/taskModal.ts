@@ -1,10 +1,9 @@
 import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task, TaskStatus, ChipId } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, todayIso, ensureFolder, TaskFields } from "./taskService";
+import { Task, TaskStatus } from "./types";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureFolder, TaskFields } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
-import { statusLabel, statusIcon, statusTint } from "./statuses";
 import { parseQuickEntry } from "./quickEntry";
 import { LogEntry, readLog, writeLog, readDescription, writeDescription, nowLogTs, formatLogTime } from "./detailLog";
 import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
