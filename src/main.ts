@@ -810,8 +810,16 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.commitStatuses();
   }
 
+  /** Alle Status auf die eingebauten Defaults zurücksetzen (To-Do · In Arbeit · Erledigt · Papierkorb).
+   *  Aufgaben mit eigenen, dann nicht mehr existierenden Status-IDs werden vom Index auf die erste
+   *  offene Phase abgebildet (nicht-destruktiv am Frontmatter). */
+  async resetStatuses(): Promise<void> {
+    this.settings.statuses = DEFAULT_STATUSES.map((s) => ({ ...s }));
+    await this.commitStatuses();
+  }
+
   /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
-   *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
+   *  zu verwaisen). Leitplanken: mind. 1 je Kategorie (offen · erledigt · Papierkorb). */
   async deleteStatus(id: string): Promise<void> {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);

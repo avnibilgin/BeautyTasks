@@ -63,6 +63,8 @@ var STRINGS = {
     tab_statuses: "Statuses",
     status_add: "Add status",
     placeholder_status_name: "Status name",
+    status_reset_default: "Reset to default",
+    confirm_reset_statuses_q: "Reset all statuses to default?",
     status_hint: "These are the columns on the Kanban board \u2014 order = column order.",
     status_kind_open: "Open",
     status_kind_done: "Done",
@@ -411,6 +413,8 @@ var STRINGS = {
     tab_statuses: "Status",
     status_add: "Status hinzuf\xFCgen",
     placeholder_status_name: "Status-Name",
+    status_reset_default: "Auf Standard zur\xFCcksetzen",
+    confirm_reset_statuses_q: "Alle Status auf Standard zur\xFCcksetzen?",
     status_hint: "Das sind die Spalten auf dem Kanban-Board \u2013 Reihenfolge = Spaltenreihenfolge.",
     status_kind_open: "Offen",
     status_kind_done: "Erledigt",
@@ -759,6 +763,8 @@ var STRINGS = {
     tab_statuses: "Estados",
     status_add: "A\xF1adir estado",
     placeholder_status_name: "Nombre del estado",
+    status_reset_default: "Restablecer predeterminados",
+    confirm_reset_statuses_q: "\xBFRestablecer todos los estados?",
     status_hint: "Estas son las columnas del tablero Kanban \u2014 el orden = orden de las columnas.",
     status_kind_open: "Abierto",
     status_kind_done: "Hecho",
@@ -1107,6 +1113,8 @@ var STRINGS = {
     tab_statuses: "Status",
     status_add: "Adicionar status",
     placeholder_status_name: "Nome do status",
+    status_reset_default: "Redefinir para o padr\xE3o",
+    confirm_reset_statuses_q: "Redefinir todos os status para o padr\xE3o?",
     status_hint: "Estas s\xE3o as colunas do quadro Kanban \u2014 a ordem = ordem das colunas.",
     status_kind_open: "Aberto",
     status_kind_done: "Feito",
@@ -1455,6 +1463,8 @@ var STRINGS = {
     tab_statuses: "Statuts",
     status_add: "Ajouter un statut",
     placeholder_status_name: "Nom du statut",
+    status_reset_default: "R\xE9initialiser par d\xE9faut",
+    confirm_reset_statuses_q: "R\xE9initialiser tous les statuts par d\xE9faut ?",
     status_hint: "Ce sont les colonnes du tableau Kanban \u2014 l'ordre = ordre des colonnes.",
     status_kind_open: "Ouvert",
     status_kind_done: "Termin\xE9",
@@ -1803,6 +1813,8 @@ var STRINGS = {
     tab_statuses: "Durumlar",
     status_add: "Durum ekle",
     placeholder_status_name: "Durum ad\u0131",
+    status_reset_default: "Varsay\u0131lana s\u0131f\u0131rla",
+    confirm_reset_statuses_q: "T\xFCm durumlar varsay\u0131lana s\u0131f\u0131rlans\u0131n m\u0131?",
     status_hint: "Bunlar Kanban panosunun s\xFCtunlar\u0131d\u0131r \u2014 s\u0131ralama = s\xFCtun s\u0131ras\u0131.",
     status_kind_open: "A\xE7\u0131k",
     status_kind_done: "Bitti",
@@ -2151,6 +2163,8 @@ var STRINGS = {
     tab_statuses: "\u72B6\u6001",
     status_add: "\u6DFB\u52A0\u72B6\u6001",
     placeholder_status_name: "\u72B6\u6001\u540D\u79F0",
+    status_reset_default: "\u6062\u590D\u9ED8\u8BA4",
+    confirm_reset_statuses_q: "\u5C06\u6240\u6709\u72B6\u6001\u6062\u590D\u4E3A\u9ED8\u8BA4\uFF1F",
     status_hint: "\u8FD9\u4E9B\u662F\u770B\u677F\u7684\u5217 \u2014 \u987A\u5E8F\u5373\u5217\u7684\u987A\u5E8F\u3002",
     status_kind_open: "\u672A\u5B8C\u6210",
     status_kind_done: "\u5B8C\u6210",
@@ -2499,6 +2513,8 @@ var STRINGS = {
     tab_statuses: "\u0421\u0442\u0430\u0442\u0443\u0441\u044B",
     status_add: "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441",
     placeholder_status_name: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430",
+    status_reset_default: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E",
+    confirm_reset_statuses_q: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E?",
     status_hint: "\u042D\u0442\u043E \u0441\u0442\u043E\u043B\u0431\u0446\u044B \u043A\u0430\u043D\u0431\u0430\u043D-\u0434\u043E\u0441\u043A\u0438 \u2014 \u043F\u043E\u0440\u044F\u0434\u043E\u043A = \u043F\u043E\u0440\u044F\u0434\u043E\u043A \u0441\u0442\u043E\u043B\u0431\u0446\u043E\u0432.",
     status_kind_open: "\u041E\u0442\u043A\u0440\u044B\u0442",
     status_kind_done: "\u0413\u043E\u0442\u043E\u0432\u043E",
@@ -2847,6 +2863,8 @@ var STRINGS = {
     tab_statuses: "\u30B9\u30C6\u30FC\u30BF\u30B9",
     status_add: "\u30B9\u30C6\u30FC\u30BF\u30B9\u3092\u8FFD\u52A0",
     placeholder_status_name: "\u30B9\u30C6\u30FC\u30BF\u30B9\u540D",
+    status_reset_default: "\u30C7\u30D5\u30A9\u30EB\u30C8\u306B\u623B\u3059",
+    confirm_reset_statuses_q: "\u3059\u3079\u3066\u306E\u30B9\u30C6\u30FC\u30BF\u30B9\u3092\u30C7\u30D5\u30A9\u30EB\u30C8\u306B\u623B\u3057\u307E\u3059\u304B\uFF1F",
     status_hint: "\u3053\u308C\u3089\u306F\u30AB\u30F3\u30D0\u30F3\u30DC\u30FC\u30C9\u306E\u5217\u3067\u3059 \u2014 \u4E26\u3073\u9806 = \u5217\u306E\u9806\u5E8F\u3002",
     status_kind_open: "\u672A\u5B8C\u4E86",
     status_kind_done: "\u5B8C\u4E86",
@@ -3195,6 +3213,8 @@ var STRINGS = {
     tab_statuses: "Stati",
     status_add: "Aggiungi stato",
     placeholder_status_name: "Nome dello stato",
+    status_reset_default: "Ripristina predefiniti",
+    confirm_reset_statuses_q: "Ripristinare tutti gli stati ai valori predefiniti?",
     status_hint: "Queste sono le colonne della bacheca Kanban \u2014 l'ordine = ordine delle colonne.",
     status_kind_open: "Aperto",
     status_kind_done: "Fatto",
@@ -8892,7 +8912,11 @@ function renderStatusEditor(container, plugin) {
   container.addClass("bt-view");
   container.addClass("bt-status-editor");
   const redraw = () => renderStatusEditor(container, plugin);
-  container.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
+  const head = container.createDiv({ cls: "bt-status-head" });
+  head.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
+  const resetWrap = head.createDiv({ cls: "bt-status-reset-wrap" });
+  const resetBtn = resetWrap.createEl("button", { cls: "bt-chip-reset", text: t("status_reset_default") });
+  resetBtn.onclick = () => confirmInline(resetWrap, t("confirm_reset_statuses_q"), () => then(plugin.resetStatuses(), redraw), redraw);
   const statuses = plugin.getStatuses();
   const roles = { newTask: firstOpenStatus(), done: firstDoneStatus(), trash: statuses.find((s) => s.kind === "cancelled")?.id };
   const groupLists = [];
@@ -10585,8 +10609,15 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     this.settings.statuses = next;
     await this.commitStatuses();
   }
+  /** Alle Status auf die eingebauten Defaults zurücksetzen (To-Do · In Arbeit · Erledigt · Papierkorb).
+   *  Aufgaben mit eigenen, dann nicht mehr existierenden Status-IDs werden vom Index auf die erste
+   *  offene Phase abgebildet (nicht-destruktiv am Frontmatter). */
+  async resetStatuses() {
+    this.settings.statuses = DEFAULT_STATUSES.map((s) => ({ ...s }));
+    await this.commitStatuses();
+  }
   /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
-   *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
+   *  zu verwaisen). Leitplanken: mind. 1 je Kategorie (offen · erledigt · Papierkorb). */
   async deleteStatus(id) {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);

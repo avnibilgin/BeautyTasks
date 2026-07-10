@@ -31,7 +31,12 @@ export function renderStatusEditor(container: HTMLElement, plugin: BeautyTasksPl
   container.addClass("bt-view");
   container.addClass("bt-status-editor");
   const redraw = (): void => renderStatusEditor(container, plugin);
-  container.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
+  // Kopf: Hinweis links, „Auf Standard zurücksetzen" (mit Bestätigung) rechts.
+  const head = container.createDiv({ cls: "bt-status-head" });
+  head.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
+  const resetWrap = head.createDiv({ cls: "bt-status-reset-wrap" });
+  const resetBtn = resetWrap.createEl("button", { cls: "bt-chip-reset", text: t("status_reset_default") });
+  resetBtn.onclick = () => confirmInline(resetWrap, t("confirm_reset_statuses_q"), () => then(plugin.resetStatuses(), redraw), redraw);
   const statuses = plugin.getStatuses();
   // Standard-Rollen: erster offener = neue Aufgaben, erster erledigt = beim Abhaken, abgebrochen = Papierkorb.
   const roles: StatusRoles = { newTask: firstOpenStatus(), done: firstDoneStatus(), trash: statuses.find((s) => s.kind === "cancelled")?.id };

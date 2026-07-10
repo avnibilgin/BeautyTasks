@@ -1451,3 +1451,8 @@ body {
 /* Status-Editor: Kategorie-Gruppen (Offen / Erledigt / Papierkorb) */
 .bt-status-editor .bt-status-group { margin-top: 10px; }
 .bt-status-editor .bt-status-group-title { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin: 6px 2px 4px; }
+
+/* Status-Editor: Kopfzeile (Hinweis links, „Auf Standard zurücksetzen" rechts) */
+.bt-status-editor .bt-status-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.bt-status-editor .bt-status-head .bt-manage-hint { margin: 0; flex: 1; }
+.bt-status-editor .bt-status-reset-wrap { flex-shrink: 0; }
