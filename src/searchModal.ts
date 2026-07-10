@@ -2,6 +2,7 @@ import { App, FuzzySuggestModal, FuzzyMatch } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { formatDate, todayStr } from "./format";
+import { isDone, isTrashed } from "./statuses";
 import { t } from "./i18n";
 
 const projectBase = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
@@ -18,7 +19,7 @@ function renderTaskSuggestion(match: FuzzyMatch<Task>, el: HTMLElement): void {
   el.addClass("bt-search-item");
   el.createDiv({ cls: "bt-search-title", text: task.title });
   const meta = el.createDiv({ cls: "bt-search-meta" });
-  if (task.status === "done") meta.createSpan({ cls: "bt-search-tag is-done", text: t("sec_done") });
+  if (isDone(task.status)) meta.createSpan({ cls: "bt-search-tag is-done", text: t("sec_done") });
   if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "#" + projectBase(task.project) });
   if (task.due) meta.createSpan({ cls: "bt-search-tag", text: formatDate(task.due, todayStr()) });
   for (const l of task.labels) meta.createSpan({ cls: "bt-search-tag", text: "#" + l });
@@ -33,7 +34,7 @@ export class TaskSearchModal extends FuzzySuggestModal<Task> {
   }
 
   getItems(): Task[] {
-    return this.plugin.index.all().filter((tk) => tk.status !== "cancelled");   // ohne Papierkorb
+    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status));   // ohne Papierkorb
   }
 
   getItemText(task: Task): string { return taskSearchText(task); }

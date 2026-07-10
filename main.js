@@ -67,6 +67,9 @@ var STRINGS = {
     status_kind_open: "Open",
     status_kind_done: "Done",
     status_kind_cancelled: "Cancelled",
+    role_new_tasks: "New tasks",
+    role_on_complete: "On complete",
+    role_trash: "Trash",
     status_pick_icon: "Icon",
     status_pick_color: "Color",
     status_color_none: "No color",
@@ -409,6 +412,9 @@ var STRINGS = {
     status_kind_open: "Offen",
     status_kind_done: "Erledigt",
     status_kind_cancelled: "Abgebrochen",
+    role_new_tasks: "Neue Aufgaben",
+    role_on_complete: "Beim Erledigen",
+    role_trash: "Papierkorb",
     status_pick_icon: "Icon",
     status_pick_color: "Farbe",
     status_color_none: "Keine Farbe",
@@ -751,6 +757,9 @@ var STRINGS = {
     status_kind_open: "Abierto",
     status_kind_done: "Hecho",
     status_kind_cancelled: "Cancelado",
+    role_new_tasks: "Tareas nuevas",
+    role_on_complete: "Al completar",
+    role_trash: "Papelera",
     status_pick_icon: "Icono",
     status_pick_color: "Color",
     status_color_none: "Sin color",
@@ -1093,6 +1102,9 @@ var STRINGS = {
     status_kind_open: "Aberto",
     status_kind_done: "Feito",
     status_kind_cancelled: "Cancelado",
+    role_new_tasks: "Novas tarefas",
+    role_on_complete: "Ao concluir",
+    role_trash: "Lixeira",
     status_pick_icon: "\xCDcone",
     status_pick_color: "Cor",
     status_color_none: "Sem cor",
@@ -1435,6 +1447,9 @@ var STRINGS = {
     status_kind_open: "Ouvert",
     status_kind_done: "Termin\xE9",
     status_kind_cancelled: "Annul\xE9",
+    role_new_tasks: "Nouvelles t\xE2ches",
+    role_on_complete: "\xC0 la fin",
+    role_trash: "Corbeille",
     status_pick_icon: "Ic\xF4ne",
     status_pick_color: "Couleur",
     status_color_none: "Aucune couleur",
@@ -1777,6 +1792,9 @@ var STRINGS = {
     status_kind_open: "A\xE7\u0131k",
     status_kind_done: "Bitti",
     status_kind_cancelled: "\u0130ptal edildi",
+    role_new_tasks: "Yeni g\xF6revler",
+    role_on_complete: "Tamamlan\u0131nca",
+    role_trash: "\xC7\xF6p kutusu",
     status_pick_icon: "Simge",
     status_pick_color: "Renk",
     status_color_none: "Renk yok",
@@ -2119,6 +2137,9 @@ var STRINGS = {
     status_kind_open: "\u672A\u5B8C\u6210",
     status_kind_done: "\u5B8C\u6210",
     status_kind_cancelled: "\u5DF2\u53D6\u6D88",
+    role_new_tasks: "\u65B0\u4EFB\u52A1",
+    role_on_complete: "\u5B8C\u6210\u65F6",
+    role_trash: "\u56DE\u6536\u7AD9",
     status_pick_icon: "\u56FE\u6807",
     status_pick_color: "\u989C\u8272",
     status_color_none: "\u65E0\u989C\u8272",
@@ -2461,6 +2482,9 @@ var STRINGS = {
     status_kind_open: "\u041E\u0442\u043A\u0440\u044B\u0442",
     status_kind_done: "\u0413\u043E\u0442\u043E\u0432\u043E",
     status_kind_cancelled: "\u041E\u0442\u043C\u0435\u043D\u0451\u043D",
+    role_new_tasks: "\u041D\u043E\u0432\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438",
+    role_on_complete: "\u041F\u0440\u0438 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0438",
+    role_trash: "\u041A\u043E\u0440\u0437\u0438\u043D\u0430",
     status_pick_icon: "\u0417\u043D\u0430\u0447\u043E\u043A",
     status_pick_color: "\u0426\u0432\u0435\u0442",
     status_color_none: "\u0411\u0435\u0437 \u0446\u0432\u0435\u0442\u0430",
@@ -2803,6 +2827,9 @@ var STRINGS = {
     status_kind_open: "\u672A\u5B8C\u4E86",
     status_kind_done: "\u5B8C\u4E86",
     status_kind_cancelled: "\u30AD\u30E3\u30F3\u30BB\u30EB\u6E08\u307F",
+    role_new_tasks: "\u65B0\u898F\u30BF\u30B9\u30AF",
+    role_on_complete: "\u5B8C\u4E86\u6642",
+    role_trash: "\u30B4\u30DF\u7BB1",
     status_pick_icon: "\u30A2\u30A4\u30B3\u30F3",
     status_pick_color: "\u8272",
     status_color_none: "\u8272\u306A\u3057",
@@ -3145,6 +3172,9 @@ var STRINGS = {
     status_kind_open: "Aperto",
     status_kind_done: "Fatto",
     status_kind_cancelled: "Annullato",
+    role_new_tasks: "Nuove attivit\xE0",
+    role_on_complete: "Al completamento",
+    role_trash: "Cestino",
     status_pick_icon: "Icona",
     status_pick_color: "Colore",
     status_color_none: "Nessun colore",
@@ -3521,9 +3551,11 @@ var statusColor = (id) => BY_ID.get(id)?.color;
 var isOpen = (s) => BY_ID.get(s)?.kind === "open";
 var isDone = (s) => BY_ID.get(s)?.kind === "done";
 var isCancelled = (s) => BY_ID.get(s)?.kind === "cancelled";
+var isTrashed = (s) => BY_ID.get(s)?.kind === "cancelled" || s === "cancelled";
 var boardStatuses = () => CURRENT.filter((s) => s.kind !== "cancelled");
 var firstOpenStatus = () => CURRENT.find((s) => s.kind === "open")?.id ?? "todo";
 var firstDoneStatus = () => CURRENT.find((s) => s.kind === "done")?.id ?? "done";
+var firstCancelledStatus = () => CURRENT.find((s) => s.kind === "cancelled")?.id ?? "cancelled";
 function statusTint(id) {
   const d = BY_ID.get(id);
   if (d?.color) return d.color;
@@ -3603,7 +3635,7 @@ function formatReminder(raw) {
   return t("rem_before", humanizeOffset(p.rel));
 }
 function resolveReminders(task) {
-  if (task.status === "done" || task.status === "cancelled") return [];
+  if (isDone(task.status) || isTrashed(task.status)) return [];
   const out = [];
   for (const raw of task.reminders ?? []) {
     const p = parseReminder(raw);
@@ -4020,9 +4052,10 @@ var TaskIndex = class extends import_obsidian2.Component {
       path: f.path,
       // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
       title: cache?.headings?.[0]?.heading ?? f.basename,
-      // Unbekannter/leerer Status (z. B. „todo" nach Umbenennung der Status-ID) -> erste offene Phase,
-      // damit die Aufgabe sichtbar bleibt statt in ein Status-Limbo zu fallen.
-      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : firstOpenStatus(),
+      // Unbekannter/leerer Status -> erste offene Phase, damit die Aufgabe sichtbar bleibt (statt
+      // Status-Limbo). Ausnahme: der reservierte Sentinel "cancelled" bleibt erhalten, sonst würden
+      // abgebrochene Aufgaben ohne definierten Abgebrochen-Status wieder als aktiv auftauchen.
+      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : fm.status === "cancelled" ? "cancelled" : firstOpenStatus(),
       priority: typeof fm.priority === "string" && PRIO.has(fm.priority) ? fm.priority : "normal",
       due: asDate(fm.due),
       dueTime: asTime(fm.due),
@@ -4088,11 +4121,11 @@ var TaskIndex = class extends import_obsidian2.Component {
     return this.open().filter((t2) => !!t2.due && t2.due > today).sort((a, b) => a.due.localeCompare(b.due));
   }
   done() {
-    return this.all().filter((t2) => t2.status === "done").sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+    return this.all().filter((t2) => isDone(t2.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   }
   /** Abgebrochene Aufgaben (Papierkorb), neueste zuerst. */
   cancelled() {
-    return this.all().filter((t2) => t2.status === "cancelled").sort((a, b) => (b.cancelled ?? "").localeCompare(a.cancelled ?? ""));
+    return this.all().filter((t2) => isTrashed(t2.status)).sort((a, b) => (b.cancelled ?? "").localeCompare(a.cancelled ?? ""));
   }
   byProject(path) {
     const base = (p) => p.split("/").pop().replace(/\.md$/, "");
@@ -5443,7 +5476,7 @@ function renderTaskSuggestion(match, el) {
   el.addClass("bt-search-item");
   el.createDiv({ cls: "bt-search-title", text: task.title });
   const meta = el.createDiv({ cls: "bt-search-meta" });
-  if (task.status === "done") meta.createSpan({ cls: "bt-search-tag is-done", text: t("sec_done") });
+  if (isDone(task.status)) meta.createSpan({ cls: "bt-search-tag is-done", text: t("sec_done") });
   if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "#" + projectBase(task.project) });
   if (task.due) meta.createSpan({ cls: "bt-search-tag", text: formatDate(task.due, todayStr()) });
   for (const l of task.labels) meta.createSpan({ cls: "bt-search-tag", text: "#" + l });
@@ -5455,7 +5488,7 @@ var TaskSearchModal = class extends import_obsidian9.FuzzySuggestModal {
     this.setPlaceholder(t("search_placeholder"));
   }
   getItems() {
-    return this.plugin.index.all().filter((tk) => tk.status !== "cancelled");
+    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status));
   }
   getItemText(task) {
     return taskSearchText(task);
@@ -5701,7 +5734,7 @@ function openParent(host) {
     exclude.add(host.existingPath);
     for (const d of host.plugin.index.descendants(host.existingPath)) exclude.add(d.path);
   }
-  const items = host.plugin.index.all().filter((tk) => tk.status !== "cancelled" && !exclude.has(tk.path));
+  const items = host.plugin.index.all().filter((tk) => !isTrashed(tk.status) && !exclude.has(tk.path));
   new TaskPickerModal(host.app, items, t("pick_parent"), (parent) => {
     host.f.parent = baseName3(parent.path);
     host.onParentPicked?.(parent.project ? baseName3(parent.project) : null);
@@ -8803,24 +8836,38 @@ function renderStatusEditor(container, plugin) {
   addRow(container, t("status_add"), t("placeholder_status_name"), (v) => plugin.addStatus(v), redraw);
   container.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
   const statuses = plugin.getStatuses();
+  const roles = {
+    newTask: firstOpenStatus(),
+    done: firstDoneStatus(),
+    trash: statuses.find((s) => s.kind === "cancelled")?.id
+  };
   const list = container.createDiv({ cls: "bt-manage-list" });
-  statuses.forEach((s, i) => statusRow(list, plugin, s, i, statuses.length, redraw));
+  statuses.forEach((s) => statusRow(list, plugin, s, roles, redraw));
 }
 function then(p, redraw) {
   void p.then(redraw);
 }
-function statusRow(list, plugin, s, i, n, redraw) {
-  const row = list.createDiv({ cls: "bt-manage-row bt-status-row" });
-  const move = row.createDiv({ cls: "bt-status-move" });
-  const up = iconBtn(move, "chevron-up", t("btn_move_up"), () => then(plugin.moveStatus(s.id, -1), redraw));
-  const down = iconBtn(move, "chevron-down", t("btn_move_down"), () => then(plugin.moveStatus(s.id, 1), redraw));
-  if (i === 0) up.disabled = true;
-  if (i === n - 1) down.disabled = true;
+function statusRow(list, plugin, s, roles, redraw) {
+  const row = list.createDiv({ cls: "bt-manage-row bt-status-row", attr: { "data-key": s.id } });
+  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+  (0, import_obsidian20.setIcon)(grip, "grip-vertical");
+  grip.onkeydown = (e) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      then(plugin.moveStatus(s.id, -1), redraw);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      then(plugin.moveStatus(s.id, 1), redraw);
+    }
+  };
+  attachRowDrag(row, grip, list, (keys) => then(plugin.setStatusOrder(keys), redraw));
   const dot = row.createSpan({ cls: "bt-status-dot" });
   (0, import_obsidian20.setIcon)(dot, statusIcon(s.id));
   dot.style.color = statusTint(s.id);
   const name = row.createSpan({ cls: "bt-manage-name bt-status-name", text: statusLabel(s.id) });
   name.onclick = () => startStatusRename(row, plugin, s, redraw);
+  const roleKey = s.id === roles.newTask ? "role_new_tasks" : s.id === roles.done ? "role_on_complete" : s.id === roles.trash ? "role_trash" : null;
+  if (roleKey) row.createSpan({ cls: "bt-status-role", text: t(roleKey) });
   const cnt = plugin.statusTaskCount(s.id);
   if (cnt) row.createSpan({ cls: "bt-manage-count", text: String(cnt) });
   const actions = row.createDiv({ cls: "bt-manage-actions" });
@@ -9919,10 +9966,10 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async revealTask(task) {
     this.flashPath = task.path;
     this.flashScrolled = false;
-    if (task.status === "done") this.doneCollapsed = false;
+    if (isDone(task.status)) this.doneCollapsed = false;
     if (task.project) {
       await this.activateProject(task.project);
-    } else if (task.status === "done") {
+    } else if (isDone(task.status)) {
       await this.activateView("erledigt");
     } else if (task.due && task.due <= todayStr()) {
       await this.activateView("heute");
@@ -10434,6 +10481,16 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     [list[i], list[j]] = [list[j], list[i]];
     await this.commitStatuses();
   }
+  /** Volle Status-Reihenfolge setzen (Drag&Drop-Sortierung im Status-Editor). Nicht genannte
+   *  Ids werden ans Ende gehängt (Sicherheitsnetz), damit keine Definition verloren geht. */
+  async setStatusOrder(ids) {
+    const list = this.statusList();
+    const byId = new Map(list.map((s) => [s.id, s]));
+    const next = ids.map((id) => byId.get(id)).filter((s) => !!s);
+    for (const s of list) if (!ids.includes(s.id)) next.push(s);
+    this.settings.statuses = next;
+    await this.commitStatuses();
+  }
   /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
    *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
   async deleteStatus(id) {
@@ -10607,18 +10664,19 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
    *  über die Suche, nicht mehr in den Boards erreichbar. */
   async cancelTask(task) {
     const stamp = localStamp();
-    const targets = [task, ...this.index.descendants(task.path)].filter((t2) => t2.status !== "cancelled");
+    const cancelId = firstCancelledStatus();
+    const targets = [task, ...this.index.descendants(task.path)].filter((t2) => !isTrashed(t2.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
-        fm.status = "cancelled";
+        fm.status = cancelId;
         fm.cancelled = stamp;
       });
     }
   }
   /** Einzelne Aufgabe wiederherstellen: zurück auf offen, Abbruch-Datum entfernen. */
   async restoreTask(task) {
-    const targets = [task, ...this.index.descendants(task.path)].filter((tk) => tk.status === "cancelled");
+    const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {

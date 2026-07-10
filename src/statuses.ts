@@ -45,6 +45,10 @@ export const statusColor = (id: string): string | undefined => BY_ID.get(id)?.co
 export const isOpen = (s: string): boolean => BY_ID.get(s)?.kind === "open";
 export const isDone = (s: string): boolean => BY_ID.get(s)?.kind === "done";
 export const isCancelled = (s: string): boolean => BY_ID.get(s)?.kind === "cancelled";
+/** Papierkorb-Erkennung: als „abgebrochen" markierter Status ODER der reservierte Sentinel
+ *  "cancelled" – bleibt erkennbar, auch wenn KEIN Status diese Art trägt (robust gegen Umbenennen/
+ *  Löschen des Abgebrochen-Status). Überall statt `status === "cancelled"` verwenden. */
+export const isTrashed = (s: string): boolean => BY_ID.get(s)?.kind === "cancelled" || s === "cancelled";
 
 /** Board-Spalten = alles außer cancelled (Abbrechen ist Papierkorb), in Definitionsreihenfolge. */
 export const boardStatuses = (): StoredStatus[] => CURRENT.filter((s) => s.kind !== "cancelled");
@@ -53,6 +57,8 @@ export const boardStatuses = (): StoredStatus[] => CURRENT.filter((s) => s.kind 
 export const firstOpenStatus = (): string => CURRENT.find((s) => s.kind === "open")?.id ?? "todo";
 /** Erster erledigt-Status (Fallback "done"). */
 export const firstDoneStatus = (): string => CURRENT.find((s) => s.kind === "done")?.id ?? "done";
+/** Erster abgebrochen-Status (Fallback = reservierter Sentinel "cancelled", falls keiner definiert). */
+export const firstCancelledStatus = (): string => CURRENT.find((s) => s.kind === "cancelled")?.id ?? "cancelled";
 
 /** Effektive Anzeigefarbe (Board-Punkt · Checkbox · Chip · Editor-Vorschau). Eigene Farbe,
  *  sonst Vorgabe nach Art: erste offene Phase neutral · weitere offen = Akzent · erledigt =

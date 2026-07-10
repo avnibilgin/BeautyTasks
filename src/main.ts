@@ -1,6 +1,6 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
-import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
+import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -297,10 +297,10 @@ export default class BeautyTasksPlugin extends Plugin {
   async revealTask(task: Task): Promise<void> {
     this.flashPath = task.path;
     this.flashScrolled = false;
-    if (task.status === "done") this.doneCollapsed = false;   // Erledigt-Sektion aufklappen, sonst ist die Zeile verborgen
+    if (isDone(task.status)) this.doneCollapsed = false;   // Erledigt-Sektion aufklappen, sonst ist die Zeile verborgen
     if (task.project) {
       await this.activateProject(task.project);
-    } else if (task.status === "done") {
+    } else if (isDone(task.status)) {
       await this.activateView("erledigt");
     } else if (task.due && task.due <= todayStr()) {
       await this.activateView("heute");
@@ -791,6 +791,17 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.commitStatuses();
   }
 
+  /** Volle Status-Reihenfolge setzen (Drag&Drop-Sortierung im Status-Editor). Nicht genannte
+   *  Ids werden ans Ende gehängt (Sicherheitsnetz), damit keine Definition verloren geht. */
+  async setStatusOrder(ids: string[]): Promise<void> {
+    const list = this.statusList();
+    const byId = new Map(list.map((s) => [s.id, s]));
+    const next = ids.map((id) => byId.get(id)).filter((s): s is StoredStatus => !!s);
+    for (const s of list) if (!ids.includes(s.id)) next.push(s);
+    this.settings.statuses = next;
+    await this.commitStatuses();
+  }
+
   /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
    *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
   async deleteStatus(id: string): Promise<void> {
@@ -952,10 +963,11 @@ export default class BeautyTasksPlugin extends Plugin {
     // am selben Tag gelöschten Aufgaben denselben Sortierwert und der Papierkorb fiele bei
     // Gleichstand auf die Datei-Reihenfolge zurück. Für die Kaskade EIN Stempel (Gruppe bleibt zusammen).
     const stamp = localStamp();
-    const targets = [task, ...this.index.descendants(task.path)].filter((t) => t.status !== "cancelled");
+    const cancelId = firstCancelledStatus();   // definierter Abgebrochen-Status oder Sentinel "cancelled"
+    const targets = [task, ...this.index.descendants(task.path)].filter((t) => !isTrashed(t.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "cancelled"; fm.cancelled = stamp; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = cancelId; fm.cancelled = stamp; });
     }
   }
 
@@ -963,7 +975,7 @@ export default class BeautyTasksPlugin extends Plugin {
   async restoreTask(task: Task): Promise<void> {
     // Symmetrisch zur Kaskaden-Abbrechen-Logik: die Aufgabe UND alle abgebrochenen
     // Unteraufgaben zurückholen, sonst blieben Kinder allein im Papierkorb liegen.
-    const targets = [task, ...this.index.descendants(task.path)].filter((tk) => tk.status === "cancelled");
+    const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });

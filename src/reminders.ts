@@ -1,4 +1,5 @@
 import { Task } from "./types";
+import { isDone, isTrashed } from "./statuses";
 import { t } from "./i18n";
 import { formatDateTime } from "./format";
 
@@ -52,7 +53,7 @@ export function formatReminder(raw: string): string {
  * - Recurrence „gratis": rückt due nach vorn, ändert sich fireAt automatisch mit.
  */
 export function resolveReminders(task: Task): ResolvedReminder[] {
-  if (task.status === "done" || task.status === "cancelled") return [];
+  if (isDone(task.status) || isTrashed(task.status)) return [];
   const out: ResolvedReminder[] = [];
   for (const raw of task.reminders ?? []) {
     const p = parseReminder(raw);

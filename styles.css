@@ -1437,3 +1437,10 @@ body {
 }
 .bt-chip-surface-tabs button:hover { color: var(--text-normal); background: transparent; box-shadow: none; }
 .bt-chip-surface-tabs button.is-active { color: var(--text-accent); border-bottom-color: var(--interactive-accent); font-weight: var(--font-semibold); }
+
+/* Status-Editor: Rollen-Badge („Neue Aufgaben" · „Beim Erledigen" · „Papierkorb") */
+.bt-view .bt-status-role {
+  font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-muted); background: var(--background-modifier-border);
+  border-radius: 4px; padding: 1px 6px; flex-shrink: 0; white-space: nowrap;
+}

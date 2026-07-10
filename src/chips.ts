@@ -7,7 +7,7 @@ import { App, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus, ChipId, ChipTier, ChipSurface, ChipProfile, CHIP_IDS, BeautyTasksSettings } from "./types";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
-import { boardStatuses, statusLabel, statusIcon, statusTint, firstOpenStatus } from "./statuses";
+import { boardStatuses, statusLabel, statusIcon, statusTint, firstOpenStatus, isTrashed } from "./statuses";
 import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { openPopover, popRow } from "./popover";
@@ -245,7 +245,7 @@ function openParent(host: ChipHost): void {
     exclude.add(host.existingPath);
     for (const d of host.plugin.index.descendants(host.existingPath)) exclude.add(d.path);
   }
-  const items = host.plugin.index.all().filter((tk) => tk.status !== "cancelled" && !exclude.has(tk.path));
+  const items = host.plugin.index.all().filter((tk) => !isTrashed(tk.status) && !exclude.has(tk.path));
   new TaskPickerModal(host.app, items, t("pick_parent"), (parent) => {
     host.f.parent = baseName(parent.path);
     host.onParentPicked?.(parent.project ? baseName(parent.project) : null);   // Projekt erben (wie „+ Subtask")
