@@ -1,6 +1,6 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
-import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
+import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -297,10 +297,10 @@ export default class BeautyTasksPlugin extends Plugin {
   async revealTask(task: Task): Promise<void> {
     this.flashPath = task.path;
     this.flashScrolled = false;
-    if (task.status === "done") this.doneCollapsed = false;   // Erledigt-Sektion aufklappen, sonst ist die Zeile verborgen
+    if (isDone(task.status)) this.doneCollapsed = false;   // Erledigt-Sektion aufklappen, sonst ist die Zeile verborgen
     if (task.project) {
       await this.activateProject(task.project);
-    } else if (task.status === "done") {
+    } else if (isDone(task.status)) {
       await this.activateView("erledigt");
     } else if (task.due && task.due <= todayStr()) {
       await this.activateView("heute");
@@ -727,25 +727,30 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Wie viele Aufgaben tragen diesen Status (für Löschen-Umzug/Anzeige). */
   statusTaskCount(id: string): number { return this.index.all().filter((tk) => tk.status === id).length; }
 
-  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. */
+  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. Vorher die
+   *  Pflicht-Kategorien erzwingen (einziger Choke-Point aller Status-Mutationen). */
   private async commitStatuses(): Promise<void> {
+    this.settings.statuses = ensureStatusInvariants(this.statusList());
     initStatuses(this.settings.statuses);
     await this.saveSettings();
     this.index.build();
     this.renderAll();
   }
 
-  async addStatus(label: string): Promise<void> {
+  async addStatus(label: string, kind: StatusKind = "open"): Promise<void> {
     const name = label.trim();
     if (!name) return;
+    if (kind === "cancelled") { new Notice(t("status_only_one_trash")); return; }   // Papierkorb = genau 1
     const list = this.statusList();
     const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "status";
     let id = base, n = 2;
     while (list.some((s) => s.id === id)) id = base + "-" + n++;
-    const entry: StoredStatus = { id, label: name, kind: "open", icon: "circle" };
-    // vor dem cancelled-Status einsortieren, damit der Papierkorb-Status hinten bleibt.
-    const cancelAt = list.findIndex((s) => s.kind === "cancelled");
-    if (cancelAt >= 0) list.splice(cancelAt, 0, entry); else list.push(entry);
+    const entry: StoredStatus = { id, label: name, kind, icon: kind === "done" ? "check-circle" : "circle" };
+    // Ans Ende der eigenen Kategorie einsortieren (offen … · erledigt … · danach Papierkorb).
+    let last = -1;
+    for (let i = 0; i < list.length; i++) if (list[i].kind === kind) last = i;
+    if (last >= 0) list.splice(last + 1, 0, entry);
+    else { const cx = list.findIndex((s) => s.kind === "cancelled"); if (cx >= 0) list.splice(cx, 0, entry); else list.push(entry); }
     await this.commitStatuses();
   }
 
@@ -763,7 +768,10 @@ export default class BeautyTasksPlugin extends Plugin {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
-    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
+    // Ziel „Papierkorb": genau 1 erlaubt -> nur, wenn noch keiner existiert.
+    if (kind === "cancelled" && list.some((x) => x.kind === "cancelled")) { new Notice(t("status_only_one_trash")); return; }
+    // Quelle darf nicht die letzte ihrer Pflicht-Kategorie sein (sonst bliebe sie leer).
+    if (list.filter((x) => x.kind === s.kind).length <= 1) { new Notice(t("status_need_kind")); return; }
     s.kind = kind;
     await this.commitStatuses();
   }
@@ -791,17 +799,36 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.commitStatuses();
   }
 
+  /** Volle Status-Reihenfolge setzen (Drag&Drop-Sortierung im Status-Editor). Nicht genannte
+   *  Ids werden ans Ende gehängt (Sicherheitsnetz), damit keine Definition verloren geht. */
+  async setStatusOrder(ids: string[]): Promise<void> {
+    const list = this.statusList();
+    const byId = new Map(list.map((s) => [s.id, s]));
+    const next = ids.map((id) => byId.get(id)).filter((s): s is StoredStatus => !!s);
+    for (const s of list) if (!ids.includes(s.id)) next.push(s);
+    this.settings.statuses = next;
+    await this.commitStatuses();
+  }
+
+  /** Alle Status auf die eingebauten Defaults zurücksetzen (To-Do · In Arbeit · Erledigt · Papierkorb).
+   *  Aufgaben mit eigenen, dann nicht mehr existierenden Status-IDs werden vom Index auf die erste
+   *  offene Phase abgebildet (nicht-destruktiv am Frontmatter). */
+  async resetStatuses(): Promise<void> {
+    this.settings.statuses = DEFAULT_STATUSES.map((s) => ({ ...s }));
+    await this.commitStatuses();
+  }
+
   /** Status löschen: Aufgaben darauf werden auf einen gleichartigen Ersatz umgezogen (statt
-   *  zu verwaisen). Leitplanken: mind. 1 „erledigt" und 1 „offen" müssen bestehen bleiben. */
+   *  zu verwaisen). Leitplanken: mind. 1 je Kategorie (offen · erledigt · Papierkorb). */
   async deleteStatus(id: string): Promise<void> {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);
     if (!s) return;
-    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
-    if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) { new Notice(t("status_need_open")); return; }
+    // Pflicht-Kategorie darf nie leer werden -> letzten offen/erledigt/abgebrochen nicht löschbar.
+    if (list.filter((x) => x.kind === s.kind).length <= 1) { new Notice(t("status_need_kind")); return; }
     // Ersatz gleicher Art (sonst irgendein offener), aber nie der zu löschende selbst.
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id
-      ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? "todo";
+      ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
@@ -952,10 +979,11 @@ export default class BeautyTasksPlugin extends Plugin {
     // am selben Tag gelöschten Aufgaben denselben Sortierwert und der Papierkorb fiele bei
     // Gleichstand auf die Datei-Reihenfolge zurück. Für die Kaskade EIN Stempel (Gruppe bleibt zusammen).
     const stamp = localStamp();
-    const targets = [task, ...this.index.descendants(task.path)].filter((t) => t.status !== "cancelled");
+    const cancelId = firstCancelledStatus();   // definierter Abgebrochen-Status oder Sentinel "cancelled"
+    const targets = [task, ...this.index.descendants(task.path)].filter((t) => !isTrashed(t.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "cancelled"; fm.cancelled = stamp; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = cancelId; fm.cancelled = stamp; });
     }
   }
 
@@ -963,10 +991,10 @@ export default class BeautyTasksPlugin extends Plugin {
   async restoreTask(task: Task): Promise<void> {
     // Symmetrisch zur Kaskaden-Abbrechen-Logik: die Aufgabe UND alle abgebrochenen
     // Unteraufgaben zurückholen, sonst blieben Kinder allein im Papierkorb liegen.
-    const targets = [task, ...this.index.descendants(task.path)].filter((tk) => tk.status === "cancelled");
+    const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "todo"; delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });
     }
     new Notice(t("msg_restored", task.title));
   }
@@ -983,7 +1011,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!items.length) { new Notice(t("report_trash_empty_restore")); return; }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = "todo"; delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });
     }
     new Notice(t("report_tasks_restored", items.length));
   }
@@ -1002,12 +1030,22 @@ export default class BeautyTasksPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<BeautyTasksSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    // Migration: früheres globales chipOrder/chipTiers -> Editor-Profil (Flächen ab jetzt getrennt).
+    const legacy = (saved ?? {}) as Record<string, unknown>;
+    if ((legacy.chipOrder || legacy.chipTiers) && !this.settings.chipProfiles) {
+      this.settings.chipProfiles = {
+        editor: { order: legacy.chipOrder as ChipId[] | undefined, tiers: legacy.chipTiers as Partial<Record<ChipId, ChipTier>> | undefined },
+      };
+    }
     // Kompakt-Modus (nur Chip-Icons) auf Mobile standardmäßig an – aber nur, wenn der Nutzer
     // die Einstellung noch nie selbst gesetzt hat (frische Installation). Manuelles Umschalten
     // in den Einstellungen bleibt danach erhalten.
     if (saved?.chipsIconsOnly === undefined && Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
+    // Pflicht-Kategorien garantieren (offen/erledigt/abgebrochen), self-healing – z. B. re-added
+    // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
+    this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }

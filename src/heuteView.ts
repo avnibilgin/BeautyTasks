@@ -14,7 +14,7 @@ import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manag
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
 import { PRIOS } from "./taskModal";
-import { isOpen, isDone, isCancelled, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
+import { isOpen, isDone, isTrashed, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
 // Transienter Zustand während eines Kanban-Drags: Pfad der Karte + ID der Quell-Spalte
@@ -490,7 +490,7 @@ function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> 
   const walk = (tk: Task): void => {
     if (present.has(tk.path)) return;
     present.add(tk.path);
-    for (const kid of plugin.index.children(tk.path)) if (!isCancelled(kid.status)) walk(kid);
+    for (const kid of plugin.index.children(tk.path)) if (!isTrashed(kid.status)) walk(kid);
   };
   for (const a of anchors) walk(a);
   return present;
@@ -667,7 +667,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
   // und nicht im flachen Kanban-Kartenmodus.
   if (!trash && !opts.flat) for (const kid of plugin.index.children(task.path)) {
-    if (!isCancelled(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
+    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
   }
 }
 

@@ -2,7 +2,7 @@ import { App, Component, TFile } from "obsidian";
 import { Task, Priority } from "./types";
 import { splitContent } from "./detailLog";
 import { archivedProjectNames } from "./taskService";
-import { isKnownStatus, isOpen } from "./statuses";
+import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -114,7 +114,11 @@ export class TaskIndex extends Component {
       path: f.path,
       // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
       title: cache?.headings?.[0]?.heading ?? f.basename,
-      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status : "todo",
+      // Unbekannter/leerer Status -> erste offene Phase, damit die Aufgabe sichtbar bleibt (statt
+      // Status-Limbo). Ausnahme: der reservierte Sentinel "cancelled" bleibt erhalten, sonst würden
+      // abgebrochene Aufgaben ohne definierten Abgebrochen-Status wieder als aktiv auftauchen.
+      status: typeof fm.status === "string" && isKnownStatus(fm.status) ? fm.status
+        : fm.status === "cancelled" ? "cancelled" : firstOpenStatus(),
       priority: (typeof fm.priority === "string" && PRIO.has(fm.priority) ? fm.priority : "normal") as Priority,
       due: asDate(fm.due),
       dueTime: asTime(fm.due),
@@ -164,12 +168,12 @@ export class TaskIndex extends Component {
     return this.open().filter((t) => !!t.due && t.due > today).sort((a, b) => a.due!.localeCompare(b.due!));
   }
   done(): Task[] {
-    return this.all().filter((t) => t.status === "done")
+    return this.all().filter((t) => isDone(t.status))
       .sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   }
   /** Abgebrochene Aufgaben (Papierkorb), neueste zuerst. */
   cancelled(): Task[] {
-    return this.all().filter((t) => t.status === "cancelled")
+    return this.all().filter((t) => isTrashed(t.status))
       .sort((a, b) => (b.cancelled ?? "").localeCompare(a.cancelled ?? ""));
   }
   byProject(path: string): Task[] {

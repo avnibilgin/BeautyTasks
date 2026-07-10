@@ -1,43 +1,22 @@
-import { Modal, TFile, Notice, setIcon, normalizePath, MarkdownRenderer, Component, FuzzySuggestModal, Menu, Platform } from "obsidian";
+import { Modal, TFile, Notice, setIcon, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task, Priority, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, slugify, todayIso, ensureFolder, TaskFields } from "./taskService";
-import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
+import { Task, TaskStatus } from "./types";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, TaskFields } from "./taskService";
+import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
-import { boardStatuses, statusLabel, statusIcon, statusTint } from "./statuses";
-import { openDatePicker } from "./datePicker";
-import { formatReminder } from "./reminders";
 import { parseQuickEntry } from "./quickEntry";
-import { LogEntry, readLog, writeLog, readDescription, writeDescription, nowLogTs, formatLogTime } from "./detailLog";
-import { TaskPickerModal } from "./searchModal";
+import { readLog, readDescription, writeDescription } from "./detailLog";
+import { DetailLogView } from "./detailLogView";
+import { firstOpenStatus } from "./statuses";
+import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
+
+// PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
+// damit bestehende Importe (filterModal, quickAddModal) unverändert bleiben.
+export { PRIOS, PRIO_KEY };
 
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
 const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
-
-// 4 Stufen (P1 rot / P2 orange / P3 blau / P4 = ohne). Label-Keys via t().
-export const PRIOS: { value: Priority; key: string; color: string }[] = [
-  { value: "highest", key: "prio_1", color: "#ef4444" },
-  { value: "high", key: "prio_2", color: "#f59e0b" },
-  { value: "medium", key: "prio_3", color: "#3b82f6" },
-  { value: "normal", key: "prio_4", color: "#9ca3af" },
-];
-export const PRIO_KEY: Record<Priority, string> = {
-  highest: "prio_1", high: "prio_2", medium: "prio_3", normal: "prio_4", low: "prio_4", lowest: "prio_4",
-};
-
-const RECUR: { key: string; val: string }[] = [
-  { key: "recur_daily", val: "every day" },
-  { key: "recur_weekly", val: "every week" },
-  { key: "recur_monthly", val: "every month" },
-  { key: "recur_quarterly", val: "every 3 months" },
-  { key: "recur_yearly", val: "every year" },
-];
-const recurLabel = (v: string, basis?: "due" | "done"): string => {
-  const r = RECUR.find((x) => x.val === v);
-  const base = r ? t(r.key) : v;
-  return basis === "done" ? base + " · " + t("recur_when_done") : base;
-};
 
 /** Aufgaben-Modal im Todoist-Stil – 1:1 zu BeautyTasks (randloser Titel, Chip-Reihe,
  *  Projekt-Picker, CTA). Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
@@ -50,10 +29,7 @@ export class TaskModal extends Modal {
   private detailsWrap!: HTMLElement;
   private logWrap!: HTMLElement;
   private detailsChip?: HTMLElement;   // Büroklammer-Chip, der die Detail-Sektion toggelt
-  private logInput: HTMLTextAreaElement | null = null;
-  private logComp: Component | null = null;
-  private logEntries: LogEntry[] = [];
-  private persistChain: Promise<void> = Promise.resolve();
+  private log!: DetailLogView;         // Kommentar-Log (gemeinsame Komponente)
   private duePinned = false;          // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
   private cleanTitle = "";            // Titel ohne erkannte Datum-/Label-Token
   private parsedLabels: string[] = []; // aktuell aus dem Titel geparste #Labels (wird bei jedem Parse ersetzt)
@@ -63,8 +39,9 @@ export class TaskModal extends Modal {
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean } = {}) {
     super(plugin.app);
+    const seed = opts.seed;
     this.f = existing
       ? {
           title: existing.title, status: existing.status, due: existing.due, dueTime: existing.dueTime,
@@ -75,7 +52,21 @@ export class TaskModal extends Modal {
           labels: [...existing.labels],
           reminders: [...(existing.reminders ?? [])],
         }
-      : { title: opts.defaultTitle ?? "", status: opts.defaultStatus, priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+      // Neu: Basis + optionaler Seed (z. B. aus der Schnelleingabe, ⤢ „Voller Editor" – übernimmt
+      // alle bereits gesetzten Chips). Explizit, damit reminders sicher string[] bleibt.
+      : {
+          title: opts.defaultTitle ?? "",
+          status: seed?.status ?? opts.defaultStatus,
+          priority: seed?.priority ?? "normal",
+          labels: seed?.labels ? [...seed.labels] : (opts.defaultLabel ? [opts.defaultLabel] : []),
+          reminders: seed?.reminders ? [...seed.reminders] : [],
+          due: seed?.due ?? (opts.defaultToday ? todayIso() : null),
+          dueTime: seed?.dueTime ?? null, duration: seed?.duration ?? null,
+          scheduled: seed?.scheduled ?? null, scheduledTime: seed?.scheduledTime ?? null,
+          recurrence: seed?.recurrence ?? null, recurBasis: seed?.recurBasis ?? "due",
+          parent: seed?.parent ?? null, description: seed?.description,
+          project: defaultProject ?? "Inbox",
+        };
   }
 
   onOpen(): void {
@@ -106,10 +97,16 @@ export class TaskModal extends Modal {
     // seinen Offen/Zu-Zustand aus logWrap lesen kann.
     this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
     this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
+    this.log = new DetailLogView(this.app, this.plugin, {
+      srcPath: () => this.logSrc(),
+      file: () => this.existingFile(),
+      reveal: () => { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); },
+      close: () => this.close(),
+    });
 
     this.applyParse();
     this.renderChips();
-    this.renderDetailLog();
+    this.log.mount(this.logWrap);
     this.syncDetails();
     // Bestehende Aufgabe: Log aus dem Notiz-Body laden, bei Inhalt direkt aufgeklappt.
     if (this.existing) {
@@ -121,12 +118,18 @@ export class TaskModal extends Modal {
           if (this.descInput) { this.descInput.value = d; this.growDesc(); }
         });
         void readLog(this.app, file).then((entries) => {
-          this.logEntries = entries;
+          this.log.setEntries(entries);
           if (entries.length) this.logWrap.removeClass("bt-hidden");
-          this.renderDetailLog();
+          this.log.render();
           this.syncDetails();
         });
       }
+    }
+    // Aus der Schnelleingabe über den Details-Chip geöffnet: Detailbereich direkt aufklappen.
+    if (this.opts.openDetails) {
+      this.logWrap.removeClass("bt-hidden");
+      this.syncDetails();
+      window.setTimeout(() => this.log.focusComposer(), 0);
     }
 
     // Fußzeile: Projekt-Picker links, Buttons rechts. Im Unteraufgaben-Modus
@@ -151,7 +154,7 @@ export class TaskModal extends Modal {
     // Auto-Speichern beim Wegklicken / Esc / X (nur mit Titel). „Cancel" verwirft bewusst.
     // persist() ist gegen Doppel-Schreiben geschützt (this.persisted) und braucht kein DOM.
     if (!this.discarding) void this.persist();
-    this.logComp?.unload();
+    this.log?.unload();
     this.contentEl.empty();
   }
 
@@ -180,144 +183,88 @@ export class TaskModal extends Modal {
   }
 
   // ── Chips ──
+  /** Brücke Modal ⇄ Chip-Registry: Feldzustand + host-spezifische Callbacks. */
+  private chipHost(): ChipHost {
+    return {
+      plugin: this.plugin,
+      app: this.app,
+      f: this.f,
+      surface: "editor",
+      rerender: () => this.renderChips(),
+      compactLabels: false,
+      iconsOnly: this.plugin.settings.chipsIconsOnly,
+      applyStatus: (s) => void this.applyStatus(s),
+      pinDue: () => { this.duePinned = true; },
+      existingPath: this.existing?.path,
+      onParentPicked: (proj) => { if (proj) this.f.project = proj; if (!this.opts.hideProjekt) this.renderProjekt(); },
+      toggleDetails: () => this.toggleDetails(),
+      detailsOpen: () => !this.logWrap.hasClass("bt-hidden"),
+      // Elternaufgaben-Chip im festen „+ Subtask"-Modus (opts.parent) ausblenden – Parent steht fest.
+      chipEnabled: (id) => id === "parent" ? !this.opts.parent : true,
+    };
+  }
+
   private renderChips(): void {
     const bar = this.chipBar; bar.empty();
-
-    // Status-Chip ganz vorne: zeigt den aktuellen Status (auch im Modal sichtbar) und öffnet
-    // die Auswahl. Kein „x" – Status ist nie leer. Immer als is-set (Label bleibt sichtbar).
-    const cur = this.f.status ?? "todo";
-    const statusChip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
-    const sic = statusChip.createSpan({ cls: "bt-chip-ic" });
-    setIcon(sic, statusIcon(cur));
-    sic.style.color = statusTint(cur);
-    statusChip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
-    statusChip.onclick = (e) => { e.stopPropagation(); this.openStatus(statusChip); };
-
-    this.addChip(bar, "calendar", this.f.due ? formatDateTime(combineDT(this.f.due, this.f.dueTime)) + (this.f.duration ? " · " + formatDuration(this.f.duration) : "") : t("chip_date"), !!this.f.due,
-      (el) => this.openDate(el, "due"), () => { this.f.due = null; this.f.dueTime = null; this.f.duration = null; this.duePinned = true; this.renderChips(); });
-    this.addChip(bar, "flag", this.f.priority && this.f.priority !== "normal" ? t(PRIO_KEY[this.f.priority]) : t("chip_priority"),
-      !!this.f.priority && this.f.priority !== "normal",
-      (el) => this.openPrio(el), () => { this.f.priority = "normal"; this.renderChips(); });
-    this.addChip(bar, "hash", (this.f.labels && this.f.labels.length) ? this.f.labels : t("chip_label"), !!(this.f.labels && this.f.labels.length),
-      (el) => this.openLabels(el), () => { this.f.labels = []; this.renderChips(); });
-    this.addChip(bar, "refresh-ccw", this.f.recurrence ? recurLabel(this.f.recurrence, this.f.recurBasis) : t("chip_recurrence"), !!this.f.recurrence,
-      (el) => this.openRecur(el), () => { this.f.recurrence = null; this.renderChips(); });
-    this.addChip(bar, "clock", this.f.scheduled ? formatDateTime(combineDT(this.f.scheduled, this.f.scheduledTime)) : t("chip_deadline"), !!this.f.scheduled,
-      (el) => this.openDate(el, "scheduled"), () => { this.f.scheduled = null; this.f.scheduledTime = null; this.renderChips(); });
-    this.addChip(bar, "alarm-clock", this.reminderChipLabel(), this.f.reminders.length > 0,
-      (el) => this.openReminders(el), () => { this.f.reminders = []; this.renderChips(); });
-    // Elternaufgabe (macht diese Aufgabe zur Unteraufgabe). Im festen „+ Subtask"-Modus
-    // (opts.parent) ausgeblendet – dort steht der Parent bereits fest.
-    if (!this.opts.parent) {
-      this.addChip(bar, "corner-down-right", this.parentTitle() ?? t("chip_parent"), !!this.f.parent,
-        () => this.openParent(), () => { this.f.parent = null; this.renderChips(); },
-        { truncate: !!this.f.parent });
+    const host = this.chipHost();
+    const settings = this.plugin.settings;
+    // Reihenfolge + Sichtbarkeit aus den Einstellungen (chipOrder/chipTiers): shown = immer,
+    // onValue = nur mit Wert, hidden = nie (nur über „+"). Gesetzte Werte bleiben immer sichtbar.
+    for (const id of resolveChipOrder(settings, host.surface)) {
+      const c = CHIPS[id];
+      if (host.chipEnabled && !host.chipEnabled(id)) continue;
+      const set = c.isSet(this.f, host);
+      if (!isInline(settings, host.surface, id, set)) continue;
+      if (c.kind === "status") renderStatusChip(bar, host, c);
+      else if (c.kind === "details") this.renderDetailsChip(bar);
+      else renderValueChip(bar, host, c, set);
     }
-
-    // Details-Chip (Büroklammer): toggelt die Detail-Sektion – ersetzt die frühere
-    // "+ Details"-Zeile. Kein Wert-Chip → Offen-Zustand über .is-open (nicht .is-set),
-    // damit er auch im Icon-only-Modus stets kompakt bleibt.
-    const detailsOpen = !this.logWrap.hasClass("bt-hidden");
-    const details = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (detailsOpen ? " is-open" : "") });
-    if (this.plugin.settings.chipsIconsOnly) { details.setAttribute("aria-label", t("details")); details.setAttribute("data-tooltip-position", "top"); }
-    const dIc = details.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
-    details.createSpan({ cls: "bt-chip-lbl", text: t("details") });
-    details.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
-    this.detailsChip = details;
-
-    // „+"-Aktionsmenü ganz rechts (nur im Edit-Modus): weitere Aktionen zur Aufgabe –
-    // aktuell „Unteraufgabe erstellen" + „Löschen", bewusst erweiterbar. Neue Aufgabe hat
-    // (noch) keine Aktionen → kein Button.
-    if (this.existing) {
-      const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions", attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
-      setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
-      acts.onclick = (e) => { e.stopPropagation(); this.openActionsMenu(acts); };
-    }
+    // „+"-Chip ganz rechts: „Weitere Aktionen" (ausgeblendete Chips) + (Edit) Aufgabenaktionen +
+    // „Aufgabenaktionen bearbeiten". Immer sichtbar; has-set = Badge, wenn Ausgeblendete Werte tragen.
+    const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : ""), attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
+    setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
+    acts.onclick = (e) => { e.stopPropagation(); this.openPlusMenu(acts); };
   }
 
-  /** Chip-Text für Erinnerungen: 0 → „Erinnerung", 1 → deren Text, n → „n Erinnerungen". */
-  private reminderChipLabel(): string {
-    const n = this.f.reminders.length;
-    if (n === 0) return t("chip_reminder");
-    if (n === 1) return formatReminder(this.f.reminders[0]);
-    return t("rem_count", n);
+  /** Details-Chip (Büroklammer): toggelt die Kommentar-/Detail-Sektion (is-open statt is-set). */
+  private renderDetailsChip(bar: HTMLElement): void {
+    const open = !this.logWrap.hasClass("bt-hidden");
+    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : "") });
+    if (this.plugin.settings.chipsIconsOnly) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
+    const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
+    chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
+    chip.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
+    this.detailsChip = chip;
   }
 
-  /** Erinnerungs-Popover (Todoist-Stil): bestehende Liste mit ×, relative Presets
-   *  („Vor der Aufgabe", nur mit Uhrzeit) und ein absoluter „Datum & Uhrzeit"-Eintrag. */
-  private openReminders(anchor: HTMLElement): void {
-    const PRESETS = ["-0m", "-10m", "-30m", "-1h", "-1d"];   // Zeitpunkt, 10 min, 30 min, 1 Std, 1 Tag
+  /** „+"-Popover: „Weitere Aktionen" (ausgeblendete Chips, mit Umrandung + Wert-Vorschau),
+   *  im Edit-Modus zusätzlich die Aufgabenaktionen; unten immer „Aufgabenaktionen bearbeiten". */
+  private openPlusMenu(anchor: HTMLElement): void {
+    const host = this.chipHost();
     openPopover(anchor, (pop, close) => {
-      pop.addClass("bt-rem");
-      const add = (raw: string) => {
-        if (!this.f.reminders.includes(raw)) this.f.reminders = [...this.f.reminders, raw];
-        this.renderChips();
+      pop.addClass("bt-plus");
+      const row = (icon: string, label: string, fn: () => void, danger = false): void => {
+        const r = popRow(pop, icon, label, () => { close(); fn(); });
+        if (danger) r.addClass("bt-row-danger");
       };
-      const render = () => {
-        pop.empty();
-        pop.createDiv({ cls: "bt-pop-head", text: t("reminders_title") });
-
-        // Bestehende Erinnerungen mit Entfernen-×.
-        for (const raw of this.f.reminders) {
-          const row = pop.createDiv({ cls: "bt-row bt-rem-item" });
-          const ic = row.createSpan({ cls: "bt-row-ic" }); setIcon(ic, "alarm-clock");
-          row.createSpan({ cls: "bt-row-lbl", text: formatReminder(raw) });
-          const x = row.createSpan({ cls: "bt-rem-x" }); setIcon(x, "x");
-          x.onclick = (e) => { e.stopPropagation(); this.f.reminders = this.f.reminders.filter((r) => r !== raw); this.renderChips(); render(); };
-        }
-        if (this.f.reminders.length) pop.createDiv({ cls: "bt-rem-sep" });
-
-        // „Vor der Aufgabe" (relativ) – braucht eine Uhrzeit an der Fälligkeit.
-        pop.createDiv({ cls: "bt-pop-sub", text: t("rem_tab_relative") });
-        if (!this.f.dueTime) {
-          pop.createDiv({ cls: "bt-rem-hint", text: t("rem_need_time") });
-        } else {
-          for (const raw of PRESETS) {
-            const row = popRow(pop, "clock", formatReminder(raw), () => { add(raw); render(); });
-            if (this.f.reminders.includes(raw)) row.addClass("is-disabled");
-          }
-        }
-
-        // „Datum & Uhrzeit" (absolut) – öffnet den vorhandenen Date-Picker.
-        pop.createDiv({ cls: "bt-rem-sep" });
-        popRow(pop, "calendar-clock", t("rem_tab_absolute"), () => {
-          close();
-          openDatePicker(anchor, "", (iso) => { if (iso) add(iso); });
-        });
-      };
-      render();
+      let any = renderPlusChips(pop, host, anchor, close);
+      if (this.existing) {
+        if (any) pop.createDiv({ cls: "bt-plus-sep" });
+        row("corner-down-right", t("menu_create_subtask"), () => this.addSubtask());
+        if (this.parentTask()) row("corner-left-up", t("menu_show_parent"), () => this.showParent());
+        row("copy", t("menu_duplicate"), () => void this.duplicate());
+        pop.createDiv({ cls: "bt-plus-sep" });
+        row("link", t("menu_copy_link"), () => this.copyLink());
+        row("file-text", t("menu_open_obsidian"), () => this.openInObsidian());
+        if (!Platform.isMobile) row("external-link", t("menu_open_editor"), () => this.openInEditor());
+        if (!Platform.isMobile) { pop.createDiv({ cls: "bt-plus-sep" }); row("printer", t("menu_print"), () => this.printTask()); }
+        pop.createDiv({ cls: "bt-plus-sep" });
+        row("trash-2", t("btn_delete"), () => void this.remove(), true);
+        any = true;
+      }
+      if (any) pop.createDiv({ cls: "bt-plus-sep" });
+      popRow(pop, "sliders-horizontal", t("edit_task_actions"), () => { close(); openChipSettings(this.app); });
     });
-  }
-
-  /** „+"-Aktionsmenü zur Aufgabe (Edit-Modus), thematisch gruppiert mit Trennlinien. */
-  private openActionsMenu(anchor: HTMLElement): void {
-    const menu = new Menu();
-    // Erstellen/Bearbeiten
-    menu.addItem((i) => i.setTitle(t("menu_create_subtask")).setIcon("corner-down-right").onClick(() => this.addSubtask()));
-    // „Übergeordnete Aufgabe anzeigen" nur bei Unteraufgaben (Elternaufgabe im Index vorhanden).
-    if (this.parentTask()) {
-      menu.addItem((i) => i.setTitle(t("menu_show_parent")).setIcon("corner-left-up").onClick(() => this.showParent()));
-    }
-    menu.addItem((i) => i.setTitle(t("menu_duplicate")).setIcon("copy").onClick(() => void this.duplicate()));
-    menu.addSeparator();
-    // Öffnen/Teilen
-    menu.addItem((i) => i.setTitle(t("menu_copy_link")).setIcon("link").onClick(() => this.copyLink()));
-    menu.addItem((i) => i.setTitle(t("menu_open_obsidian")).setIcon("file-text").onClick(() => this.openInObsidian()));
-    // „Im Editor öffnen" nutzt openWithDefaultApp (Desktop-only) – auf Mobile funktionslos.
-    if (!Platform.isMobile) {
-      menu.addItem((i) => i.setTitle(t("menu_open_editor")).setIcon("external-link").onClick(() => this.openInEditor()));
-    }
-    // Drucken: Obsidian Mobile hat keinen Druck (Webview) – Menüpunkt dort ausblenden.
-    if (!Platform.isMobile) {
-      menu.addSeparator();
-      // Ausgabe
-      menu.addItem((i) => i.setTitle(t("menu_print")).setIcon("printer").onClick(() => this.printTask()));
-    }
-    menu.addSeparator();
-    // Gefährlich
-    menu.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove()));
-    const r = anchor.getBoundingClientRect();
-    menu.showAtPosition({ x: r.left, y: r.bottom + 4 });
   }
 
   /** Aufgabe duplizieren: aktuellen Stand sichern und als neue Aufgabe („(Kopie)") anlegen. */
@@ -326,10 +273,10 @@ export class TaskModal extends Modal {
     if (!title) { new Notice(t("err_enter_taskname")); return; }
     await this.persist();   // laufende Bearbeitung sichern, bevor kopiert wird
     const file = await createTaskNote(this.app, this.plugin.settings, {
-      ...this.f, title: title + " " + t("copy_suffix"), status: "todo",
+      ...this.f, title: title + " " + t("copy_suffix"), status: firstOpenStatus(),
       parent: this.f.parent ?? this.opts.parent ?? null,
     });
-    if (this.logEntries.length) await writeLog(this.app, file, this.logEntries);
+    await this.log.flush(file);
     new Notice(t("msg_duplicated"));
     this.close();
   }
@@ -400,7 +347,7 @@ export class TaskModal extends Modal {
   private toggleDetails(): void {
     const willOpen = this.logWrap.hasClass("bt-hidden");
     this.logWrap.toggleClass("bt-hidden", !willOpen);
-    if (willOpen) window.setTimeout(() => this.logInput?.focus(), 0);
+    if (willOpen) window.setTimeout(() => this.log.focusComposer(), 0);
     this.syncDetails();
   }
 
@@ -419,12 +366,6 @@ export class TaskModal extends Modal {
     return this.plugin.index.all().find((tk) => baseName(tk.path) === this.f.parent) ?? null;
   }
 
-  /** Titel der aktuell gewählten Elternaufgabe (für das Chip-Label) oder null. */
-  private parentTitle(): string | null {
-    if (!this.f.parent) return null;
-    return this.parentTask()?.title ?? this.f.parent;
-  }
-
   /** Elternaufgabe in ihrer Liste anzeigen (wie die Lupe in der Suche: hinspringen + kurz
    *  hervorheben). Modal schließen, damit die hervorgehobene Zeile sichtbar wird. */
   private showParent(): void {
@@ -434,151 +375,12 @@ export class TaskModal extends Modal {
     void this.plugin.revealTask(parent);
   }
 
-  /** Aufgaben-Picker öffnen und die gewählte Aufgabe als Elternaufgabe setzen. Sich selbst
-   *  und alle Nachfahren ausschließen (kein Zyklus); Projekt vom Parent übernehmen. */
-  private openParent(): void {
-    const exclude = new Set<string>();
-    if (this.existing) {
-      exclude.add(this.existing.path);
-      for (const d of this.plugin.index.descendants(this.existing.path)) exclude.add(d.path);
-    }
-    const items = this.plugin.index.all().filter((tk) => tk.status !== "cancelled" && !exclude.has(tk.path));
-    new TaskPickerModal(this.app, items, t("pick_parent"), (parent) => {
-      this.f.parent = baseName(parent.path);
-      if (parent.project) this.f.project = baseName(parent.project);   // wie „+ Subtask": Projekt erben
-      this.renderChips();
-      if (!this.opts.hideProjekt) this.renderProjekt();
-    }).open();
-  }
-
-  private addChip(bar: HTMLElement, icon: string, label: string | string[], isSet: boolean,
-                  onClick: (el: HTMLElement) => void, onClear: () => void,
-                  opts: { truncate?: boolean } = {}): void {
-    const chip = bar.createEl("button", { cls: "bt-chip" + (isSet ? " is-set" : "") + (opts.truncate ? " bt-chip-truncate" : "") });
-    // Icon-only-Modus: leere (ungesetzte) Chips zeigen nur das Icon -> Tooltip mit dem Namen.
-    if (this.plugin.settings.chipsIconsOnly && !isSet) {
-      chip.setAttribute("aria-label", Array.isArray(label) ? label.join(", ") : label);
-      chip.setAttribute("data-tooltip-position", "top");
-    }
-    const ic = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(ic, icon);
-    const lbl = chip.createSpan({ cls: "bt-chip-lbl" });
-    // Das „#"-Chip-Icon signalisiert bereits „Label" -> im Text KEIN zweites „#" (sonst „# #wichtig").
-    if (Array.isArray(label)) label.forEach((p, i) => { if (i) lbl.createSpan({ cls: "bt-chip-sep", text: " | " }); lbl.appendText(p); });
-    else lbl.setText(label);
-    // Langer Elternname wird per CSS mit „…" gekürzt; den vollen Namen als Tooltip anbieten,
-    // aber nur wenn tatsächlich abgeschnitten wurde (scrollWidth > sichtbare Breite).
-    if (opts.truncate) {
-      const full = Array.isArray(label) ? label.join(", ") : label;
-      if (lbl.scrollWidth > lbl.clientWidth) {
-        chip.addClass("is-faded");                 // Fade-Maske am rechten Rand aktivieren
-        chip.setAttribute("aria-label", full);
-        chip.setAttribute("data-tooltip-position", "top");
-      }
-    }
-    chip.onclick = (e) => { e.stopPropagation(); onClick(chip); };
-    if (isSet) { const x = chip.createSpan({ cls: "bt-chip-x" }); setIcon(x, "x"); x.onclick = (e) => { e.stopPropagation(); onClear(); }; }
-  }
-
-  // ── Picker ──
-  private openDate(anchor: HTMLElement, field: "due" | "scheduled"): void {
-    const timeField = field === "due" ? "dueTime" : "scheduledTime";
-    const d = this.f[field];
-    const value = d ? combineDT(d, this.f[timeField]) : "";
-    // Dauer nur am Fälligkeits-Datum anbieten (= Event-Länge im Kalender).
-    const dur = field === "due"
-      ? { value: this.f.duration ?? null, onChange: (d: number | null) => { this.f.duration = d; this.renderChips(); } }
-      : undefined;
-    openDatePicker(anchor, value, (v) => {
-      this.f[field] = v ? dateOf(v) : null;
-      this.f[timeField] = v ? timeOf(v) : null;
-      if (field === "due") this.duePinned = true;
-      this.renderChips();
-    }, dur);
-  }
-
-  private openPrio(anchor: HTMLElement): void {
-    openPopover(anchor, (pop, close) => {
-      for (const p of PRIOS) {
-        popRow(pop, "flag", t(p.key), () => { this.f.priority = p.value; this.renderChips(); close(); }, this.f.priority === p.value, p.color);
-      }
-    });
-  }
-
-  /** Status-Popover (To-Do · In Arbeit · Erledigt). Abbrechen/Papierkorb läuft über das
-   *  „+"-Aktionsmenü, nicht hier – dieses Popover bleibt auf die Arbeits-Status beschränkt. */
-  private openStatus(anchor: HTMLElement): void {
-    openPopover(anchor, (pop, close) => {
-      for (const s of boardStatuses()) {
-        popRow(pop, statusIcon(s.id), statusLabel(s.id), () => { void this.applyStatus(s.id); close(); }, (this.f.status ?? "todo") === s.id);
-      }
-    });
-  }
-
   /** Status übernehmen. Bei bestehender Aufgabe live schreiben (setTaskStatus kümmert sich
    *  um Zeitstempel/Wiederholung); bei neuer Aufgabe fließt f.status beim Anlegen ein. */
   private async applyStatus(status: TaskStatus): Promise<void> {
     this.f.status = status;
     if (this.existing) { await this.plugin.setTaskStatus(this.existing, status); this.existing.status = status; }
     this.renderChips();
-  }
-
-  private openRecur(anchor: HTMLElement): void {
-    openPopover(anchor, (pop, close) => {
-      const render = () => {
-        pop.empty();
-        popRow(pop, "x", t("recur_none"), () => { this.f.recurrence = null; this.renderChips(); close(); }, !this.f.recurrence);
-        for (const r of RECUR) {
-          popRow(pop, "refresh-ccw", t(r.key), () => { this.f.recurrence = r.val; this.renderChips(); render(); }, this.f.recurrence === r.val);
-        }
-        // Basis-Schalter: nächstes Datum ab Fälligkeit (aus) oder ab Erledigung (an).
-        if (this.f.recurrence) {
-          pop.createDiv({ cls: "bt-pop-head", text: t("recur_basis") });
-          popRow(pop, this.f.recurBasis === "done" ? "check-circle-2" : "circle", t("recur_when_done"),
-            () => { this.f.recurBasis = this.f.recurBasis === "done" ? "due" : "done"; this.renderChips(); render(); },
-            this.f.recurBasis === "done");
-        }
-      };
-      render();
-    });
-  }
-
-  /** Label-Picker 1:1 zu BeautyTasks buildTagPicker: Eingabe oben (filtert + Enter legt
-   *  neu an), darunter Liste mit #-Icon, Name und rechtsbündiger Häkchen-Box. */
-  private openLabels(anchor: HTMLElement): void {
-    const known = [...new Set([...this.plugin.index.all().flatMap((task) => task.labels), ...this.plugin.settings.knownLabels])];
-    openPopover(anchor, (pop) => {
-      pop.addClass("bt-tags");
-      const add = pop.createEl("input", { type: "text", cls: "bt-tag-add", attr: { placeholder: t("placeholder_label") } });
-      const list = pop.createDiv({ cls: "bt-tag-list" });
-      const render = () => {
-        list.empty();
-        const f = add.value.trim().toLowerCase().replace(/^#/, "");
-        const all = [...new Set([...known, ...this.f.labels!])].sort((a, b) => a.localeCompare(b, "de"));
-        for (const tag of all) {
-          if (f && !tag.toLowerCase().includes(f)) continue;
-          const on = this.f.labels!.includes(tag);
-          const r = list.createDiv({ cls: "bt-row bt-tag-row" + (on ? " is-active" : "") });
-          const ic = r.createSpan({ cls: "bt-row-ic" }); setIcon(ic, "hash");
-          r.createSpan({ cls: "bt-row-lbl", text: tag });
-          const box = r.createSpan({ cls: "bt-tag-box" }); if (on) setIcon(box, "check");
-          r.onclick = () => {
-            this.f.labels = on ? this.f.labels!.filter((x) => x !== tag) : [...this.f.labels!, tag];
-            this.renderChips(); render();
-          };
-        }
-      };
-      render();
-      add.oninput = () => render();
-      add.onkeydown = (ev) => {
-        if (ev.key !== "Enter") return;
-        ev.preventDefault();
-        const slug = slugify(add.value).toLowerCase().replace(/\s+/g, "-");
-        if (!slug) return;
-        if (!this.f.labels!.includes(slug)) this.f.labels!.push(slug);
-        add.value = ""; this.renderChips(); render();
-      };
-      window.setTimeout(() => add.focus(), 0);
-    });
   }
 
   private renderProjekt(): void {
@@ -643,240 +445,14 @@ export class TaskModal extends Modal {
     new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase }).open();
   }
 
-  // ── Details: Kommentar-Log (Timeline + Composer) ──
+  // ── Details: Kommentar-Log (gemeinsame Komponente DetailLogView) ──
   private logSrc(): string { return this.existing?.path ?? this.plugin.settings.itemsFolder + "/_.md"; }
 
-  /** Timeline der Einträge (Zeitstempel + Markdown + Bearbeiten/Löschen) + Composer. */
-  private renderDetailLog(): void {
-    const wrap = this.logWrap; wrap.empty();
-    this.logComp?.unload();
-    this.logComp = new Component(); this.logComp.load();
-    const src = this.logSrc();
-    const list = wrap.createDiv({ cls: "bt-log-list" });
-    // Klicks in den gerenderten Kommentaren: Bilder öffnen die Lightbox, interne
-    // Links (Notizen/PDF) öffnen im Tab. MarkdownRenderer verdrahtet im Modal keine
-    // Navigation. Delegation am transienten `list` (bei jedem Re-Render neu erzeugt)
-    // → kein manuelles Cleanup, kein doppelter Listener.
-    list.addEventListener("click", (e) => {
-      if (!(e.target instanceof HTMLElement)) return;
-      const img = e.target.closest(".bt-log-content img");
-      if (img instanceof HTMLImageElement) {
-        e.preventDefault();
-        const imgs = Array.from(list.querySelectorAll<HTMLImageElement>(".bt-log-content img"));
-        this.openLightbox(imgs, imgs.indexOf(img));
-        return;
-      }
-      const link = e.target.closest("a.internal-link");
-      if (link) {
-        const href = link.getAttribute("data-href") || link.getAttribute("href");
-        if (href) { e.preventDefault(); void this.app.workspace.openLinkText(href, src, true); this.close(); }
-      }
-    });
-    this.logEntries.forEach((entry, idx) => {
-      const row = list.createDiv({ cls: "bt-log-entry" });
-      const head = row.createDiv({ cls: "bt-log-head" });
-      head.createDiv({ cls: "bt-log-ts", text: formatLogTime(entry.ts) || "—" });
-      const content = row.createDiv({ cls: "bt-log-content" });
-      this.renderEntry(content, entry, src);
-      const acts = head.createDiv({ cls: "bt-log-actions" });
-      const ed = acts.createEl("button", { cls: "bt-log-act", attr: { "aria-label": t("log_edit") } });
-      setIcon(ed.createSpan(), "pencil");
-      ed.onclick = () => this.editEntry(idx, content, src);
-      const del = acts.createEl("button", { cls: "bt-log-act", attr: { "aria-label": t("btn_delete") } });
-      setIcon(del.createSpan(), "trash-2");
-      del.onclick = () => { this.logEntries.splice(idx, 1); this.renderDetailLog(); void this.persistLog(); };
-    });
-    const comp = wrap.createDiv({ cls: "bt-log-composer" });
-    const inp = comp.createEl("textarea", { cls: "bt-log-input", attr: { placeholder: t("log_placeholder"), rows: "1" } });
-    this.logInput = inp;
-    const grow = () => { inp.setCssStyles({ height: "auto" }); inp.setCssStyles({ height: Math.min(inp.scrollHeight, 220) + "px" }); };
-    inp.oninput = grow;
-    inp.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.addEntry(); } };
-    inp.onpaste = (ev) => { const f = ev.clipboardData?.files; if (f && f.length) { ev.preventDefault(); void this.handleFiles(f); } };
-    inp.ondragover = (ev) => { ev.preventDefault(); inp.addClass("bt-drop"); };
-    inp.ondragleave = () => inp.removeClass("bt-drop");
-    inp.ondrop = (ev) => { const f = ev.dataTransfer?.files; if (f && f.length) { ev.preventDefault(); ev.stopPropagation(); inp.removeClass("bt-drop"); void this.handleFiles(f); } };
-    const cActs = comp.createDiv({ cls: "bt-log-composer-actions" });
-    const attach = cActs.createEl("button", { cls: "bt-log-attach", attr: { "aria-label": t("log_attach") } });
-    setIcon(attach.createSpan(), "paperclip");
-    attach.onclick = () => this.pickAttachment();
-    const linkBtn = cActs.createEl("button", { cls: "bt-log-attach", attr: { "aria-label": t("log_link") } });
-    setIcon(linkBtn.createSpan(), "link");
-    linkBtn.onclick = () => this.pickNote();
-    const add = cActs.createEl("button", { cls: "bt-log-add", attr: { "aria-label": t("log_add") } });
-    setIcon(add.createSpan(), "send-horizontal");
-    add.onclick = () => this.addEntry();
-    window.setTimeout(() => { list.scrollTop = list.scrollHeight; }, 0);
-  }
-
-  private renderEntry(el: HTMLElement, entry: LogEntry, src: string): void {
-    el.empty();
-    void Promise.resolve(MarkdownRenderer.render(this.app, entry.body || "", el, src, this.logComp!))
-      .catch((e) => console.error("bt-log render", e));
-  }
-
-  /** Bild-Lightbox über dem Modal: navigiert über alle Kommentar-Bilder (Pfeiltasten/
-   *  Buttons), Esc oder Klick auf den Hintergrund schließt. Das Overlay ist transient –
-   *  nur der Tastatur-Listener braucht Cleanup, darum das Fenster fixieren (Popout-Drift). */
-  private openLightbox(imgs: HTMLImageElement[], startIndex: number): void {
-    if (!imgs.length) return;
-    let i = Math.max(0, Math.min(startIndex, imgs.length - 1));
-    const many = imgs.length > 1;
-    const doc = activeDocument;
-
-    const ov = doc.body.createDiv("bt-lightbox");
-    const stage = ov.createDiv("bt-lb-stage");
-    const view = stage.createEl("img", { cls: "bt-lb-img" });
-    const counter = many ? ov.createDiv("bt-lb-counter") : null;
-
-    const show = () => { view.src = imgs[i].src; counter?.setText((i + 1) + " / " + imgs.length); };
-    const go = (d: number) => { i = (i + d + imgs.length) % imgs.length; show(); };
-    // Aktuelles Bild als PNG in die Zwischenablage (Canvas -> Blob -> Clipboard-API).
-    const copyCurrent = async (): Promise<void> => {
-      const img = imgs[i];
-      try {
-        const canvas = doc.createElement("canvas");
-        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) throw new Error("no 2d context");
-        ctx.drawImage(img, 0, 0);
-        const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
-        if (!blob) throw new Error("toBlob returned null");
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        new Notice(t("msg_image_copied"));
-      } catch (err) {
-        console.error("BeautyTasks: copy image failed", err);
-        new Notice(t("msg_image_copy_failed"));
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); close(); }
-      else if ((e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C")) { e.preventDefault(); void copyCurrent(); }
-      else if (many && e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
-      else if (many && e.key === "ArrowRight") { e.preventDefault(); go(1); }
-    };
-    const close = () => { ov.remove(); doc.removeEventListener("keydown", onKey, true); };
-
-    if (many) {
-      const nav = (cls: string, icon: string, label: string, d: number) => {
-        const b = ov.createEl("button", { cls: "bt-lb-nav " + cls, attr: { "aria-label": label } });
-        setIcon(b, icon);
-        b.onclick = (e) => { e.stopPropagation(); go(d); };
-      };
-      nav("bt-lb-prev", "chevron-left", t("lb_prev"), -1);
-      nav("bt-lb-next", "chevron-right", t("lb_next"), 1);
-    }
-    const copyBtn = ov.createEl("button", { cls: "bt-lb-copy", attr: { "aria-label": t("lb_copy") } });
-    setIcon(copyBtn, "copy");
-    copyBtn.onclick = (e) => { e.stopPropagation(); void copyCurrent(); };
-    const closeBtn = ov.createEl("button", { cls: "bt-lb-close", attr: { "aria-label": t("btn_close") } });
-    setIcon(closeBtn, "x");
-    closeBtn.onclick = (e) => { e.stopPropagation(); close(); };
-
-    view.onclick = (e) => { e.stopPropagation(); if (many) go(1); };
-    ov.onclick = (e) => { if (e.target === ov || e.target === stage) close(); };
-    doc.addEventListener("keydown", onKey, true);
-    show();
-  }
-
-  private addEntry(): void {
-    const v = (this.logInput?.value || "").trim();
-    if (!v) return;
-    this.logEntries.push({ ts: nowLogTs(), body: v });
-    this.logWrap.removeClass("bt-hidden");
-    this.syncDetails();
-    this.renderDetailLog();
-    void this.persistLog();
-  }
-
-  private editEntry(idx: number, contentEl: HTMLElement, _src: string): void {
-    const entry = this.logEntries[idx];
-    contentEl.empty();
-    const ta = contentEl.createEl("textarea", { cls: "bt-log-edit" });
-    ta.value = entry.body || "";
-    window.setTimeout(() => { ta.setCssStyles({ height: "auto" }); ta.setCssStyles({ height: (ta.scrollHeight + 2) + "px" }); ta.focus(); }, 0);
-    const acts = contentEl.createDiv({ cls: "bt-log-edit-acts" });
-    const doSave = () => { entry.body = ta.value.trim(); if (!entry.body) this.logEntries.splice(idx, 1); this.renderDetailLog(); void this.persistLog(); };
-    const save = acts.createEl("button", { cls: "bt-log-edit-btn mod-cta", text: t("log_update") });
-    save.onclick = doSave;
-    const cancel = acts.createEl("button", { cls: "bt-log-edit-btn", text: t("btn_cancel") });
-    cancel.onclick = () => this.renderDetailLog();
-    ta.onkeydown = (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doSave(); }
-      else if (e.key === "Escape") { e.preventDefault(); this.renderDetailLog(); }
-    };
-  }
-
-  /** Sofort-Speichern – unabhängig vom Modal-Save. Bei neuen Aufgaben (kein File)
-   *  wird der Log erst beim Speichern in den Body geschrieben. Serialisiert (Kette). */
-  private async persistLog(): Promise<void> {
-    if (!this.existing) return;
-    const file = this.app.vault.getAbstractFileByPath(this.existing.path);
-    if (!(file instanceof TFile)) return;
-    this.persistChain = this.persistChain.then(async () => {
-      try { await writeLog(this.app, file, this.logEntries); }
-      catch (e) { console.error("bt-log persist", e); new Notice(t("err_detail_save")); }
-    });
-    return this.persistChain;
-  }
-
-  // ── Anhänge ──
-  private insertInComposer(text: string): void {
-    const el = this.logInput; if (!el) return;
-    const s = el.selectionStart ?? el.value.length, e = el.selectionEnd ?? el.value.length;
-    el.value = el.value.slice(0, s) + text + el.value.slice(e);
-    el.selectionStart = el.selectionEnd = s + text.length;
-    el.dispatchEvent(new Event("input"));
-    el.focus();
-  }
-
-  private async saveAttachment(file: File): Promise<void> {
-    const IMG = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "heic"];
-    const dir = this.plugin.settings.attachmentsFolder;
-    try {
-      const name = file.name || ("Pasted-" + Date.now() + "." + (file.type.split("/")[1] || "bin"));
-      const buf = await file.arrayBuffer();
-      await ensureFolder(this.app, dir);
-      const dot = name.lastIndexOf(".");
-      const base = dot > 0 ? name.slice(0, dot) : name;
-      const ext = dot > 0 ? name.slice(dot) : "";
-      let p = normalizePath(dir + "/" + name); let i = 1;
-      while (this.app.vault.getAbstractFileByPath(p)) p = normalizePath(dir + "/" + base + "-" + (i++) + ext);
-      const tfile = await this.app.vault.createBinary(p, buf);
-      const isImage = IMG.includes((name.split(".").pop() || "").toLowerCase());
-      const link = this.app.fileManager.generateMarkdownLink(tfile, this.logSrc());
-      this.logWrap.removeClass("bt-hidden");
-      this.syncDetails();
-      this.insertInComposer((isImage ? "!" : "") + link + " ");
-      new Notice(t("msg_attached", tfile.name));
-    } catch (err) {
-      console.error("bt-attachment", err);
-      new Notice(t("msg_attach_failed", String((err as Error)?.message || err)));
-    }
-  }
-
-  private async handleFiles(files: FileList): Promise<void> { for (const f of Array.from(files)) await this.saveAttachment(f); }
-
-  private pickAttachment(): void {
-    const fi = createEl("input", { cls: "bt-hidden-file", attr: { type: "file", multiple: "true" } });
-    activeDocument.body.appendChild(fi);
-    // Einmal-Listener: Element wird nach Auswahl entfernt → kein Leak.
-    fi.addEventListener("change", () => { if (fi.files?.length) void this.handleFiles(fi.files); fi.remove(); });
-    fi.click();
-  }
-
-  private pickNote(): void {
-    const app = this.app;
-    const src = this.logSrc();
-    const insert = (f: TFile) => { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); this.insertInComposer(app.fileManager.generateMarkdownLink(f, src) + " "); };
-    class NotePicker extends FuzzySuggestModal<TFile> {
-      getItems(): TFile[] { return app.vault.getMarkdownFiles(); }
-      getItemText(f: TFile): string { return f.path; }
-      onChooseItem(f: TFile): void { insert(f); }
-    }
-    const picker = new NotePicker(app);
-    picker.setPlaceholder(t("log_link_placeholder"));
-    picker.open();
+  /** Ziel-Datei des Logs (nur bei bestehender Aufgabe) – null = neue Aufgabe (Puffer im Speicher). */
+  private existingFile(): TFile | null {
+    if (!this.existing) return null;
+    const f = this.app.vault.getAbstractFileByPath(this.existing.path);
+    return f instanceof TFile ? f : null;
   }
 
   // ── Speichern / Löschen ──
@@ -925,7 +501,7 @@ export class TaskModal extends Modal {
       }
     } else {
       const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null });
-      if (this.logEntries.length) await writeLog(this.app, file, this.logEntries);
+      await this.log.flush(file);
     }
   }
 
