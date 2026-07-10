@@ -1429,8 +1429,14 @@ body {
 .bt-chip-row-ic svg { width: 15px; height: 15px; }
 .bt-chip-row-lbl { flex: 1; min-width: 0; }
 
-/* Aufgabenaktionen: Flächen-Umschalter (Normale Eingabe | Schnelleingabe) */
-.bt-chip-surface-tabs { display: inline-flex; gap: 2px; padding: 2px; margin-bottom: 12px; background: var(--background-modifier-border); border-radius: 7px; }
-.bt-chip-surface-tab { padding: 4px 12px; border: none; border-radius: 5px; background: transparent; color: var(--text-muted); font-size: 0.86em; cursor: pointer; box-shadow: none; }
-.bt-chip-surface-tab:hover { color: var(--text-normal); }
-.bt-chip-surface-tab.is-active { background: var(--background-primary); color: var(--text-normal); }
+/* Aufgabenaktionen: Flächen-Umschalter (Normale Eingabe | Schnelleingabe) – Unterstrich-Tabs.
+   Element-Selektor (0,1,1) schlägt Obsidians Default-Button-Styling, ohne !important. */
+.bt-chip-surface-tabs { display: flex; gap: 4px; margin: 4px 0 14px; border-bottom: 1px solid var(--background-modifier-border); }
+.bt-chip-surface-tabs button {
+  padding: 6px 12px; margin-bottom: -1px;
+  border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  background: transparent; box-shadow: none;
+  color: var(--text-muted); font-size: 0.88em; cursor: pointer;
+}
+.bt-chip-surface-tabs button:hover { color: var(--text-normal); background: transparent; box-shadow: none; }
+.bt-chip-surface-tabs button.is-active { color: var(--text-accent); border-bottom-color: var(--interactive-accent); font-weight: var(--font-semibold); }
