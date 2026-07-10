@@ -3550,7 +3550,6 @@ var statusIcon = (id) => {
 var statusColor = (id) => BY_ID.get(id)?.color;
 var isOpen = (s) => BY_ID.get(s)?.kind === "open";
 var isDone = (s) => BY_ID.get(s)?.kind === "done";
-var isCancelled = (s) => BY_ID.get(s)?.kind === "cancelled";
 var isTrashed = (s) => BY_ID.get(s)?.kind === "cancelled" || s === "cancelled";
 var boardStatuses = () => CURRENT.filter((s) => s.kind !== "cancelled");
 var firstOpenStatus = () => CURRENT.find((s) => s.kind === "open")?.id ?? "todo";
@@ -7960,7 +7959,7 @@ function renderedPaths(plugin, anchors) {
   const walk = (tk) => {
     if (present.has(tk.path)) return;
     present.add(tk.path);
-    for (const kid of plugin.index.children(tk.path)) if (!isCancelled(kid.status)) walk(kid);
+    for (const kid of plugin.index.children(tk.path)) if (!isTrashed(kid.status)) walk(kid);
   };
   for (const a of anchors) walk(a);
   return present;
@@ -8129,7 +8128,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   }
   row.onclick = () => plugin.openEditTask(task);
   if (!trash && !opts.flat) for (const kid of plugin.index.children(task.path)) {
-    if (!isCancelled(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
+    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
   }
 }
 function attachCheckActions(check, plugin, task) {
