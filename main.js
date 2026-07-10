@@ -78,6 +78,8 @@ var STRINGS = {
     btn_move_down: "Move down",
     status_need_done: "Keep at least one \u201CDone\u201D status.",
     status_need_open: "Keep at least one open status.",
+    status_need_kind: "Keep at least one status per category.",
+    status_only_one_trash: "There's exactly one trash status.",
     status_reassigned: "{0} tasks moved to {1}.",
     sort_by: "Sort",
     sort_manual: "Manual",
@@ -423,6 +425,8 @@ var STRINGS = {
     btn_move_down: "Nach unten",
     status_need_done: 'Mindestens ein \u201EErledigt"-Status muss bleiben.',
     status_need_open: "Mindestens ein offener Status muss bleiben.",
+    status_need_kind: "Behalte mindestens einen Status je Kategorie.",
+    status_only_one_trash: "Es gibt genau einen Papierkorb-Status.",
     status_reassigned: "{0} Aufgaben nach {1} verschoben.",
     sort_by: "Sortieren",
     sort_manual: "Manuell",
@@ -768,6 +772,8 @@ var STRINGS = {
     btn_move_down: "Bajar",
     status_need_done: "Mant\xE9n al menos un estado \xABHecho\xBB.",
     status_need_open: "Mant\xE9n al menos un estado abierto.",
+    status_need_kind: "Mant\xE9n al menos un estado por categor\xEDa.",
+    status_only_one_trash: "Solo hay un estado de papelera.",
     status_reassigned: "{0} tareas movidas a {1}.",
     sort_by: "Ordenar",
     sort_manual: "Manual",
@@ -1113,6 +1119,8 @@ var STRINGS = {
     btn_move_down: "Mover para baixo",
     status_need_done: "Mantenha ao menos um status \xABFeito\xBB.",
     status_need_open: "Mantenha ao menos um status aberto.",
+    status_need_kind: "Mantenha ao menos um status por categoria.",
+    status_only_one_trash: "H\xE1 exatamente um status de lixeira.",
     status_reassigned: "{0} tarefas movidas para {1}.",
     sort_by: "Ordenar",
     sort_manual: "Manual",
@@ -1458,6 +1466,8 @@ var STRINGS = {
     btn_move_down: "Descendre",
     status_need_done: "Gardez au moins un statut \xAB Termin\xE9 \xBB.",
     status_need_open: "Gardez au moins un statut ouvert.",
+    status_need_kind: "Gardez au moins un statut par cat\xE9gorie.",
+    status_only_one_trash: "Il n\u2019y a qu\u2019un seul statut corbeille.",
     status_reassigned: "{0} t\xE2ches d\xE9plac\xE9es vers {1}.",
     sort_by: "Trier",
     sort_manual: "Manuel",
@@ -1803,6 +1813,8 @@ var STRINGS = {
     btn_move_down: "A\u015Fa\u011F\u0131 ta\u015F\u0131",
     status_need_done: "En az bir \xABBitti\xBB durumu b\u0131rak\u0131n.",
     status_need_open: "En az bir a\xE7\u0131k durum b\u0131rak\u0131n.",
+    status_need_kind: "Her kategoride en az bir durum b\u0131rak\u0131n.",
+    status_only_one_trash: "Yaln\u0131zca bir \xE7\xF6p durumu vard\u0131r.",
     status_reassigned: "{0} g\xF6rev {1} durumuna ta\u015F\u0131nd\u0131.",
     sort_by: "S\u0131rala",
     sort_manual: "Elle",
@@ -2148,6 +2160,8 @@ var STRINGS = {
     btn_move_down: "\u4E0B\u79FB",
     status_need_done: "\u81F3\u5C11\u4FDD\u7559\u4E00\u4E2A\u201C\u5B8C\u6210\u201D\u72B6\u6001\u3002",
     status_need_open: "\u81F3\u5C11\u4FDD\u7559\u4E00\u4E2A\u672A\u5B8C\u6210\u72B6\u6001\u3002",
+    status_need_kind: "\u6BCF\u4E2A\u7C7B\u522B\u81F3\u5C11\u4FDD\u7559\u4E00\u4E2A\u72B6\u6001\u3002",
+    status_only_one_trash: "\u56DE\u6536\u7AD9\u72B6\u6001\u53EA\u6709\u4E00\u4E2A\u3002",
     status_reassigned: "{0} \u4E2A\u4EFB\u52A1\u5DF2\u79FB\u81F3 {1}\u3002",
     sort_by: "\u6392\u5E8F",
     sort_manual: "\u624B\u52A8",
@@ -2493,6 +2507,8 @@ var STRINGS = {
     btn_move_down: "\u0412\u043D\u0438\u0437",
     status_need_done: "\u041E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0441\u0442\u0430\u0442\u0443\u0441 \xAB\u0413\u043E\u0442\u043E\u0432\u043E\xBB.",
     status_need_open: "\u041E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0439 \u0441\u0442\u0430\u0442\u0443\u0441.",
+    status_need_kind: "\u041E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0441\u0442\u0430\u0442\u0443\u0441 \u0432 \u043A\u0430\u0436\u0434\u043E\u0439 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438.",
+    status_only_one_trash: "\u0421\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u0435\u0442 \u0440\u043E\u0432\u043D\u043E \u043E\u0434\u0438\u043D \u0441\u0442\u0430\u0442\u0443\u0441 \u043A\u043E\u0440\u0437\u0438\u043D\u044B.",
     status_reassigned: "{0} \u0437\u0430\u0434\u0430\u0447 \u043F\u0435\u0440\u0435\u043C\u0435\u0449\u0435\u043D\u043E \u0432 {1}.",
     sort_by: "\u0421\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u043A\u0430",
     sort_manual: "\u0412\u0440\u0443\u0447\u043D\u0443\u044E",
@@ -2838,6 +2854,8 @@ var STRINGS = {
     btn_move_down: "\u4E0B\u3078",
     status_need_done: "\u300C\u5B8C\u4E86\u300D\u30B9\u30C6\u30FC\u30BF\u30B9\u3092\u5C11\u306A\u304F\u3068\u30821\u3064\u6B8B\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
     status_need_open: "\u672A\u5B8C\u4E86\u306E\u30B9\u30C6\u30FC\u30BF\u30B9\u3092\u5C11\u306A\u304F\u3068\u30821\u3064\u6B8B\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    status_need_kind: "\u5404\u30AB\u30C6\u30B4\u30EA\u30FC\u306B\u5C11\u306A\u304F\u3068\u30821\u3064\u306E\u30B9\u30C6\u30FC\u30BF\u30B9\u3092\u6B8B\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    status_only_one_trash: "\u30B4\u30DF\u7BB1\u30B9\u30C6\u30FC\u30BF\u30B9\u306F1\u3064\u3060\u3051\u3067\u3059\u3002",
     status_reassigned: "{0} \u4EF6\u306E\u30BF\u30B9\u30AF\u3092 {1} \u306B\u79FB\u52D5\u3057\u307E\u3057\u305F\u3002",
     sort_by: "\u4E26\u3079\u66FF\u3048",
     sort_manual: "\u624B\u52D5",
@@ -3183,6 +3201,8 @@ var STRINGS = {
     btn_move_down: "Sposta gi\xF9",
     status_need_done: "Mantieni almeno uno stato \xABFatto\xBB.",
     status_need_open: "Mantieni almeno uno stato aperto.",
+    status_need_kind: "Mantieni almeno uno stato per categoria.",
+    status_only_one_trash: "C\u2019\xE8 esattamente uno stato cestino.",
     status_reassigned: "{0} attivit\xE0 spostate in {1}.",
     sort_by: "Ordina",
     sort_manual: "Manuale",
@@ -3535,6 +3555,24 @@ var BY_ID = new Map(CURRENT.map((s) => [s.id, s]));
 function initStatuses(list) {
   CURRENT = list && list.length ? list : DEFAULT_STATUSES;
   BY_ID = new Map(CURRENT.map((s) => [s.id, s]));
+}
+function ensureStatusInvariants(list) {
+  const out = list && list.length ? list.map((s) => ({ ...s })) : DEFAULT_STATUSES.map((s) => ({ ...s }));
+  const has = (k) => out.some((s) => s.kind === k);
+  const uniqueId = (base) => {
+    let id = base, n = 2;
+    while (out.some((s) => s.id === id)) id = base + "-" + n++;
+    return id;
+  };
+  const insertBeforeTrash = (e) => {
+    const cx = out.findIndex((s) => s.kind === "cancelled");
+    if (cx >= 0) out.splice(cx, 0, e);
+    else out.push(e);
+  };
+  if (!has("open")) insertBeforeTrash({ ...DEFAULT_STATUSES[0], id: uniqueId(DEFAULT_STATUSES[0].id) });
+  if (!has("done")) insertBeforeTrash({ ...DEFAULT_STATUSES[2], id: uniqueId(DEFAULT_STATUSES[2].id) });
+  if (!has("cancelled")) out.push({ ...DEFAULT_STATUSES[3], id: uniqueId(DEFAULT_STATUSES[3].id) });
+  return out;
 }
 var allStatuses = () => CURRENT;
 var isKnownStatus = (id) => BY_ID.has(id);
@@ -8827,26 +8865,39 @@ var ICON_PRESETS = [
   "inbox",
   "zap"
 ];
+var KIND_ORDER = ["open", "done", "cancelled"];
+var GROUP_TITLE = { open: "status_kind_open", done: "status_kind_done", cancelled: "nav_trash" };
 function renderStatusEditor(container, plugin) {
   container.empty();
   container.addClass("bt-view");
   container.addClass("bt-status-editor");
   const redraw = () => renderStatusEditor(container, plugin);
-  addRow(container, t("status_add"), t("placeholder_status_name"), (v) => plugin.addStatus(v), redraw);
   container.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
   const statuses = plugin.getStatuses();
-  const roles = {
-    newTask: firstOpenStatus(),
-    done: firstDoneStatus(),
-    trash: statuses.find((s) => s.kind === "cancelled")?.id
+  const roles = { newTask: firstOpenStatus(), done: firstDoneStatus(), trash: statuses.find((s) => s.kind === "cancelled")?.id };
+  const groupLists = [];
+  const persist = () => {
+    const order = [];
+    for (const g of groupLists) for (const r of Array.from(g.children)) {
+      const k = r.getAttr("data-key");
+      if (k) order.push(k);
+    }
+    then(plugin.setStatusOrder(order), redraw);
   };
-  const list = container.createDiv({ cls: "bt-manage-list" });
-  statuses.forEach((s) => statusRow(list, plugin, s, roles, redraw));
+  for (const kind of KIND_ORDER) {
+    const rows = statuses.filter((s) => s.kind === kind);
+    const block = container.createDiv({ cls: "bt-status-group" });
+    block.createDiv({ cls: "bt-status-group-title", text: t(GROUP_TITLE[kind]) });
+    const listEl = block.createDiv({ cls: "bt-manage-list" });
+    groupLists.push(listEl);
+    for (const s of rows) statusRow(listEl, plugin, s, rows.length, roles, persist, redraw);
+    if (kind !== "cancelled") addRow(block, t("status_add"), t("placeholder_status_name"), (v) => plugin.addStatus(v, kind), redraw);
+  }
 }
 function then(p, redraw) {
   void p.then(redraw);
 }
-function statusRow(list, plugin, s, roles, redraw) {
+function statusRow(list, plugin, s, groupCount, roles, persist, redraw) {
   const row = list.createDiv({ cls: "bt-manage-row bt-status-row", attr: { "data-key": s.id } });
   const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
   (0, import_obsidian20.setIcon)(grip, "grip-vertical");
@@ -8859,7 +8910,7 @@ function statusRow(list, plugin, s, roles, redraw) {
       then(plugin.moveStatus(s.id, 1), redraw);
     }
   };
-  attachRowDrag(row, grip, list, (keys) => then(plugin.setStatusOrder(keys), redraw));
+  attachRowDrag(row, grip, list, () => persist());
   const dot = row.createSpan({ cls: "bt-status-dot" });
   (0, import_obsidian20.setIcon)(dot, statusIcon(s.id));
   dot.style.color = statusTint(s.id);
@@ -8877,7 +8928,8 @@ function statusRow(list, plugin, s, roles, redraw) {
   };
   const iconB = iconBtn(actions, "shapes", t("status_pick_icon"), () => openIconPicker(iconB, plugin, s, redraw));
   const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, s.color ?? null, (c) => then(plugin.setStatusColor(s.id, c), redraw)));
-  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => then(plugin.deleteStatus(s.id), redraw), redraw));
+  const delB = iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => then(plugin.deleteStatus(s.id), redraw), redraw));
+  if (groupCount <= 1) delB.disabled = true;
 }
 function startStatusRename(row, plugin, s, redraw) {
   row.empty();
@@ -10419,24 +10471,35 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   statusTaskCount(id) {
     return this.index.all().filter((tk) => tk.status === id).length;
   }
-  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. */
+  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. Vorher die
+   *  Pflicht-Kategorien erzwingen (einziger Choke-Point aller Status-Mutationen). */
   async commitStatuses() {
+    this.settings.statuses = ensureStatusInvariants(this.statusList());
     initStatuses(this.settings.statuses);
     await this.saveSettings();
     this.index.build();
     this.renderAll();
   }
-  async addStatus(label) {
+  async addStatus(label, kind = "open") {
     const name = label.trim();
     if (!name) return;
+    if (kind === "cancelled") {
+      new import_obsidian25.Notice(t("status_only_one_trash"));
+      return;
+    }
     const list = this.statusList();
     const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "status";
     let id = base, n = 2;
     while (list.some((s) => s.id === id)) id = base + "-" + n++;
-    const entry = { id, label: name, kind: "open", icon: "circle" };
-    const cancelAt = list.findIndex((s) => s.kind === "cancelled");
-    if (cancelAt >= 0) list.splice(cancelAt, 0, entry);
-    else list.push(entry);
+    const entry = { id, label: name, kind, icon: kind === "done" ? "check-circle" : "circle" };
+    let last = -1;
+    for (let i = 0; i < list.length; i++) if (list[i].kind === kind) last = i;
+    if (last >= 0) list.splice(last + 1, 0, entry);
+    else {
+      const cx = list.findIndex((s) => s.kind === "cancelled");
+      if (cx >= 0) list.splice(cx, 0, entry);
+      else list.push(entry);
+    }
     await this.commitStatuses();
   }
   async renameStatus(id, label) {
@@ -10452,8 +10515,12 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
-    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) {
-      new import_obsidian25.Notice(t("status_need_done"));
+    if (kind === "cancelled" && list.some((x) => x.kind === "cancelled")) {
+      new import_obsidian25.Notice(t("status_only_one_trash"));
+      return;
+    }
+    if (list.filter((x) => x.kind === s.kind).length <= 1) {
+      new import_obsidian25.Notice(t("status_need_kind"));
       return;
     }
     s.kind = kind;
@@ -10496,12 +10563,8 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);
     if (!s) return;
-    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) {
-      new import_obsidian25.Notice(t("status_need_done"));
-      return;
-    }
-    if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) {
-      new import_obsidian25.Notice(t("status_need_open"));
+    if (list.filter((x) => x.kind === s.kind).length <= 1) {
+      new import_obsidian25.Notice(t("status_need_kind"));
       return;
     }
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
@@ -10731,6 +10794,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     if (saved?.chipsIconsOnly === void 0 && import_obsidian25.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
+    this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);
   }
   async saveSettings() {

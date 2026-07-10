@@ -26,6 +26,26 @@ export function initStatuses(list?: StoredStatus[] | null): void {
   BY_ID = new Map(CURRENT.map((s) => [s.id, s]));
 }
 
+/** Erzwingt die Pflicht-Kategorien des Lebenszyklus: mind. 1 offen, mind. 1 erledigt, mind. 1
+ *  abgebrochen. Fehlt eine, wird der eingebaute Default ergänzt (self-healing) – so kann die App
+ *  NIE in einen Zustand ohne gültige Kategorie geraten (kein versteckter Sentinel nötig). Reihenfolge
+ *  bleibt erhalten; offen/erledigt werden vor dem Papierkorb einsortiert, abgebrochen ans Ende.
+ *  Entfernt KEINE vorhandenen Einträge (nicht-destruktiv). */
+export function ensureStatusInvariants(list: StoredStatus[] | null | undefined): StoredStatus[] {
+  const out = list && list.length ? list.map((s) => ({ ...s })) : DEFAULT_STATUSES.map((s) => ({ ...s }));
+  const has = (k: StatusKind): boolean => out.some((s) => s.kind === k);
+  const uniqueId = (base: string): string => { let id = base, n = 2; while (out.some((s) => s.id === id)) id = base + "-" + n++; return id; };
+  const insertBeforeTrash = (e: StoredStatus): void => {
+    const cx = out.findIndex((s) => s.kind === "cancelled");
+    if (cx >= 0) out.splice(cx, 0, e); else out.push(e);
+  };
+  // DEFAULT_STATUSES: [0]=offen, [2]=erledigt, [3]=abgebrochen.
+  if (!has("open")) insertBeforeTrash({ ...DEFAULT_STATUSES[0], id: uniqueId(DEFAULT_STATUSES[0].id) });
+  if (!has("done")) insertBeforeTrash({ ...DEFAULT_STATUSES[2], id: uniqueId(DEFAULT_STATUSES[2].id) });
+  if (!has("cancelled")) out.push({ ...DEFAULT_STATUSES[3], id: uniqueId(DEFAULT_STATUSES[3].id) });
+  return out;
+}
+
 export const allStatuses = (): StoredStatus[] => CURRENT;
 export const statusDef = (id: string): StoredStatus | undefined => BY_ID.get(id);
 export const statusIds = (): string[] => CURRENT.map((s) => s.id);

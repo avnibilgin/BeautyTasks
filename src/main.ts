@@ -1,6 +1,6 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
-import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
+import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -727,25 +727,30 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Wie viele Aufgaben tragen diesen Status (für Löschen-Umzug/Anzeige). */
   statusTaskCount(id: string): number { return this.index.all().filter((tk) => tk.status === id).length; }
 
-  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. */
+  /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. Vorher die
+   *  Pflicht-Kategorien erzwingen (einziger Choke-Point aller Status-Mutationen). */
   private async commitStatuses(): Promise<void> {
+    this.settings.statuses = ensureStatusInvariants(this.statusList());
     initStatuses(this.settings.statuses);
     await this.saveSettings();
     this.index.build();
     this.renderAll();
   }
 
-  async addStatus(label: string): Promise<void> {
+  async addStatus(label: string, kind: StatusKind = "open"): Promise<void> {
     const name = label.trim();
     if (!name) return;
+    if (kind === "cancelled") { new Notice(t("status_only_one_trash")); return; }   // Papierkorb = genau 1
     const list = this.statusList();
     const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "status";
     let id = base, n = 2;
     while (list.some((s) => s.id === id)) id = base + "-" + n++;
-    const entry: StoredStatus = { id, label: name, kind: "open", icon: "circle" };
-    // vor dem cancelled-Status einsortieren, damit der Papierkorb-Status hinten bleibt.
-    const cancelAt = list.findIndex((s) => s.kind === "cancelled");
-    if (cancelAt >= 0) list.splice(cancelAt, 0, entry); else list.push(entry);
+    const entry: StoredStatus = { id, label: name, kind, icon: kind === "done" ? "check-circle" : "circle" };
+    // Ans Ende der eigenen Kategorie einsortieren (offen … · erledigt … · danach Papierkorb).
+    let last = -1;
+    for (let i = 0; i < list.length; i++) if (list[i].kind === kind) last = i;
+    if (last >= 0) list.splice(last + 1, 0, entry);
+    else { const cx = list.findIndex((s) => s.kind === "cancelled"); if (cx >= 0) list.splice(cx, 0, entry); else list.push(entry); }
     await this.commitStatuses();
   }
 
@@ -763,7 +768,10 @@ export default class BeautyTasksPlugin extends Plugin {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
-    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
+    // Ziel „Papierkorb": genau 1 erlaubt -> nur, wenn noch keiner existiert.
+    if (kind === "cancelled" && list.some((x) => x.kind === "cancelled")) { new Notice(t("status_only_one_trash")); return; }
+    // Quelle darf nicht die letzte ihrer Pflicht-Kategorie sein (sonst bliebe sie leer).
+    if (list.filter((x) => x.kind === s.kind).length <= 1) { new Notice(t("status_need_kind")); return; }
     s.kind = kind;
     await this.commitStatuses();
   }
@@ -808,8 +816,8 @@ export default class BeautyTasksPlugin extends Plugin {
     const list = this.statusList();
     const s = list.find((x) => x.id === id);
     if (!s) return;
-    if (s.kind === "done" && list.filter((x) => x.kind === "done").length <= 1) { new Notice(t("status_need_done")); return; }
-    if (s.kind === "open" && list.filter((x) => x.kind === "open").length <= 1) { new Notice(t("status_need_open")); return; }
+    // Pflicht-Kategorie darf nie leer werden -> letzten offen/erledigt/abgebrochen nicht löschbar.
+    if (list.filter((x) => x.kind === s.kind).length <= 1) { new Notice(t("status_need_kind")); return; }
     // Ersatz gleicher Art (sonst irgendein offener), aber nie der zu löschende selbst.
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id
       ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
@@ -1027,6 +1035,9 @@ export default class BeautyTasksPlugin extends Plugin {
     if (saved?.chipsIconsOnly === undefined && Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
+    // Pflicht-Kategorien garantieren (offen/erledigt/abgebrochen), self-healing – z. B. re-added
+    // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
+    this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
