@@ -1412,9 +1412,6 @@ body {
   width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent);
 }
 
-/* Schnelleingabe: Beschreibungs-Feld (über den Details-Chip auf-/zuklappbar) */
-.bt-quickadd .bt-qa-desc { margin-top: 8px; }
-.bt-quickadd .bt-qa-desc .bt-beschr { width: 100%; box-sizing: border-box; }
 
 /* ── Einstellungen: Aufgabenaktionen (Chips in drei Tier-Zonen sortieren) ──── */
 .bt-chip-actions-desc { margin-bottom: 8px; }

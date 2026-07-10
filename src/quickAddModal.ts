@@ -1,9 +1,9 @@
 // Kompaktes Schnell-Erfassungs-Modal (Todoist-Stil): ein Titelfeld mit Natural-Language-Parsing
-// und eine interaktive Chip-Leiste. Die Chips kommen jetzt – wie im vollen Editor – aus der
-// gemeinsamen Registry (chips.ts): volle Chip-Parität (Datum/Priorität/Label/Wiederholung/
-// Deadline/Erinnerung/Übergeordnet/Status/Details), hier stets als Nur-Icon (kompakt). Ein „+"
-// bündelt ausgeblendete Chips + „Aufgabenaktionen bearbeiten". Nach dem Anlegen bleibt das Modal
-// offen (Multi-Add / Brain-Dump). Der ⤢-Button öffnet den vollen Editor.
+// und eine interaktive Chip-Leiste. Die Chips kommen – wie im vollen Editor – aus der gemeinsamen
+// Registry (chips.ts): volle Chip-Parität (hier stets als Nur-Icon, kompakt). Beschreibung und
+// Kommentar-Log (Details-Chip) teilen sich Feld/Komponente mit dem vollen Editor. Ein „+" bündelt
+// ausgeblendete Chips + „Aufgabenaktionen bearbeiten". Nach dem Anlegen bleibt das Modal offen
+// (Multi-Add / Brain-Dump). Der ⤢-Button öffnet den vollen Editor mit allem Übernommenen.
 import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus } from "./types";
@@ -12,6 +12,7 @@ import { createTaskNote, listProjectsAndAreas } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { openPopover, popRow } from "./popover";
 import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings } from "./chips";
+import { DetailLogView } from "./detailLogView";
 import { TaskModal } from "./taskModal";
 
 export class QuickAddModal extends Modal {
@@ -31,9 +32,10 @@ export class QuickAddModal extends Modal {
   private input!: HTMLInputElement;
   private chipBar!: HTMLElement;
   private projektBtn!: HTMLButtonElement;
-  private descWrap!: HTMLElement;
-  private descInput!: HTMLTextAreaElement;
-  private descOpen = false;         // Details-Chip: Beschreibungs-Feld auf/zu
+  private descInput!: HTMLTextAreaElement;   // dauerhaftes Beschreibungsfeld (wie voller Editor)
+  private detailsWrap!: HTMLElement;
+  private logWrap!: HTMLElement;             // Kommentar-Log-Sektion (Details-Chip toggelt sie)
+  private log!: DetailLogView;               // gemeinsame Log-Komponente
 
   constructor(private plugin: BeautyTasksPlugin, project?: string) {
     super(plugin.app);
@@ -60,10 +62,9 @@ export class QuickAddModal extends Modal {
     window.setTimeout(() => input.focus(), 0);
     this.input = input;
 
-    // Beschreibung (über den Details-Chip auf-/zuklappbar) – wird beim Anlegen in die Notiz geschrieben.
-    this.descWrap = contentEl.createDiv({ cls: "bt-qa-desc bt-hidden" });
-    this.descInput = this.descWrap.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "2" } });
-    this.descInput.oninput = () => { this.f.description = this.descInput.value; };
+    // Beschreibung: dauerhaft sichtbar (wie im vollen Editor, direkt unter dem Titel).
+    this.descInput = contentEl.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "1" } });
+    this.descInput.oninput = () => { this.f.description = this.descInput.value; this.growDesc(); };
 
     // Eine kompakte Zeile: links Projekt-Chip + interaktive Chips, rechts Aktionen (voller Editor / Absenden).
     const row = contentEl.createDiv({ cls: "bt-qa-row" });
@@ -79,12 +80,39 @@ export class QuickAddModal extends Modal {
     setIcon(submit, "arrow-up");
     submit.onclick = () => void this.submit();
 
+    // Kommentar-Log (Details-Chip toggelt ihn). Neue Aufgabe -> file() null, Einträge werden im
+    // Speicher gepuffert und beim Anlegen (submit) über flush() in die Notiz geschrieben.
+    this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
+    this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
+    this.log = new DetailLogView(this.app, this.plugin, {
+      srcPath: () => this.plugin.settings.itemsFolder + "/_.md",
+      file: () => null,
+      reveal: () => { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); },
+      close: () => this.close(),
+    });
+    this.log.mount(this.logWrap);
+    this.syncDetails();
+
     this.parse();
     this.renderChips();
     this.renderProjekt();
+    window.setTimeout(() => this.growDesc(), 0);
   }
 
-  onClose(): void { this.contentEl.empty(); }
+  onClose(): void { this.log?.unload(); this.contentEl.empty(); }
+
+  /** Beschreibungs-Textarea an ihren Inhalt anpassen (Auto-Grow, gedeckelt). */
+  private growDesc(): void {
+    const el = this.descInput; if (!el) return;
+    el.setCssStyles({ height: "auto" });
+    el.setCssStyles({ height: Math.min(el.scrollHeight, 160) + "px" });
+  }
+
+  /** Detail-/Log-Sektion zeigen/verstecken, Leerraum verschwindet wenn zu. */
+  private syncDetails(): void {
+    const open = !this.logWrap.hasClass("bt-hidden");
+    this.detailsWrap.toggleClass("bt-hidden", !open);
+  }
 
   /** Natural-Language aus dem Titel: Datum, Uhrzeit, Priorität, #Labels, @Projekt. Manuell (per
    *  Chip) gesetzte Werte bleiben erhalten. Spiegelt die Logik von TaskModal.applyParse. */
@@ -120,7 +148,7 @@ export class QuickAddModal extends Modal {
       resetParsedLabels: () => { this.parsedLabels = []; },
       onParentPicked: (proj) => { if (proj) { this.f.project = proj; this.parsedProject = null; this.renderProjekt(); } },
       toggleDetails: () => this.toggleDetails(),
-      detailsOpen: () => this.descOpen,
+      detailsOpen: () => !this.logWrap.hasClass("bt-hidden"),
       chipEnabled: () => true,
     };
   }
@@ -142,19 +170,21 @@ export class QuickAddModal extends Modal {
     acts.onclick = (e) => { e.stopPropagation(); this.openPlusMenu(acts); };
   }
 
-  /** Details-Chip: klappt das Beschreibungs-Feld auf/zu (Schnelleingabe hat keinen Kommentar-Log). */
+  /** Details-Chip: klappt den Kommentar-Log auf/zu (identisch zum vollen Editor). */
   private renderDetailsChip(bar: HTMLElement): void {
-    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (this.descOpen ? " is-open" : ""), attr: { "aria-label": t("details"), "data-tooltip-position": "top" } });
+    const open = !this.logWrap.hasClass("bt-hidden");
+    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : ""), attr: { "aria-label": t("details"), "data-tooltip-position": "top" } });
     setIcon(chip.createSpan({ cls: "bt-chip-ic" }), "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
     chip.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
   }
 
   private toggleDetails(): void {
-    this.descOpen = !this.descOpen;
-    this.descWrap.toggleClass("bt-hidden", !this.descOpen);
+    const willOpen = this.logWrap.hasClass("bt-hidden");
+    this.logWrap.toggleClass("bt-hidden", !willOpen);
+    this.syncDetails();
     this.renderChips();
-    if (this.descOpen) window.setTimeout(() => this.descInput.focus(), 0);
+    if (willOpen) window.setTimeout(() => this.log.focusComposer(), 0);
   }
 
   /** „+"-Popover (Erstell-Modus, schlank): ausgeblendete Chips + „Aufgabenaktionen bearbeiten". */
@@ -205,7 +235,7 @@ export class QuickAddModal extends Modal {
   private async submit(): Promise<void> {
     const title = this.titleValue();
     if (!title) { new Notice(t("err_enter_taskname")); return; }
-    await createTaskNote(this.app, this.plugin.settings, {
+    const file = await createTaskNote(this.app, this.plugin.settings, {
       title, status: this.f.status, description: this.f.description,
       due: this.f.due, dueTime: this.f.dueTime, duration: this.f.duration,
       scheduled: this.f.scheduled, scheduledTime: this.f.scheduledTime,
@@ -214,6 +244,7 @@ export class QuickAddModal extends Modal {
       reminders: this.f.reminders, parent: this.f.parent,
       project: this.f.project,
     });
+    await this.log.flush(file);   // gepufferte Kommentare in die frische Notiz schreiben
     new Notice(t("qa_added"));
     // Für die nächste Aufgabe zurücksetzen (Projekt beibehalten).
     const project = this.f.project;
@@ -223,7 +254,9 @@ export class QuickAddModal extends Modal {
       priority: "normal", labels: [], recurrence: null, recurBasis: "due", reminders: [], parent: null,
     };
     this.cleanTitle = ""; this.duePinned = false; this.parsedLabels = []; this.parsedProject = null;
-    this.descOpen = false; this.descWrap.addClass("bt-hidden"); this.descInput.value = "";
+    this.descInput.value = ""; this.growDesc();
+    this.log.setEntries([]); this.log.render();
+    this.logWrap.addClass("bt-hidden"); this.syncDetails();
     this.input.value = "";
     this.renderChips();
     this.input.focus();
@@ -241,7 +274,8 @@ export class QuickAddModal extends Modal {
       reminders: [...this.f.reminders], parent: this.f.parent,
       description: this.f.description || undefined,
     };
+    const seedLog = this.log.getEntries();
     this.close();
-    new TaskModal(this.plugin, undefined, project, { defaultTitle: title, seed }).open();
+    new TaskModal(this.plugin, undefined, project, { defaultTitle: title, seed, seedLog }).open();
   }
 }
