@@ -21,6 +21,8 @@ import { t, getLocale, projectDisplayName } from "./i18n";
 // (für die Swap-Semantik beim Label-Board – welches Label die Karte hier her gebracht hat).
 let dragPath: string | null = null;
 let dragFromCol: string | null = null;
+// Horizontale Board-Scrollposition je Board-Identität – überlebt Re-Renders (z. B. nach Karten-Drop).
+const boardScroll = new Map<string, number>();
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -402,7 +404,16 @@ function priorityColumns(plugin: BeautyTasksPlugin, add: BoardAdd): BoardColumn[
 function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd): BoardColumn[] {
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const colorOf = new Map(([eingang, ...bereiche, ...projekte].filter(Boolean) as { name: string; color: string | null }[]).map((p) => [p.name, p.color] as const));
-  const names = [...new Set(tasks.filter((t) => t.project).map((t) => projectName(t.project!)))].sort((a, b) => a.localeCompare(b, "de"));
+  // Standard = Sidebar-Reihenfolge: Eingang, dann Bereiche (navSort.areas), dann Projekte (navSort.projects)
+  // – jeweils nur die in dieser Ansicht vorkommenden. (Manuelles Board-Umsortieren überschreibt das später.)
+  const present = new Set(tasks.filter((t) => t.project).map((t) => projectName(t.project!)));
+  const ordered = [
+    ...(eingang && present.has(eingang.name) ? [eingang] : []),
+    ...plugin.sortProjItems("areas", bereiche.filter((p) => present.has(p.name))),
+    ...plugin.sortProjItems("projects", projekte.filter((p) => present.has(p.name))),
+  ];
+  const names = ordered.map((p) => p.name);
+  for (const n of present) if (!names.includes(n)) names.push(n);   // Sicherheitsnetz (z. B. archivierte Liste)
   const cols: BoardColumn[] = names.map((name) => ({
     id: name, title: projectDisplayName(name), tint: colorOf.get(name) ?? "var(--bt-nav-project)", kind: "open",
     has: (tk: Task) => !!tk.project && projectName(tk.project) === name,
@@ -420,39 +431,82 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
   return cols;
 }
 
-/** Edge-Autoscroll beim Karten-Drag (natives HTML5-DnD scrollt eigene Container in Chromium NICHT):
- *  Kommt der Cursor an den Rand des Boards (horizontal) bzw. der Spaltenliste unter ihm (vertikal),
- *  scrollt der jeweilige Container fortlaufend – auch beim Stillhalten am Rand (die rAF-Schleife läuft
- *  mit der zuletzt gemeldeten Randposition weiter). Nur für eigene Karten (`dragPath`). Popout-sicher
- *  (reiner Element-Scroll). Selbst-Stopp, sobald die Zonen verlassen sind, beim Drag-Ende ODER wenn
- *  das Board neu gerendert/entfernt wurde (`isConnected`). */
+/** Horizontales Edge-Autoscroll beim Karten-Drag (natives HTML5-DnD scrollt eigene Container in
+ *  Chromium NICHT): Kommt der Cursor an den linken/rechten Rand des Boards, scrollt es fortlaufend –
+ *  auch beim Stillhalten am Rand (die rAF-Schleife läuft mit der zuletzt gemeldeten Position weiter).
+ *  Nur für eigene Karten (`dragPath`). Popout-sicher (reiner Element-Scroll). Selbst-Stopp, sobald die
+ *  Zone verlassen ist, beim Drag-Ende ODER wenn das Board neu gerendert/entfernt wurde (`isConnected`).
+ *  KEIN vertikales Autoscroll: Spalten scrollen intern und Drops sind positionsunabhängig – man muss
+ *  beim Ziehen nie eine Spalte intern scrollen. */
 function attachEdgeAutoscroll(board: HTMLElement): void {
   const EDGE = 56;   // Randzone (px)
   const MAX = 18;    // Höchstgeschwindigkeit (px/Frame)
-  let hSpeed = 0, vSpeed = 0, vList: HTMLElement | null = null, rafId = 0;
+  let hSpeed = 0, rafId = 0;
   const ramp = (dist: number): number => Math.min(MAX, Math.max(1, Math.ceil(((EDGE - dist) / EDGE) * MAX)));
   const tick = (): void => {
-    if (!board.isConnected) { rafId = 0; return; }
-    if (hSpeed) board.scrollLeft += hSpeed;
-    if (vSpeed && vList) vList.scrollTop += vSpeed;
-    if (!hSpeed && !vSpeed) { rafId = 0; return; }
+    if (!board.isConnected || !hSpeed) { rafId = 0; return; }
+    board.scrollLeft += hSpeed;
     rafId = window.requestAnimationFrame(tick);
   };
-  const stop = (): void => { hSpeed = 0; vSpeed = 0; vList = null; if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; } };
+  const stop = (): void => { hSpeed = 0; if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; } };
   board.addEventListener("dragover", (e) => {
     if (!dragPath) return;   // nur eigene Karten, kein Vault-/Text-Drag
     const r = board.getBoundingClientRect();
     hSpeed = e.clientX < r.left + EDGE ? -ramp(e.clientX - r.left) : e.clientX > r.right - EDGE ? ramp(r.right - e.clientX) : 0;
-    const list = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>(".bt-kanban-list") : null;
-    if (list) {
-      const lr = list.getBoundingClientRect();
-      vSpeed = e.clientY < lr.top + EDGE ? -ramp(e.clientY - lr.top) : e.clientY > lr.bottom - EDGE ? ramp(lr.bottom - e.clientY) : 0;
-      vList = vSpeed ? list : null;
-    } else { vSpeed = 0; vList = null; }
-    if ((hSpeed || vSpeed) && !rafId) rafId = window.requestAnimationFrame(tick);
+    if (hSpeed && !rafId) rafId = window.requestAnimationFrame(tick);
   });
   board.addEventListener("dragend", stop);
   board.addEventListener("drop", stop);
+}
+
+/** Sentinel-Spalten („Ohne Label"/„Kein Projekt") – bleiben immer hinten, nicht umsortierbar. */
+const isSentinelCol = (id: string): boolean => id === NO_LABEL || id === NO_PROJECT;
+
+/** Board-eigene Spalten-Reihenfolge anwenden (Option B, entkoppelt von der Sidebar): gespeicherte
+ *  IDs zuerst in ihrer Reihenfolge, unbekannte (neue) Spalten behalten ihre Default-Position dahinter,
+ *  Sentinel immer ganz hinten. Stabile Sortierung (JS Array.sort). */
+function applyColumnOrder(cols: BoardColumn[], saved: string[] | undefined): BoardColumn[] {
+  if (!saved?.length) return cols;
+  const rank = new Map(saved.map((id, i) => [id, i] as const));
+  return [...cols].sort((a, b) => {
+    const pa = isSentinelCol(a.id) ? 1 : 0, pb = isSentinelCol(b.id) ? 1 : 0;
+    if (pa !== pb) return pa - pb;                                   // Sentinel ans Ende
+    return (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity);
+  });
+}
+
+/** Kanban-Spalte horizontal umsortieren – der ganze Spaltenkopf ist der Ziehgriff (Pointer-basiert,
+ *  Maus + Touch, Popout-sicher). Persistiert die neue ID-Reihenfolge (ohne Sentinel) je Gruppierung,
+ *  aber nur wenn sich die Reihenfolge tatsächlich geändert hat (bloßer Klick = No-Op). */
+function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLElement, groupKey: string, plugin: BeautyTasksPlugin): void {
+  const cols = (): HTMLElement[] => Array.from(board.children).filter((el): el is HTMLElement => el.instanceOf(HTMLElement) && el.hasClass("bt-kanban-col"));
+  const orderIds = (): string[] => cols().filter((el) => el.dataset.pin !== "1").map((el) => el.dataset.col).filter((c): c is string => !!c);
+  handle.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;   // nur Primärtaste/Touch
+    ev.preventDefault();
+    const doc = board.ownerDocument;
+    const before = orderIds().join(",");
+    const onMove = (me: PointerEvent): void => {
+      colEl.addClass("is-col-dragging");   // Drag-Optik erst bei echter Bewegung (Klick = kein Aufblinken)
+      const x = me.clientX;
+      let placed = false;
+      for (const sib of cols()) {
+        if (sib === colEl || sib.dataset.pin === "1") continue;   // Sentinel bleibt hinten, nie verdrängen
+        const r = sib.getBoundingClientRect();
+        if (x < r.left + r.width / 2) { board.insertBefore(colEl, sib); placed = true; break; }
+      }
+      if (!placed) { const pin = cols().find((el) => el.dataset.pin === "1"); if (pin) board.insertBefore(colEl, pin); else board.appendChild(colEl); }
+    };
+    const onUp = (): void => {
+      colEl.removeClass("is-col-dragging");
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      const ids = orderIds();
+      if (ids.join(",") !== before) void plugin.setBoardColumnOrder(groupKey, ids);   // nur bei echter Änderung
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
 }
 
 /** Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation. */
@@ -483,18 +537,35 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
 function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], today: string,
   opts: ViewOptions, add: BoardAdd): void {
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
-  const cols = opts.group === "label" ? labelColumns(plugin, tasks, add)
+  // Gruppierungs-Schlüssel (stabil) für die board-eigene Spalten-Reihenfolge. Priorität bleibt fest.
+  const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project" : "status";
+  const reorderable = groupKey !== "priority";
+  const baseCols = opts.group === "label" ? labelColumns(plugin, tasks, add)
     : opts.group === "priority" ? priorityColumns(plugin, add)
       : opts.group === "project" ? projectColumns(plugin, tasks, add)
         : statusColumns(plugin, add);
+  const cols = reorderable ? applyColumnOrder(baseCols, plugin.settings.boardColumnOrder?.[groupKey]) : baseCols;
   const board = root.createDiv({ cls: "bt-kanban" });
   attachEdgeAutoscroll(board);
+  // Scroll-Position über Re-Renders halten: nach einem Karten-Drop rendert die ganze View neu –
+  // ohne das spränge das Board zurück nach links. Schlüssel = aktuelle Board-Identität (+ Gruppierung).
+  const scrollKey = (plugin.currentProject ?? plugin.currentLabel ?? plugin.currentFilter ?? plugin.currentView ?? "") + "|" + (opts.group ?? "");
+  board.addEventListener("scroll", () => boardScroll.set(scrollKey, board.scrollLeft));
   for (const col of cols) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.col = col.id;
+    const sentinel = isSentinelCol(col.id);
+    if (sentinel) colEl.dataset.pin = "1";
     setupColumnDnd(colEl, col, plugin);
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
+    // Der ganze Spaltenkopf ist der Ziehgriff zum Umsortieren (nicht bei Priorität/Sentinel).
+    // Grip-Dots als Hover-Signal (absolut positioniert -> kein Layout-Versatz), Cursor = Hand via CSS.
+    if (reorderable && !sentinel) {
+      head.addClass("bt-col-draggable");
+      setIcon(head.createSpan({ cls: "bt-kanban-grip" }), "grip-vertical");
+      attachColumnDrag(colEl, head, board, groupKey, plugin);
+    }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
     const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind);
@@ -508,6 +579,9 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     addEl.createSpan({ text: t("btn_add_task") });
     addEl.onclick = () => col.onAdd();
   }
+  // Board ist jetzt aufgebaut (Breite steht) -> gemerkte Scroll-Position wiederherstellen.
+  const savedLeft = boardScroll.get(scrollKey);
+  if (savedLeft) board.scrollLeft = savedLeft;
 }
 
 function groupLabel(dateISO: string, today: string): string {

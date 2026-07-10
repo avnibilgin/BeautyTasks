@@ -7686,6 +7686,7 @@ function nextInstance(task, today) {
 // src/heuteView.ts
 var dragPath = null;
 var dragFromCol = null;
+var boardScroll = /* @__PURE__ */ new Map();
 var VIEW_PREFIX = "beautytasks-";
 var VIEW_IDS = ["heute", "demnaechst", "wiederkehrend", "erledigt"];
 var VIEW_MAIN = VIEW_PREFIX + "main";
@@ -8036,7 +8037,14 @@ function priorityColumns(plugin, add) {
 function projectColumns(plugin, tasks, add) {
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const colorOf = new Map([eingang, ...bereiche, ...projekte].filter(Boolean).map((p) => [p.name, p.color]));
-  const names = [...new Set(tasks.filter((t2) => t2.project).map((t2) => projectName(t2.project)))].sort((a, b) => a.localeCompare(b, "de"));
+  const present = new Set(tasks.filter((t2) => t2.project).map((t2) => projectName(t2.project)));
+  const ordered = [
+    ...eingang && present.has(eingang.name) ? [eingang] : [],
+    ...plugin.sortProjItems("areas", bereiche.filter((p) => present.has(p.name))),
+    ...plugin.sortProjItems("projects", projekte.filter((p) => present.has(p.name)))
+  ];
+  const names = ordered.map((p) => p.name);
+  for (const n of present) if (!names.includes(n)) names.push(n);
   const cols = names.map((name) => ({
     id: name,
     title: projectDisplayName(name),
@@ -8066,25 +8074,18 @@ function projectColumns(plugin, tasks, add) {
 function attachEdgeAutoscroll(board) {
   const EDGE = 56;
   const MAX = 18;
-  let hSpeed = 0, vSpeed = 0, vList = null, rafId = 0;
+  let hSpeed = 0, rafId = 0;
   const ramp = (dist) => Math.min(MAX, Math.max(1, Math.ceil((EDGE - dist) / EDGE * MAX)));
   const tick = () => {
-    if (!board.isConnected) {
+    if (!board.isConnected || !hSpeed) {
       rafId = 0;
       return;
     }
-    if (hSpeed) board.scrollLeft += hSpeed;
-    if (vSpeed && vList) vList.scrollTop += vSpeed;
-    if (!hSpeed && !vSpeed) {
-      rafId = 0;
-      return;
-    }
+    board.scrollLeft += hSpeed;
     rafId = window.requestAnimationFrame(tick);
   };
   const stop = () => {
     hSpeed = 0;
-    vSpeed = 0;
-    vList = null;
     if (rafId) {
       window.cancelAnimationFrame(rafId);
       rafId = 0;
@@ -8094,19 +8095,58 @@ function attachEdgeAutoscroll(board) {
     if (!dragPath) return;
     const r = board.getBoundingClientRect();
     hSpeed = e.clientX < r.left + EDGE ? -ramp(e.clientX - r.left) : e.clientX > r.right - EDGE ? ramp(r.right - e.clientX) : 0;
-    const list = e.target instanceof HTMLElement ? e.target.closest(".bt-kanban-list") : null;
-    if (list) {
-      const lr = list.getBoundingClientRect();
-      vSpeed = e.clientY < lr.top + EDGE ? -ramp(e.clientY - lr.top) : e.clientY > lr.bottom - EDGE ? ramp(lr.bottom - e.clientY) : 0;
-      vList = vSpeed ? list : null;
-    } else {
-      vSpeed = 0;
-      vList = null;
-    }
-    if ((hSpeed || vSpeed) && !rafId) rafId = window.requestAnimationFrame(tick);
+    if (hSpeed && !rafId) rafId = window.requestAnimationFrame(tick);
   });
   board.addEventListener("dragend", stop);
   board.addEventListener("drop", stop);
+}
+var isSentinelCol = (id) => id === NO_LABEL || id === NO_PROJECT;
+function applyColumnOrder(cols, saved) {
+  if (!saved?.length) return cols;
+  const rank = new Map(saved.map((id, i) => [id, i]));
+  return [...cols].sort((a, b) => {
+    const pa = isSentinelCol(a.id) ? 1 : 0, pb = isSentinelCol(b.id) ? 1 : 0;
+    if (pa !== pb) return pa - pb;
+    return (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity);
+  });
+}
+function attachColumnDrag(colEl, handle, board, groupKey, plugin) {
+  const cols = () => Array.from(board.children).filter((el) => el.instanceOf(HTMLElement) && el.hasClass("bt-kanban-col"));
+  const orderIds = () => cols().filter((el) => el.dataset.pin !== "1").map((el) => el.dataset.col).filter((c) => !!c);
+  handle.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    const doc = board.ownerDocument;
+    const before = orderIds().join(",");
+    const onMove = (me) => {
+      colEl.addClass("is-col-dragging");
+      const x = me.clientX;
+      let placed = false;
+      for (const sib of cols()) {
+        if (sib === colEl || sib.dataset.pin === "1") continue;
+        const r = sib.getBoundingClientRect();
+        if (x < r.left + r.width / 2) {
+          board.insertBefore(colEl, sib);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        const pin = cols().find((el) => el.dataset.pin === "1");
+        if (pin) board.insertBefore(colEl, pin);
+        else board.appendChild(colEl);
+      }
+    };
+    const onUp = () => {
+      colEl.removeClass("is-col-dragging");
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      const ids = orderIds();
+      if (ids.join(",") !== before) void plugin.setBoardColumnOrder(groupKey, ids);
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
 }
 function setupColumnDnd(colEl, col, plugin) {
   colEl.addEventListener("dragover", (e) => {
@@ -8132,14 +8172,26 @@ function setupColumnDnd(colEl, col, plugin) {
 }
 function renderKanbanBoard(root, plugin, tasks, today, opts, add) {
   root.addClass("bt-sizer-board");
-  const cols = opts.group === "label" ? labelColumns(plugin, tasks, add) : opts.group === "priority" ? priorityColumns(plugin, add) : opts.group === "project" ? projectColumns(plugin, tasks, add) : statusColumns(plugin, add);
+  const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project" : "status";
+  const reorderable = groupKey !== "priority";
+  const baseCols = opts.group === "label" ? labelColumns(plugin, tasks, add) : opts.group === "priority" ? priorityColumns(plugin, add) : opts.group === "project" ? projectColumns(plugin, tasks, add) : statusColumns(plugin, add);
+  const cols = reorderable ? applyColumnOrder(baseCols, plugin.settings.boardColumnOrder?.[groupKey]) : baseCols;
   const board = root.createDiv({ cls: "bt-kanban" });
   attachEdgeAutoscroll(board);
+  const scrollKey = (plugin.currentProject ?? plugin.currentLabel ?? plugin.currentFilter ?? plugin.currentView ?? "") + "|" + (opts.group ?? "");
+  board.addEventListener("scroll", () => boardScroll.set(scrollKey, board.scrollLeft));
   for (const col of cols) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
     colEl.dataset.col = col.id;
+    const sentinel = isSentinelCol(col.id);
+    if (sentinel) colEl.dataset.pin = "1";
     setupColumnDnd(colEl, col, plugin);
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
+    if (reorderable && !sentinel) {
+      head.addClass("bt-col-draggable");
+      (0, import_obsidian18.setIcon)(head.createSpan({ cls: "bt-kanban-grip" }), "grip-vertical");
+      attachColumnDrag(colEl, head, board, groupKey, plugin);
+    }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
     const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind);
@@ -8151,6 +8203,8 @@ function renderKanbanBoard(root, plugin, tasks, today, opts, add) {
     addEl.createSpan({ text: t("btn_add_task") });
     addEl.onclick = () => col.onAdd();
   }
+  const savedLeft = boardScroll.get(scrollKey);
+  if (savedLeft) board.scrollLeft = savedLeft;
 }
 function groupLabel(dateISO, today) {
   const lbl = formatDate(dateISO, today);
@@ -10560,6 +10614,15 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [] };
     order[sec] = keys;
     this.settings.navOrder = order;
+    await this.saveSettings();
+    this.renderAll();
+  }
+  /** Manuelle Kanban-Spalten-Reihenfolge je Gruppierung setzen (board-eigen, entkoppelt von der
+   *  Sidebar). keys = Spalten-IDs in gewünschter Reihenfolge (ohne Sentinel „Ohne …"). */
+  async setBoardColumnOrder(groupKey, keys) {
+    const map = this.settings.boardColumnOrder ?? {};
+    map[groupKey] = keys;
+    this.settings.boardColumnOrder = map;
     await this.saveSettings();
     this.renderAll();
   }

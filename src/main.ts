@@ -646,6 +646,16 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.saveSettings();
     this.renderAll();
   }
+
+  /** Manuelle Kanban-Spalten-Reihenfolge je Gruppierung setzen (board-eigen, entkoppelt von der
+   *  Sidebar). keys = Spalten-IDs in gewünschter Reihenfolge (ohne Sentinel „Ohne …"). */
+  async setBoardColumnOrder(groupKey: string, keys: string[]): Promise<void> {
+    const map = this.settings.boardColumnOrder ?? {};
+    map[groupKey] = keys;
+    this.settings.boardColumnOrder = map;
+    await this.saveSettings();
+    this.renderAll();
+  }
   /** Sichtbare Schlüssel einer Sektion in aktueller Reihenfolge (ohne die ausgeblendeten) –
    *  das ist genau die Menge, die die Seitenleiste zeigt. Basis fürs Sidebar-Umsortieren. */
   private visibleNavKeys(sec: NavSection): string[] {

@@ -1107,14 +1107,16 @@ body {
   flex: 0 0 300px; width: 300px;
   display: flex; flex-direction: column; max-height: calc(100vh - 220px);
   background: var(--background-secondary); border: 1px solid var(--bt-line);
-  border-radius: 10px; padding: 10px;
+  border-radius: 10px; padding: 10px 0;   /* horizontaler Abstand liegt an Kopf/Liste/„+" (Scrollbar-Gutter-Ausrichtung) */
 }
 .bt-kanban-col.is-drop { border-color: var(--interactive-accent); background: hsla(var(--interactive-accent-hsl), 0.06); }
-.bt-kanban-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
+.bt-kanban-head { display: flex; align-items: center; gap: 8px; padding: 2px 10px 10px; }
 .bt-kanban-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
 .bt-kanban-title { font-weight: 600; font-size: var(--font-ui-small); color: var(--text-normal); }
 .bt-kanban-count { margin-left: auto; color: var(--text-faint); font-size: var(--font-ui-smaller); }
-.bt-kanban-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 40px; overflow-y: auto; }
+/* scrollbar-gutter: stable reserviert den (10px-)Leistenplatz IMMER -> kein Reflow, alle Spalten
+   gleich; padding-left 10px balanciert den rechten Gutter -> Karten symmetrisch, Zahl bündig. */
+.bt-kanban-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 40px; overflow-y: auto; padding-left: 10px; scrollbar-gutter: stable; }
 
 /* Karten: kompakte Kacheln statt Listenzeilen (keine Trennlinie, eigener Rahmen). */
 .bt-kanban-list .bt-task {
@@ -1127,7 +1129,7 @@ body {
 .bt-kanban-list .bt-task.is-dragging { opacity: 0.45; }
 
 .bt-kanban-add {
-  display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 4px;
+  display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 10px;
   color: var(--text-muted); font-size: var(--font-ui-small); cursor: pointer; border-radius: 6px;
 }
 .bt-kanban-add:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
@@ -1456,3 +1458,41 @@ body {
 .bt-status-editor .bt-status-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .bt-status-editor .bt-status-head .bt-manage-hint { margin: 0; flex: 1; }
 .bt-status-editor .bt-status-reset-wrap { flex-shrink: 0; }
+
+/* Kanban-Scrollleisten: dünn (10px-Spur, 3px transparenter Rand -> ~4px sichtbarer Kern), rein
+   kosmetisch. Die HORIZONTALE Board-Leiste bleibt IMMER sichtbar (Orientierung bei vielen Spalten);
+   die VERTIKALEN Spalten-Leisten sind transparent und erscheinen erst beim Überfahren der Spalte. */
+.bt-kanban, .bt-kanban-list { scrollbar-width: thin; }
+.bt-kanban::-webkit-scrollbar, .bt-kanban-list::-webkit-scrollbar { width: 10px; height: 10px; }
+.bt-kanban::-webkit-scrollbar-track, .bt-kanban-list::-webkit-scrollbar-track { background: transparent; }
+.bt-kanban::-webkit-scrollbar-thumb, .bt-kanban-list::-webkit-scrollbar-thumb {
+  border-radius: 10px; border: 3px solid transparent; background-clip: padding-box;
+}
+
+/* Horizontal (Board unten): immer sichtbar */
+.bt-kanban { scrollbar-color: var(--scrollbar-thumb-bg, var(--background-modifier-border)) transparent; }
+.bt-kanban::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-bg, var(--background-modifier-border)); background-clip: padding-box; }
+.bt-kanban::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-active-thumb-bg, var(--background-modifier-border-hover)); background-clip: padding-box; }
+
+/* Vertikal (Spalten): transparent, blenden bei Hover über der Spalte ein */
+.bt-kanban-list { scrollbar-color: transparent transparent; }
+.bt-kanban-list::-webkit-scrollbar-thumb { background: transparent; }
+.bt-kanban-col:hover .bt-kanban-list { scrollbar-color: var(--scrollbar-thumb-bg, var(--background-modifier-border)) transparent; }
+.bt-kanban-col:hover .bt-kanban-list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-bg, var(--background-modifier-border)); background-clip: padding-box; }
+.bt-kanban-list::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-active-thumb-bg, var(--background-modifier-border-hover)); background-clip: padding-box; }
+
+/* Kanban: Spaltenkopf als Ziehgriff zum Umsortieren der Spalten (nicht Priorität/Sentinel).
+   Grip-Dots-Icon als Hover-Signal: absolut im linken Kopf-Abstand -> kein Layout-Versatz. */
+.bt-kanban-head.bt-col-draggable { position: relative; cursor: grab; user-select: none; touch-action: none; }
+.bt-kanban-head.bt-col-draggable:active,
+.bt-kanban-col.is-col-dragging .bt-kanban-head { cursor: grabbing; }
+.bt-kanban-col.is-col-dragging { opacity: 0.55; }
+.bt-kanban-head .bt-kanban-grip {
+  /* auf Textmitte: der Kopf hat oben 2px / unten 10px Padding -> Inhalt liegt 4px über der Box-Mitte. */
+  position: absolute; left: -4px; top: calc(50% - 4px); transform: translateY(-50%);
+  display: inline-flex; color: var(--text-muted); pointer-events: none;
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.bt-kanban-head .bt-kanban-grip svg { width: 15px; height: 15px; }
+/* Nur wenn die Kopfzeile selbst überfahren wird – nicht beim Überfliegen der Karten. */
+.bt-kanban-head.bt-col-draggable:hover .bt-kanban-grip { opacity: 0.9; }
