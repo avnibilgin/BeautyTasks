@@ -11,7 +11,11 @@ export type ChipId = "status" | "due" | "priority" | "label" | "recurrence" | "d
  *  onValue = nur sichtbar, sobald ein Wert gesetzt ist; leer nur über „+ Weitere Aktionen"
  *  hidden  = nie in der Leiste (auch mit Wert nicht) – setzen/ändern nur über „+ Weitere Aktionen". */
 export type ChipTier = "shown" | "onValue" | "hidden";
-/** Kanonische Reihenfolge (= bisheriges Render-Verhalten). Fehlt ein Chip in settings.chipOrder,
+/** Die zwei Eingabe-Flächen mit je EIGENER Chip-Konfiguration (getrennte Profile). */
+export type ChipSurface = "editor" | "quickAdd";
+/** Chip-Konfiguration einer Fläche: Reihenfolge + Sichtbarkeits-Stufe je Chip. */
+export interface ChipProfile { order?: ChipId[]; tiers?: Partial<Record<ChipId, ChipTier>>; }
+/** Kanonische Reihenfolge (= bisheriges Render-Verhalten). Fehlt ein Chip in profile.order,
  *  wird er hier ergänzt; fehlt sein Tier, gilt "shown" (nichts ändert sich per Default). */
 export const CHIP_IDS: ChipId[] = ["status", "due", "priority", "label", "recurrence", "deadline", "reminder", "parent", "details"];
 
@@ -74,8 +78,7 @@ export interface BeautyTasksSettings {
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
-  chipOrder?: ChipId[];            // Reihenfolge der Attribut-Chips (undefined = CHIP_IDS)
-  chipTiers?: Partial<Record<ChipId, ChipTier>>;   // Sichtbarkeits-Stufe je Chip (fehlt = "shown")
+  chipProfiles?: Partial<Record<ChipSurface, ChipProfile>>;   // Chip-Konfiguration je Fläche (Editor/Schnelleingabe)
   boardLayout: "list" | "board";   // Projekt-/Label-Boards als Liste oder Kanban (Spalten = Status)
   statuses?: StoredStatus[];        // user-definierbare Status (undefined = eingebaute Defaults, siehe statuses.ts)
   pageViewOptions?: Record<string, Partial<import("./filterEngine").ViewOptions>>;   // Anzeige-Optionen für System-Views (key=ViewId) und Labels (key="label:<name>"); Notiz-Seiten speichern im Frontmatter

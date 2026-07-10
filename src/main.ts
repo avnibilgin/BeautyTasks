@@ -1,5 +1,5 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode } from "./types";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
 import { isDone, initStatuses, firstOpenStatus, firstDoneStatus, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
@@ -1002,6 +1002,13 @@ export default class BeautyTasksPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<BeautyTasksSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    // Migration: früheres globales chipOrder/chipTiers -> Editor-Profil (Flächen ab jetzt getrennt).
+    const legacy = (saved ?? {}) as Record<string, unknown>;
+    if ((legacy.chipOrder || legacy.chipTiers) && !this.settings.chipProfiles) {
+      this.settings.chipProfiles = {
+        editor: { order: legacy.chipOrder as ChipId[] | undefined, tiers: legacy.chipTiers as Partial<Record<ChipId, ChipTier>> | undefined },
+      };
+    }
     // Kompakt-Modus (nur Chip-Icons) auf Mobile standardmäßig an – aber nur, wenn der Nutzer
     // die Einstellung noch nie selbst gesetzt hat (frische Installation). Manuelles Umschalten
     // in den Einstellungen bleibt danach erhalten.

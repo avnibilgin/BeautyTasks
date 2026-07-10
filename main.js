@@ -268,10 +268,12 @@ var STRINGS = {
     more_chip_actions: "More actions",
     edit_task_actions: "Edit task actions",
     set_chip_actions: "Task actions (input chips)",
-    set_chip_actions_desc: "Drag each chip into a section \u2014 Always show, Show when set, or Only in the + menu. Applies to both quick add and the full editor; order = chip order.",
+    set_chip_actions_desc: "Configure quick add and the full editor separately. Drag each chip into a section \u2014 Always show, Show when set, or Only in the + menu. Order = chip order.",
     chip_tier_shown: "Always show",
     chip_tier_onValue: "Show when set",
     chip_tier_hidden: "Only in the + menu",
+    chip_surface_editor: "Full editor",
+    chip_surface_quickadd: "Quick add",
     menu_create_subtask: "Create subtask",
     menu_show_parent: "Show parent task",
     menu_duplicate: "Duplicate task",
@@ -608,10 +610,12 @@ var STRINGS = {
     more_chip_actions: "Weitere Aktionen",
     edit_task_actions: "Aufgabenaktionen bearbeiten",
     set_chip_actions: "Aufgabenaktionen (Eingabe-Chips)",
-    set_chip_actions_desc: "Ziehe jeden Chip in einen Abschnitt \u2013 Immer anzeigen, Bei Wert anzeigen oder Nur im +-Men\xFC. Gilt f\xFCr Schnelleingabe und den vollen Editor; Reihenfolge = Chip-Reihenfolge.",
+    set_chip_actions_desc: "Schnelleingabe und normale Eingabe getrennt einstellbar. Ziehe jeden Chip in einen Abschnitt \u2013 Immer anzeigen, Bei Wert anzeigen oder Nur im +-Men\xFC. Reihenfolge = Chip-Reihenfolge.",
     chip_tier_shown: "Immer anzeigen",
     chip_tier_onValue: "Bei Wert anzeigen",
     chip_tier_hidden: "Nur im +-Men\xFC",
+    chip_surface_editor: "Normale Eingabe",
+    chip_surface_quickadd: "Schnelleingabe",
     menu_create_subtask: "Unteraufgabe erstellen",
     menu_show_parent: "\xDCbergeordnete Aufgabe anzeigen",
     menu_duplicate: "Aufgabe duplizieren",
@@ -5389,24 +5393,27 @@ var CHIPS = {
     }
   }
 };
-function resolveChipOrder(settings) {
-  const saved = settings.chipOrder ?? [];
+function chipProfile(settings, surface) {
+  return settings.chipProfiles?.[surface] ?? {};
+}
+function resolveChipOrder(settings, surface) {
+  const saved = chipProfile(settings, surface).order ?? [];
   const seen = new Set(saved.filter((id) => CHIP_IDS.includes(id)));
   return [...saved.filter((id) => CHIP_IDS.includes(id)), ...CHIP_IDS.filter((id) => !seen.has(id))];
 }
-function chipTierOf(settings, id) {
-  return settings.chipTiers?.[id] ?? "shown";
+function chipTierOf(settings, surface, id) {
+  return chipProfile(settings, surface).tiers?.[id] ?? "shown";
 }
-function isInline(settings, id, set) {
-  const tier = chipTierOf(settings, id);
+function isInline(settings, surface, id, set) {
+  const tier = chipTierOf(settings, surface, id);
   return tier === "shown" || tier === "onValue" && set;
 }
 function orderedChips(host) {
-  return resolveChipOrder(host.plugin.settings).map((id) => CHIPS[id]).filter((c) => !host.chipEnabled || host.chipEnabled(c.id));
+  return resolveChipOrder(host.plugin.settings, host.surface).map((id) => CHIPS[id]).filter((c) => !host.chipEnabled || host.chipEnabled(c.id));
 }
 function plusChips(host) {
   const s = host.plugin.settings;
-  return orderedChips(host).filter((c) => !isInline(s, c.id, c.isSet(host.f, host)));
+  return orderedChips(host).filter((c) => !isInline(s, host.surface, c.id, c.isSet(host.f, host)));
 }
 function plusHasSetHidden(host) {
   return plusChips(host).some((c) => c.isSet(host.f, host));
@@ -5511,6 +5518,7 @@ var TaskModal = class _TaskModal extends import_obsidian10.Modal {
     this.discarding = false;
     // true = bewusst verwerfen („Cancel") -> kein Auto-Speichern
     this.persisted = false;
+    const seed = opts.seed;
     this.f = existing ? {
       title: existing.title,
       status: existing.status,
@@ -5526,7 +5534,23 @@ var TaskModal = class _TaskModal extends import_obsidian10.Modal {
       parent: existing.parent ? baseName4(existing.parent) : null,
       labels: [...existing.labels],
       reminders: [...existing.reminders ?? []]
-    } : { title: opts.defaultTitle ?? "", status: opts.defaultStatus, priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+    } : {
+      title: opts.defaultTitle ?? "",
+      status: seed?.status ?? opts.defaultStatus,
+      priority: seed?.priority ?? "normal",
+      labels: seed?.labels ? [...seed.labels] : opts.defaultLabel ? [opts.defaultLabel] : [],
+      reminders: seed?.reminders ? [...seed.reminders] : [],
+      due: seed?.due ?? (opts.defaultToday ? todayIso() : null),
+      dueTime: seed?.dueTime ?? null,
+      duration: seed?.duration ?? null,
+      scheduled: seed?.scheduled ?? null,
+      scheduledTime: seed?.scheduledTime ?? null,
+      recurrence: seed?.recurrence ?? null,
+      recurBasis: seed?.recurBasis ?? "due",
+      parent: seed?.parent ?? null,
+      description: seed?.description,
+      project: defaultProject ?? "Inbox"
+    };
   }
   onOpen() {
     const { contentEl, modalEl } = this;
@@ -5635,6 +5659,7 @@ var TaskModal = class _TaskModal extends import_obsidian10.Modal {
       plugin: this.plugin,
       app: this.app,
       f: this.f,
+      surface: "editor",
       rerender: () => this.renderChips(),
       compactLabels: false,
       iconsOnly: this.plugin.settings.chipsIconsOnly,
@@ -5658,11 +5683,11 @@ var TaskModal = class _TaskModal extends import_obsidian10.Modal {
     bar.empty();
     const host = this.chipHost();
     const settings = this.plugin.settings;
-    for (const id of resolveChipOrder(settings)) {
+    for (const id of resolveChipOrder(settings, host.surface)) {
       const c = CHIPS[id];
       if (host.chipEnabled && !host.chipEnabled(id)) continue;
       const set = c.isSet(this.f, host);
-      if (!isInline(settings, id, set)) continue;
+      if (!isInline(settings, host.surface, id, set)) continue;
       if (c.kind === "status") renderStatusChip(bar, host, c);
       else if (c.kind === "details") this.renderDetailsChip(bar);
       else renderValueChip(bar, host, c, set);
@@ -8440,6 +8465,7 @@ var QuickAddModal = class extends import_obsidian18.Modal {
       plugin: this.plugin,
       app: this.app,
       f: this.f,
+      surface: "quickAdd",
       rerender: () => this.renderChips(),
       compactLabels: true,
       // Priorität als „P1" (kompakt)
@@ -8472,10 +8498,10 @@ var QuickAddModal = class extends import_obsidian18.Modal {
     bar.empty();
     const host = this.chipHost();
     const settings = this.plugin.settings;
-    for (const id of resolveChipOrder(settings)) {
+    for (const id of resolveChipOrder(settings, host.surface)) {
       const c = CHIPS[id];
       const set = c.isSet(this.f, host);
-      if (!isInline(settings, id, set)) continue;
+      if (!isInline(settings, host.surface, id, set)) continue;
       if (c.kind === "status") renderStatusChip(bar, host, c);
       else if (c.kind === "details") this.renderDetailsChip(bar);
       else renderValueChip(bar, host, c, set);
@@ -8608,12 +8634,28 @@ var QuickAddModal = class extends import_obsidian18.Modal {
     this.renderChips();
     this.input.focus();
   }
-  /** Modal schließen und das bereits Getippte ins volle TaskModal übergeben. */
+  /** Modal schließen und den vollständigen Stand ins volle TaskModal übergeben: bereinigten Titel
+   *  (NL-Token bereits ausgewertet) + alle gesetzten Chips als Seed. */
   openInFull() {
-    const text = this.f.title;
+    const title = this.titleValue();
     const project = this.f.project ?? void 0;
+    const seed = {
+      status: this.f.status,
+      due: this.f.due,
+      dueTime: this.f.dueTime,
+      duration: this.f.duration,
+      scheduled: this.f.scheduled,
+      scheduledTime: this.f.scheduledTime,
+      priority: this.f.priority,
+      labels: [...this.f.labels],
+      recurrence: this.f.recurrence,
+      recurBasis: this.f.recurBasis,
+      reminders: [...this.f.reminders],
+      parent: this.f.parent,
+      description: this.f.description || void 0
+    };
     this.close();
-    new TaskModal(this.plugin, void 0, project, { defaultTitle: text }).open();
+    new TaskModal(this.plugin, void 0, project, { defaultTitle: title, seed }).open();
   }
 };
 
@@ -8882,7 +8924,7 @@ var BeautyTasksSettingTab = class extends import_obsidian20.PluginSettingTab {
     }));
     new import_obsidian20.Setting(containerEl).setName(t("set_chip_actions")).setHeading();
     containerEl.createEl("div", { cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
-    this.renderChipZones(containerEl);
+    this.renderChipActions(containerEl);
     new import_obsidian20.Setting(containerEl).setName(t("tab_statuses")).setHeading();
     renderStatusEditor(containerEl.createDiv({ cls: "bt-settings-status" }), p);
     new import_obsidian20.Setting(containerEl).setName(t("set_data_heading")).setHeading();
@@ -8890,10 +8932,33 @@ var BeautyTasksSettingTab = class extends import_obsidian20.PluginSettingTab {
     new import_obsidian20.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
     new import_obsidian20.Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc")).addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
   }
-  /** Drei Tier-Zonen (Immer anzeigen · Bei Wert anzeigen · Immer im +-Menü). Jede Chip-Zeile lässt
-   *  sich per Griff zwischen den Zonen ziehen; das Ablegen persistiert chipTiers + chipOrder. */
-  renderChipZones(containerEl) {
+  /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
+   *  Beide Flächen haben getrennte Profile (chipProfiles). */
+  renderChipActions(containerEl) {
+    const SURFACES = ["editor", "quickAdd"];
+    let surface = "editor";
+    const tabs = containerEl.createDiv({ cls: "bt-chip-surface-tabs" });
+    const zonesHost = containerEl.createDiv();
+    const drawTabs = () => {
+      tabs.empty();
+      for (const s of SURFACES) {
+        const b = tabs.createEl("button", { cls: "bt-chip-surface-tab" + (s === surface ? " is-active" : ""), text: t(s === "editor" ? "chip_surface_editor" : "chip_surface_quickadd") });
+        b.onclick = () => {
+          if (s === surface) return;
+          surface = s;
+          drawTabs();
+          this.renderChipZones(zonesHost, surface);
+        };
+      }
+    };
+    drawTabs();
+    this.renderChipZones(zonesHost, surface);
+  }
+  /** Drei Tier-Zonen (Immer anzeigen · Bei Wert anzeigen · Immer im +-Menü) für EINE Fläche. Jede
+   *  Chip-Zeile lässt sich per Griff zwischen den Zonen ziehen; Ablegen persistiert das Profil. */
+  renderChipZones(containerEl, surface) {
     const p = this.plugin;
+    containerEl.empty();
     const wrap = containerEl.createDiv({ cls: "bt-chip-zones" });
     const zones = [];
     const persist = () => {
@@ -8908,8 +8973,9 @@ var BeautyTasksSettingTab = class extends import_obsidian20.PluginSettingTab {
           tiers[id] = tier;
         }
       }
-      p.settings.chipOrder = order;
-      p.settings.chipTiers = tiers;
+      const profiles = p.settings.chipProfiles ?? {};
+      profiles[surface] = { order, tiers };
+      p.settings.chipProfiles = profiles;
       void p.saveSettings();
     };
     for (const tier of CHIP_TIERS) {
@@ -8918,9 +8984,9 @@ var BeautyTasksSettingTab = class extends import_obsidian20.PluginSettingTab {
       const zone = block.createDiv({ cls: "bt-chip-zone", attr: { "data-tier": tier } });
       zones.push(zone);
     }
-    for (const id of resolveChipOrder(p.settings)) {
+    for (const id of resolveChipOrder(p.settings, surface)) {
       const c = CHIPS[id];
-      const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, id))];
+      const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, surface, id))];
       const row = zone.createDiv({ cls: "bt-chip-row", attr: { "data-id": id } });
       const grip = row.createSpan({ cls: "bt-chip-grip", attr: { "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
       (0, import_obsidian20.setIcon)(grip, "grip-vertical");
@@ -10488,6 +10554,12 @@ var BeautyTasksPlugin = class extends import_obsidian24.Plugin {
   async loadSettings() {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    const legacy = saved ?? {};
+    if ((legacy.chipOrder || legacy.chipTiers) && !this.settings.chipProfiles) {
+      this.settings.chipProfiles = {
+        editor: { order: legacy.chipOrder, tiers: legacy.chipTiers }
+      };
+    }
     if (saved?.chipsIconsOnly === void 0 && import_obsidian24.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }

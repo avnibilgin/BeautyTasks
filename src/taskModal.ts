@@ -6,7 +6,7 @@ import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { parseQuickEntry } from "./quickEntry";
 import { LogEntry, readLog, writeLog, readDescription, writeDescription, nowLogTs, formatLogTime } from "./detailLog";
-import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
+import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
@@ -40,8 +40,9 @@ export class TaskModal extends Modal {
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string } } = {}) {
     super(plugin.app);
+    const seed = opts.seed;
     this.f = existing
       ? {
           title: existing.title, status: existing.status, due: existing.due, dueTime: existing.dueTime,
@@ -52,7 +53,21 @@ export class TaskModal extends Modal {
           labels: [...existing.labels],
           reminders: [...(existing.reminders ?? [])],
         }
-      : { title: opts.defaultTitle ?? "", status: opts.defaultStatus, priority: "normal", labels: opts.defaultLabel ? [opts.defaultLabel] : [], reminders: [], due: opts.defaultToday ? todayIso() : null, project: defaultProject ?? "Inbox", recurBasis: "due" };
+      // Neu: Basis + optionaler Seed (z. B. aus der Schnelleingabe, ⤢ „Voller Editor" – übernimmt
+      // alle bereits gesetzten Chips). Explizit, damit reminders sicher string[] bleibt.
+      : {
+          title: opts.defaultTitle ?? "",
+          status: seed?.status ?? opts.defaultStatus,
+          priority: seed?.priority ?? "normal",
+          labels: seed?.labels ? [...seed.labels] : (opts.defaultLabel ? [opts.defaultLabel] : []),
+          reminders: seed?.reminders ? [...seed.reminders] : [],
+          due: seed?.due ?? (opts.defaultToday ? todayIso() : null),
+          dueTime: seed?.dueTime ?? null, duration: seed?.duration ?? null,
+          scheduled: seed?.scheduled ?? null, scheduledTime: seed?.scheduledTime ?? null,
+          recurrence: seed?.recurrence ?? null, recurBasis: seed?.recurBasis ?? "due",
+          parent: seed?.parent ?? null, description: seed?.description,
+          project: defaultProject ?? "Inbox",
+        };
   }
 
   onOpen(): void {
@@ -163,6 +178,7 @@ export class TaskModal extends Modal {
       plugin: this.plugin,
       app: this.app,
       f: this.f,
+      surface: "editor",
       rerender: () => this.renderChips(),
       compactLabels: false,
       iconsOnly: this.plugin.settings.chipsIconsOnly,
@@ -183,11 +199,11 @@ export class TaskModal extends Modal {
     const settings = this.plugin.settings;
     // Reihenfolge + Sichtbarkeit aus den Einstellungen (chipOrder/chipTiers): shown = immer,
     // onValue = nur mit Wert, hidden = nie (nur über „+"). Gesetzte Werte bleiben immer sichtbar.
-    for (const id of resolveChipOrder(settings)) {
+    for (const id of resolveChipOrder(settings, host.surface)) {
       const c = CHIPS[id];
       if (host.chipEnabled && !host.chipEnabled(id)) continue;
       const set = c.isSet(this.f, host);
-      if (!isInline(settings, id, set)) continue;
+      if (!isInline(settings, host.surface, id, set)) continue;
       if (c.kind === "status") renderStatusChip(bar, host, c);
       else if (c.kind === "details") this.renderDetailsChip(bar);
       else renderValueChip(bar, host, c, set);

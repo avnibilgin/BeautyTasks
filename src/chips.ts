@@ -5,7 +5,7 @@
 // nutzen dieselben Picker – keine Duplikate mehr.
 import { App, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Priority, TaskStatus, ChipId, ChipTier, CHIP_IDS, BeautyTasksSettings } from "./types";
+import { Priority, TaskStatus, ChipId, ChipTier, ChipSurface, ChipProfile, CHIP_IDS, BeautyTasksSettings } from "./types";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
 import { boardStatuses, statusLabel, statusIcon, statusTint } from "./statuses";
 import { openDatePicker } from "./datePicker";
@@ -63,6 +63,7 @@ export interface ChipHost {
   plugin: BeautyTasksPlugin;
   app: App;
   f: ChipFields;
+  surface: ChipSurface;                   // eigene Chip-Konfiguration je Fläche (Editor/Schnelleingabe)
   rerender(): void;                       // Chip-Leiste neu zeichnen
   compactLabels: boolean;                 // true = Priorität als „P1" (Schnelleingabe), sonst voll
   iconsOnly: boolean;                     // leere Chips nur als Icon (Schnelleingabe immer; Editor per Setting)
@@ -319,34 +320,39 @@ export const CHIPS: Record<ChipId, ChipDef> = {
   },
 };
 
-/** Aufgelöste Chip-Reihenfolge: gespeicherte Reihenfolge, um fehlende Ids (kanonisch) ergänzt. */
-export function resolveChipOrder(settings: BeautyTasksSettings): ChipId[] {
-  const saved = settings.chipOrder ?? [];
+/** Konfigurations-Profil einer Fläche (leer = Defaults). */
+export function chipProfile(settings: BeautyTasksSettings, surface: ChipSurface): ChipProfile {
+  return settings.chipProfiles?.[surface] ?? {};
+}
+
+/** Aufgelöste Chip-Reihenfolge der Fläche: gespeicherte Reihenfolge, um fehlende Ids (kanonisch) ergänzt. */
+export function resolveChipOrder(settings: BeautyTasksSettings, surface: ChipSurface): ChipId[] {
+  const saved = chipProfile(settings, surface).order ?? [];
   const seen = new Set(saved.filter((id) => CHIP_IDS.includes(id)));
   return [...saved.filter((id) => CHIP_IDS.includes(id)), ...CHIP_IDS.filter((id) => !seen.has(id))];
 }
 
-/** Sichtbarkeits-Stufe eines Chips (fehlt = "shown" -> unverändertes Default-Verhalten). */
-export function chipTierOf(settings: BeautyTasksSettings, id: ChipId): ChipTier {
-  return settings.chipTiers?.[id] ?? "shown";
+/** Sichtbarkeits-Stufe eines Chips auf der Fläche (fehlt = "shown" -> unverändertes Default-Verhalten). */
+export function chipTierOf(settings: BeautyTasksSettings, surface: ChipSurface, id: ChipId): ChipTier {
+  return chipProfile(settings, surface).tiers?.[id] ?? "shown";
 }
 
 /** Soll der Chip inline in der Leiste stehen? shown = immer; onValue = nur mit Wert; hidden = nie.
  *  Gilt in Kompakt- UND Normalmodus gleich (gesetzte Werte bleiben immer sichtbar). */
-export function isInline(settings: BeautyTasksSettings, id: ChipId, set: boolean): boolean {
-  const tier = chipTierOf(settings, id);
+export function isInline(settings: BeautyTasksSettings, surface: ChipSurface, id: ChipId, set: boolean): boolean {
+  const tier = chipTierOf(settings, surface, id);
   return tier === "shown" || (tier === "onValue" && set);
 }
 
 /** Chips in aufgelöster Reihenfolge, ohne im Modal deaktivierte (z. B. Parent im Subtask-Modus). */
 export function orderedChips(host: ChipHost): ChipDef[] {
-  return resolveChipOrder(host.plugin.settings).map((id) => CHIPS[id]).filter((c) => !host.chipEnabled || host.chipEnabled(c.id));
+  return resolveChipOrder(host.plugin.settings, host.surface).map((id) => CHIPS[id]).filter((c) => !host.chipEnabled || host.chipEnabled(c.id));
 }
 
 /** Die nicht-inline Chips (fürs „+"-Menü „Weitere Aktionen"). */
 export function plusChips(host: ChipHost): ChipDef[] {
   const s = host.plugin.settings;
-  return orderedChips(host).filter((c) => !isInline(s, c.id, c.isSet(host.f, host)));
+  return orderedChips(host).filter((c) => !isInline(s, host.surface, c.id, c.isSet(host.f, host)));
 }
 
 /** True, wenn hinter „+" ausgeblendete Chips MIT Wert stecken (Badge am „+"-Icon). */

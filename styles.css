@@ -1428,3 +1428,9 @@ body {
 .bt-chip-row-ic { display: inline-flex; color: var(--text-muted); }
 .bt-chip-row-ic svg { width: 15px; height: 15px; }
 .bt-chip-row-lbl { flex: 1; min-width: 0; }
+
+/* Aufgabenaktionen: Flächen-Umschalter (Normale Eingabe | Schnelleingabe) */
+.bt-chip-surface-tabs { display: inline-flex; gap: 2px; padding: 2px; margin-bottom: 12px; background: var(--background-modifier-border); border-radius: 7px; }
+.bt-chip-surface-tab { padding: 4px 12px; border: none; border-radius: 5px; background: transparent; color: var(--text-muted); font-size: 0.86em; cursor: pointer; box-shadow: none; }
+.bt-chip-surface-tab:hover { color: var(--text-normal); }
+.bt-chip-surface-tab.is-active { background: var(--background-primary); color: var(--text-normal); }

@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { ChipId, ChipTier } from "./types";
+import { ChipId, ChipTier, ChipSurface } from "./types";
 import { CHIPS, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
@@ -126,10 +126,10 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
       }));
 
-    // ── Aufgabenaktionen (Chips ein-/ausblenden + sortieren; wirkt auf Editor UND Schnelleingabe) ──
+    // ── Aufgabenaktionen (Chips je Fläche ein-/ausblenden + sortieren) ──
     new Setting(containerEl).setName(t("set_chip_actions")).setHeading();
     containerEl.createEl("div", { cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
-    this.renderChipZones(containerEl);
+    this.renderChipActions(containerEl);
 
     // ── Status (früher im ListManager; Custom-Status ist Konfiguration → gehört hierher) ──
     new Setting(containerEl).setName(t("tab_statuses")).setHeading();
@@ -149,14 +149,33 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       .addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
   }
 
-  /** Drei Tier-Zonen (Immer anzeigen · Bei Wert anzeigen · Immer im +-Menü). Jede Chip-Zeile lässt
-   *  sich per Griff zwischen den Zonen ziehen; das Ablegen persistiert chipTiers + chipOrder. */
-  private renderChipZones(containerEl: HTMLElement): void {
+  /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
+   *  Beide Flächen haben getrennte Profile (chipProfiles). */
+  private renderChipActions(containerEl: HTMLElement): void {
+    const SURFACES: ChipSurface[] = ["editor", "quickAdd"];
+    let surface: ChipSurface = "editor";
+    const tabs = containerEl.createDiv({ cls: "bt-chip-surface-tabs" });
+    const zonesHost = containerEl.createDiv();
+    const drawTabs = (): void => {
+      tabs.empty();
+      for (const s of SURFACES) {
+        const b = tabs.createEl("button", { cls: "bt-chip-surface-tab" + (s === surface ? " is-active" : ""), text: t(s === "editor" ? "chip_surface_editor" : "chip_surface_quickadd") });
+        b.onclick = () => { if (s === surface) return; surface = s; drawTabs(); this.renderChipZones(zonesHost, surface); };
+      }
+    };
+    drawTabs();
+    this.renderChipZones(zonesHost, surface);
+  }
+
+  /** Drei Tier-Zonen (Immer anzeigen · Bei Wert anzeigen · Immer im +-Menü) für EINE Fläche. Jede
+   *  Chip-Zeile lässt sich per Griff zwischen den Zonen ziehen; Ablegen persistiert das Profil. */
+  private renderChipZones(containerEl: HTMLElement, surface: ChipSurface): void {
     const p = this.plugin;
+    containerEl.empty();   // beim Flächen-Wechsel neu aufbauen
     const wrap = containerEl.createDiv({ cls: "bt-chip-zones" });
     const zones: HTMLElement[] = [];
 
-    // Speichert die aktuelle DOM-Verteilung (Zonen-Zugehörigkeit = Tier, Reihenfolge = chipOrder).
+    // Speichert die aktuelle DOM-Verteilung ins Profil der Fläche (Zone = Tier, Reihenfolge = order).
     const persist = (): void => {
       const order: ChipId[] = [];
       const tiers: Partial<Record<ChipId, ChipTier>> = {};
@@ -168,8 +187,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
           order.push(id); tiers[id] = tier;
         }
       }
-      p.settings.chipOrder = order;
-      p.settings.chipTiers = tiers;
+      const profiles = p.settings.chipProfiles ?? {};
+      profiles[surface] = { order, tiers };
+      p.settings.chipProfiles = profiles;
       void p.saveSettings();
     };
 
@@ -180,9 +200,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       zones.push(zone);
     }
 
-    for (const id of resolveChipOrder(p.settings)) {
+    for (const id of resolveChipOrder(p.settings, surface)) {
       const c = CHIPS[id];
-      const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, id))];
+      const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, surface, id))];
       const row = zone.createDiv({ cls: "bt-chip-row", attr: { "data-id": id } });
       const grip = row.createSpan({ cls: "bt-chip-grip", attr: { "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
       setIcon(grip, "grip-vertical");

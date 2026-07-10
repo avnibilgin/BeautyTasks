@@ -111,6 +111,7 @@ export class QuickAddModal extends Modal {
       plugin: this.plugin,
       app: this.app,
       f: this.f,
+      surface: "quickAdd",
       rerender: () => this.renderChips(),
       compactLabels: true,     // Priorität als „P1" (kompakt)
       iconsOnly: true,         // leere Chips stets nur Icon
@@ -128,10 +129,10 @@ export class QuickAddModal extends Modal {
     const bar = this.chipBar; bar.empty();
     const host = this.chipHost();
     const settings = this.plugin.settings;
-    for (const id of resolveChipOrder(settings)) {
+    for (const id of resolveChipOrder(settings, host.surface)) {
       const c = CHIPS[id];
       const set = c.isSet(this.f, host);
-      if (!isInline(settings, id, set)) continue;
+      if (!isInline(settings, host.surface, id, set)) continue;
       if (c.kind === "status") renderStatusChip(bar, host, c);
       else if (c.kind === "details") this.renderDetailsChip(bar);
       else renderValueChip(bar, host, c, set);
@@ -228,11 +229,19 @@ export class QuickAddModal extends Modal {
     this.input.focus();
   }
 
-  /** Modal schließen und das bereits Getippte ins volle TaskModal übergeben. */
+  /** Modal schließen und den vollständigen Stand ins volle TaskModal übergeben: bereinigten Titel
+   *  (NL-Token bereits ausgewertet) + alle gesetzten Chips als Seed. */
   private openInFull(): void {
-    const text = this.f.title;
+    const title = this.titleValue();
     const project = this.f.project ?? undefined;
+    const seed = {
+      status: this.f.status, due: this.f.due, dueTime: this.f.dueTime, duration: this.f.duration,
+      scheduled: this.f.scheduled, scheduledTime: this.f.scheduledTime, priority: this.f.priority,
+      labels: [...this.f.labels], recurrence: this.f.recurrence, recurBasis: this.f.recurBasis,
+      reminders: [...this.f.reminders], parent: this.f.parent,
+      description: this.f.description || undefined,
+    };
     this.close();
-    new TaskModal(this.plugin, undefined, project, { defaultTitle: text }).open();
+    new TaskModal(this.plugin, undefined, project, { defaultTitle: title, seed }).open();
   }
 }
