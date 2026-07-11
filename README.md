@@ -14,7 +14,7 @@ A Todoist-style task & project manager that lives **inside** Obsidian — with a
 - **A real task app, natively.** A Todoist-inspired dashboard with sidebar navigation, a chip-based task editor, quick capture and keyboard-friendly flows — all rendered inside Obsidian, popout-window compatible.
 - **Zero dependencies, fully local.** No other plugin is required, no external service is contacted, no sign-up. Your tasks never leave your vault.
 - **Fully themeable.** Every color is a CSS variable; works with your theme, CSS snippets, or the Style Settings plugin — including a monochrome mode.
-- **Bilingual.** Complete English and German UI (auto-detected from Obsidian, or forced in settings), including natural-language date parsing in both languages.
+- **10 languages.** The interface is available in English, German, Spanish, Portuguese (Brazil), French, Italian, Turkish, Russian, Simplified Chinese and Japanese (auto-detected from Obsidian, or set in settings). Natural-language date parsing is available in English and German.
 
 ---
 
@@ -210,7 +210,7 @@ Assign hotkeys to any of these under **Settings → Hotkeys**.
 ## Settings
 
 - **Folders** for tasks, projects, areas and attachments.
-- **Language** — auto (follow Obsidian), English or German.
+- **Language** — auto (follow Obsidian) or pick one of 10 languages (English, German, Spanish, Portuguese, French, Italian, Turkish, Russian, Simplified Chinese, Japanese).
 - **Start view** — which view opens by default (or the last used one).
 - **Natural-language parsing** — toggle date/label/priority detection in titles.
 - **Icons-only chips** and **description preview in lists**.
