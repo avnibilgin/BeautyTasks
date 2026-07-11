@@ -175,23 +175,29 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       new Setting(containerEl).setName(t("gcal_help_btn"))
         .addButton((b) => b.setButtonText(t("gcal_help_btn"))
           .onClick(() => window.open("https://console.cloud.google.com/apis/credentials")));
+      // „Verbinden" muss reaktiv (de)aktiviert werden, sobald beide Felder gefüllt sind –
+      // sonst bliebe der Button vom leeren Erst-Render dauerhaft deaktiviert.
+      let connectBtn: import("obsidian").ButtonComponent | null = null;
+      const refreshConnect = (): void => { connectBtn?.setDisabled(!g.clientId || !g.clientSecret); };
       new Setting(containerEl).setName(t("gcal_client_id")).addText((txt) =>
-        txt.setValue(g.clientId).onChange((v) => { g.clientId = v.trim(); void p.saveSettings(); }));
+        txt.setValue(g.clientId).onChange((v) => { g.clientId = v.trim(); void p.saveSettings(); refreshConnect(); }));
       new Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
         txt.inputEl.type = "password";
-        txt.setValue(g.clientSecret).onChange((v) => { g.clientSecret = v.trim(); void p.saveSettings(); });
+        txt.setValue(g.clientSecret).onChange((v) => { g.clientSecret = v.trim(); void p.saveSettings(); refreshConnect(); });
       });
-      new Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_connect_btn")).setCta()
-        .setDisabled(!g.clientId || !g.clientSecret)
-        .onClick(async () => {
-          b.setButtonText(t("gcal_connecting")).setDisabled(true);
-          try {
-            await p.gcalConnect((dp) => new Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
-          } catch (e) {
-            new Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
-          }
-          redraw();
-        }));
+      new Setting(containerEl).addButton((b) => {
+        connectBtn = b;
+        b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret)
+          .onClick(async () => {
+            b.setButtonText(t("gcal_connecting")).setDisabled(true);
+            try {
+              await p.gcalConnect((dp) => new Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
+            } catch (e) {
+              new Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
+            }
+            redraw();
+          });
+      });
       return;
     }
 

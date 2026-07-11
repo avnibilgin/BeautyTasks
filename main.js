@@ -9457,26 +9457,35 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
     if (!p.gcalAuth.isConnected()) {
       containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
       new import_obsidian21.Setting(containerEl).setName(t("gcal_help_btn")).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open("https://console.cloud.google.com/apis/credentials")));
+      let connectBtn = null;
+      const refreshConnect = () => {
+        connectBtn?.setDisabled(!g.clientId || !g.clientSecret);
+      };
       new import_obsidian21.Setting(containerEl).setName(t("gcal_client_id")).addText((txt) => txt.setValue(g.clientId).onChange((v) => {
         g.clientId = v.trim();
         void p.saveSettings();
+        refreshConnect();
       }));
       new import_obsidian21.Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
         txt.inputEl.type = "password";
         txt.setValue(g.clientSecret).onChange((v) => {
           g.clientSecret = v.trim();
           void p.saveSettings();
+          refreshConnect();
         });
       });
-      new import_obsidian21.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret).onClick(async () => {
-        b.setButtonText(t("gcal_connecting")).setDisabled(true);
-        try {
-          await p.gcalConnect((dp) => new import_obsidian21.Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
-        } catch (e) {
-          new import_obsidian21.Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
-        }
-        redraw();
-      }));
+      new import_obsidian21.Setting(containerEl).addButton((b) => {
+        connectBtn = b;
+        b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret).onClick(async () => {
+          b.setButtonText(t("gcal_connecting")).setDisabled(true);
+          try {
+            await p.gcalConnect((dp) => new import_obsidian21.Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
+          } catch (e) {
+            new import_obsidian21.Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
+          }
+          redraw();
+        });
+      });
       return;
     }
     const head = new import_obsidian21.Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "\u2014")).addButton((b) => b.setButtonText(t("gcal_disconnect_btn")).onClick(async () => {
