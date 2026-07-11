@@ -7524,18 +7524,22 @@ function colorDot(row, plugin, current2, previewKey, defaultColor, onPick) {
     openColorPicker(dot, current2, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() });
   };
 }
-function syncSwitch(row, plugin, path, redraw) {
+function syncSwitch(row, plugin, path) {
   if (!plugin.gcalAuth.isConnected()) return;
-  const excluded = plugin.isListGcalExcluded(path);
-  const btn = row.createDiv({ cls: "bt-mrow-sync" + (excluded ? " is-off" : ""), attr: {
-    role: "switch",
-    "aria-checked": String(!excluded),
-    "aria-label": excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"),
-    "data-tooltip-position": "top",
-    tabindex: "0"
-  } });
-  (0, import_obsidian17.setIcon)(btn, excluded ? "calendar-off" : "calendar-sync");
-  const toggle = () => void plugin.setListGcalExcluded(path, !excluded).then(redraw);
+  let excluded = plugin.isListGcalExcluded(path);
+  const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", "data-tooltip-position": "top", tabindex: "0" } });
+  const paint = () => {
+    (0, import_obsidian17.setIcon)(btn, excluded ? "calendar-off" : "calendar-sync");
+    btn.toggleClass("is-off", excluded);
+    btn.setAttr("aria-checked", String(!excluded));
+    btn.setAttr("aria-label", excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"));
+  };
+  paint();
+  const toggle = () => {
+    excluded = !excluded;
+    paint();
+    void plugin.setListGcalExcluded(path, excluded);
+  };
   btn.onclick = (e) => {
     e.stopPropagation();
     toggle();
@@ -7583,7 +7587,7 @@ function activeRow(list, plugin, it, redraw, reorderSec) {
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
   rowMenu(actions, plugin, it);
   row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
-  syncSwitch(row, plugin, it.path, redraw);
+  syncSwitch(row, plugin, it.path);
   visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 function archiveRow(list, plugin, it, redraw) {

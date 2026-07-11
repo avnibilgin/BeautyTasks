@@ -190,17 +190,21 @@ function colorDot(row: HTMLElement, plugin: BeautyTasksPlugin, current: string |
 }
 
 /** Kalender-Sync-Schalter je Zeile (immer sichtbar → Zustand auf einen Blick). Nur wenn mit Google
- *  verbunden. Icon zeigt den Zustand (calendar-sync = an, calendar-off = aus) und schaltet per Klick. */
-function syncSwitch(row: HTMLElement, plugin: BeautyTasksPlugin, path: string, redraw: () => void): void {
+ *  verbunden. Icon zeigt den Zustand (calendar-sync = an, calendar-off = aus) und schaltet per Klick.
+ *  Führt den Zustand LOKAL/optimistisch – NICHT über den metadataCache neu lesen: der ist nach
+ *  processFrontMatter noch stale, sonst bräuchte es zwei Klicks. */
+function syncSwitch(row: HTMLElement, plugin: BeautyTasksPlugin, path: string): void {
   if (!plugin.gcalAuth.isConnected()) return;
-  const excluded = plugin.isListGcalExcluded(path);
-  const btn = row.createDiv({ cls: "bt-mrow-sync" + (excluded ? " is-off" : ""), attr: {
-    role: "switch", "aria-checked": String(!excluded),
-    "aria-label": excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"),
-    "data-tooltip-position": "top", tabindex: "0",
-  } });
-  setIcon(btn, excluded ? "calendar-off" : "calendar-sync");
-  const toggle = () => void plugin.setListGcalExcluded(path, !excluded).then(redraw);
+  let excluded = plugin.isListGcalExcluded(path);
+  const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", "data-tooltip-position": "top", tabindex: "0" } });
+  const paint = (): void => {
+    setIcon(btn, excluded ? "calendar-off" : "calendar-sync");
+    btn.toggleClass("is-off", excluded);
+    btn.setAttr("aria-checked", String(!excluded));
+    btn.setAttr("aria-label", excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"));
+  };
+  paint();
+  const toggle = (): void => { excluded = !excluded; paint(); void plugin.setListGcalExcluded(path, excluded); };
   btn.onclick = (e) => { e.stopPropagation(); toggle(); };
   btn.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
 }
@@ -241,7 +245,7 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
   rowMenu(actions, plugin, it);
 
   row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
-  syncSwitch(row, plugin, it.path, redraw);
+  syncSwitch(row, plugin, it.path);
   visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 
