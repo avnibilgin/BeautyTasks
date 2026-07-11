@@ -12,7 +12,7 @@ A Todoist-style task & project manager that lives **inside** Obsidian — with a
 
 - **One note per task.** Each task is a normal Markdown file with YAML frontmatter. Nothing is locked in a proprietary database — search it, edit it by hand, sync it, or version it with Git.
 - **A real task app, natively.** A Todoist-inspired dashboard with sidebar navigation, a chip-based task editor, quick capture and keyboard-friendly flows — all rendered inside Obsidian, popout-window compatible.
-- **Zero dependencies, fully local.** No other plugin is required, no external service is contacted, no sign-up. Your tasks never leave your vault.
+- **Zero plugin dependencies, local-first.** No other plugin and no account required. Your tasks are plain Markdown in your vault — the one optional online feature is two-way **Google Calendar sync**, which stays off until you set it up.
 - **Fully themeable.** Every color is a CSS variable; works with your theme, CSS snippets, or the Style Settings plugin — including a monochrome mode.
 - **10 languages.** The interface is available in English, German, Spanish, Portuguese (Brazil), French, Italian, Turkish, Russian, Simplified Chinese and Japanese (auto-detected from Obsidian, or set in settings). Natural-language date parsing is available in English and German.
 
@@ -52,25 +52,34 @@ A single dashboard with a left sidebar:
 - **Upcoming** — a forward-looking, date-sorted agenda.
 - **Recurring** — all repeating tasks at a glance.
 - **Done** — completed tasks, with a built-in **Trash** for soft-deleted items.
-- **Projects, Areas & Labels** — collapsible boards in the sidebar; open any one as its own **list or Kanban board**.
-- **Search** — fast fuzzy search across all tasks.
-- **Manage** — a ListManager with separate **Projects**, **Areas** and **Labels** tabs: create, rename, hide, archive or delete each, and restore or permanently remove trashed items.
+- **Projects, Areas, Labels & Filters** — collapsible sections in the sidebar; open any project, area or label as its own **list or Kanban board**.
+- **Search** — fast fuzzy search across all tasks; jump straight to a task and highlight it in place.
+- **Manage** — a ListManager with separate **Projects**, **Areas**, **Labels** and **Filters** tabs: create, rename, recolor, hide, archive or delete each, and restore or permanently remove trashed items.
+
+Every sidebar entry has a **right-click menu** (edit, recolor, convert, hide, reorder, archive, delete), and you can **reorder** sections by drag or sort them **manually, by name or by task count**.
 
 **Projects vs. Areas.** Organize tasks into **projects** or **areas** — two independent kinds, each with its own tab in the ListManager and its own `+` in the sidebar, so you can **create, archive and delete either one directly**. An **Area** is a fixed section that keeps its own place in the sidebar — ideal for long-running responsibilities that should never be “finished” — while a **project** is for work that eventually wraps up. You can convert one into the other at any time.
 
+### Saved filters & smart views
+Build custom queries — by project/area, label, priority, status, date range and more — and **save them to the sidebar** as reusable smart views, each with its own color. Per-view display options (grouping, sorting, show completed) are remembered.
+
 ### Kanban board
-Any project, area or label board can switch between a **List** and a **Board** layout with a quiet toggle in its header. The board is a Kanban with one column per status — **To-Do · In progress · Done** — so you can see your workflow at a glance:
+Any project, area or label board can switch between a **List** and a **Board** layout with a quiet toggle in its header. The board’s columns follow your **statuses** (which you can fully customize — see below), so you see your workflow at a glance:
 
 - **Drag & drop** a card between columns to change its status instantly.
-- **Add a task straight into a column** with the per-column `+`, pre-set to that column’s status.
+- **Group the board** by status, label, priority or project — not just status.
+- **Reorder columns** by dragging their headers (saved per board), and add a task straight into a column with its `+`.
 - Columns **stack vertically** on narrow panes and mobile, so the board stays usable on the phone.
 
 Because columns map to the task’s `status` field, moving a card is just a normal edit to its Markdown note — nothing lives in a separate board file.
 
+### Custom statuses
+Define your own workflow beyond the built-in *To-Do · In progress · Done · Cancelled*. In *Settings → Statuses* you can **add, rename, reorder, recolor and change the icon** of statuses, grouped into three categories — **open · done · cancelled** — that drive behavior (completion timestamps, recurrence, trash). The in-progress state shows as a **half-filled checkbox** everywhere.
+
 ### Tasks & attributes
 Each task can carry:
 
-- **Status** — *To-Do*, *In progress* and *Done* (plus a *Cancelled* trash state). The in-progress state shows as a **half-filled checkbox** in every list and board. Set a status by **right-clicking** the checkbox (or **long-pressing** it on mobile), from the **status chip** in the task editor, or by dragging on the Kanban board — a left-click still simply completes the task.
+- **Status** — the built-in *To-Do · In progress · Done* (plus a *Cancelled* trash state), or your **own custom statuses**. Set one by **right-clicking** the checkbox (or **long-pressing** it on mobile), from the **status chip** in the task editor, or by dragging on the Kanban board — a left-click still simply completes the task.
 - **Priority** (highest → lowest) with colored checkbox rings (P1/P2/P3).
 - **Due date & time** and an optional **duration** (event length).
 - A separate **deadline / scheduled** date & time.
@@ -87,12 +96,12 @@ Add tasks at the speed of thought. The quick-add modal understands plain sentenc
 > `Write report tomorrow p1 #work`
 > `Bericht schreiben morgen um 07:30 #arbeit`
 
-It recognizes **dates** (today/tomorrow, weekdays, `3 Jul`, month names), **times** (`um 07:30`, `7pm`), **priority** (`p1`–`p4`) and inline **`#labels`**, and strips those tokens from the title automatically. Prefer full control? Open the Todoist-style task editor with its chip row for date, priority, labels, recurrence, deadline, reminder and parent.
+It recognizes **dates** (today/tomorrow, weekdays, `3 Jul`, month names), **times** (`um 07:30`, `7pm`), **priority** (`p1`–`p4`), inline **`#labels`** and an **`@project`** (matching an existing project or area), and strips those tokens from the title automatically. Prefer full control? Open the Todoist-style task editor with its chip row for date, priority, labels, recurrence, deadline, reminder and parent — and **show, hide or reorder those chips** to taste (separately for quick add and the full editor).
 
 ### Reminders
 Attach one or more reminders to a task — either **relative** (“at time of task”, 10 min / 30 min / 1 h / 1 day before) or an **absolute** date & time. When a reminder is due, BeautyTasks shows a **system notification** on desktop (even when Obsidian is in the background) and an in-app notice; clicking it opens the task.
 
-> **Good to know:** reminders fire while Obsidian is running. On desktop that includes the background; on mobile they appear while the app is open. Delivery that survives a fully-closed app (calendar/ICS export) is on the roadmap and pairs with upcoming Sync.
+> **Good to know:** in-app reminders fire while Obsidian is running (on desktop that includes the background; on mobile while the app is open). To be notified even when Obsidian is **fully closed**, turn on **Google Calendar sync** — reminders are pushed onto the calendar event, so your phone or OS notifies you. A standalone `.ics`/VALARM export is also on the roadmap.
 
 ### Notes, comments & attachments
 Every task has a **Details** panel for the story behind the task:
@@ -105,12 +114,13 @@ Every task has a **Details** panel for the story behind the task:
 Because it all lives in the task note’s own Markdown body, your comments and attachments stay readable and portable outside the plugin, too.
 
 ### Everyday conveniences
+- **Recolor & organize** projects, areas, labels and filters — set a color, convert a project ↔ area, hide, reorder or archive, all from the right-click menu or the Manage screen.
 - **Duplicate** a task, **copy a deep link** (`obsidian://`) to it, or **print** a clean copy.
 - **Soft delete** to Trash, then restore or empty it — nothing is lost by accident (Trash and Done are ordered newest-first).
 - **Export & import all tasks as JSON** — a lossless backup of your task data (fields and description) that you can restore or move to another vault. Import from within the vault or from a file on disk; re-importing is **idempotent** (existing tasks are matched by id and skipped), and missing projects, areas and labels are recreated. Attachments and the comment log stay as separate files in your vault (back them up with the folder).
-- **Import** existing checkboxes from the Tasks/Lists format into BeautyTasks notes.
-- **Icons-only chips** option for a more compact editor.
-- Optional **description preview** under task titles in lists.
+- **Import from TaskNotes** — migrate tasks from the TaskNotes plugin (non-destructive, idempotent), or import existing checkboxes from the Tasks/Lists format.
+- **Icons-only chips** for a more compact editor, and an optional **description preview** under task titles in lists.
+- Localized in **10 languages**, mobile-friendly, and **popout-window compatible**.
 
 ---
 
@@ -154,9 +164,11 @@ By default, notes live under these folders (all configurable in settings):
 | Content | Default folder |
 | --- | --- |
 | Tasks | `BeautyTasks/Items` |
-| Projects | `BeautyTasks/Projects` |
-| Areas | `BeautyTasks/Areas` |
+| Projects & Areas | `BeautyTasks/Projects` |
+| Saved filters | `BeautyTasks/Filters` |
 | Attachments | `BeautyTasks/Attachments` |
+
+Projects and areas are the same kind of note (`type: project` / `type: area`), so they share one folder.
 
 ## Google Calendar sync
 
@@ -203,19 +215,24 @@ Your Client ID/secret and the OAuth token are stored locally in `.obsidian/plugi
 | Count tasks | Show total / open count |
 | Export tasks (JSON) | Save all tasks to a JSON file in your vault |
 | Import tasks (JSON) | Restore tasks from a JSON export |
+| Import from TaskNotes | Migrate tasks from the TaskNotes plugin |
 | Import from Tasks/Lists | Migrate existing checkbox tasks |
+| Sync with Google Calendar now | Run a calendar sync on demand |
+| Show what’s new | Open the release highlights |
 
 Assign hotkeys to any of these under **Settings → Hotkeys**.
 
 ## Settings
 
-- **Folders** for tasks, projects, areas and attachments.
+- **Folders** for tasks, projects and attachments.
 - **Language** — auto (follow Obsidian) or pick one of 10 languages (English, German, Spanish, Portuguese, French, Italian, Turkish, Russian, Simplified Chinese, Japanese).
 - **Start view** — which view opens by default (or the last used one).
 - **Natural-language parsing** — toggle date/label/priority detection in titles.
+- **Task actions (chips)** — show, hide and reorder the attribute chips, separately for quick add and the full editor.
+- **Statuses** — add, rename, reorder, recolor and re-icon your workflow statuses.
 - **Icons-only chips** and **description preview in lists**.
-- **Visible labels** in the sidebar.
-- **Import & Export** — save all tasks to JSON, or read them back from the vault or a file.
+- **Google Calendar** — connect your account, choose the target calendar and sync options (see above).
+- **Import & Export** — JSON backup/restore, plus import from TaskNotes or the Tasks/Lists format.
 
 ---
 
@@ -253,7 +270,7 @@ Colors deliberately live in CSS variables (not in the plugin’s own settings) s
 
 ### Per-project / per-area icon color
 
-Individual projects and areas can have their own icon color: add a `color:` property to the project/area note’s frontmatter, e.g. `color: "#4caf50"`.
+Individual projects, areas, labels and filters can have their own color. Pick one from the **color dot** in *Manage*, or from the **edit dialog** (right-click a sidebar entry → *Edit*). For projects and areas you can also set a `color:` property directly in the note’s frontmatter, e.g. `color: "#4caf50"`.
 
 ---
 

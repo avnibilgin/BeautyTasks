@@ -3,7 +3,7 @@
   "name": "BeautyTasks",
   "version": "1.11.0",
   "minAppVersion": "1.7.2",
-  "description": "A Todoist-inspired task and project manager built entirely on Markdown — one note per task, no external services, no dependencies.",
+  "description": "A Todoist-inspired task and project manager built entirely on Markdown — one note per task, no plugin dependencies, with optional two-way Google Calendar sync.",
   "author": "Avni Bilgin",
   "authorUrl": "https://github.com/avnibilgin",
   "isDesktopOnly": false
