@@ -7175,6 +7175,12 @@ var NewItemModal = class extends import_obsidian15.Modal {
 };
 
 // src/navMenu.ts
+function addGcalSyncItem(menu, plugin, path) {
+  if (!plugin.gcalAuth.isConnected()) return false;
+  const excluded = plugin.isListGcalExcluded(path);
+  menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-sync" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(path, !excluded)));
+  return true;
+}
 function openEdit(plugin, item) {
   if (item.sec === "filters") {
     new FilterModal(plugin, item.key).open();
@@ -7228,10 +7234,7 @@ function buildItemMenu(menu, plugin, item, source = "sidebar") {
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, -1) : plugin.moveNavItem(item.sec, item.key, -1))));
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
-  if (isProjLike && plugin.gcalAuth.isConnected()) {
-    const excluded = plugin.isListGcalExcluded(item.key);
-    menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-sync" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(item.key, !excluded)));
-  }
+  if (isProjLike) addGcalSyncItem(menu, plugin, item.key);
   if (isProjLike) {
     menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_archive")).setIcon("archive").onClick(() => plugin.archiveWithUndo(item.key, item.name)));
   }
@@ -7521,6 +7524,29 @@ function colorDot(row, plugin, current2, previewKey, defaultColor, onPick) {
     openColorPicker(dot, current2, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() });
   };
 }
+function syncSwitch(row, plugin, path, redraw) {
+  if (!plugin.gcalAuth.isConnected()) return;
+  const excluded = plugin.isListGcalExcluded(path);
+  const btn = row.createDiv({ cls: "bt-mrow-sync" + (excluded ? " is-off" : ""), attr: {
+    role: "switch",
+    "aria-checked": String(!excluded),
+    "aria-label": excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"),
+    "data-tooltip-position": "top",
+    tabindex: "0"
+  } });
+  (0, import_obsidian17.setIcon)(btn, excluded ? "calendar-off" : "calendar-sync");
+  const toggle = () => void plugin.setListGcalExcluded(path, !excluded).then(redraw);
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    toggle();
+  };
+  btn.onkeydown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  };
+}
 function visSwitch(row, on, onToggle) {
   const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), "aria-label": on ? t("tip_hide_sidebar") : t("tip_show_sidebar"), "data-tooltip-position": "top", tabindex: "0" } });
   sw.onclick = (e) => {
@@ -7557,6 +7583,7 @@ function activeRow(list, plugin, it, redraw, reorderSec) {
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
   rowMenu(actions, plugin, it);
   row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
+  syncSwitch(row, plugin, it.path, redraw);
   visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 function archiveRow(list, plugin, it, redraw) {
@@ -8650,14 +8677,19 @@ function renderNavInto(c, plugin) {
   navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
   if (eingang && !eingang.hidden) {
+    const ib = eingang;
     navItem(c, {
       cls: "bt-nav-inbox",
-      icon: eingang.icon,
-      iconColor: navColor(eingang.path, eingang.color),
-      label: projectDisplayName(eingang.name),
-      count: plugin.index.byProject(eingang.path).length,
-      active: plugin.currentProject === eingang.path,
-      onClick: () => void plugin.activateProject(eingang.path)
+      icon: ib.icon,
+      iconColor: navColor(ib.path, ib.color),
+      label: projectDisplayName(ib.name),
+      count: plugin.index.byProject(ib.path).length,
+      active: plugin.currentProject === ib.path,
+      onClick: () => void plugin.activateProject(ib.path),
+      onContext: (e) => {
+        const m = new import_obsidian18.Menu();
+        if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e);
+      }
     });
   }
   for (const id of VIEW_IDS) {

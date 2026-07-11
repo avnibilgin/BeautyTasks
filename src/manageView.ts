@@ -189,6 +189,22 @@ function colorDot(row: HTMLElement, plugin: BeautyTasksPlugin, current: string |
   dot.onclick = (e) => { e.stopPropagation(); openColorPicker(dot, current, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() }); };
 }
 
+/** Kalender-Sync-Schalter je Zeile (immer sichtbar → Zustand auf einen Blick). Nur wenn mit Google
+ *  verbunden. Icon zeigt den Zustand (calendar-sync = an, calendar-off = aus) und schaltet per Klick. */
+function syncSwitch(row: HTMLElement, plugin: BeautyTasksPlugin, path: string, redraw: () => void): void {
+  if (!plugin.gcalAuth.isConnected()) return;
+  const excluded = plugin.isListGcalExcluded(path);
+  const btn = row.createDiv({ cls: "bt-mrow-sync" + (excluded ? " is-off" : ""), attr: {
+    role: "switch", "aria-checked": String(!excluded),
+    "aria-label": excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"),
+    "data-tooltip-position": "top", tabindex: "0",
+  } });
+  setIcon(btn, excluded ? "calendar-off" : "calendar-sync");
+  const toggle = () => void plugin.setListGcalExcluded(path, !excluded).then(redraw);
+  btn.onclick = (e) => { e.stopPropagation(); toggle(); };
+  btn.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+}
+
 /** Sichtbarkeits-Schalter (immer sichtbar) – ersetzt das Auge-Icon. */
 function visSwitch(row: HTMLElement, on: boolean, onToggle: () => void): void {
   const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), "aria-label": on ? t("tip_hide_sidebar") : t("tip_show_sidebar"), "data-tooltip-position": "top", tabindex: "0" } });
@@ -225,6 +241,7 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
   rowMenu(actions, plugin, it);
 
   row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
+  syncSwitch(row, plugin, it.path, redraw);
   visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 

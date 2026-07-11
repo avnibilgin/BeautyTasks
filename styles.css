@@ -1516,6 +1516,14 @@ body {
 .bt-gcal-sb { cursor: pointer; display: inline-flex; align-items: center; }
 .bt-gcal-sb .bt-gcal-sb-ic { display: inline-flex; }
 .bt-gcal-sb.mod-error { color: var(--text-error); }
+/* Sync-Schalter je Zeile in der Verwaltungsliste (Zustand + Klick). */
+.bt-mrow-sync {
+  display: inline-flex; align-items: center; cursor: pointer;
+  color: var(--text-muted); padding: 2px; border-radius: 4px;
+}
+.bt-mrow-sync svg { width: 16px; height: 16px; }
+.bt-mrow-sync:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-mrow-sync.is-off { opacity: 0.45; }
 /* Hinweis in den Einstellungen, wenn kein Ziel-Kalender gewählt ist. */
 .bt-gcal-warn {
   margin: 8px 0; padding: 8px 12px; border-radius: 6px;

@@ -8,7 +8,7 @@ import { listFilters, readFilter } from "./filterService";
 import { applyFilter, sortTasks, FilterGroup, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu, NavMenuItem } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
@@ -956,12 +956,15 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
 
-  // Inbox ganz oben, OHNE Abschnittsüberschrift (über den Ansichten).
+  // Inbox ganz oben, OHNE Abschnittsüberschrift (über den Ansichten). Als Systemordner KEIN
+  // volles Menü – nur der Kalender-Sync-Ein/Ausschalter (und nur wenn mit Google verbunden).
   if (eingang && !eingang.hidden) {
+    const ib = eingang;
     navItem(c, {
-      cls: "bt-nav-inbox", icon: eingang.icon, iconColor: navColor(eingang.path, eingang.color), label: projectDisplayName(eingang.name),
-      count: plugin.index.byProject(eingang.path).length, active: plugin.currentProject === eingang.path,
-      onClick: () => void plugin.activateProject(eingang.path),
+      cls: "bt-nav-inbox", icon: ib.icon, iconColor: navColor(ib.path, ib.color), label: projectDisplayName(ib.name),
+      count: plugin.index.byProject(ib.path).length, active: plugin.currentProject === ib.path,
+      onClick: () => void plugin.activateProject(ib.path),
+      onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e); },
     });
   }
 
