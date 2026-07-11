@@ -36,7 +36,7 @@ const API = "https://www.googleapis.com/calendar/v3";
 const SYNC_SOURCE = "beautytasks";
 const DEBOUNCE_MS = 2000;
 const POLL_MS = 5 * 60 * 1000;   // periodischer Pull, damit Google-Änderungen auch ohne lokale Edits kommen
-const DEFAULT_CALENDAR_NAME = "BeautyTasks";
+export const DEFAULT_CALENDAR_NAME = "BeautyTasks";
 
 // ── Persistierte Sync-Einstellungen (Unter-Objekt von BeautyTasksSettings) ────
 /** Zuletzt abgeglichener Stand je Aufgabe. `sig` = Push-Änderungserkennung;

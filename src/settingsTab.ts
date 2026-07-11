@@ -4,6 +4,7 @@ import { ChipId, ChipTier, ChipSurface } from "./types";
 import { CHIPS, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
+import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
 import { t } from "./i18n";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
@@ -220,27 +221,31 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     };
     this.gcalStatusUnsub = p.gcalSync.onStatus(renderStatus);   // ruft cb sofort mit aktuellem Stand
 
-    // Ziel-Kalender (Liste async nachladen; Platzhalter = aktuelle Wahl) + „BeautyTasks anlegen".
-    new Setting(containerEl).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc"))
-      .addDropdown((dd) => {
-        if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);
-        dd.setValue(g.calendarId);
-        dd.onChange((v) => { g.calendarId = v; void p.saveSettings(); void p.gcalSync.syncNow(); });
-        void (async () => {
-          try {
-            const cals = await p.gcalCalendars();
-            dd.selectEl.empty();
-            for (const c of cals) dd.addOption(c.id, c.summary);
-            dd.setValue(g.calendarId);
-          } catch { /* Platzhalter behalten */ }
-        })();
-      })
-      .addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setTooltip(t("gcal_create_calendar_desc"))
-        .onClick(async () => {
-          try { await p.gcalCreateDefaultCalendar(); }
-          catch (e) { new Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e))); }
-          redraw();
-        }));
+    // Ziel-Kalender + (nur wenn in Google noch KEIN „BeautyTasks"-Kalender existiert) eine Tipp-Zeile
+    // zum Anlegen. Kalenderliste EINMAL laden und den ganzen Abschnitt daraus aufbauen.
+    const calHost = containerEl.createDiv();
+    void (async () => {
+      let cals: CalendarInfo[] = [];
+      let ok = false;
+      try { cals = await p.gcalCalendars(); ok = true; } catch { /* offline → Fallback unten */ }
+      new Setting(calHost).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc"))
+        .addDropdown((dd) => {
+          if (cals.length) for (const c of cals) dd.addOption(c.id, c.summary);
+          else if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);   // offline: aktuelle Wahl zeigen
+          dd.setValue(g.calendarId);
+          dd.onChange((v) => { g.calendarId = v; void p.saveSettings(); void p.gcalSync.syncNow(); });
+        });
+      // Tipp/Anlegen nur, wenn geprüft UND noch kein eigener BeautyTasks-Kalender existiert.
+      if (ok && !cals.some((c) => c.summary === DEFAULT_CALENDAR_NAME)) {
+        new Setting(calHost).setName(t("gcal_tip_create")).setDesc(t("gcal_tip_create_desc"))
+          .addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setCta()
+            .onClick(async () => {
+              try { await p.gcalCreateDefaultCalendar(); }
+              catch (e) { new Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e))); }
+              redraw();
+            }));
+      }
+    })();
 
     new Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc"))
       .addToggle((tg) => tg.setValue(g.enabled).onChange((v) => { g.enabled = v; void p.saveSettings(); if (v) void p.gcalSync.syncNow(); }));
