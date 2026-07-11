@@ -271,6 +271,9 @@ var STRINGS = {
     gcal_statusbar: "Show sync status in the status bar",
     gcal_notify_conflicts: "Notify on conflicts",
     gcal_device_prompt: "Open {0} and enter code: {1}",
+    gcal_reconnect_hint: "reconnect in settings",
+    menu_gcal_exclude: "Exclude from Calendar sync",
+    menu_gcal_include: "Include in Calendar sync",
     tn_import_title: "Import from TaskNotes",
     tn_import_desc: "Creates new BeautyTasks notes from your TaskNotes tasks. Your TaskNotes files stay untouched.",
     tn_import_tag: "Task tag",
@@ -662,6 +665,9 @@ var STRINGS = {
     gcal_statusbar: "Sync-Status in der Statusleiste anzeigen",
     gcal_notify_conflicts: "Bei Konflikten benachrichtigen",
     gcal_device_prompt: "\xD6ffne {0} und gib den Code ein: {1}",
+    gcal_reconnect_hint: "in den Einstellungen neu verbinden",
+    menu_gcal_exclude: "Aus Kalender-Sync ausschlie\xDFen",
+    menu_gcal_include: "In Kalender-Sync aufnehmen",
     tn_import_title: "Aus TaskNotes importieren",
     tn_import_desc: "Legt neue BeautyTasks-Notizen aus deinen TaskNotes-Aufgaben an. Deine TaskNotes-Dateien bleiben unangetastet.",
     tn_import_tag: "Task-Tag",
@@ -7208,6 +7214,10 @@ function buildItemMenu(menu, plugin, item, source = "sidebar") {
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, -1) : plugin.moveNavItem(item.sec, item.key, -1))));
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
+  if (isProjLike && plugin.gcalAuth.isConnected()) {
+    const excluded = plugin.isListGcalExcluded(item.key);
+    menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-plus" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(item.key, !excluded)));
+  }
   if (isProjLike) {
     menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_archive")).setIcon("archive").onClick(() => plugin.archiveWithUndo(item.key, item.name)));
   }
@@ -9553,7 +9563,11 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
       g.timezone = v.trim() || g.timezone;
       void p.saveSettings();
     }));
-    boolRow("gcal_statusbar", () => g.showStatusBar, (v) => g.showStatusBar = v);
+    new import_obsidian21.Setting(av).setName(t("gcal_statusbar")).addToggle((tg) => tg.setValue(g.showStatusBar).onChange((v) => {
+      g.showStatusBar = v;
+      void p.saveSettings();
+      p.refreshGCalStatusBar();
+    }));
     boolRow("gcal_notify_conflicts", () => g.notifyConflicts, (v) => g.notifyConflicts = v);
   }
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
@@ -10647,6 +10661,7 @@ function isDoneStatus(t2) {
 var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   constructor() {
     super(...arguments);
+    this.gcalStatusBar = null;
     this.currentView = "heute";
     this.currentProject = null;
     this.currentLabel = null;
@@ -11787,6 +11802,47 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     };
     this.gcalSync = new GCalSync(host, this.gcalAuth);
     this.register(() => this.gcalSync.stop());
+    const bar = this.addStatusBarItem();
+    bar.addClass("bt-gcal-sb");
+    bar.addEventListener("click", () => void this.gcalSync.syncNow());
+    this.gcalStatusBar = bar;
+    this.register(this.gcalSync.onStatus((i) => this.renderStatusBar(i)));
+  }
+  /** Statusleiste zeichnen (nur wenn verbunden UND showStatusBar). Icon + Tooltip je Zustand. */
+  renderStatusBar(i) {
+    const bar = this.gcalStatusBar;
+    if (!bar) return;
+    const g = this.settings.gcal;
+    const show = g.showStatusBar && this.gcalAuth.isConnected();
+    bar.style.display = show ? "" : "none";
+    if (!show) return;
+    bar.empty();
+    bar.toggleClass("mod-error", i.status === "error");
+    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-check";
+    (0, import_obsidian27.setIcon)(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
+    const detail = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " \u2014 " + t("gcal_reconnect_hint") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
+    bar.setAttr("aria-label", t("set_gcal_heading") + " \xB7 " + detail);
+  }
+  /** Statusleiste neu zeichnen (nach Verbinden/Abmelden oder Toggle showStatusBar). */
+  refreshGCalStatusBar() {
+    this.renderStatusBar(this.gcalSync.getStatus());
+  }
+  /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
+  isListGcalExcluded(path) {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof import_obsidian27.TFile)) return false;
+    const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+    return fm?.gcal_sync === false;
+  }
+  /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
+  async setListGcalExcluded(path, excluded) {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof import_obsidian27.TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (excluded) fm.gcal_sync = false;
+      else delete fm.gcal_sync;
+    });
+    void this.gcalSync.syncNow();
   }
   /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
    *  E-Mail holen, bei Bedarf eigenen „BeautyTasks"-Kalender anlegen, aktivieren, initial pushen.
@@ -11807,6 +11863,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     }
     g.enabled = true;
     await this.saveSettings();
+    this.refreshGCalStatusBar();
     void this.gcalSync.syncNow();
   }
   /** Verbindung trennen (Token widerrufen + löschen). Kalenderwahl bleibt für erneutes Verbinden. */
@@ -11816,6 +11873,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     g.account = null;
     g.enabled = false;
     await this.saveSettings();
+    this.refreshGCalStatusBar();
   }
   /** Kalenderliste für den Ziel-Kalender-Picker. */
   gcalCalendars() {

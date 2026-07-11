@@ -102,6 +102,15 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
       .onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
 
+  // — Kalender-Sync (nur Projekt/Bereich, nur wenn mit Google verbunden) —
+  if (isProjLike && plugin.gcalAuth.isConnected()) {
+    const excluded = plugin.isListGcalExcluded(item.key);
+    menu.addItem((m) => m.setSection("bt-gcal")
+      .setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"))
+      .setIcon(excluded ? "calendar-plus" : "calendar-off")
+      .onClick(() => void plugin.setListGcalExcluded(item.key, !excluded)));
+  }
+
   // — Archivieren / Löschen —
   if (isProjLike) {
     menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_archive")).setIcon("archive")

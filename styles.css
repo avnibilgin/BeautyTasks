@@ -1512,3 +1512,7 @@ body {
   padding: 6px 0; list-style-position: inside;
 }
 .bt-gcal-advanced > summary:hover { color: var(--text-normal); }
+/* Statusleisten-Element: Icon, klickbar; Fehler = rot. */
+.bt-gcal-sb { cursor: pointer; display: inline-flex; align-items: center; }
+.bt-gcal-sb .bt-gcal-sb-ic { display: inline-flex; }
+.bt-gcal-sb.mod-error { color: var(--text-error); }

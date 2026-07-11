@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment, setIcon } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
@@ -22,13 +22,14 @@ import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJs
 import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
 import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
-import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo } from "./gcalSync";
+import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
   index!: TaskIndex;
   gcalAuth!: GCalAuth;
   gcalSync!: GCalSync;
+  private gcalStatusBar: HTMLElement | null = null;
   currentView: ViewId = "heute";
   currentProject: string | null = null;
   currentLabel: string | null = null;                   // aktives Label-Board
@@ -1092,6 +1093,52 @@ export default class BeautyTasksPlugin extends Plugin {
     };
     this.gcalSync = new GCalSync(host, this.gcalAuth);
     this.register(() => this.gcalSync.stop());   // Auto-Push-Abo + Debounce beim Unload lösen
+
+    // Statusleiste: dünner Abonnent des Engine-Status (Ruhe/Sync/Fehler). Klick = manuell syncen.
+    const bar = this.addStatusBarItem();
+    bar.addClass("bt-gcal-sb");
+    bar.addEventListener("click", () => void this.gcalSync.syncNow());
+    this.gcalStatusBar = bar;
+    this.register(this.gcalSync.onStatus((i) => this.renderStatusBar(i)));   // ruft sofort initial
+  }
+
+  /** Statusleiste zeichnen (nur wenn verbunden UND showStatusBar). Icon + Tooltip je Zustand. */
+  private renderStatusBar(i: GCalStatusInfo): void {
+    const bar = this.gcalStatusBar;
+    if (!bar) return;
+    const g = this.settings.gcal!;
+    const show = g.showStatusBar && this.gcalAuth.isConnected();
+    bar.style.display = show ? "" : "none";
+    if (!show) return;
+    bar.empty();
+    bar.toggleClass("mod-error", i.status === "error");
+    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-check";
+    setIcon(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
+    const detail = i.status === "syncing" ? t("gcal_syncing")
+      : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " — " + t("gcal_reconnect_hint")
+      : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
+    bar.setAttr("aria-label", t("set_gcal_heading") + " · " + detail);
+  }
+
+  /** Statusleiste neu zeichnen (nach Verbinden/Abmelden oder Toggle showStatusBar). */
+  refreshGCalStatusBar(): void { this.renderStatusBar(this.gcalSync.getStatus()); }
+
+  /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
+  isListGcalExcluded(path: string): boolean {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return false;
+    const fm: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(f)?.frontmatter;
+    return fm?.gcal_sync === false;
+  }
+
+  /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
+  async setListGcalExcluded(path: string, excluded: boolean): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      if (excluded) fm.gcal_sync = false; else delete fm.gcal_sync;
+    });
+    void this.gcalSync.syncNow();
   }
 
   /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
@@ -1106,6 +1153,7 @@ export default class BeautyTasksPlugin extends Plugin {
     }
     g.enabled = true;
     await this.saveSettings();
+    this.refreshGCalStatusBar();
     void this.gcalSync.syncNow();
   }
 
@@ -1116,6 +1164,7 @@ export default class BeautyTasksPlugin extends Plugin {
     g.account = null;
     g.enabled = false;
     await this.saveSettings();
+    this.refreshGCalStatusBar();
   }
 
   /** Kalenderliste für den Ziel-Kalender-Picker. */

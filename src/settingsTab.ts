@@ -255,7 +255,8 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     });
     new Setting(av).setName(t("gcal_timezone")).addText((txt) =>
       txt.setValue(g.timezone).onChange((v) => { g.timezone = v.trim() || g.timezone; void p.saveSettings(); }));
-    boolRow("gcal_statusbar", () => g.showStatusBar, (v) => (g.showStatusBar = v));
+    new Setting(av).setName(t("gcal_statusbar")).addToggle((tg) =>
+      tg.setValue(g.showStatusBar).onChange((v) => { g.showStatusBar = v; void p.saveSettings(); p.refreshGCalStatusBar(); }));
     boolRow("gcal_notify_conflicts", () => g.notifyConflicts, (v) => (g.notifyConflicts = v));
   }
 
