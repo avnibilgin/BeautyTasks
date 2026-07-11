@@ -21,8 +21,8 @@ import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
 import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
-import { GCalAuth, TokenStore } from "./gcalAuth";
-import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS } from "./gcalSync";
+import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
+import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo } from "./gcalSync";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -1093,4 +1093,31 @@ export default class BeautyTasksPlugin extends Plugin {
     this.gcalSync = new GCalSync(host, this.gcalAuth);
     this.register(() => this.gcalSync.stop());   // Auto-Push-Abo + Debounce beim Unload lösen
   }
+
+  /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
+   *  E-Mail holen, bei Bedarf eigenen „BeautyTasks"-Kalender anlegen, aktivieren, initial pushen.
+   *  Wirft bei Fehler (die UI zeigt die Meldung). */
+  async gcalConnect(onDevicePrompt?: (p: DevicePrompt) => void): Promise<void> {
+    const g = this.settings.gcal!;
+    await this.gcalAuth.connect(onDevicePrompt);
+    try { g.account = await fetchAccountEmail(this.gcalAuth); } catch { g.account = null; }
+    if (!g.calendarId) {
+      try { g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone); } catch { /* Nutzer wählt selbst */ }
+    }
+    g.enabled = true;
+    await this.saveSettings();
+    void this.gcalSync.syncNow();
+  }
+
+  /** Verbindung trennen (Token widerrufen + löschen). Kalenderwahl bleibt für erneutes Verbinden. */
+  async gcalDisconnect(): Promise<void> {
+    const g = this.settings.gcal!;
+    await this.gcalAuth.disconnect();
+    g.account = null;
+    g.enabled = false;
+    await this.saveSettings();
+  }
+
+  /** Kalenderliste für den Ziel-Kalender-Picker. */
+  gcalCalendars(): Promise<CalendarInfo[]> { return listCalendars(this.gcalAuth); }
 }

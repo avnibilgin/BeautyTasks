@@ -239,6 +239,38 @@ var STRINGS = {
     set_import_tn: "Import from TaskNotes",
     set_import_tn_desc: "Migrate tasks from the TaskNotes plugin (kept as Markdown notes).",
     set_import_tn_btn: "Import from TaskNotes",
+    set_gcal_heading: "Google Calendar",
+    gcal_not_connected: "Not connected",
+    gcal_setup_desc: 'Sync dated tasks to Google Calendar. Uses your own Google API credentials (one-time setup, ~5 min). Create an OAuth client of type "Desktop app" and paste its ID and secret below.',
+    gcal_help_btn: "Open Google Cloud credentials",
+    gcal_client_id: "Client ID",
+    gcal_client_secret: "Client secret",
+    gcal_connect_btn: "Connect",
+    gcal_connecting: "Connecting\u2026",
+    gcal_connect_failed: "Connection failed: {0}",
+    gcal_connected_as: "Connected as {0}",
+    gcal_disconnect_btn: "Disconnect",
+    gcal_last_synced: "Last synced: {0}",
+    gcal_never: "never",
+    gcal_syncing: "Syncing\u2026",
+    gcal_sync_error: "Error: {0}",
+    gcal_sync_now_btn: "Sync now",
+    gcal_target_calendar: "Target calendar",
+    gcal_target_calendar_desc: "Which calendar dated tasks are mirrored into.",
+    gcal_enabled: "Sync dated tasks",
+    gcal_enabled_desc: "Mirror every task that has a due date as an event.",
+    gcal_autosync: "Sync automatically",
+    gcal_autosync_desc: "Push changes as you edit tasks (otherwise sync only runs on command).",
+    gcal_advanced: "Advanced",
+    gcal_on_create: "Add new tasks",
+    gcal_on_update: "Push edits to existing events",
+    gcal_on_delete: "Remove event when task is deleted or undated",
+    gcal_remove_on_complete: "Remove event when task is completed",
+    gcal_duration: "Default event length (minutes)",
+    gcal_timezone: "Time zone",
+    gcal_statusbar: "Show sync status in the status bar",
+    gcal_notify_conflicts: "Notify on conflicts",
+    gcal_device_prompt: "Open {0} and enter code: {1}",
     tn_import_title: "Import from TaskNotes",
     tn_import_desc: "Creates new BeautyTasks notes from your TaskNotes tasks. Your TaskNotes files stay untouched.",
     tn_import_tag: "Task tag",
@@ -598,6 +630,38 @@ var STRINGS = {
     set_import_tn: "Aus TaskNotes importieren",
     set_import_tn_desc: "Aufgaben aus dem TaskNotes-Plugin migrieren (bleiben Markdown-Notizen).",
     set_import_tn_btn: "Aus TaskNotes importieren",
+    set_gcal_heading: "Google Kalender",
+    gcal_not_connected: "Nicht verbunden",
+    gcal_setup_desc: "Aufgaben mit Datum in Google Kalender spiegeln. Nutzt deine eigenen Google-API-Zugangsdaten (einmalige Einrichtung, ~5 Min). Lege einen OAuth-Client vom Typ \u201EDesktop-App\u201C an und f\xFCge ID und Secret unten ein.",
+    gcal_help_btn: "Google-Cloud-Zugangsdaten \xF6ffnen",
+    gcal_client_id: "Client-ID",
+    gcal_client_secret: "Client-Secret",
+    gcal_connect_btn: "Verbinden",
+    gcal_connecting: "Verbinde\u2026",
+    gcal_connect_failed: "Verbindung fehlgeschlagen: {0}",
+    gcal_connected_as: "Verbunden als {0}",
+    gcal_disconnect_btn: "Abmelden",
+    gcal_last_synced: "Zuletzt synchronisiert: {0}",
+    gcal_never: "nie",
+    gcal_syncing: "Synchronisiere\u2026",
+    gcal_sync_error: "Fehler: {0}",
+    gcal_sync_now_btn: "Jetzt synchronisieren",
+    gcal_target_calendar: "Ziel-Kalender",
+    gcal_target_calendar_desc: "In welchen Kalender datierte Aufgaben gespiegelt werden.",
+    gcal_enabled: "Aufgaben mit Datum synchronisieren",
+    gcal_enabled_desc: "Jede Aufgabe mit F\xE4lligkeitsdatum als Termin spiegeln.",
+    gcal_autosync: "Automatisch synchronisieren",
+    gcal_autosync_desc: "\xC4nderungen beim Bearbeiten sofort \xFCbertragen (sonst nur per Befehl).",
+    gcal_advanced: "Erweitert",
+    gcal_on_create: "Neue Aufgaben hinzuf\xFCgen",
+    gcal_on_update: "\xC4nderungen an bestehende Termine \xFCbertragen",
+    gcal_on_delete: "Termin entfernen, wenn Aufgabe gel\xF6scht/undatiert wird",
+    gcal_remove_on_complete: "Termin entfernen, wenn Aufgabe erledigt wird",
+    gcal_duration: "Standard-Termindauer (Minuten)",
+    gcal_timezone: "Zeitzone",
+    gcal_statusbar: "Sync-Status in der Statusleiste anzeigen",
+    gcal_notify_conflicts: "Bei Konflikten benachrichtigen",
+    gcal_device_prompt: "\xD6ffne {0} und gib den Code ein: {1}",
     tn_import_title: "Aus TaskNotes importieren",
     tn_import_desc: "Legt neue BeautyTasks-Notizen aus deinen TaskNotes-Aufgaben an. Deine TaskNotes-Dateien bleiben unangetastet.",
     tn_import_tag: "Task-Tag",
@@ -9288,9 +9352,16 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+    this.gcalStatusUnsub = null;
+  }
+  hide() {
+    this.gcalStatusUnsub?.();
+    this.gcalStatusUnsub = null;
   }
   display() {
     const { containerEl } = this;
+    this.gcalStatusUnsub?.();
+    this.gcalStatusUnsub = null;
     containerEl.empty();
     const p = this.plugin;
     new import_obsidian21.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
@@ -9366,6 +9437,115 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
     new import_obsidian21.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
     new import_obsidian21.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
     new import_obsidian21.Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc")).addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
+    const gcalHost = containerEl.createDiv();
+    const drawGCal = () => {
+      gcalHost.empty();
+      this.renderGCal(gcalHost, drawGCal);
+    };
+    drawGCal();
+  }
+  /** Google-Kalender-Sektion: vor dem Verbinden ein schlanker Setup-Assistent, danach der
+   *  Verbunden-Zustand mit Status, Ziel-Kalender und Optionen (Feinkorn unter „Erweitert").
+   *  Progressive Offenlegung – Optionen erscheinen erst nach erfolgreicher Verbindung.
+   *  `redraw` zeichnet nur diese Sektion neu (kein this.display() → keine no-deprecated-Warnung). */
+  renderGCal(containerEl, redraw) {
+    const p = this.plugin;
+    const g = p.settings.gcal;
+    this.gcalStatusUnsub?.();
+    this.gcalStatusUnsub = null;
+    new import_obsidian21.Setting(containerEl).setName(t("set_gcal_heading")).setHeading();
+    if (!p.gcalAuth.isConnected()) {
+      containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
+      new import_obsidian21.Setting(containerEl).setName(t("gcal_help_btn")).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open("https://console.cloud.google.com/apis/credentials")));
+      new import_obsidian21.Setting(containerEl).setName(t("gcal_client_id")).addText((txt) => txt.setValue(g.clientId).onChange((v) => {
+        g.clientId = v.trim();
+        void p.saveSettings();
+      }));
+      new import_obsidian21.Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
+        txt.inputEl.type = "password";
+        txt.setValue(g.clientSecret).onChange((v) => {
+          g.clientSecret = v.trim();
+          void p.saveSettings();
+        });
+      });
+      new import_obsidian21.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret).onClick(async () => {
+        b.setButtonText(t("gcal_connecting")).setDisabled(true);
+        try {
+          await p.gcalConnect((dp) => new import_obsidian21.Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
+        } catch (e) {
+          new import_obsidian21.Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
+        }
+        redraw();
+      }));
+      return;
+    }
+    const head = new import_obsidian21.Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "\u2014")).addButton((b) => b.setButtonText(t("gcal_disconnect_btn")).onClick(async () => {
+      await p.gcalDisconnect();
+      redraw();
+    }));
+    head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
+    const statusSetting = new import_obsidian21.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
+    const renderStatus = (i) => {
+      const txt = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleString() : t("gcal_never"));
+      statusSetting.setName(txt);
+    };
+    this.gcalStatusUnsub = p.gcalSync.onStatus(renderStatus);
+    new import_obsidian21.Setting(containerEl).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc")).addDropdown((dd) => {
+      if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);
+      dd.setValue(g.calendarId);
+      dd.onChange((v) => {
+        g.calendarId = v;
+        void p.saveSettings();
+        void p.gcalSync.syncNow();
+      });
+      void (async () => {
+        try {
+          const cals = await p.gcalCalendars();
+          dd.selectEl.empty();
+          for (const c of cals) dd.addOption(c.id, c.summary);
+          dd.setValue(g.calendarId);
+        } catch {
+        }
+      })();
+    });
+    new import_obsidian21.Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc")).addToggle((tg) => tg.setValue(g.enabled).onChange((v) => {
+      g.enabled = v;
+      void p.saveSettings();
+      if (v) void p.gcalSync.syncNow();
+    }));
+    new import_obsidian21.Setting(containerEl).setName(t("gcal_autosync")).setDesc(t("gcal_autosync_desc")).addToggle((tg) => tg.setValue(g.autoSync).onChange((v) => {
+      g.autoSync = v;
+      void p.saveSettings();
+    }));
+    const adv = containerEl.createEl("details", { cls: "bt-gcal-advanced" });
+    adv.createEl("summary", { text: t("gcal_advanced") });
+    const av = adv.createDiv();
+    const boolRow = (key, get, set) => {
+      new import_obsidian21.Setting(av).setName(t(key)).addToggle((tg) => tg.setValue(get()).onChange((v) => {
+        set(v);
+        void p.saveSettings();
+      }));
+    };
+    boolRow("gcal_on_create", () => g.syncOnCreate, (v) => g.syncOnCreate = v);
+    boolRow("gcal_on_update", () => g.syncOnUpdate, (v) => g.syncOnUpdate = v);
+    boolRow("gcal_on_delete", () => g.syncOnDelete, (v) => g.syncOnDelete = v);
+    boolRow("gcal_remove_on_complete", () => g.removeEventOnComplete, (v) => g.removeEventOnComplete = v);
+    new import_obsidian21.Setting(av).setName(t("gcal_duration")).addText((txt) => {
+      txt.inputEl.type = "number";
+      txt.setValue(String(g.defaultDurationMin)).onChange((v) => {
+        const n = parseInt(v, 10);
+        if (n > 0) {
+          g.defaultDurationMin = n;
+          void p.saveSettings();
+        }
+      });
+    });
+    new import_obsidian21.Setting(av).setName(t("gcal_timezone")).addText((txt) => txt.setValue(g.timezone).onChange((v) => {
+      g.timezone = v.trim() || g.timezone;
+      void p.saveSettings();
+    }));
+    boolRow("gcal_statusbar", () => g.showStatusBar, (v) => g.showStatusBar = v);
+    boolRow("gcal_notify_conflicts", () => g.notifyConflicts, (v) => g.notifyConflicts = v);
   }
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
    *  Beide Flächen haben getrennte Profile (chipProfiles). */
@@ -10173,6 +10353,7 @@ var import_obsidian26 = require("obsidian");
 var API = "https://www.googleapis.com/calendar/v3";
 var SYNC_SOURCE = "beautytasks";
 var DEBOUNCE_MS = 2e3;
+var DEFAULT_CALENDAR_NAME = "BeautyTasks";
 var DEFAULT_GCAL_SETTINGS = {
   enabled: false,
   clientId: "",
@@ -10221,6 +10402,29 @@ async function api(auth, method, path, body) {
     }
     throw new Error("Google Kalender: " + msg);
   }
+}
+async function listCalendars(auth) {
+  const out = [];
+  let pageToken;
+  do {
+    const q = pageToken ? "?pageToken=" + encodeURIComponent(pageToken) : "";
+    const resp = await api(auth, "GET", "/users/me/calendarList" + q);
+    for (const c of resp?.items ?? []) {
+      out.push({ id: c.id, summary: c.summary ?? c.id, primary: !!c.primary });
+    }
+    pageToken = resp?.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+async function fetchAccountEmail(auth) {
+  const cal = await api(auth, "GET", "/calendars/primary");
+  return cal?.id ?? null;
+}
+async function ensureDefaultCalendar(auth, timezone) {
+  const existing = (await listCalendars(auth)).find((c) => c.summary === DEFAULT_CALENDAR_NAME);
+  if (existing) return existing.id;
+  const created = await api(auth, "POST", "/calendars", { summary: DEFAULT_CALENDAR_NAME, timeZone: timezone });
+  return created?.id;
 }
 var isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 var isoDateTime = (d) => `${isoDate(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`;
@@ -11574,5 +11778,38 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     };
     this.gcalSync = new GCalSync(host, this.gcalAuth);
     this.register(() => this.gcalSync.stop());
+  }
+  /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
+   *  E-Mail holen, bei Bedarf eigenen „BeautyTasks"-Kalender anlegen, aktivieren, initial pushen.
+   *  Wirft bei Fehler (die UI zeigt die Meldung). */
+  async gcalConnect(onDevicePrompt) {
+    const g = this.settings.gcal;
+    await this.gcalAuth.connect(onDevicePrompt);
+    try {
+      g.account = await fetchAccountEmail(this.gcalAuth);
+    } catch {
+      g.account = null;
+    }
+    if (!g.calendarId) {
+      try {
+        g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+      } catch {
+      }
+    }
+    g.enabled = true;
+    await this.saveSettings();
+    void this.gcalSync.syncNow();
+  }
+  /** Verbindung trennen (Token widerrufen + löschen). Kalenderwahl bleibt für erneutes Verbinden. */
+  async gcalDisconnect() {
+    const g = this.settings.gcal;
+    await this.gcalAuth.disconnect();
+    g.account = null;
+    g.enabled = false;
+    await this.saveSettings();
+  }
+  /** Kalenderliste für den Ziel-Kalender-Picker. */
+  gcalCalendars() {
+    return listCalendars(this.gcalAuth);
   }
 };

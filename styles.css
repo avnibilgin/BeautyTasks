@@ -1399,7 +1399,9 @@ body {
 /* ── Chip-„+"-Menü (Weitere Aktionen) ──────────────────────────────────────
    Eigenes Popover (bt-plus): ausgeblendete Chips mit Umrandung + Wert-Vorschau,
    im Editor zusätzlich die Aufgabenaktionen. */
-.bt-pop.bt-plus { min-width: 240px; }
+/* Plus-Menü darf höher werden als die 320px-Basis (viele Aktionen) -> kein Scrollbalken, solange
+   es auf den Bildschirm passt; openPopover positioniert es so, dass es in den Viewport passt. */
+.bt-pop.bt-plus { min-width: 240px; max-height: calc(100vh - 24px); }
 .bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px 6px; }
 .bt-pop.bt-plus .bt-row-danger .bt-row-lbl,
 .bt-pop.bt-plus .bt-row-danger .bt-row-ic { color: var(--text-error); }
@@ -1496,3 +1498,17 @@ body {
 .bt-kanban-head .bt-kanban-grip svg { width: 15px; height: 15px; }
 /* Nur wenn die Kopfzeile selbst überfahren wird – nicht beim Überfliegen der Karten. */
 .bt-kanban-head.bt-col-draggable:hover .bt-kanban-grip { opacity: 0.9; }
+
+/* ── Google-Kalender-Einstellungen ────────────────────────────────────────── */
+/* Grüner „Verbunden"-Punkt vor der E-Mail im Sektionskopf. */
+.bt-gcal-dot {
+  display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%;
+  background: var(--color-green, #4caf50); vertical-align: middle;
+}
+/* „Erweitert"-Aufklappblock: dezenter Titel, klickbar. */
+.bt-gcal-advanced { margin: 6px 0 2px; }
+.bt-gcal-advanced > summary {
+  cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small);
+  padding: 6px 0; list-style-position: inside;
+}
+.bt-gcal-advanced > summary:hover { color: var(--text-normal); }
