@@ -1,30 +1,47 @@
-import { App, TFile, requestUrl } from "obsidian";
+import { App, TFile, requestUrl, Notice } from "obsidian";
 import { Task } from "./types";
 import { isTrashed, isDone } from "./statuses";
 import { resolveReminders } from "./reminders";
+import { combineDT } from "./format";
+import { t } from "./i18n";
 import { GCalAuth, GCalAuthError } from "./gcalAuth";
 
 /**
- * Google-Kalender-Sync, **Stufe A: Push-only** (Obsidian → Google). Bewusst
+ * Google-Kalender-Sync, **Zwei-Wege (Stufe A Push + Stufe B Pull/Konflikt)**. Bewusst
  * UI-agnostisch: die Engine kennt weder Settings-Tab noch Statusleiste, sondern
  * *emittiert* ihren Zustand (`onStatus`). Settings-UI und Statusleiste sind dünne
  * Abonnenten — dasselbe Prinzip wie reminders.ts.
  *
  * Identität liegt in der NOTIZ (`gcal_event_id`/`gcal_calendar_id` im Frontmatter),
- * plus `btTaskId` unsichtbar im Event (für den späteren Pull, Stufe B). Der
- * operative Abgleich läuft über `lastSynced` in den Settings (Signatur-Diff →
- * keine redundanten API-Schreibzugriffe).
+ * plus `btTaskId` unsichtbar im Event (für die Pull-Zuordnung). Der operative Abgleich
+ * läuft über `lastSynced` in den Settings: `sig` (Signatur-Diff → keine redundanten
+ * Schreibzugriffe) und der zuletzt abgeglichene `due`/`dueTime` (Basis des 3-Wege-
+ * Konflikts). Pull ist inkrementell über `nextSyncToken` je Kalender.
+ *
+ * Reihenfolge pro Lauf: erst PULL (Google→Obsidian: geänderte Termine zurückschreiben,
+ * gelöschte Events lösen die Verknüpfung), dann PUSH (Obsidian→Google). Frisch aus Google
+ * zurückgeschriebene Aufgaben werden im Push übersprungen (der metadataCache ist noch stale).
+ *
+ * Konflikt (beide Seiten geändert): **Obsidian gewinnt** (Push überschreibt Google);
+ * optionaler gebündelter Hinweis (`notifyConflicts`). Existenz ist Obsidian-gesteuert:
+ * ein in Google gelöschtes Event wird neu angelegt, solange die Aufgabe ein Datum hat.
  *
  * Alle HTTP-Calls über requestUrl (kein fetch → keine CORS/Origin-Probleme).
  */
 
+/** Ungültiger/abgelaufener syncToken (HTTP 410) → Voll-Resync nötig. */
+class InvalidSyncToken extends Error {}
+
 const API = "https://www.googleapis.com/calendar/v3";
 const SYNC_SOURCE = "beautytasks";
 const DEBOUNCE_MS = 2000;
+const POLL_MS = 5 * 60 * 1000;   // periodischer Pull, damit Google-Änderungen auch ohne lokale Edits kommen
 const DEFAULT_CALENDAR_NAME = "BeautyTasks";
 
 // ── Persistierte Sync-Einstellungen (Unter-Objekt von BeautyTasksSettings) ────
-export interface GCalLink { eventId: string; calendarId: string; sig: string; }
+/** Zuletzt abgeglichener Stand je Aufgabe. `sig` = Push-Änderungserkennung;
+ *  `due`/`dueTime` = letzter gemeinsamer Datumsstand (Basis des 3-Wege-Konflikts). */
+export interface GCalLink { eventId: string; calendarId: string; sig: string; due?: string | null; dueTime?: string | null; }
 
 export interface GCalSyncSettings {
   enabled: boolean;
@@ -42,7 +59,8 @@ export interface GCalSyncSettings {
   showStatusBar: boolean;
   account: string | null;          // Anzeige-E-Mail
   tokens: import("./gcalAuth").GCalTokens | null;   // Auth-Token (data.json)
-  lastSynced: Record<string, GCalLink>;             // taskId -> gepushter Stand
+  lastSynced: Record<string, GCalLink>;             // taskId -> zuletzt abgeglichener Stand
+  syncTokens: Record<string, string>;               // calendarId -> nextSyncToken (inkrementeller Pull)
 }
 
 export const DEFAULT_GCAL_SETTINGS: GCalSyncSettings = {
@@ -62,6 +80,7 @@ export const DEFAULT_GCAL_SETTINGS: GCalSyncSettings = {
   account: null,
   tokens: null,
   lastSynced: {},
+  syncTokens: {},
 };
 
 // ── Status-Emitter ────────────────────────────────────────────────────────────
@@ -98,6 +117,7 @@ async function api(
     if (res.status === 204 || !res.text) return null;      // z. B. DELETE
     if (res.status < 400) { try { return res.json as Record<string, unknown>; } catch { return null; } }
     if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen – bitte neu verbinden.");
+    if (res.status === 410) throw new InvalidSyncToken("410");   // syncToken abgelaufen → Voll-Resync
     // 403/429 (Quota/Rate) und 5xx: mit exponentiellem Backoff wiederholen
     if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
       await sleep(Math.min(30000, 2 ** attempt * 1000) + Math.random() * 500);
@@ -176,6 +196,43 @@ function eventBody(task: Task, s: GCalSyncSettings): Record<string, unknown> {
   };
 }
 
+/** Event-Start → (due, dueTime) in lokaler Zeit. Ganztags: dateTime=null. */
+function eventDateParts(ev: Record<string, unknown>): { due: string | null; dueTime: string | null } {
+  const start = ev.start as { date?: string; dateTime?: string } | undefined;
+  if (!start) return { due: null, dueTime: null };
+  if (start.date) return { due: start.date, dueTime: null };
+  if (start.dateTime) {
+    const d = new Date(start.dateTime);
+    if (isNaN(d.getTime())) return { due: null, dueTime: null };
+    return {
+      due: isoDate(d),
+      dueTime: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+    };
+  }
+  return { due: null, dueTime: null };
+}
+
+/** Events inkrementell holen. Ohne syncToken: nur eigene Events (privateExtendedProperty),
+ *  der zurückgelieferte nextSyncToken „merkt" sich diesen Filter für Folgeläufe. */
+async function pullEvents(
+  auth: GCalAuth, calendarId: string, syncToken: string | undefined,
+): Promise<{ items: Record<string, unknown>[]; nextSyncToken: string | null }> {
+  const items: Record<string, unknown>[] = [];
+  let pageToken: string | undefined;
+  let nextSyncToken: string | null = null;
+  do {
+    const q = new URLSearchParams({ singleEvents: "true", showDeleted: "true", maxResults: "2500" });
+    if (syncToken) q.set("syncToken", syncToken);
+    else q.set("privateExtendedProperty", "syncSource=" + SYNC_SOURCE);
+    if (pageToken) q.set("pageToken", pageToken);
+    const resp = await api(auth, "GET", `/calendars/${enc(calendarId)}/events?` + q.toString());
+    for (const ev of (resp?.items as Record<string, unknown>[] | undefined) ?? []) items.push(ev);
+    pageToken = resp?.nextPageToken as string | undefined;
+    nextSyncToken = (resp?.nextSyncToken as string | undefined) ?? nextSyncToken;
+  } while (pageToken);
+  return { items, nextSyncToken };
+}
+
 /** Signatur der gepushten Felder – ändert sie sich, wird das Event gepatcht. */
 function signature(task: Task, calendarId: string): string {
   return JSON.stringify([
@@ -190,6 +247,7 @@ export class GCalSync {
   private info: GCalStatusInfo = { status: "disconnected", lastSyncedAt: null, lastError: null, account: null };
   private unsub: (() => void) | null = null;
   private debounceTimer: number | null = null;
+  private pollTimer: number | null = null;
   private running = false;
   private rerun = false;
 
@@ -205,14 +263,17 @@ export class GCalSync {
   }
   getStatus(): GCalStatusInfo { return this.info; }
 
-  /** Auto-Sync verdrahten (bei Vault-Änderungen entprellt pushen). Idempotent. */
+  /** Auto-Sync verdrahten: bei Vault-Änderungen entprellt syncen + periodischer Pull
+   *  (holt Google-Änderungen auch ohne lokale Edits). Beides an `autoSync` gekoppelt. Idempotent. */
   start(): void {
     if (this.unsub) return;
     this.unsub = this.host.subscribe(() => this.scheduleSync());
+    this.pollTimer = window.setInterval(() => { if (this.host.settings.autoSync) void this.syncNow(); }, POLL_MS);
   }
   stop(): void {
     this.unsub?.(); this.unsub = null;
     if (this.debounceTimer) { window.clearTimeout(this.debounceTimer); this.debounceTimer = null; }
+    if (this.pollTimer) { window.clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
   private scheduleSync(): void {
@@ -226,14 +287,16 @@ export class GCalSync {
     return s.enabled && !!s.calendarId && this.auth.isConnected();
   }
 
-  /** Ein Push-Durchlauf (manuell oder entprellt). Re-entrancy-sicher. */
+  /** Ein Zwei-Wege-Durchlauf (manuell oder entprellt): erst Pull, dann Push. Re-entrancy-sicher. */
   async syncNow(): Promise<void> {
     if (!this.canSync()) return;
     if (this.running) { this.rerun = true; return; }
     this.running = true;
     this.emit({ status: "syncing", lastError: null });
     try {
-      await this.pushAll();
+      const pulled = await this.pullAll();   // Google → Obsidian (+ neuer syncToken)
+      await this.pushAll(pulled);            // Obsidian → Google (frisch Gezogene übersprungen)
+      await this.host.persist();
       this.emit({ status: "idle", lastSyncedAt: Date.now(), lastError: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -244,26 +307,89 @@ export class GCalSync {
     }
   }
 
-  // ── Push-Reconcile ──
-  private async pushAll(): Promise<void> {
+  // ── Pull-Reconcile (Google → Obsidian) ──
+  /** Liefert die Menge der Aufgaben-Ids, die gerade AUS Google zurückgeschrieben wurden –
+   *  der Push überspringt sie diesen Lauf (metadataCache ist noch stale). */
+  private async pullAll(): Promise<Set<string>> {
+    const s = this.host.settings;
+    const cal = s.calendarId;
+    const pulled = new Set<string>();
+    let result: { items: Record<string, unknown>[]; nextSyncToken: string | null };
+    try {
+      result = await pullEvents(this.auth, cal, s.syncTokens[cal]);
+    } catch (e) {
+      if (!(e instanceof InvalidSyncToken)) throw e;
+      delete s.syncTokens[cal];                        // Token tot → einmal voll neu ziehen
+      result = await pullEvents(this.auth, cal, undefined);
+    }
+
+    const taskMap = new Map(this.host.allTasks().map((t) => [t.id, t]));
+    const byEvent = new Map<string, string>();          // eventId -> taskId (für Löschungen ohne btTaskId)
+    for (const [tid, link] of Object.entries(s.lastSynced)) byEvent.set(link.eventId, tid);
+
+    let conflicts = 0;
+    for (const ev of result.items) {
+      const eventId = ev.id as string;
+      const priv = (ev.extendedProperties as { private?: Record<string, string> } | undefined)?.private;
+      const taskId = priv?.btTaskId ?? byEvent.get(eventId);
+      if (!taskId) continue;                            // fremdes/unbekanntes Event
+      const link = s.lastSynced[taskId];
+
+      if (ev.status === "cancelled") {                  // in Google gelöscht → Verknüpfung lösen
+        if (link && link.eventId === eventId) delete s.lastSynced[taskId];
+        const task = taskMap.get(taskId);
+        if (task) await this.clearBack(task);           // Aufgabe bleibt; Push legt sie ggf. neu an
+        continue;
+      }
+      const task = taskMap.get(taskId);
+      if (!task || !link || link.eventId !== eventId) continue;
+
+      const g = eventDateParts(ev);
+      // Alt-Links (Stufe A) haben kein `due` → als synchron mit der Aufgabe annehmen (sonst
+      // würde der erste Pull jeden Bestandstermin fälschlich als Konflikt werten).
+      const known = link.due !== undefined;
+      const lastDue = known ? (link.due ?? null) : (task.due ?? null);
+      const lastDueTime = known ? (link.dueTime ?? null) : (task.dueTime ?? null);
+      const gChanged = g.due !== lastDue || g.dueTime !== lastDueTime;
+      if (!gChanged) {
+        if (!known) { link.due = g.due; link.dueTime = g.dueTime; }   // Stand nachtragen (Migration)
+        continue;                                       // Google unverändert → nichts zu holen
+      }
+      const oChanged = task.due !== lastDue || task.dueTime !== lastDueTime;
+      if (oChanged) { conflicts++; continue; }          // beide geändert → Obsidian gewinnt (Push regelt)
+
+      await this.writeBackDue(task, g.due, g.dueTime);  // Google geändert, Obsidian nicht → zurückschreiben
+      link.due = g.due; link.dueTime = g.dueTime;
+      link.sig = signature({ ...task, due: g.due, dueTime: g.dueTime }, cal);
+      pulled.add(taskId);
+    }
+
+    if (result.nextSyncToken) s.syncTokens[cal] = result.nextSyncToken;
+    if (conflicts && s.notifyConflicts) new Notice(t("gcal_conflicts_notice", conflicts));
+    return pulled;
+  }
+
+  // ── Push-Reconcile (Obsidian → Google) ──
+  /** `skip` = Aufgaben, die dieser Lauf gerade aus Google zurückgeschrieben hat (stale Cache). */
+  private async pushAll(skip: Set<string>): Promise<void> {
     const s = this.host.settings;
     const cal = s.calendarId;
     const tasks = this.host.allTasks();
     const eligible = new Map<string, Task>();
     for (const t of tasks) if (this.isEligible(t)) eligible.set(t.id, t);
 
-    let changed = false;
-
     // 1) Anlegen / Aktualisieren
     for (const [id, task] of eligible) {
+      if (skip.has(id)) continue;
       const link = s.lastSynced[id];
       const eventId = link?.eventId ?? this.frontmatterEventId(task);
       const sig = signature(task, cal);
+      const stamp = (evId: string): GCalLink => ({ eventId: evId, calendarId: cal, sig, due: task.due, dueTime: task.dueTime });
       if (!eventId) {
         if (!s.syncOnCreate) continue;
         const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
         const newId = ev?.id as string;
-        if (newId) { s.lastSynced[id] = { eventId: newId, calendarId: cal, sig }; await this.writeBack(task, newId, cal); changed = true; }
+        if (newId) { s.lastSynced[id] = stamp(newId); await this.writeBack(task, newId, cal); }
       } else if (!link || link.sig !== sig || link.calendarId !== cal) {
         if (!s.syncOnUpdate) continue;
         if (link && link.calendarId !== cal) {
@@ -271,8 +397,8 @@ export class GCalSync {
           await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
         }
         await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
-        s.lastSynced[id] = { eventId, calendarId: cal, sig };
-        await this.writeBack(task, eventId, cal); changed = true;
+        s.lastSynced[id] = stamp(eventId);
+        await this.writeBack(task, eventId, cal);
       }
     }
 
@@ -286,10 +412,7 @@ export class GCalSync {
       delete s.lastSynced[id];
       const t = this.host.allTasks().find((x) => x.id === id);
       if (t) await this.clearBack(t);
-      changed = true;
     }
-
-    if (changed) await this.host.persist();
   }
 
   private isEligible(t: Task): boolean {
@@ -327,6 +450,14 @@ export class GCalSync {
     if (!(f instanceof TFile)) return;
     await this.host.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
       delete fm.gcal_event_id; delete fm.gcal_calendar_id;
+    });
+  }
+  /** Datum/Uhrzeit aus Google in die Notiz zurückschreiben (Frontmatter `due` = kombiniert). */
+  private async writeBackDue(t: Task, due: string | null, dueTime: string | null): Promise<void> {
+    const f = this.host.app.vault.getAbstractFileByPath(t.path);
+    if (!(f instanceof TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      if (due) fm.due = combineDT(due, dueTime); else delete fm.due;
     });
   }
 

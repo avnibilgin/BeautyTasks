@@ -272,6 +272,7 @@ var STRINGS = {
     gcal_notify_conflicts: "Notify on conflicts",
     gcal_device_prompt: "Open {0} and enter code: {1}",
     gcal_reconnect_hint: "reconnect in settings",
+    gcal_conflicts_notice: "{0} conflict(s) resolved \u2014 kept the Obsidian values",
     menu_gcal_exclude: "Exclude from Calendar sync",
     menu_gcal_include: "Include in Calendar sync",
     tn_import_title: "Import from TaskNotes",
@@ -666,6 +667,7 @@ var STRINGS = {
     gcal_notify_conflicts: "Bei Konflikten benachrichtigen",
     gcal_device_prompt: "\xD6ffne {0} und gib den Code ein: {1}",
     gcal_reconnect_hint: "in den Einstellungen neu verbinden",
+    gcal_conflicts_notice: "{0} Konflikt(e) gel\xF6st \u2014 Obsidian-Werte behalten",
     menu_gcal_exclude: "Aus Kalender-Sync ausschlie\xDFen",
     menu_gcal_include: "In Kalender-Sync aufnehmen",
     tn_import_title: "Aus TaskNotes importieren",
@@ -10373,9 +10375,12 @@ div{max-width:28rem;text-align:center;line-height:1.5;padding:2rem}
 
 // src/gcalSync.ts
 var import_obsidian26 = require("obsidian");
+var InvalidSyncToken = class extends Error {
+};
 var API = "https://www.googleapis.com/calendar/v3";
 var SYNC_SOURCE = "beautytasks";
 var DEBOUNCE_MS = 2e3;
+var POLL_MS = 5 * 60 * 1e3;
 var DEFAULT_CALENDAR_NAME = "BeautyTasks";
 var DEFAULT_GCAL_SETTINGS = {
   enabled: false,
@@ -10393,7 +10398,8 @@ var DEFAULT_GCAL_SETTINGS = {
   showStatusBar: true,
   account: null,
   tokens: null,
-  lastSynced: {}
+  lastSynced: {},
+  syncTokens: {}
 };
 async function api(auth, method, path, body) {
   const token = await auth.getAccessToken();
@@ -10414,6 +10420,7 @@ async function api(auth, method, path, body) {
       }
     }
     if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen \u2013 bitte neu verbinden.");
+    if (res.status === 410) throw new InvalidSyncToken("410");
     if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
       await sleep2(Math.min(3e4, 2 ** attempt * 1e3) + Math.random() * 500);
       continue;
@@ -10478,6 +10485,36 @@ function eventBody(task, s) {
     extendedProperties: { private: { syncSource: SYNC_SOURCE, btTaskId: task.id } }
   };
 }
+function eventDateParts(ev) {
+  const start = ev.start;
+  if (!start) return { due: null, dueTime: null };
+  if (start.date) return { due: start.date, dueTime: null };
+  if (start.dateTime) {
+    const d = new Date(start.dateTime);
+    if (isNaN(d.getTime())) return { due: null, dueTime: null };
+    return {
+      due: isoDate(d),
+      dueTime: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+    };
+  }
+  return { due: null, dueTime: null };
+}
+async function pullEvents(auth, calendarId, syncToken) {
+  const items = [];
+  let pageToken;
+  let nextSyncToken = null;
+  do {
+    const q = new URLSearchParams({ singleEvents: "true", showDeleted: "true", maxResults: "2500" });
+    if (syncToken) q.set("syncToken", syncToken);
+    else q.set("privateExtendedProperty", "syncSource=" + SYNC_SOURCE);
+    if (pageToken) q.set("pageToken", pageToken);
+    const resp = await api(auth, "GET", `/calendars/${enc(calendarId)}/events?` + q.toString());
+    for (const ev of resp?.items ?? []) items.push(ev);
+    pageToken = resp?.nextPageToken;
+    nextSyncToken = resp?.nextSyncToken ?? nextSyncToken;
+  } while (pageToken);
+  return { items, nextSyncToken };
+}
 function signature(task, calendarId) {
   return JSON.stringify([
     task.title,
@@ -10496,6 +10533,7 @@ var GCalSync = class {
     this.info = { status: "disconnected", lastSyncedAt: null, lastError: null, account: null };
     this.unsub = null;
     this.debounceTimer = null;
+    this.pollTimer = null;
     this.running = false;
     this.rerun = false;
     this.info.account = host.settings.account;
@@ -10510,10 +10548,14 @@ var GCalSync = class {
   getStatus() {
     return this.info;
   }
-  /** Auto-Sync verdrahten (bei Vault-Änderungen entprellt pushen). Idempotent. */
+  /** Auto-Sync verdrahten: bei Vault-Änderungen entprellt syncen + periodischer Pull
+   *  (holt Google-Änderungen auch ohne lokale Edits). Beides an `autoSync` gekoppelt. Idempotent. */
   start() {
     if (this.unsub) return;
     this.unsub = this.host.subscribe(() => this.scheduleSync());
+    this.pollTimer = window.setInterval(() => {
+      if (this.host.settings.autoSync) void this.syncNow();
+    }, POLL_MS);
   }
   stop() {
     this.unsub?.();
@@ -10521,6 +10563,10 @@ var GCalSync = class {
     if (this.debounceTimer) {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
+    }
+    if (this.pollTimer) {
+      window.clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
   }
   scheduleSync() {
@@ -10535,7 +10581,7 @@ var GCalSync = class {
     const s = this.host.settings;
     return s.enabled && !!s.calendarId && this.auth.isConnected();
   }
-  /** Ein Push-Durchlauf (manuell oder entprellt). Re-entrancy-sicher. */
+  /** Ein Zwei-Wege-Durchlauf (manuell oder entprellt): erst Pull, dann Push. Re-entrancy-sicher. */
   async syncNow() {
     if (!this.canSync()) return;
     if (this.running) {
@@ -10545,7 +10591,9 @@ var GCalSync = class {
     this.running = true;
     this.emit({ status: "syncing", lastError: null });
     try {
-      await this.pushAll();
+      const pulled = await this.pullAll();
+      await this.pushAll(pulled);
+      await this.host.persist();
       this.emit({ status: "idle", lastSyncedAt: Date.now(), lastError: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -10558,26 +10606,87 @@ var GCalSync = class {
       }
     }
   }
-  // ── Push-Reconcile ──
-  async pushAll() {
+  // ── Pull-Reconcile (Google → Obsidian) ──
+  /** Liefert die Menge der Aufgaben-Ids, die gerade AUS Google zurückgeschrieben wurden –
+   *  der Push überspringt sie diesen Lauf (metadataCache ist noch stale). */
+  async pullAll() {
+    const s = this.host.settings;
+    const cal = s.calendarId;
+    const pulled = /* @__PURE__ */ new Set();
+    let result;
+    try {
+      result = await pullEvents(this.auth, cal, s.syncTokens[cal]);
+    } catch (e) {
+      if (!(e instanceof InvalidSyncToken)) throw e;
+      delete s.syncTokens[cal];
+      result = await pullEvents(this.auth, cal, void 0);
+    }
+    const taskMap = new Map(this.host.allTasks().map((t2) => [t2.id, t2]));
+    const byEvent = /* @__PURE__ */ new Map();
+    for (const [tid, link] of Object.entries(s.lastSynced)) byEvent.set(link.eventId, tid);
+    let conflicts = 0;
+    for (const ev of result.items) {
+      const eventId = ev.id;
+      const priv = ev.extendedProperties?.private;
+      const taskId = priv?.btTaskId ?? byEvent.get(eventId);
+      if (!taskId) continue;
+      const link = s.lastSynced[taskId];
+      if (ev.status === "cancelled") {
+        if (link && link.eventId === eventId) delete s.lastSynced[taskId];
+        const task2 = taskMap.get(taskId);
+        if (task2) await this.clearBack(task2);
+        continue;
+      }
+      const task = taskMap.get(taskId);
+      if (!task || !link || link.eventId !== eventId) continue;
+      const g = eventDateParts(ev);
+      const known = link.due !== void 0;
+      const lastDue = known ? link.due ?? null : task.due ?? null;
+      const lastDueTime = known ? link.dueTime ?? null : task.dueTime ?? null;
+      const gChanged = g.due !== lastDue || g.dueTime !== lastDueTime;
+      if (!gChanged) {
+        if (!known) {
+          link.due = g.due;
+          link.dueTime = g.dueTime;
+        }
+        continue;
+      }
+      const oChanged = task.due !== lastDue || task.dueTime !== lastDueTime;
+      if (oChanged) {
+        conflicts++;
+        continue;
+      }
+      await this.writeBackDue(task, g.due, g.dueTime);
+      link.due = g.due;
+      link.dueTime = g.dueTime;
+      link.sig = signature({ ...task, due: g.due, dueTime: g.dueTime }, cal);
+      pulled.add(taskId);
+    }
+    if (result.nextSyncToken) s.syncTokens[cal] = result.nextSyncToken;
+    if (conflicts && s.notifyConflicts) new import_obsidian26.Notice(t("gcal_conflicts_notice", conflicts));
+    return pulled;
+  }
+  // ── Push-Reconcile (Obsidian → Google) ──
+  /** `skip` = Aufgaben, die dieser Lauf gerade aus Google zurückgeschrieben hat (stale Cache). */
+  async pushAll(skip) {
     const s = this.host.settings;
     const cal = s.calendarId;
     const tasks = this.host.allTasks();
     const eligible = /* @__PURE__ */ new Map();
     for (const t2 of tasks) if (this.isEligible(t2)) eligible.set(t2.id, t2);
-    let changed = false;
     for (const [id, task] of eligible) {
+      if (skip.has(id)) continue;
       const link = s.lastSynced[id];
       const eventId = link?.eventId ?? this.frontmatterEventId(task);
       const sig = signature(task, cal);
+      const stamp = (evId) => ({ eventId: evId, calendarId: cal, sig, due: task.due, dueTime: task.dueTime });
       if (!eventId) {
         if (!s.syncOnCreate) continue;
         const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
         const newId3 = ev?.id;
         if (newId3) {
-          s.lastSynced[id] = { eventId: newId3, calendarId: cal, sig };
+          s.lastSynced[id] = stamp(newId3);
           await this.writeBack(task, newId3, cal);
-          changed = true;
         }
       } else if (!link || link.sig !== sig || link.calendarId !== cal) {
         if (!s.syncOnUpdate) continue;
@@ -10585,9 +10694,8 @@ var GCalSync = class {
           await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
         }
         await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
-        s.lastSynced[id] = { eventId, calendarId: cal, sig };
+        s.lastSynced[id] = stamp(eventId);
         await this.writeBack(task, eventId, cal);
-        changed = true;
       }
     }
     for (const id of Object.keys(s.lastSynced)) {
@@ -10602,9 +10710,7 @@ var GCalSync = class {
       delete s.lastSynced[id];
       const t2 = this.host.allTasks().find((x) => x.id === id);
       if (t2) await this.clearBack(t2);
-      changed = true;
     }
-    if (changed) await this.host.persist();
   }
   isEligible(t2) {
     if (!t2.due) return false;
@@ -10639,6 +10745,15 @@ var GCalSync = class {
     await this.host.app.fileManager.processFrontMatter(f, (fm) => {
       delete fm.gcal_event_id;
       delete fm.gcal_calendar_id;
+    });
+  }
+  /** Datum/Uhrzeit aus Google in die Notiz zurückschreiben (Frontmatter `due` = kombiniert). */
+  async writeBackDue(t2, due, dueTime) {
+    const f = this.host.app.vault.getAbstractFileByPath(t2.path);
+    if (!(f instanceof import_obsidian26.TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm) => {
+      if (due) fm.due = combineDT(due, dueTime);
+      else delete fm.due;
     });
   }
   // ── intern ──
