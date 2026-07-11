@@ -262,11 +262,9 @@ Individual projects and areas can have their own icon color: add a `color:` prop
 BeautyTasks is under active development. The following are **planned and not yet available** — listed here so you know where it’s headed:
 
 - **Sync** — a first-class way to keep tasks in sync across devices.
-- **Reminders that survive a closed app** — calendar / `.ics` (VALARM) export so your OS or phone notifies you even when Obsidian isn’t running (pairs with Sync).
-- **Custom statuses** — define your own workflow columns (add, rename, reorder) beyond To-Do / In progress / Done.
+- **Reminders that survive a closed app** — `.ics` (VALARM) export so your OS or phone notifies you even when Obsidian isn’t running (pairs with Sync).
 - **Calendar view** — see due/scheduled tasks on a month/week grid.
 - **Task templates** — create recurring structures and checklists from reusable templates.
-- **Saved filters & smart views** — Todoist-style custom queries in the sidebar.
 
 Have an idea or a request? Open an issue — feedback shapes the priorities.
 
