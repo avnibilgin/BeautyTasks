@@ -22,7 +22,7 @@ __export(main_exports, {
   default: () => BeautyTasksPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian25 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 
 // src/types.ts
 var CHIP_IDS = ["status", "due", "priority", "label", "recurrence", "deadline", "reminder", "parent", "details"];
@@ -232,12 +232,57 @@ var STRINGS = {
     cmd_import: "Import from Tasks/Lists",
     cmd_search: "Search tasks",
     cmd_whatsnew: "Show what's new",
+    cmd_gcal_sync_now: "Sync with Google Calendar now",
     cmd_export_json: "Export tasks (JSON)",
     cmd_import_json: "Import tasks (JSON)",
     cmd_import_tasknotes: "Import from TaskNotes",
     set_import_tn: "Import from TaskNotes",
     set_import_tn_desc: "Migrate tasks from the TaskNotes plugin (kept as Markdown notes).",
     set_import_tn_btn: "Import from TaskNotes",
+    set_gcal_heading: "Google Calendar",
+    gcal_not_connected: "Not connected",
+    gcal_setup_desc: 'Sync dated tasks to Google Calendar. Uses your own Google API credentials (one-time setup, ~5 min). Create an OAuth client of type "Desktop app" and paste its ID and secret below.',
+    gcal_help_btn: "Open setup guide",
+    gcal_setup_hint: "First time? The setup guide walks you through creating the Google credentials.",
+    gcal_client_id: "Client ID",
+    gcal_client_secret: "Client secret",
+    gcal_connect_btn: "Connect",
+    gcal_connecting: "Connecting\u2026",
+    gcal_connect_failed: "Connection failed: {0}",
+    gcal_connected_as: "Connected as {0}",
+    gcal_disconnect_btn: "Disconnect",
+    gcal_last_synced: "Last synced: {0}",
+    gcal_never: "never",
+    gcal_syncing: "Syncing\u2026",
+    gcal_sync_error: "Error: {0}",
+    gcal_sync_now_btn: "Sync now",
+    gcal_target_calendar: "Target calendar",
+    gcal_target_calendar_desc: "Which calendar dated tasks are mirrored into.",
+    gcal_create_calendar_btn: "Create BeautyTasks calendar",
+    gcal_create_calendar_desc: 'Create a dedicated "BeautyTasks" calendar and use it (existing events move over on the next sync).',
+    gcal_sync_list: "Sync with Google Calendar",
+    gcal_tip_create: "Tip: use a dedicated calendar",
+    gcal_tip_create_desc: "Create your own Google calendar and migrate your tasks there (clean separation from your main calendar).",
+    gcal_create_calendar_failed: "Couldn't create the calendar: {0} \u2014 you may need to disconnect and reconnect (new permission).",
+    gcal_no_calendar_warn: "No target calendar selected yet \u2014 pick one below or create the BeautyTasks calendar. Nothing syncs until then.",
+    gcal_enabled: "Sync dated tasks",
+    gcal_enabled_desc: "Mirror every task that has a due date as an event.",
+    gcal_autosync: "Sync automatically",
+    gcal_autosync_desc: "Push changes as you edit tasks (otherwise sync only runs on command).",
+    gcal_advanced: "Advanced",
+    gcal_on_create: "Add new tasks",
+    gcal_on_update: "Push edits to existing events",
+    gcal_on_delete: "Remove event when task is deleted or undated",
+    gcal_remove_on_complete: "Remove event when task is completed",
+    gcal_duration: "Default event length (minutes)",
+    gcal_timezone: "Time zone",
+    gcal_statusbar: "Show sync status in the status bar",
+    gcal_notify_conflicts: "Notify on conflicts",
+    gcal_device_prompt: "Open {0} and enter code: {1}",
+    gcal_reconnect_hint: "reconnect in settings",
+    gcal_conflicts_notice: "{0} conflict(s) resolved \u2014 kept the Obsidian values",
+    menu_gcal_exclude: "Exclude from Calendar sync",
+    menu_gcal_include: "Include in Calendar sync",
     tn_import_title: "Import from TaskNotes",
     tn_import_desc: "Creates new BeautyTasks notes from your TaskNotes tasks. Your TaskNotes files stay untouched.",
     tn_import_tag: "Task tag",
@@ -590,12 +635,57 @@ var STRINGS = {
     cmd_import: "Aus Tasks/Lists importieren",
     cmd_search: "Aufgaben suchen",
     cmd_whatsnew: "Neuigkeiten anzeigen",
+    cmd_gcal_sync_now: "Jetzt mit Google Kalender synchronisieren",
     cmd_export_json: "Aufgaben exportieren (JSON)",
     cmd_import_json: "Aufgaben importieren (JSON)",
     cmd_import_tasknotes: "Aus TaskNotes importieren",
     set_import_tn: "Aus TaskNotes importieren",
     set_import_tn_desc: "Aufgaben aus dem TaskNotes-Plugin migrieren (bleiben Markdown-Notizen).",
     set_import_tn_btn: "Aus TaskNotes importieren",
+    set_gcal_heading: "Google Kalender",
+    gcal_not_connected: "Nicht verbunden",
+    gcal_setup_desc: "Aufgaben mit Datum in Google Kalender spiegeln. Nutzt deine eigenen Google-API-Zugangsdaten (einmalige Einrichtung, ~5 Min). Lege einen OAuth-Client vom Typ \u201EDesktop-App\u201C an und f\xFCge ID und Secret unten ein.",
+    gcal_help_btn: "Einrichtungs-Anleitung \xF6ffnen",
+    gcal_setup_hint: "Zum ersten Mal? Die Anleitung f\xFChrt dich durch das Erstellen der Google-Zugangsdaten.",
+    gcal_client_id: "Client-ID",
+    gcal_client_secret: "Client-Secret",
+    gcal_connect_btn: "Verbinden",
+    gcal_connecting: "Verbinde\u2026",
+    gcal_connect_failed: "Verbindung fehlgeschlagen: {0}",
+    gcal_connected_as: "Verbunden als {0}",
+    gcal_disconnect_btn: "Abmelden",
+    gcal_last_synced: "Zuletzt synchronisiert: {0}",
+    gcal_never: "nie",
+    gcal_syncing: "Synchronisiere\u2026",
+    gcal_sync_error: "Fehler: {0}",
+    gcal_sync_now_btn: "Jetzt synchronisieren",
+    gcal_target_calendar: "Ziel-Kalender",
+    gcal_target_calendar_desc: "In welchen Kalender datierte Aufgaben gespiegelt werden.",
+    gcal_create_calendar_btn: "BeautyTasks-Kalender anlegen",
+    gcal_create_calendar_desc: "Einen eigenen Kalender \u201EBeautyTasks\u201C anlegen und verwenden (bestehende Events ziehen beim n\xE4chsten Sync mit um).",
+    gcal_sync_list: "Mit Google Kalender synchronisieren",
+    gcal_tip_create: "Tipp: Eigenen Kalender verwenden",
+    gcal_tip_create_desc: "Lege einen eigenen Google-Kalender an und migriere deine Aufgaben dorthin (saubere Trennung vom Hauptkalender).",
+    gcal_create_calendar_failed: "Kalender konnte nicht angelegt werden: {0} \u2014 evtl. einmal abmelden und neu verbinden (neue Berechtigung).",
+    gcal_no_calendar_warn: "Noch kein Ziel-Kalender gew\xE4hlt \u2014 bitte unten w\xE4hlen oder den BeautyTasks-Kalender anlegen. Bis dahin wird nichts synchronisiert.",
+    gcal_enabled: "Aufgaben mit Datum synchronisieren",
+    gcal_enabled_desc: "Jede Aufgabe mit F\xE4lligkeitsdatum als Termin spiegeln.",
+    gcal_autosync: "Automatisch synchronisieren",
+    gcal_autosync_desc: "\xC4nderungen beim Bearbeiten sofort \xFCbertragen (sonst nur per Befehl).",
+    gcal_advanced: "Erweitert",
+    gcal_on_create: "Neue Aufgaben hinzuf\xFCgen",
+    gcal_on_update: "\xC4nderungen an bestehende Termine \xFCbertragen",
+    gcal_on_delete: "Termin entfernen, wenn Aufgabe gel\xF6scht/undatiert wird",
+    gcal_remove_on_complete: "Termin entfernen, wenn Aufgabe erledigt wird",
+    gcal_duration: "Standard-Termindauer (Minuten)",
+    gcal_timezone: "Zeitzone",
+    gcal_statusbar: "Sync-Status in der Statusleiste anzeigen",
+    gcal_notify_conflicts: "Bei Konflikten benachrichtigen",
+    gcal_device_prompt: "\xD6ffne {0} und gib den Code ein: {1}",
+    gcal_reconnect_hint: "in den Einstellungen neu verbinden",
+    gcal_conflicts_notice: "{0} Konflikt(e) gel\xF6st \u2014 Obsidian-Werte behalten",
+    menu_gcal_exclude: "Aus Kalender-Sync ausschlie\xDFen",
+    menu_gcal_include: "In Kalender-Sync aufnehmen",
     tn_import_title: "Aus TaskNotes importieren",
     tn_import_desc: "Legt neue BeautyTasks-Notizen aus deinen TaskNotes-Aufgaben an. Deine TaskNotes-Dateien bleiben unangetastet.",
     tn_import_tag: "Task-Tag",
@@ -948,12 +1038,57 @@ var STRINGS = {
     cmd_import: "Importar desde Tasks/Lists",
     cmd_search: "Buscar tareas",
     cmd_whatsnew: "Ver novedades",
+    cmd_gcal_sync_now: "Sincronizar con Google Calendar ahora",
     cmd_export_json: "Exportar tareas (JSON)",
     cmd_import_json: "Importar tareas (JSON)",
     cmd_import_tasknotes: "Importar desde TaskNotes",
     set_import_tn: "Importar desde TaskNotes",
     set_import_tn_desc: "Migra tareas del plugin TaskNotes (se conservan como notas Markdown).",
     set_import_tn_btn: "Importar desde TaskNotes",
+    set_gcal_heading: "Google Calendar",
+    gcal_not_connected: "No conectado",
+    gcal_setup_desc: 'Sincroniza tareas con fecha en Google Calendar. Usa tus propias credenciales de la API de Google (configuraci\xF3n \xFAnica, ~5 min). Crea un cliente OAuth de tipo "Aplicaci\xF3n de escritorio" y pega su ID y secreto abajo.',
+    gcal_help_btn: "Abrir la gu\xEDa de configuraci\xF3n",
+    gcal_setup_hint: "\xBFPrimera vez? La gu\xEDa te explica c\xF3mo crear las credenciales de Google.",
+    gcal_client_id: "ID de cliente",
+    gcal_client_secret: "Secreto de cliente",
+    gcal_connect_btn: "Conectar",
+    gcal_connecting: "Conectando\u2026",
+    gcal_connect_failed: "Error de conexi\xF3n: {0}",
+    gcal_connected_as: "Conectado como {0}",
+    gcal_disconnect_btn: "Desconectar",
+    gcal_last_synced: "\xDAltima sincronizaci\xF3n: {0}",
+    gcal_never: "nunca",
+    gcal_syncing: "Sincronizando\u2026",
+    gcal_sync_error: "Error: {0}",
+    gcal_sync_now_btn: "Sincronizar ahora",
+    gcal_target_calendar: "Calendario de destino",
+    gcal_target_calendar_desc: "En qu\xE9 calendario se reflejan las tareas con fecha.",
+    gcal_create_calendar_btn: "Crear calendario BeautyTasks",
+    gcal_create_calendar_desc: 'Crea un calendario "BeautyTasks" propio y \xFAsalo (los eventos existentes se mover\xE1n en la pr\xF3xima sincronizaci\xF3n).',
+    gcal_sync_list: "Sincronizar con Google Calendar",
+    gcal_tip_create: "Consejo: usa un calendario propio",
+    gcal_tip_create_desc: "Crea tu propio calendario de Google y migra tus tareas all\xED (separaci\xF3n limpia de tu calendario principal).",
+    gcal_create_calendar_failed: "No se pudo crear el calendario: {0} \u2014 quiz\xE1 debas desconectar y volver a conectar (nuevo permiso).",
+    gcal_no_calendar_warn: "A\xFAn no hay calendario de destino seleccionado \u2014 elige uno abajo o crea el calendario BeautyTasks. Hasta entonces no se sincroniza nada.",
+    gcal_enabled: "Sincronizar tareas con fecha",
+    gcal_enabled_desc: "Refleja como evento cada tarea que tenga fecha de vencimiento.",
+    gcal_autosync: "Sincronizar autom\xE1ticamente",
+    gcal_autosync_desc: "Env\xEDa los cambios mientras editas las tareas (si no, la sincronizaci\xF3n solo se ejecuta con el comando).",
+    gcal_advanced: "Avanzado",
+    gcal_on_create: "A\xF1adir tareas nuevas",
+    gcal_on_update: "Enviar cambios a los eventos existentes",
+    gcal_on_delete: "Eliminar el evento cuando se borra la tarea o pierde la fecha",
+    gcal_remove_on_complete: "Eliminar el evento cuando se completa la tarea",
+    gcal_duration: "Duraci\xF3n predeterminada del evento (minutos)",
+    gcal_timezone: "Zona horaria",
+    gcal_statusbar: "Mostrar el estado de sincronizaci\xF3n en la barra de estado",
+    gcal_notify_conflicts: "Avisar de conflictos",
+    gcal_device_prompt: "Abre {0} e introduce el c\xF3digo: {1}",
+    gcal_reconnect_hint: "vuelve a conectar en los ajustes",
+    gcal_conflicts_notice: "{0} conflicto(s) resuelto(s) \u2014 se conservaron los valores de Obsidian",
+    menu_gcal_exclude: "Excluir de la sincronizaci\xF3n con Calendar",
+    menu_gcal_include: "Incluir en la sincronizaci\xF3n con Calendar",
     tn_import_title: "Importar desde TaskNotes",
     tn_import_desc: "Crea nuevas notas de BeautyTasks a partir de tus tareas de TaskNotes. Tus archivos de TaskNotes quedan intactos.",
     tn_import_tag: "Etiqueta de tarea",
@@ -1306,12 +1441,57 @@ var STRINGS = {
     cmd_import: "Importar de Tasks/Lists",
     cmd_search: "Buscar tarefas",
     cmd_whatsnew: "Ver novidades",
+    cmd_gcal_sync_now: "Sincronizar com o Google Agenda agora",
     cmd_export_json: "Exportar tarefas (JSON)",
     cmd_import_json: "Importar tarefas (JSON)",
     cmd_import_tasknotes: "Importar do TaskNotes",
     set_import_tn: "Importar do TaskNotes",
     set_import_tn_desc: "Migre tarefas do plugin TaskNotes (mantidas como notas Markdown).",
     set_import_tn_btn: "Importar do TaskNotes",
+    set_gcal_heading: "Google Agenda",
+    gcal_not_connected: "N\xE3o conectado",
+    gcal_setup_desc: 'Sincronize tarefas com data no Google Agenda. Usa suas pr\xF3prias credenciais da API do Google (configura\xE7\xE3o \xFAnica, ~5 min). Crie um cliente OAuth do tipo "Aplicativo para computador" e cole o ID e o segredo abaixo.',
+    gcal_help_btn: "Abrir o guia de configura\xE7\xE3o",
+    gcal_setup_hint: "Primeira vez? O guia orienta voc\xEA na cria\xE7\xE3o das credenciais do Google.",
+    gcal_client_id: "ID do cliente",
+    gcal_client_secret: "Segredo do cliente",
+    gcal_connect_btn: "Conectar",
+    gcal_connecting: "Conectando\u2026",
+    gcal_connect_failed: "Falha na conex\xE3o: {0}",
+    gcal_connected_as: "Conectado como {0}",
+    gcal_disconnect_btn: "Desconectar",
+    gcal_last_synced: "\xDAltima sincroniza\xE7\xE3o: {0}",
+    gcal_never: "nunca",
+    gcal_syncing: "Sincronizando\u2026",
+    gcal_sync_error: "Erro: {0}",
+    gcal_sync_now_btn: "Sincronizar agora",
+    gcal_target_calendar: "Agenda de destino",
+    gcal_target_calendar_desc: "Em qual agenda as tarefas com data s\xE3o espelhadas.",
+    gcal_create_calendar_btn: "Criar agenda BeautyTasks",
+    gcal_create_calendar_desc: 'Crie uma agenda "BeautyTasks" pr\xF3pria e use-a (os eventos existentes ser\xE3o movidos na pr\xF3xima sincroniza\xE7\xE3o).',
+    gcal_sync_list: "Sincronizar com o Google Agenda",
+    gcal_tip_create: "Dica: use uma agenda pr\xF3pria",
+    gcal_tip_create_desc: "Crie sua pr\xF3pria agenda do Google e migre suas tarefas para l\xE1 (separa\xE7\xE3o limpa da sua agenda principal).",
+    gcal_create_calendar_failed: "N\xE3o foi poss\xEDvel criar a agenda: {0} \u2014 talvez seja preciso desconectar e reconectar (nova permiss\xE3o).",
+    gcal_no_calendar_warn: "Nenhuma agenda de destino selecionada ainda \u2014 escolha uma abaixo ou crie a agenda BeautyTasks. At\xE9 l\xE1, nada \xE9 sincronizado.",
+    gcal_enabled: "Sincronizar tarefas com data",
+    gcal_enabled_desc: "Espelha como evento cada tarefa que tem data de vencimento.",
+    gcal_autosync: "Sincronizar automaticamente",
+    gcal_autosync_desc: "Envia as mudan\xE7as enquanto voc\xEA edita as tarefas (caso contr\xE1rio, a sincroniza\xE7\xE3o s\xF3 roda por comando).",
+    gcal_advanced: "Avan\xE7ado",
+    gcal_on_create: "Adicionar novas tarefas",
+    gcal_on_update: "Enviar altera\xE7\xF5es aos eventos existentes",
+    gcal_on_delete: "Remover o evento quando a tarefa for exclu\xEDda ou perder a data",
+    gcal_remove_on_complete: "Remover o evento quando a tarefa for conclu\xEDda",
+    gcal_duration: "Dura\xE7\xE3o padr\xE3o do evento (minutos)",
+    gcal_timezone: "Fuso hor\xE1rio",
+    gcal_statusbar: "Mostrar o status da sincroniza\xE7\xE3o na barra de status",
+    gcal_notify_conflicts: "Notificar sobre conflitos",
+    gcal_device_prompt: "Abra {0} e digite o c\xF3digo: {1}",
+    gcal_reconnect_hint: "reconecte nas configura\xE7\xF5es",
+    gcal_conflicts_notice: "{0} conflito(s) resolvido(s) \u2014 mantidos os valores do Obsidian",
+    menu_gcal_exclude: "Excluir da sincroniza\xE7\xE3o com a Agenda",
+    menu_gcal_include: "Incluir na sincroniza\xE7\xE3o com a Agenda",
     tn_import_title: "Importar do TaskNotes",
     tn_import_desc: "Cria novas notas do BeautyTasks a partir das suas tarefas do TaskNotes. Seus arquivos do TaskNotes permanecem intactos.",
     tn_import_tag: "Etiqueta de tarefa",
@@ -1664,12 +1844,57 @@ var STRINGS = {
     cmd_import: "Importer depuis Tasks/Lists",
     cmd_search: "Rechercher des t\xE2ches",
     cmd_whatsnew: "Afficher les nouveaut\xE9s",
+    cmd_gcal_sync_now: "Synchroniser avec Google Agenda maintenant",
     cmd_export_json: "Exporter les t\xE2ches (JSON)",
     cmd_import_json: "Importer les t\xE2ches (JSON)",
     cmd_import_tasknotes: "Importer depuis TaskNotes",
     set_import_tn: "Importer depuis TaskNotes",
     set_import_tn_desc: "Migrez les t\xE2ches du plugin TaskNotes (conserv\xE9es comme notes Markdown).",
     set_import_tn_btn: "Importer depuis TaskNotes",
+    set_gcal_heading: "Google Agenda",
+    gcal_not_connected: "Non connect\xE9",
+    gcal_setup_desc: `Synchronisez les t\xE2ches dat\xE9es avec Google Agenda. Utilise vos propres identifiants de l'API Google (configuration unique, ~5 min). Cr\xE9ez un client OAuth de type "Application de bureau" et collez son ID et son secret ci-dessous.`,
+    gcal_help_btn: "Ouvrir le guide de configuration",
+    gcal_setup_hint: "Premi\xE8re fois ? Le guide vous explique comment cr\xE9er les identifiants Google.",
+    gcal_client_id: "ID client",
+    gcal_client_secret: "Secret client",
+    gcal_connect_btn: "Connecter",
+    gcal_connecting: "Connexion\u2026",
+    gcal_connect_failed: "\xC9chec de la connexion : {0}",
+    gcal_connected_as: "Connect\xE9 en tant que {0}",
+    gcal_disconnect_btn: "D\xE9connecter",
+    gcal_last_synced: "Derni\xE8re synchronisation : {0}",
+    gcal_never: "jamais",
+    gcal_syncing: "Synchronisation\u2026",
+    gcal_sync_error: "Erreur : {0}",
+    gcal_sync_now_btn: "Synchroniser maintenant",
+    gcal_target_calendar: "Agenda cible",
+    gcal_target_calendar_desc: "Dans quel agenda les t\xE2ches dat\xE9es sont refl\xE9t\xE9es.",
+    gcal_create_calendar_btn: "Cr\xE9er l'agenda BeautyTasks",
+    gcal_create_calendar_desc: 'Cr\xE9ez un agenda "BeautyTasks" d\xE9di\xE9 et utilisez-le (les \xE9v\xE9nements existants seront d\xE9plac\xE9s \xE0 la prochaine synchronisation).',
+    gcal_sync_list: "Synchroniser avec Google Agenda",
+    gcal_tip_create: "Astuce : utilisez un agenda d\xE9di\xE9",
+    gcal_tip_create_desc: "Cr\xE9ez votre propre agenda Google et migrez-y vos t\xE2ches (s\xE9paration nette de votre agenda principal).",
+    gcal_create_calendar_failed: "Impossible de cr\xE9er l'agenda : {0} \u2014 vous devrez peut-\xEAtre vous d\xE9connecter et vous reconnecter (nouvelle autorisation).",
+    gcal_no_calendar_warn: "Aucun agenda cible s\xE9lectionn\xE9 pour l'instant \u2014 choisissez-en un ci-dessous ou cr\xE9ez l'agenda BeautyTasks. Rien n'est synchronis\xE9 jusque-l\xE0.",
+    gcal_enabled: "Synchroniser les t\xE2ches dat\xE9es",
+    gcal_enabled_desc: "Refl\xE9ter comme \xE9v\xE9nement chaque t\xE2che ayant une date d'\xE9ch\xE9ance.",
+    gcal_autosync: "Synchroniser automatiquement",
+    gcal_autosync_desc: "Envoyer les modifications au fil de l'\xE9dition des t\xE2ches (sinon la synchronisation ne s'ex\xE9cute que sur commande).",
+    gcal_advanced: "Avanc\xE9",
+    gcal_on_create: "Ajouter les nouvelles t\xE2ches",
+    gcal_on_update: "Envoyer les modifications aux \xE9v\xE9nements existants",
+    gcal_on_delete: "Supprimer l'\xE9v\xE9nement quand la t\xE2che est supprim\xE9e ou sans date",
+    gcal_remove_on_complete: "Supprimer l'\xE9v\xE9nement quand la t\xE2che est termin\xE9e",
+    gcal_duration: "Dur\xE9e par d\xE9faut de l'\xE9v\xE9nement (minutes)",
+    gcal_timezone: "Fuseau horaire",
+    gcal_statusbar: "Afficher l'\xE9tat de synchronisation dans la barre d'\xE9tat",
+    gcal_notify_conflicts: "Notifier en cas de conflit",
+    gcal_device_prompt: "Ouvrez {0} et saisissez le code : {1}",
+    gcal_reconnect_hint: "reconnectez-vous dans les param\xE8tres",
+    gcal_conflicts_notice: "{0} conflit(s) r\xE9solu(s) \u2014 valeurs d'Obsidian conserv\xE9es",
+    menu_gcal_exclude: "Exclure de la synchronisation Agenda",
+    menu_gcal_include: "Inclure dans la synchronisation Agenda",
     tn_import_title: "Importer depuis TaskNotes",
     tn_import_desc: "Cr\xE9e de nouvelles notes BeautyTasks \xE0 partir de vos t\xE2ches TaskNotes. Vos fichiers TaskNotes restent intacts.",
     tn_import_tag: "\xC9tiquette de t\xE2che",
@@ -2022,12 +2247,57 @@ var STRINGS = {
     cmd_import: "Tasks/Lists'ten i\xE7e aktar",
     cmd_search: "G\xF6rev ara",
     cmd_whatsnew: "Yenilikleri g\xF6ster",
+    cmd_gcal_sync_now: "\u015Eimdi Google Takvim ile e\u015Fitle",
     cmd_export_json: "G\xF6revleri d\u0131\u015Fa aktar (JSON)",
     cmd_import_json: "G\xF6revleri i\xE7e aktar (JSON)",
     cmd_import_tasknotes: "TaskNotes'tan i\xE7e aktar",
     set_import_tn: "TaskNotes'tan i\xE7e aktar",
     set_import_tn_desc: "TaskNotes eklentisinden g\xF6revleri ta\u015F\u0131y\u0131n (Markdown notlar\u0131 olarak korunur).",
     set_import_tn_btn: "TaskNotes'tan i\xE7e aktar",
+    set_gcal_heading: "Google Takvim",
+    gcal_not_connected: "Ba\u011Fl\u0131 de\u011Fil",
+    gcal_setup_desc: 'Tarihli g\xF6revleri Google Takvim ile e\u015Fitleyin. Kendi Google API kimlik bilgilerinizi kullan\u0131r (tek seferlik kurulum, ~5 dk). "Masa\xFCst\xFC uygulamas\u0131" t\xFCr\xFCnde bir OAuth istemcisi olu\u015Fturun ve kimli\u011Fi ile gizli anahtar\u0131 a\u015Fa\u011F\u0131ya yap\u0131\u015Ft\u0131r\u0131n.',
+    gcal_help_btn: "Kurulum k\u0131lavuzunu a\xE7",
+    gcal_setup_hint: "\u0130lk kez mi? K\u0131lavuz, Google kimlik bilgilerini olu\u015Fturma ad\u0131mlar\u0131nda size yol g\xF6sterir.",
+    gcal_client_id: "\u0130stemci kimli\u011Fi",
+    gcal_client_secret: "\u0130stemci gizli anahtar\u0131",
+    gcal_connect_btn: "Ba\u011Flan",
+    gcal_connecting: "Ba\u011Flan\u0131yor\u2026",
+    gcal_connect_failed: "Ba\u011Flant\u0131 ba\u015Far\u0131s\u0131z: {0}",
+    gcal_connected_as: "{0} olarak ba\u011Fl\u0131",
+    gcal_disconnect_btn: "Ba\u011Flant\u0131y\u0131 kes",
+    gcal_last_synced: "Son e\u015Fitleme: {0}",
+    gcal_never: "hi\xE7",
+    gcal_syncing: "E\u015Fitleniyor\u2026",
+    gcal_sync_error: "Hata: {0}",
+    gcal_sync_now_btn: "\u015Eimdi e\u015Fitle",
+    gcal_target_calendar: "Hedef takvim",
+    gcal_target_calendar_desc: "Tarihli g\xF6revlerin hangi takvime yans\u0131t\u0131laca\u011F\u0131.",
+    gcal_create_calendar_btn: "BeautyTasks takvimi olu\u015Ftur",
+    gcal_create_calendar_desc: '\xD6zel bir "BeautyTasks" takvimi olu\u015Fturup kullan\u0131n (mevcut etkinlikler sonraki e\u015Fitlemede ta\u015F\u0131n\u0131r).',
+    gcal_sync_list: "Google Takvim ile e\u015Fitle",
+    gcal_tip_create: "\u0130pucu: \xF6zel bir takvim kullan\u0131n",
+    gcal_tip_create_desc: "Kendi Google takviminizi olu\u015Fturun ve g\xF6revlerinizi oraya ta\u015F\u0131y\u0131n (ana takviminizden temiz bir ayr\u0131m).",
+    gcal_create_calendar_failed: "Takvim olu\u015Fturulamad\u0131: {0} \u2014 ba\u011Flant\u0131y\u0131 kesip yeniden ba\u011Flanman\u0131z gerekebilir (yeni izin).",
+    gcal_no_calendar_warn: "Hen\xFCz hedef takvim se\xE7ilmedi \u2014 a\u015Fa\u011F\u0131dan birini se\xE7in veya BeautyTasks takvimini olu\u015Fturun. O zamana kadar hi\xE7bir \u015Fey e\u015Fitlenmez.",
+    gcal_enabled: "Tarihli g\xF6revleri e\u015Fitle",
+    gcal_enabled_desc: "Biti\u015F tarihi olan her g\xF6revi etkinlik olarak yans\u0131t.",
+    gcal_autosync: "Otomatik e\u015Fitle",
+    gcal_autosync_desc: "G\xF6revleri d\xFCzenlerken de\u011Fi\u015Fiklikleri g\xF6nderir (aksi halde e\u015Fitleme yaln\u0131zca komutla \xE7al\u0131\u015F\u0131r).",
+    gcal_advanced: "Geli\u015Fmi\u015F",
+    gcal_on_create: "Yeni g\xF6revleri ekle",
+    gcal_on_update: "De\u011Fi\u015Fiklikleri mevcut etkinliklere g\xF6nder",
+    gcal_on_delete: "G\xF6rev silindi\u011Finde veya tarihi kald\u0131r\u0131ld\u0131\u011F\u0131nda etkinli\u011Fi kald\u0131r",
+    gcal_remove_on_complete: "G\xF6rev tamamland\u0131\u011F\u0131nda etkinli\u011Fi kald\u0131r",
+    gcal_duration: "Varsay\u0131lan etkinlik s\xFCresi (dakika)",
+    gcal_timezone: "Saat dilimi",
+    gcal_statusbar: "E\u015Fitleme durumunu durum \xE7ubu\u011Funda g\xF6ster",
+    gcal_notify_conflicts: "\xC7ak\u0131\u015Fmalarda bildir",
+    gcal_device_prompt: "{0} adresini a\xE7\u0131n ve kodu girin: {1}",
+    gcal_reconnect_hint: "ayarlardan yeniden ba\u011Flan\u0131n",
+    gcal_conflicts_notice: "{0} \xE7ak\u0131\u015Fma \xE7\xF6z\xFCld\xFC \u2014 Obsidian de\u011Ferleri korundu",
+    menu_gcal_exclude: "Takvim e\u015Fitlemesinden \xE7\u0131kar",
+    menu_gcal_include: "Takvim e\u015Fitlemesine ekle",
     tn_import_title: "TaskNotes'tan i\xE7e aktar",
     tn_import_desc: "TaskNotes g\xF6revlerinizden yeni BeautyTasks notlar\u0131 olu\u015Fturur. TaskNotes dosyalar\u0131n\u0131za dokunulmaz.",
     tn_import_tag: "G\xF6rev etiketi",
@@ -2380,12 +2650,57 @@ var STRINGS = {
     cmd_import: "\u4ECE Tasks/Lists \u5BFC\u5165",
     cmd_search: "\u641C\u7D22\u4EFB\u52A1",
     cmd_whatsnew: "\u67E5\u770B\u65B0\u529F\u80FD",
+    cmd_gcal_sync_now: "\u7ACB\u5373\u4E0E Google \u65E5\u5386\u540C\u6B65",
     cmd_export_json: "\u5BFC\u51FA\u4EFB\u52A1\uFF08JSON\uFF09",
     cmd_import_json: "\u5BFC\u5165\u4EFB\u52A1\uFF08JSON\uFF09",
     cmd_import_tasknotes: "\u4ECE TaskNotes \u5BFC\u5165",
     set_import_tn: "\u4ECE TaskNotes \u5BFC\u5165",
     set_import_tn_desc: "\u4ECE TaskNotes \u63D2\u4EF6\u8FC1\u79FB\u4EFB\u52A1\uFF08\u4FDD\u7559\u4E3A Markdown \u7B14\u8BB0\uFF09\u3002",
     set_import_tn_btn: "\u4ECE TaskNotes \u5BFC\u5165",
+    set_gcal_heading: "Google \u65E5\u5386",
+    gcal_not_connected: "\u672A\u8FDE\u63A5",
+    gcal_setup_desc: "\u5C06\u6709\u65E5\u671F\u7684\u4EFB\u52A1\u540C\u6B65\u5230 Google \u65E5\u5386\u3002\u4F7F\u7528\u4F60\u81EA\u5DF1\u7684 Google API \u51ED\u636E\uFF08\u4E00\u6B21\u6027\u8BBE\u7F6E\uFF0C\u7EA6 5 \u5206\u949F\uFF09\u3002\u521B\u5EFA\u4E00\u4E2A\u7C7B\u578B\u4E3A\u201C\u684C\u9762\u5E94\u7528\u201D\u7684 OAuth \u5BA2\u6237\u7AEF\uFF0C\u5E76\u5C06\u5176 ID \u548C\u5BC6\u94A5\u7C98\u8D34\u5230\u4E0B\u65B9\u3002",
+    gcal_help_btn: "\u6253\u5F00\u8BBE\u7F6E\u6307\u5357",
+    gcal_setup_hint: "\u7B2C\u4E00\u6B21\u4F7F\u7528\uFF1F\u8BE5\u6307\u5357\u4F1A\u5F15\u5BFC\u4F60\u521B\u5EFA Google \u51ED\u636E\u3002",
+    gcal_client_id: "\u5BA2\u6237\u7AEF ID",
+    gcal_client_secret: "\u5BA2\u6237\u7AEF\u5BC6\u94A5",
+    gcal_connect_btn: "\u8FDE\u63A5",
+    gcal_connecting: "\u6B63\u5728\u8FDE\u63A5\u2026",
+    gcal_connect_failed: "\u8FDE\u63A5\u5931\u8D25\uFF1A{0}",
+    gcal_connected_as: "\u5DF2\u8FDE\u63A5\u4E3A {0}",
+    gcal_disconnect_btn: "\u65AD\u5F00\u8FDE\u63A5",
+    gcal_last_synced: "\u4E0A\u6B21\u540C\u6B65\uFF1A{0}",
+    gcal_never: "\u4ECE\u4E0D",
+    gcal_syncing: "\u6B63\u5728\u540C\u6B65\u2026",
+    gcal_sync_error: "\u9519\u8BEF\uFF1A{0}",
+    gcal_sync_now_btn: "\u7ACB\u5373\u540C\u6B65",
+    gcal_target_calendar: "\u76EE\u6807\u65E5\u5386",
+    gcal_target_calendar_desc: "\u6709\u65E5\u671F\u7684\u4EFB\u52A1\u4F1A\u955C\u50CF\u5230\u54EA\u4E2A\u65E5\u5386\u3002",
+    gcal_create_calendar_btn: "\u521B\u5EFA BeautyTasks \u65E5\u5386",
+    gcal_create_calendar_desc: "\u521B\u5EFA\u5E76\u4F7F\u7528\u4E13\u7528\u7684\u201CBeautyTasks\u201D\u65E5\u5386\uFF08\u73B0\u6709\u4E8B\u4EF6\u4F1A\u5728\u4E0B\u6B21\u540C\u6B65\u65F6\u8FC1\u79FB\u8FC7\u53BB\uFF09\u3002",
+    gcal_sync_list: "\u4E0E Google \u65E5\u5386\u540C\u6B65",
+    gcal_tip_create: "\u63D0\u793A\uFF1A\u4F7F\u7528\u4E13\u7528\u65E5\u5386",
+    gcal_tip_create_desc: "\u521B\u5EFA\u4F60\u81EA\u5DF1\u7684 Google \u65E5\u5386\u5E76\u5C06\u4EFB\u52A1\u8FC1\u79FB\u5230\u90A3\u91CC\uFF08\u4E0E\u4E3B\u65E5\u5386\u5E72\u51C0\u5730\u5206\u5F00\uFF09\u3002",
+    gcal_create_calendar_failed: "\u65E0\u6CD5\u521B\u5EFA\u65E5\u5386\uFF1A{0} \u2014\u2014 \u53EF\u80FD\u9700\u8981\u65AD\u5F00\u5E76\u91CD\u65B0\u8FDE\u63A5\uFF08\u65B0\u6743\u9650\uFF09\u3002",
+    gcal_no_calendar_warn: "\u5C1A\u672A\u9009\u62E9\u76EE\u6807\u65E5\u5386 \u2014\u2014 \u8BF7\u5728\u4E0B\u65B9\u9009\u62E9\u4E00\u4E2A\u6216\u521B\u5EFA BeautyTasks \u65E5\u5386\u3002\u5728\u6B64\u4E4B\u524D\u4E0D\u4F1A\u540C\u6B65\u4EFB\u4F55\u5185\u5BB9\u3002",
+    gcal_enabled: "\u540C\u6B65\u6709\u65E5\u671F\u7684\u4EFB\u52A1",
+    gcal_enabled_desc: "\u5C06\u6BCF\u4E2A\u6709\u622A\u6B62\u65E5\u671F\u7684\u4EFB\u52A1\u955C\u50CF\u4E3A\u4E8B\u4EF6\u3002",
+    gcal_autosync: "\u81EA\u52A8\u540C\u6B65",
+    gcal_autosync_desc: "\u5728\u4F60\u7F16\u8F91\u4EFB\u52A1\u65F6\u63A8\u9001\u66F4\u6539\uFF08\u5426\u5219\u4EC5\u901A\u8FC7\u547D\u4EE4\u8FD0\u884C\u540C\u6B65\uFF09\u3002",
+    gcal_advanced: "\u9AD8\u7EA7",
+    gcal_on_create: "\u6DFB\u52A0\u65B0\u4EFB\u52A1",
+    gcal_on_update: "\u5C06\u66F4\u6539\u63A8\u9001\u5230\u73B0\u6709\u4E8B\u4EF6",
+    gcal_on_delete: "\u4EFB\u52A1\u88AB\u5220\u9664\u6216\u53BB\u9664\u65E5\u671F\u65F6\u79FB\u9664\u4E8B\u4EF6",
+    gcal_remove_on_complete: "\u4EFB\u52A1\u5B8C\u6210\u65F6\u79FB\u9664\u4E8B\u4EF6",
+    gcal_duration: "\u9ED8\u8BA4\u4E8B\u4EF6\u65F6\u957F\uFF08\u5206\u949F\uFF09",
+    gcal_timezone: "\u65F6\u533A",
+    gcal_statusbar: "\u5728\u72B6\u6001\u680F\u663E\u793A\u540C\u6B65\u72B6\u6001",
+    gcal_notify_conflicts: "\u51B2\u7A81\u65F6\u901A\u77E5",
+    gcal_device_prompt: "\u6253\u5F00 {0} \u5E76\u8F93\u5165\u4EE3\u7801\uFF1A{1}",
+    gcal_reconnect_hint: "\u5728\u8BBE\u7F6E\u4E2D\u91CD\u65B0\u8FDE\u63A5",
+    gcal_conflicts_notice: "\u5DF2\u89E3\u51B3 {0} \u4E2A\u51B2\u7A81 \u2014\u2014 \u4FDD\u7559\u4E86 Obsidian \u7684\u503C",
+    menu_gcal_exclude: "\u4ECE\u65E5\u5386\u540C\u6B65\u4E2D\u6392\u9664",
+    menu_gcal_include: "\u52A0\u5165\u65E5\u5386\u540C\u6B65",
     tn_import_title: "\u4ECE TaskNotes \u5BFC\u5165",
     tn_import_desc: "\u6839\u636E\u4F60\u7684 TaskNotes \u4EFB\u52A1\u521B\u5EFA\u65B0\u7684 BeautyTasks \u7B14\u8BB0\u3002\u4F60\u7684 TaskNotes \u6587\u4EF6\u4FDD\u6301\u4E0D\u53D8\u3002",
     tn_import_tag: "\u4EFB\u52A1\u6807\u7B7E",
@@ -2738,12 +3053,57 @@ var STRINGS = {
     cmd_import: "\u0418\u043C\u043F\u043E\u0440\u0442 \u0438\u0437 Tasks/Lists",
     cmd_search: "\u041F\u043E\u0438\u0441\u043A \u0437\u0430\u0434\u0430\u0447",
     cmd_whatsnew: "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C, \u0447\u0442\u043E \u043D\u043E\u0432\u043E\u0433\u043E",
+    cmd_gcal_sync_now: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441 Google \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0451\u043C \u0441\u0435\u0439\u0447\u0430\u0441",
     cmd_export_json: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 \u0437\u0430\u0434\u0430\u0447 (JSON)",
     cmd_import_json: "\u0418\u043C\u043F\u043E\u0440\u0442 \u0437\u0430\u0434\u0430\u0447 (JSON)",
     cmd_import_tasknotes: "\u0418\u043C\u043F\u043E\u0440\u0442 \u0438\u0437 TaskNotes",
     set_import_tn: "\u0418\u043C\u043F\u043E\u0440\u0442 \u0438\u0437 TaskNotes",
     set_import_tn_desc: "\u041F\u0435\u0440\u0435\u043D\u043E\u0441 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 \u043F\u043B\u0430\u0433\u0438\u043D\u0430 TaskNotes (\u0441\u043E\u0445\u0440\u0430\u043D\u044F\u044E\u0442\u0441\u044F \u043A\u0430\u043A \u0437\u0430\u043C\u0435\u0442\u043A\u0438 Markdown).",
     set_import_tn_btn: "\u0418\u043C\u043F\u043E\u0440\u0442 \u0438\u0437 TaskNotes",
+    set_gcal_heading: "Google \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
+    gcal_not_connected: "\u041D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u043E",
+    gcal_setup_desc: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0439\u0442\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u0434\u0430\u0442\u043E\u0439 \u0432 Google \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C. \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0432\u0430\u0448\u0438 \u0441\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0435 \u0443\u0447\u0451\u0442\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 Google API (\u043E\u0434\u043D\u043E\u043A\u0440\u0430\u0442\u043D\u0430\u044F \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430, ~5 \u043C\u0438\u043D). \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043A\u043B\u0438\u0435\u043D\u0442 OAuth \u0442\u0438\u043F\u0430 \xAB\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0434\u043B\u044F \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0430\xBB \u0438 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0435\u0433\u043E ID \u0438 \u0441\u0435\u043A\u0440\u0435\u0442 \u043D\u0438\u0436\u0435.",
+    gcal_help_btn: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0440\u0443\u043A\u043E\u0432\u043E\u0434\u0441\u0442\u0432\u043E \u043F\u043E \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0435",
+    gcal_setup_hint: "\u0412\u043F\u0435\u0440\u0432\u044B\u0435? \u0420\u0443\u043A\u043E\u0432\u043E\u0434\u0441\u0442\u0432\u043E \u043F\u0440\u043E\u0432\u0435\u0434\u0451\u0442 \u0432\u0430\u0441 \u0447\u0435\u0440\u0435\u0437 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 \u0443\u0447\u0451\u0442\u043D\u044B\u0445 \u0434\u0430\u043D\u043D\u044B\u0445 Google.",
+    gcal_client_id: "ID \u043A\u043B\u0438\u0435\u043D\u0442\u0430",
+    gcal_client_secret: "\u0421\u0435\u043A\u0440\u0435\u0442 \u043A\u043B\u0438\u0435\u043D\u0442\u0430",
+    gcal_connect_btn: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u044C",
+    gcal_connecting: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435\u2026",
+    gcal_connect_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u044C\u0441\u044F: {0}",
+    gcal_connected_as: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u043A\u0430\u043A {0}",
+    gcal_disconnect_btn: "\u041E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C",
+    gcal_last_synced: "\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F: {0}",
+    gcal_never: "\u043D\u0438\u043A\u043E\u0433\u0434\u0430",
+    gcal_syncing: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F\u2026",
+    gcal_sync_error: "\u041E\u0448\u0438\u0431\u043A\u0430: {0}",
+    gcal_sync_now_btn: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441\u0435\u0439\u0447\u0430\u0441",
+    gcal_target_calendar: "\u0426\u0435\u043B\u0435\u0432\u043E\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
+    gcal_target_calendar_desc: "\u0412 \u043A\u0430\u043A\u043E\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C \u043E\u0442\u0440\u0430\u0436\u0430\u044E\u0442\u0441\u044F \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u0434\u0430\u0442\u043E\u0439.",
+    gcal_create_calendar_btn: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C BeautyTasks",
+    gcal_create_calendar_desc: "\u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C \xABBeautyTasks\xBB \u0438 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439\u0442\u0435 \u0435\u0433\u043E (\u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u0441\u043E\u0431\u044B\u0442\u0438\u044F \u043F\u0435\u0440\u0435\u043C\u0435\u0441\u0442\u044F\u0442\u0441\u044F \u043F\u0440\u0438 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438).",
+    gcal_sync_list: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441 Google \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0451\u043C",
+    gcal_tip_create: "\u0421\u043E\u0432\u0435\u0442: \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439\u0442\u0435 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
+    gcal_tip_create_desc: "\u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u0441\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C Google \u0438 \u043F\u0435\u0440\u0435\u043D\u0435\u0441\u0438\u0442\u0435 \u0442\u0443\u0434\u0430 \u0437\u0430\u0434\u0430\u0447\u0438 (\u0447\u0438\u0441\u0442\u043E\u0435 \u043E\u0442\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u043E\u0442 \u043E\u0441\u043D\u043E\u0432\u043D\u043E\u0433\u043E \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044F).",
+    gcal_create_calendar_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0437\u0434\u0430\u0442\u044C \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C: {0} \u2014 \u0432\u043E\u0437\u043C\u043E\u0436\u043D\u043E, \u043D\u0443\u0436\u043D\u043E \u043E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C\u0441\u044F \u0438 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u044C\u0441\u044F \u0437\u0430\u043D\u043E\u0432\u043E (\u043D\u043E\u0432\u043E\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435).",
+    gcal_no_calendar_warn: "\u0426\u0435\u043B\u0435\u0432\u043E\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C \u0435\u0449\u0451 \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D \u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0435\u0433\u043E \u043D\u0438\u0436\u0435 \u0438\u043B\u0438 \u0441\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C BeautyTasks. \u0414\u043E \u044D\u0442\u043E\u0433\u043E \u043D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442\u0441\u044F.",
+    gcal_enabled: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u0434\u0430\u0442\u043E\u0439",
+    gcal_enabled_desc: "\u041E\u0442\u0440\u0430\u0436\u0430\u0442\u044C \u043A\u0430\u043A \u0441\u043E\u0431\u044B\u0442\u0438\u0435 \u043A\u0430\u0436\u0434\u0443\u044E \u0437\u0430\u0434\u0430\u0447\u0443 \u0441\u043E \u0441\u0440\u043E\u043A\u043E\u043C \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F.",
+    gcal_autosync: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438",
+    gcal_autosync_desc: "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u043F\u043E \u043C\u0435\u0440\u0435 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F \u0437\u0430\u0434\u0430\u0447 (\u0438\u043D\u0430\u0447\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \u043A\u043E\u043C\u0430\u043D\u0434\u0435).",
+    gcal_advanced: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u043E",
+    gcal_on_create: "\u0414\u043E\u0431\u0430\u0432\u043B\u044F\u0442\u044C \u043D\u043E\u0432\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438",
+    gcal_on_update: "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0432 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u0441\u043E\u0431\u044B\u0442\u0438\u044F",
+    gcal_on_delete: "\u0423\u0434\u0430\u043B\u044F\u0442\u044C \u0441\u043E\u0431\u044B\u0442\u0438\u0435, \u043A\u043E\u0433\u0434\u0430 \u0437\u0430\u0434\u0430\u0447\u0430 \u0443\u0434\u0430\u043B\u0435\u043D\u0430 \u0438\u043B\u0438 \u0431\u0435\u0437 \u0434\u0430\u0442\u044B",
+    gcal_remove_on_complete: "\u0423\u0434\u0430\u043B\u044F\u0442\u044C \u0441\u043E\u0431\u044B\u0442\u0438\u0435, \u043A\u043E\u0433\u0434\u0430 \u0437\u0430\u0434\u0430\u0447\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430",
+    gcal_duration: "\u0414\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u0441\u043E\u0431\u044B\u0442\u0438\u044F \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E (\u043C\u0438\u043D\u0443\u0442\u044B)",
+    gcal_timezone: "\u0427\u0430\u0441\u043E\u0432\u043E\u0439 \u043F\u043E\u044F\u0441",
+    gcal_statusbar: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u0432 \u0441\u0442\u0440\u043E\u043A\u0435 \u0441\u043E\u0441\u0442\u043E\u044F\u043D\u0438\u044F",
+    gcal_notify_conflicts: "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u044F\u0442\u044C \u043E \u043A\u043E\u043D\u0444\u043B\u0438\u043A\u0442\u0430\u0445",
+    gcal_device_prompt: "\u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 {0} \u0438 \u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u043A\u043E\u0434: {1}",
+    gcal_reconnect_hint: "\u043F\u0435\u0440\u0435\u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435\u0441\u044C \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445",
+    gcal_conflicts_notice: "\u0420\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043A\u043E\u043D\u0444\u043B\u0438\u043A\u0442\u043E\u0432: {0} \u2014 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F Obsidian",
+    menu_gcal_exclude: "\u0418\u0441\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0438\u0437 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u0441 \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0451\u043C",
+    menu_gcal_include: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0432 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044E \u0441 \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0451\u043C",
     tn_import_title: "\u0418\u043C\u043F\u043E\u0440\u0442 \u0438\u0437 TaskNotes",
     tn_import_desc: "\u0421\u043E\u0437\u0434\u0430\u0451\u0442 \u043D\u043E\u0432\u044B\u0435 \u0437\u0430\u043C\u0435\u0442\u043A\u0438 BeautyTasks \u0438\u0437 \u0432\u0430\u0448\u0438\u0445 \u0437\u0430\u0434\u0430\u0447 TaskNotes. \u0412\u0430\u0448\u0438 \u0444\u0430\u0439\u043B\u044B TaskNotes \u043E\u0441\u0442\u0430\u044E\u0442\u0441\u044F \u043D\u0435\u0442\u0440\u043E\u043D\u0443\u0442\u044B\u043C\u0438.",
     tn_import_tag: "\u0422\u0435\u0433 \u0437\u0430\u0434\u0430\u0447\u0438",
@@ -3096,12 +3456,57 @@ var STRINGS = {
     cmd_import: "Tasks/Lists \u304B\u3089\u30A4\u30F3\u30DD\u30FC\u30C8",
     cmd_search: "\u30BF\u30B9\u30AF\u3092\u691C\u7D22",
     cmd_whatsnew: "\u65B0\u6A5F\u80FD\u3092\u8868\u793A",
+    cmd_gcal_sync_now: "\u4ECA\u3059\u3050 Google \u30AB\u30EC\u30F3\u30C0\u30FC\u3068\u540C\u671F",
     cmd_export_json: "\u30BF\u30B9\u30AF\u3092\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\uFF08JSON\uFF09",
     cmd_import_json: "\u30BF\u30B9\u30AF\u3092\u30A4\u30F3\u30DD\u30FC\u30C8\uFF08JSON\uFF09",
     cmd_import_tasknotes: "TaskNotes \u304B\u3089\u30A4\u30F3\u30DD\u30FC\u30C8",
     set_import_tn: "TaskNotes \u304B\u3089\u30A4\u30F3\u30DD\u30FC\u30C8",
     set_import_tn_desc: "TaskNotes \u30D7\u30E9\u30B0\u30A4\u30F3\u304B\u3089\u30BF\u30B9\u30AF\u3092\u79FB\u884C\u3057\u307E\u3059\uFF08Markdown \u30CE\u30FC\u30C8\u3068\u3057\u3066\u4FDD\u6301\uFF09\u3002",
     set_import_tn_btn: "TaskNotes \u304B\u3089\u30A4\u30F3\u30DD\u30FC\u30C8",
+    set_gcal_heading: "Google \u30AB\u30EC\u30F3\u30C0\u30FC",
+    gcal_not_connected: "\u672A\u63A5\u7D9A",
+    gcal_setup_desc: "\u671F\u65E5\u306E\u3042\u308B\u30BF\u30B9\u30AF\u3092 Google \u30AB\u30EC\u30F3\u30C0\u30FC\u306B\u540C\u671F\u3057\u307E\u3059\u3002\u81EA\u5206\u306E Google API \u8A8D\u8A3C\u60C5\u5831\u3092\u4F7F\u7528\u3057\u307E\u3059\uFF08\u521D\u56DE\u306E\u307F\u3001\u7D045\u5206\uFF09\u3002\u300C\u30C7\u30B9\u30AF\u30C8\u30C3\u30D7\u30A2\u30D7\u30EA\u300D\u30BF\u30A4\u30D7\u306E OAuth \u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u3092\u4F5C\u6210\u3057\u3001\u305D\u306E ID \u3068\u30B7\u30FC\u30AF\u30EC\u30C3\u30C8\u3092\u4E0B\u306B\u8CBC\u308A\u4ED8\u3051\u3066\u304F\u3060\u3055\u3044\u3002",
+    gcal_help_btn: "\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u30AC\u30A4\u30C9\u3092\u958B\u304F",
+    gcal_setup_hint: "\u521D\u3081\u3066\u3067\u3059\u304B\uFF1F\u30AC\u30A4\u30C9\u304C Google \u8A8D\u8A3C\u60C5\u5831\u306E\u4F5C\u6210\u624B\u9806\u3092\u6848\u5185\u3057\u307E\u3059\u3002",
+    gcal_client_id: "\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8 ID",
+    gcal_client_secret: "\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u30B7\u30FC\u30AF\u30EC\u30C3\u30C8",
+    gcal_connect_btn: "\u63A5\u7D9A",
+    gcal_connecting: "\u63A5\u7D9A\u4E2D\u2026",
+    gcal_connect_failed: "\u63A5\u7D9A\u306B\u5931\u6557\u3057\u307E\u3057\u305F: {0}",
+    gcal_connected_as: "{0} \u3068\u3057\u3066\u63A5\u7D9A\u6E08\u307F",
+    gcal_disconnect_btn: "\u63A5\u7D9A\u3092\u89E3\u9664",
+    gcal_last_synced: "\u6700\u7D42\u540C\u671F: {0}",
+    gcal_never: "\u306A\u3057",
+    gcal_syncing: "\u540C\u671F\u4E2D\u2026",
+    gcal_sync_error: "\u30A8\u30E9\u30FC: {0}",
+    gcal_sync_now_btn: "\u4ECA\u3059\u3050\u540C\u671F",
+    gcal_target_calendar: "\u5BFE\u8C61\u30AB\u30EC\u30F3\u30C0\u30FC",
+    gcal_target_calendar_desc: "\u671F\u65E5\u306E\u3042\u308B\u30BF\u30B9\u30AF\u3092\u3069\u306E\u30AB\u30EC\u30F3\u30C0\u30FC\u306B\u53CD\u6620\u3059\u308B\u304B\u3002",
+    gcal_create_calendar_btn: "BeautyTasks \u30AB\u30EC\u30F3\u30C0\u30FC\u3092\u4F5C\u6210",
+    gcal_create_calendar_desc: "\u5C02\u7528\u306E\u300CBeautyTasks\u300D\u30AB\u30EC\u30F3\u30C0\u30FC\u3092\u4F5C\u6210\u3057\u3066\u4F7F\u7528\u3057\u307E\u3059\uFF08\u65E2\u5B58\u306E\u4E88\u5B9A\u306F\u6B21\u56DE\u306E\u540C\u671F\u3067\u79FB\u52D5\u3057\u307E\u3059\uFF09\u3002",
+    gcal_sync_list: "Google \u30AB\u30EC\u30F3\u30C0\u30FC\u3068\u540C\u671F",
+    gcal_tip_create: "\u30D2\u30F3\u30C8: \u5C02\u7528\u30AB\u30EC\u30F3\u30C0\u30FC\u3092\u4F7F\u3046",
+    gcal_tip_create_desc: "\u81EA\u5206\u306E Google \u30AB\u30EC\u30F3\u30C0\u30FC\u3092\u4F5C\u6210\u3057\u3066\u30BF\u30B9\u30AF\u3092\u305D\u3053\u306B\u79FB\u884C\u3057\u307E\u3059\uFF08\u30E1\u30A4\u30F3\u30AB\u30EC\u30F3\u30C0\u30FC\u3068\u3059\u3063\u304D\u308A\u5206\u96E2\uFF09\u3002",
+    gcal_create_calendar_failed: "\u30AB\u30EC\u30F3\u30C0\u30FC\u3092\u4F5C\u6210\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F: {0} \u2014 \u63A5\u7D9A\u3092\u89E3\u9664\u3057\u3066\u518D\u63A5\u7D9A\u304C\u5FC5\u8981\u306A\u5834\u5408\u304C\u3042\u308A\u307E\u3059\uFF08\u65B0\u3057\u3044\u6A29\u9650\uFF09\u3002",
+    gcal_no_calendar_warn: "\u5BFE\u8C61\u30AB\u30EC\u30F3\u30C0\u30FC\u304C\u307E\u3060\u9078\u629E\u3055\u308C\u3066\u3044\u307E\u305B\u3093 \u2014 \u4E0B\u3067\u9078\u3076\u304B\u3001BeautyTasks \u30AB\u30EC\u30F3\u30C0\u30FC\u3092\u4F5C\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u305D\u308C\u307E\u3067\u4F55\u3082\u540C\u671F\u3055\u308C\u307E\u305B\u3093\u3002",
+    gcal_enabled: "\u671F\u65E5\u306E\u3042\u308B\u30BF\u30B9\u30AF\u3092\u540C\u671F",
+    gcal_enabled_desc: "\u671F\u65E5\u306E\u3042\u308B\u30BF\u30B9\u30AF\u3092\u3059\u3079\u3066\u4E88\u5B9A\u3068\u3057\u3066\u53CD\u6620\u3057\u307E\u3059\u3002",
+    gcal_autosync: "\u81EA\u52D5\u7684\u306B\u540C\u671F",
+    gcal_autosync_desc: "\u30BF\u30B9\u30AF\u3092\u7DE8\u96C6\u3059\u308B\u305F\u3073\u306B\u5909\u66F4\u3092\u9001\u4FE1\u3057\u307E\u3059\uFF08\u305D\u3046\u3067\u306A\u3051\u308C\u3070\u540C\u671F\u306F\u30B3\u30DE\u30F3\u30C9\u6642\u306E\u307F\u5B9F\u884C\uFF09\u3002",
+    gcal_advanced: "\u8A73\u7D30",
+    gcal_on_create: "\u65B0\u3057\u3044\u30BF\u30B9\u30AF\u3092\u8FFD\u52A0",
+    gcal_on_update: "\u5909\u66F4\u3092\u65E2\u5B58\u306E\u4E88\u5B9A\u306B\u9001\u4FE1",
+    gcal_on_delete: "\u30BF\u30B9\u30AF\u304C\u524A\u9664\u307E\u305F\u306F\u671F\u65E5\u306A\u3057\u306B\u306A\u3063\u305F\u3089\u4E88\u5B9A\u3092\u524A\u9664",
+    gcal_remove_on_complete: "\u30BF\u30B9\u30AF\u304C\u5B8C\u4E86\u3057\u305F\u3089\u4E88\u5B9A\u3092\u524A\u9664",
+    gcal_duration: "\u4E88\u5B9A\u306E\u65E2\u5B9A\u306E\u9577\u3055\uFF08\u5206\uFF09",
+    gcal_timezone: "\u30BF\u30A4\u30E0\u30BE\u30FC\u30F3",
+    gcal_statusbar: "\u30B9\u30C6\u30FC\u30BF\u30B9\u30D0\u30FC\u306B\u540C\u671F\u72B6\u6CC1\u3092\u8868\u793A",
+    gcal_notify_conflicts: "\u7AF6\u5408\u6642\u306B\u901A\u77E5",
+    gcal_device_prompt: "{0} \u3092\u958B\u3044\u3066\u30B3\u30FC\u30C9\u3092\u5165\u529B: {1}",
+    gcal_reconnect_hint: "\u8A2D\u5B9A\u3067\u518D\u63A5\u7D9A\u3057\u3066\u304F\u3060\u3055\u3044",
+    gcal_conflicts_notice: "{0} \u4EF6\u306E\u7AF6\u5408\u3092\u89E3\u6C7A\u3057\u307E\u3057\u305F \u2014 Obsidian \u306E\u5024\u3092\u4FDD\u6301",
+    menu_gcal_exclude: "\u30AB\u30EC\u30F3\u30C0\u30FC\u540C\u671F\u304B\u3089\u9664\u5916",
+    menu_gcal_include: "\u30AB\u30EC\u30F3\u30C0\u30FC\u540C\u671F\u306B\u8FFD\u52A0",
     tn_import_title: "TaskNotes \u304B\u3089\u30A4\u30F3\u30DD\u30FC\u30C8",
     tn_import_desc: "TaskNotes \u306E\u30BF\u30B9\u30AF\u304B\u3089\u65B0\u3057\u3044 BeautyTasks \u30CE\u30FC\u30C8\u3092\u4F5C\u6210\u3057\u307E\u3059\u3002TaskNotes \u306E\u30D5\u30A1\u30A4\u30EB\u306F\u305D\u306E\u307E\u307E\u6B8B\u308A\u307E\u3059\u3002",
     tn_import_tag: "\u30BF\u30B9\u30AF\u30BF\u30B0",
@@ -3454,12 +3859,57 @@ var STRINGS = {
     cmd_import: "Importa da Tasks/Lists",
     cmd_search: "Cerca attivit\xE0",
     cmd_whatsnew: "Mostra le novit\xE0",
+    cmd_gcal_sync_now: "Sincronizza ora con Google Calendar",
     cmd_export_json: "Esporta attivit\xE0 (JSON)",
     cmd_import_json: "Importa attivit\xE0 (JSON)",
     cmd_import_tasknotes: "Importa da TaskNotes",
     set_import_tn: "Importa da TaskNotes",
     set_import_tn_desc: "Migra le attivit\xE0 dal plugin TaskNotes (mantenute come note Markdown).",
     set_import_tn_btn: "Importa da TaskNotes",
+    set_gcal_heading: "Google Calendar",
+    gcal_not_connected: "Non connesso",
+    gcal_setup_desc: `Sincronizza le attivit\xE0 con data su Google Calendar. Usa le tue credenziali dell'API di Google (configurazione una tantum, ~5 min). Crea un client OAuth di tipo "App desktop" e incolla ID e secret qui sotto.`,
+    gcal_help_btn: "Apri la guida alla configurazione",
+    gcal_setup_hint: "Prima volta? La guida ti accompagna nella creazione delle credenziali Google.",
+    gcal_client_id: "ID client",
+    gcal_client_secret: "Secret client",
+    gcal_connect_btn: "Connetti",
+    gcal_connecting: "Connessione\u2026",
+    gcal_connect_failed: "Connessione non riuscita: {0}",
+    gcal_connected_as: "Connesso come {0}",
+    gcal_disconnect_btn: "Disconnetti",
+    gcal_last_synced: "Ultima sincronizzazione: {0}",
+    gcal_never: "mai",
+    gcal_syncing: "Sincronizzazione\u2026",
+    gcal_sync_error: "Errore: {0}",
+    gcal_sync_now_btn: "Sincronizza ora",
+    gcal_target_calendar: "Calendario di destinazione",
+    gcal_target_calendar_desc: "In quale calendario vengono rispecchiate le attivit\xE0 con data.",
+    gcal_create_calendar_btn: "Crea calendario BeautyTasks",
+    gcal_create_calendar_desc: 'Crea un calendario "BeautyTasks" dedicato e usalo (gli eventi esistenti verranno spostati alla prossima sincronizzazione).',
+    gcal_sync_list: "Sincronizza con Google Calendar",
+    gcal_tip_create: "Consiglio: usa un calendario dedicato",
+    gcal_tip_create_desc: "Crea il tuo calendario Google e migra l\xEC le attivit\xE0 (separazione netta dal calendario principale).",
+    gcal_create_calendar_failed: "Impossibile creare il calendario: {0} \u2014 potresti dover disconnetterti e riconnetterti (nuova autorizzazione).",
+    gcal_no_calendar_warn: "Nessun calendario di destinazione selezionato \u2014 scegline uno qui sotto o crea il calendario BeautyTasks. Fino ad allora non viene sincronizzato nulla.",
+    gcal_enabled: "Sincronizza le attivit\xE0 con data",
+    gcal_enabled_desc: "Rispecchia come evento ogni attivit\xE0 con una data di scadenza.",
+    gcal_autosync: "Sincronizza automaticamente",
+    gcal_autosync_desc: "Invia le modifiche mentre modifichi le attivit\xE0 (altrimenti la sincronizzazione parte solo su comando).",
+    gcal_advanced: "Avanzate",
+    gcal_on_create: "Aggiungi nuove attivit\xE0",
+    gcal_on_update: "Invia le modifiche agli eventi esistenti",
+    gcal_on_delete: "Rimuovi l'evento quando l'attivit\xE0 viene eliminata o senza data",
+    gcal_remove_on_complete: "Rimuovi l'evento quando l'attivit\xE0 \xE8 completata",
+    gcal_duration: "Durata predefinita dell'evento (minuti)",
+    gcal_timezone: "Fuso orario",
+    gcal_statusbar: "Mostra lo stato di sincronizzazione nella barra di stato",
+    gcal_notify_conflicts: "Notifica in caso di conflitti",
+    gcal_device_prompt: "Apri {0} e inserisci il codice: {1}",
+    gcal_reconnect_hint: "riconnettiti nelle impostazioni",
+    gcal_conflicts_notice: "{0} conflitto/i risolto/i \u2014 mantenuti i valori di Obsidian",
+    menu_gcal_exclude: "Escludi dalla sincronizzazione con Calendar",
+    menu_gcal_include: "Includi nella sincronizzazione con Calendar",
     tn_import_title: "Importa da TaskNotes",
     tn_import_desc: "Crea nuove note BeautyTasks dalle tue attivit\xE0 TaskNotes. I tuoi file TaskNotes restano intatti.",
     tn_import_tag: "Etichetta attivit\xE0",
@@ -6964,6 +7414,9 @@ var NewItemModal = class extends import_obsidian15.Modal {
     this.plugin = plugin;
     this.kind = kind;
     this.edit = edit;
+    this.syncExcluded = false;
+    // aktueller Stand des Sync-Toggles
+    this.syncExcludedInit = null;
     this.name = edit?.name ?? "";
     this.color = edit?.color ?? null;
     this.visible = edit ? edit.visible : true;
@@ -7007,6 +7460,26 @@ var NewItemModal = class extends import_obsidian15.Modal {
         flip();
       }
     };
+    if (this.edit && this.kind !== "label" && this.plugin.gcalSync.canSync()) {
+      this.syncExcludedInit = this.plugin.isListGcalExcluded(this.edit.key);
+      this.syncExcluded = this.syncExcludedInit;
+      const on = () => !this.syncExcluded;
+      const syncRow = contentEl.createDiv({ cls: "bt-new-row" });
+      syncRow.createEl("label", { text: t("gcal_sync_list") });
+      const sw2 = syncRow.createDiv({ cls: "bt-mrow-switch" + (on() ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on()), tabindex: "0" } });
+      const flip2 = () => {
+        this.syncExcluded = !this.syncExcluded;
+        sw2.toggleClass("is-on", on());
+        sw2.setAttr("aria-checked", String(on()));
+      };
+      sw2.onclick = flip2;
+      sw2.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          flip2();
+        }
+      };
+    }
     const prev = contentEl.createDiv({ cls: "bt-new-preview" });
     this.previewIc = prev.createSpan({ cls: "bt-new-preview-ic" });
     (0, import_obsidian15.setIcon)(this.previewIc, ICON[this.kind]);
@@ -7083,12 +7556,19 @@ var NewItemModal = class extends import_obsidian15.Modal {
     } else {
       if (this.color !== e.color) await this.plugin.setProjectColor(e.key, this.color);
       if (this.visible !== e.visible) await this.plugin.setProjectVisible(e.key, this.visible);
+      if (this.syncExcludedInit !== null && this.syncExcluded !== this.syncExcludedInit) await this.plugin.setListGcalExcluded(e.key, this.syncExcluded);
       if (name !== e.name) await this.plugin.renameProject(e.key, name);
     }
   }
 };
 
 // src/navMenu.ts
+function addGcalSyncItem(menu, plugin, path) {
+  if (!plugin.gcalSync.canSync()) return false;
+  const excluded = plugin.isListGcalExcluded(path);
+  menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-sync" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(path, !excluded)));
+  return true;
+}
 function openEdit(plugin, item) {
   if (item.sec === "filters") {
     new FilterModal(plugin, item.key).open();
@@ -7142,6 +7622,7 @@ function buildItemMenu(menu, plugin, item, source = "sidebar") {
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_up")).setIcon("chevron-up").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, -1) : plugin.moveNavItem(item.sec, item.key, -1))));
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down").onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
+  if (isProjLike) addGcalSyncItem(menu, plugin, item.key);
   if (isProjLike) {
     menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_archive")).setIcon("archive").onClick(() => plugin.archiveWithUndo(item.key, item.name)));
   }
@@ -7431,6 +7912,33 @@ function colorDot(row, plugin, current2, previewKey, defaultColor, onPick) {
     openColorPicker(dot, current2, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() });
   };
 }
+function syncSwitch(row, plugin, path) {
+  if (!plugin.gcalSync.canSync()) return;
+  let excluded = plugin.isListGcalExcluded(path);
+  const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", "data-tooltip-position": "top", tabindex: "0" } });
+  const paint = () => {
+    (0, import_obsidian17.setIcon)(btn, excluded ? "calendar-off" : "calendar-sync");
+    btn.toggleClass("is-off", excluded);
+    btn.setAttr("aria-checked", String(!excluded));
+    btn.setAttr("aria-label", excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"));
+  };
+  paint();
+  const toggle = () => {
+    excluded = !excluded;
+    paint();
+    void plugin.setListGcalExcluded(path, excluded);
+  };
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    toggle();
+  };
+  btn.onkeydown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  };
+}
 function visSwitch(row, on, onToggle) {
   const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), "aria-label": on ? t("tip_hide_sidebar") : t("tip_show_sidebar"), "data-tooltip-position": "top", tabindex: "0" } });
   sw.onclick = (e) => {
@@ -7467,6 +7975,7 @@ function activeRow(list, plugin, it, redraw, reorderSec) {
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
   rowMenu(actions, plugin, it);
   row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
+  syncSwitch(row, plugin, it.path);
   visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 function archiveRow(list, plugin, it, redraw) {
@@ -7643,21 +8152,21 @@ function parseRecurrence(rule) {
 }
 var z3 = (n) => String(n).padStart(2, "0");
 var toIso = (d) => d.getFullYear() + "-" + z3(d.getMonth() + 1) + "-" + z3(d.getDate());
-var addDays3 = (isoDate, days) => {
-  const d = /* @__PURE__ */ new Date(isoDate + "T00:00:00");
+var addDays3 = (isoDate2, days) => {
+  const d = /* @__PURE__ */ new Date(isoDate2 + "T00:00:00");
   d.setDate(d.getDate() + days);
   return toIso(d);
 };
-function advance(isoDate, rule) {
-  const d = /* @__PURE__ */ new Date(isoDate + "T00:00:00");
+function advance(isoDate2, rule) {
+  const d = /* @__PURE__ */ new Date(isoDate2 + "T00:00:00");
   if (rule.unit === "day") d.setDate(d.getDate() + rule.n);
   else if (rule.unit === "week") d.setDate(d.getDate() + rule.n * 7);
   else if (rule.unit === "month") d.setMonth(d.getMonth() + rule.n);
   else d.setFullYear(d.getFullYear() + rule.n);
   return toIso(d);
 }
-function advanceUntilFuture(isoDate, rule, today) {
-  let d = advance(isoDate, rule);
+function advanceUntilFuture(isoDate2, rule, today) {
+  let d = advance(isoDate2, rule);
   let guard = 0;
   while (d <= today && guard++ < 1e3) d = advance(d, rule);
   return d;
@@ -8560,14 +9069,19 @@ function renderNavInto(c, plugin) {
   navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
   if (eingang && !eingang.hidden) {
+    const ib = eingang;
     navItem(c, {
       cls: "bt-nav-inbox",
-      icon: eingang.icon,
-      iconColor: navColor(eingang.path, eingang.color),
-      label: projectDisplayName(eingang.name),
-      count: plugin.index.byProject(eingang.path).length,
-      active: plugin.currentProject === eingang.path,
-      onClick: () => void plugin.activateProject(eingang.path)
+      icon: ib.icon,
+      iconColor: navColor(ib.path, ib.color),
+      label: projectDisplayName(ib.name),
+      count: plugin.index.byProject(ib.path).length,
+      active: plugin.currentProject === ib.path,
+      onClick: () => void plugin.activateProject(ib.path),
+      onContext: (e) => {
+        const m = new import_obsidian18.Menu();
+        if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e);
+      }
     });
   }
   for (const id of VIEW_IDS) {
@@ -9061,7 +9575,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
 };
 
 // src/settingsTab.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // src/statusEditor.ts
 var import_obsidian20 = require("obsidian");
@@ -9209,8 +9723,658 @@ function openIconPicker(anchor, plugin, s, redraw) {
   });
 }
 
+// src/gcalSync.ts
+var import_obsidian22 = require("obsidian");
+
+// src/gcalAuth.ts
+var import_obsidian21 = require("obsidian");
+var AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
+var TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+var REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
+var DEVICE_ENDPOINT = "https://oauth2.googleapis.com/device/code";
+var DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.app.created";
+var EXPIRY_SKEW_MS = 6e4;
+var LOOPBACK_TIMEOUT_MS = 18e4;
+var GCalAuthError = class extends Error {
+};
+function base64url(buf) {
+  let s = "";
+  const bytes = new Uint8Array(buf);
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function randomToken(bytes = 32) {
+  return base64url(crypto.getRandomValues(new Uint8Array(bytes)).buffer);
+}
+async function pkcePair() {
+  const verifier = randomToken(32);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return { verifier, challenge: base64url(digest) };
+}
+function form(params) {
+  return Object.entries(params).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
+}
+async function postForm(url, params) {
+  const res = await (0, import_obsidian21.requestUrl)({
+    url,
+    method: "POST",
+    contentType: "application/x-www-form-urlencoded",
+    body: form(params),
+    throw: false
+  });
+  let json = {};
+  try {
+    json = res.json;
+  } catch {
+  }
+  if (res.status >= 400) {
+    const err = json.error_description || json.error || `HTTP ${res.status}`;
+    throw new GCalAuthError(String(err));
+  }
+  return json;
+}
+function toTokens(json, prevRefresh) {
+  const access = json.access_token;
+  const refresh = json.refresh_token ?? prevRefresh;
+  const expiresIn = json.expires_in ?? 3600;
+  if (!access || !refresh) throw new GCalAuthError("Unvollst\xE4ndige Token-Antwort von Google.");
+  return {
+    accessToken: access,
+    refreshToken: refresh,
+    expiresAt: Date.now() + expiresIn * 1e3,
+    scope: json.scope
+  };
+}
+var GCalAuth = class {
+  constructor(getCredentials, store) {
+    this.getCredentials = getCredentials;
+    this.store = store;
+  }
+  isConnected() {
+    const t2 = this.store.load();
+    return !!t2?.refreshToken;
+  }
+  account() {
+    return this.store.load()?.account ?? null;
+  }
+  /** Gültiges Access-Token liefern; bei Bedarf transparent per Refresh-Token erneuern. */
+  async getAccessToken() {
+    const t2 = this.store.load();
+    if (!t2?.refreshToken) throw new GCalAuthError("Nicht mit Google verbunden.");
+    if (t2.accessToken && Date.now() < t2.expiresAt - EXPIRY_SKEW_MS) return t2.accessToken;
+    return this.refresh(t2);
+  }
+  async refresh(t2) {
+    const creds = this.requireCredentials();
+    const json = await postForm(TOKEN_ENDPOINT, {
+      client_id: creds.clientId,
+      ...creds.clientSecret ? { client_secret: creds.clientSecret } : {},
+      refresh_token: t2.refreshToken,
+      grant_type: "refresh_token"
+    });
+    const next = toTokens(json, t2.refreshToken);
+    next.account = t2.account;
+    await this.store.save(next);
+    return next.accessToken;
+  }
+  /** Plattform-passender Login. onDevicePrompt nur für den Mobile-Device-Flow relevant. */
+  async connect(onDevicePrompt) {
+    const tokens = import_obsidian21.Platform.isDesktopApp ? await this.connectLoopback() : await this.connectDevice(onDevicePrompt);
+    await this.store.save(tokens);
+    return tokens;
+  }
+  /** Verbindung trennen: Refresh-Token bei Google widerrufen + lokal löschen (best effort). */
+  async disconnect() {
+    const t2 = this.store.load();
+    if (t2?.refreshToken) {
+      try {
+        await postForm(REVOKE_ENDPOINT, { token: t2.refreshToken });
+      } catch {
+      }
+    }
+    await this.store.save(null);
+  }
+  requireCredentials() {
+    const creds = this.getCredentials();
+    if (!creds?.clientId) throw new GCalAuthError("Keine Google-Zugangsdaten hinterlegt.");
+    return creds;
+  }
+  // ── Desktop: Loopback-Server + PKCE ──
+  async connectLoopback() {
+    const creds = this.requireCredentials();
+    const { verifier, challenge } = await pkcePair();
+    const state = randomToken(16);
+    const http = require("http");
+    const { code, redirectUri } = await new Promise(
+      (resolve, reject) => {
+        const server = http.createServer((req, res) => {
+          try {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            if (!url.searchParams.has("code") && !url.searchParams.has("error")) {
+              res.writeHead(204).end();
+              return;
+            }
+            const ok = url.searchParams.get("state") === state && url.searchParams.has("code");
+            res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+            res.end(loopbackPage(ok));
+            server.close();
+            window.clearTimeout(timer);
+            if (url.searchParams.get("error")) return reject(new GCalAuthError(url.searchParams.get("error")));
+            if (!ok) return reject(new GCalAuthError("Ung\xFCltige Antwort (state stimmt nicht)."));
+            resolve({ code: url.searchParams.get("code"), redirectUri: base });
+          } catch (e) {
+            reject(e instanceof Error ? e : new GCalAuthError(String(e)));
+          }
+        });
+        let base = "";
+        const timer = window.setTimeout(() => {
+          server.close();
+          reject(new GCalAuthError("Zeit\xFCberschreitung bei der Google-Anmeldung."));
+        }, LOOPBACK_TIMEOUT_MS);
+        server.on("error", (e) => {
+          window.clearTimeout(timer);
+          reject(e);
+        });
+        server.listen(0, "127.0.0.1", () => {
+          const addr = server.address();
+          const port = typeof addr === "object" && addr ? addr.port : 0;
+          base = `http://127.0.0.1:${port}`;
+          const authUrl = AUTH_ENDPOINT + "?" + form({
+            client_id: creds.clientId,
+            redirect_uri: base,
+            response_type: "code",
+            scope: GCAL_SCOPE,
+            code_challenge: challenge,
+            code_challenge_method: "S256",
+            state,
+            access_type: "offline",
+            prompt: "consent"
+            // erzwingt refresh_token auch bei erneutem Login
+          });
+          window.open(authUrl);
+        });
+      }
+    );
+    const json = await postForm(TOKEN_ENDPOINT, {
+      client_id: creds.clientId,
+      ...creds.clientSecret ? { client_secret: creds.clientSecret } : {},
+      code,
+      code_verifier: verifier,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri
+    });
+    return toTokens(json);
+  }
+  // ── Mobile: Device-Code-Flow ──
+  async connectDevice(onPrompt) {
+    const creds = this.requireCredentials();
+    const dev = await postForm(DEVICE_ENDPOINT, { client_id: creds.clientId, scope: GCAL_SCOPE });
+    const deviceCode = dev.device_code;
+    const intervalMs = (dev.interval ?? 5) * 1e3;
+    const expiresAt = Date.now() + (dev.expires_in ?? 1800) * 1e3;
+    onPrompt?.({
+      userCode: dev.user_code,
+      verificationUrl: dev.verification_url ?? dev.verification_uri,
+      expiresInSec: dev.expires_in ?? 1800
+    });
+    let wait = intervalMs;
+    for (; ; ) {
+      if (Date.now() > expiresAt) throw new GCalAuthError("Der Anmeldecode ist abgelaufen.");
+      await sleep(wait);
+      const res = await (0, import_obsidian21.requestUrl)({
+        url: TOKEN_ENDPOINT,
+        method: "POST",
+        contentType: "application/x-www-form-urlencoded",
+        body: form({
+          client_id: creds.clientId,
+          ...creds.clientSecret ? { client_secret: creds.clientSecret } : {},
+          device_code: deviceCode,
+          grant_type: DEVICE_GRANT
+        }),
+        throw: false
+      });
+      const json = res.json ?? {};
+      if (res.status < 400) return toTokens(json);
+      const err = json.error;
+      if (err === "authorization_pending") continue;
+      if (err === "slow_down") {
+        wait += 5e3;
+        continue;
+      }
+      throw new GCalAuthError(json.error_description || err || `HTTP ${res.status}`);
+    }
+  }
+};
+function sleep(ms2) {
+  return new Promise((r) => window.setTimeout(r, ms2));
+}
+function loopbackPage(ok) {
+  const msg = ok ? "\u2705 BeautyTasks ist jetzt mit Google Kalender verbunden." : "\u26A0\uFE0F Anmeldung fehlgeschlagen. Bitte in Obsidian erneut versuchen.";
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<title>BeautyTasks</title><style>
+body{font-family:system-ui,sans-serif;background:#1e1e1e;color:#eee;display:flex;
+min-height:100vh;align-items:center;justify-content:center;margin:0}
+div{max-width:28rem;text-align:center;line-height:1.5;padding:2rem}
+</style></head><body><div><p>${msg}</p><p>Du kannst dieses Fenster schlie\xDFen.</p></div></body></html>`;
+}
+
+// src/gcalSync.ts
+var GCalHttpError = class extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+};
+var API = "https://www.googleapis.com/calendar/v3";
+var SYNC_SOURCE = "beautytasks";
+var DEBOUNCE_MS = 2e3;
+var POLL_MS = 5 * 60 * 1e3;
+var DEFAULT_CALENDAR_NAME = "BeautyTasks";
+var DEFAULT_GCAL_SETTINGS = {
+  enabled: false,
+  clientId: "",
+  clientSecret: "",
+  calendarId: "",
+  timezone: "Europe/Berlin",
+  defaultDurationMin: 60,
+  autoSync: true,
+  syncOnCreate: true,
+  syncOnUpdate: true,
+  syncOnDelete: true,
+  removeEventOnComplete: false,
+  notifyConflicts: false,
+  showStatusBar: true,
+  account: null,
+  tokens: null,
+  lastSynced: {},
+  syncTokens: {}
+};
+async function api(auth, method, path, body) {
+  const token = await auth.getAccessToken();
+  for (let attempt = 0; ; attempt++) {
+    const res = await (0, import_obsidian22.requestUrl)({
+      url: API + path,
+      method,
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: body != null ? JSON.stringify(body) : void 0,
+      throw: false
+    });
+    if (res.status === 204 || !res.text) return null;
+    if (res.status < 400) {
+      try {
+        return res.json;
+      } catch {
+        return null;
+      }
+    }
+    if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen \u2013 bitte neu verbinden.");
+    if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
+      await sleep2(Math.min(3e4, 2 ** attempt * 1e3) + Math.random() * 500);
+      continue;
+    }
+    let msg = `HTTP ${res.status}`;
+    try {
+      msg = res.json.error?.message ?? msg;
+    } catch {
+    }
+    throw new GCalHttpError(res.status, "Google Kalender: " + msg);
+  }
+}
+async function listCalendars(auth) {
+  const out = [];
+  let pageToken;
+  do {
+    const q = pageToken ? "?pageToken=" + encodeURIComponent(pageToken) : "";
+    const resp = await api(auth, "GET", "/users/me/calendarList" + q);
+    for (const c of resp?.items ?? []) {
+      out.push({ id: c.id, summary: c.summary ?? c.id, primary: !!c.primary });
+    }
+    pageToken = resp?.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+async function fetchAccountEmail(auth) {
+  const cal = await api(auth, "GET", "/calendars/primary");
+  return cal?.id ?? null;
+}
+async function ensureDefaultCalendar(auth, timezone) {
+  const existing = (await listCalendars(auth)).find((c) => c.summary === DEFAULT_CALENDAR_NAME);
+  if (existing) return existing.id;
+  const created = await api(auth, "POST", "/calendars", { summary: DEFAULT_CALENDAR_NAME, timeZone: timezone });
+  return created?.id;
+}
+var isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+var isoDateTime = (d) => `${isoDate(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`;
+function reminderOverrides(task, start) {
+  const mins = resolveReminders(task).map((r) => Math.round((start.getTime() - r.fireAt.getTime()) / 6e4)).filter((m) => m >= 0 && m <= 40320);
+  return [...new Set(mins)].slice(0, 5).map((minutes) => ({ method: "popup", minutes }));
+}
+function eventBody(task, s) {
+  const timed = !!task.dueTime;
+  const startDate = /* @__PURE__ */ new Date(task.due + "T" + (task.dueTime ?? "00:00"));
+  let start, end;
+  if (timed) {
+    const endDate = new Date(startDate.getTime() + (task.duration ?? s.defaultDurationMin) * 6e4);
+    start = { dateTime: isoDateTime(startDate), timeZone: s.timezone };
+    end = { dateTime: isoDateTime(endDate), timeZone: s.timezone };
+  } else {
+    const next = new Date(startDate.getTime());
+    next.setDate(next.getDate() + 1);
+    start = { date: task.due };
+    end = { date: isoDate(next) };
+  }
+  const overrides = reminderOverrides(task, startDate);
+  return {
+    summary: task.title,
+    start,
+    end,
+    reminders: overrides.length ? { useDefault: false, overrides } : { useDefault: true },
+    extendedProperties: { private: { syncSource: SYNC_SOURCE, btTaskId: task.id } }
+  };
+}
+function eventDateParts(ev) {
+  const start = ev.start;
+  if (!start) return { due: null, dueTime: null };
+  if (start.date) return { due: start.date, dueTime: null };
+  if (start.dateTime) {
+    const d = new Date(start.dateTime);
+    if (isNaN(d.getTime())) return { due: null, dueTime: null };
+    return {
+      due: isoDate(d),
+      dueTime: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+    };
+  }
+  return { due: null, dueTime: null };
+}
+async function pullEvents(auth, calendarId, syncToken) {
+  const items = [];
+  let pageToken;
+  let nextSyncToken = null;
+  do {
+    const q = new URLSearchParams({ singleEvents: "true", showDeleted: "true", maxResults: "2500" });
+    if (syncToken) q.set("syncToken", syncToken);
+    else q.set("privateExtendedProperty", "syncSource=" + SYNC_SOURCE);
+    if (pageToken) q.set("pageToken", pageToken);
+    const resp = await api(auth, "GET", `/calendars/${enc(calendarId)}/events?` + q.toString());
+    for (const ev of resp?.items ?? []) items.push(ev);
+    pageToken = resp?.nextPageToken;
+    nextSyncToken = resp?.nextSyncToken ?? nextSyncToken;
+  } while (pageToken);
+  return { items, nextSyncToken };
+}
+function signature(task, calendarId) {
+  return JSON.stringify([
+    task.title,
+    task.due,
+    task.dueTime,
+    task.duration,
+    (task.reminders ?? []).join(","),
+    calendarId
+  ]);
+}
+var GCalSync = class {
+  constructor(host, auth) {
+    this.host = host;
+    this.auth = auth;
+    this.statusCbs = /* @__PURE__ */ new Set();
+    this.info = { status: "disconnected", lastSyncedAt: null, lastError: null, account: null };
+    this.unsub = null;
+    this.debounceTimer = null;
+    this.pollTimer = null;
+    this.running = false;
+    this.rerun = false;
+    this.info.account = host.settings.account;
+    this.info.status = auth.isConnected() ? "idle" : "disconnected";
+  }
+  // ── Öffentliche API ──
+  onStatus(cb) {
+    this.statusCbs.add(cb);
+    cb(this.info);
+    return () => this.statusCbs.delete(cb);
+  }
+  getStatus() {
+    return this.info;
+  }
+  /** Auto-Sync verdrahten: bei Vault-Änderungen entprellt syncen + periodischer Pull
+   *  (holt Google-Änderungen auch ohne lokale Edits). Beides an `autoSync` gekoppelt. Idempotent. */
+  start() {
+    if (this.unsub) return;
+    this.unsub = this.host.subscribe(() => this.scheduleSync());
+    this.pollTimer = window.setInterval(() => {
+      if (this.host.settings.autoSync) void this.syncNow();
+    }, POLL_MS);
+  }
+  stop() {
+    this.unsub?.();
+    this.unsub = null;
+    if (this.debounceTimer) {
+      window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    if (this.pollTimer) {
+      window.clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+  scheduleSync() {
+    if (!this.canSync() || !this.host.settings.autoSync) return;
+    if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+    this.debounceTimer = window.setTimeout(() => {
+      this.debounceTimer = null;
+      void this.syncNow();
+    }, DEBOUNCE_MS);
+  }
+  /** Ist der Sync tatsächlich aktiv (verbunden UND Hauptschalter an UND Ziel-Kalender gesetzt)?
+   *  Auch die UI (per-Listen-Schalter/-Menü) hängt daran – tote Bedienelemente vermeiden. */
+  canSync() {
+    const s = this.host.settings;
+    return s.enabled && !!s.calendarId && this.auth.isConnected();
+  }
+  /** Ein Zwei-Wege-Durchlauf (manuell oder entprellt): erst Pull, dann Push. Re-entrancy-sicher. */
+  async syncNow() {
+    if (!this.canSync()) return;
+    if (this.running) {
+      this.rerun = true;
+      return;
+    }
+    this.running = true;
+    this.emit({ status: "syncing", lastError: null });
+    try {
+      const pulled = await this.pullAll();
+      await this.pushAll(pulled);
+      await this.host.persist();
+      this.emit({ status: "idle", lastSyncedAt: Date.now(), lastError: null });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.emit({ status: "error", lastError: msg });
+    } finally {
+      this.running = false;
+      if (this.rerun) {
+        this.rerun = false;
+        void this.syncNow();
+      }
+    }
+  }
+  // ── Pull-Reconcile (Google → Obsidian) ──
+  /** Liefert die Menge der Aufgaben-Ids, die gerade AUS Google zurückgeschrieben wurden –
+   *  der Push überspringt sie diesen Lauf (metadataCache ist noch stale). */
+  async pullAll() {
+    const s = this.host.settings;
+    const cal = s.calendarId;
+    const pulled = /* @__PURE__ */ new Set();
+    let result;
+    try {
+      result = await pullEvents(this.auth, cal, s.syncTokens[cal]);
+    } catch (e) {
+      if (!(e instanceof GCalHttpError && e.status === 410)) throw e;
+      delete s.syncTokens[cal];
+      result = await pullEvents(this.auth, cal, void 0);
+    }
+    const taskMap = new Map(this.host.allTasks().map((t2) => [t2.id, t2]));
+    const byEvent = /* @__PURE__ */ new Map();
+    for (const [tid, link] of Object.entries(s.lastSynced)) byEvent.set(link.eventId, tid);
+    let conflicts = 0;
+    for (const ev of result.items) {
+      const eventId = ev.id;
+      const priv = ev.extendedProperties?.private;
+      const taskId = priv?.btTaskId ?? byEvent.get(eventId);
+      if (!taskId) continue;
+      const link = s.lastSynced[taskId];
+      if (ev.status === "cancelled") {
+        if (link && link.eventId === eventId) delete s.lastSynced[taskId];
+        const task2 = taskMap.get(taskId);
+        if (task2) await this.clearBack(task2);
+        continue;
+      }
+      const task = taskMap.get(taskId);
+      if (!task || !link || link.eventId !== eventId) continue;
+      const g = eventDateParts(ev);
+      const known = link.due !== void 0;
+      const lastDue = known ? link.due ?? null : task.due ?? null;
+      const lastDueTime = known ? link.dueTime ?? null : task.dueTime ?? null;
+      const gChanged = g.due !== lastDue || g.dueTime !== lastDueTime;
+      if (!gChanged) {
+        if (!known) {
+          link.due = g.due;
+          link.dueTime = g.dueTime;
+        }
+        continue;
+      }
+      const oChanged = task.due !== lastDue || task.dueTime !== lastDueTime;
+      if (oChanged) {
+        conflicts++;
+        continue;
+      }
+      await this.writeBackDue(task, g.due, g.dueTime);
+      link.due = g.due;
+      link.dueTime = g.dueTime;
+      link.sig = signature({ ...task, due: g.due, dueTime: g.dueTime }, cal);
+      pulled.add(taskId);
+    }
+    if (result.nextSyncToken) s.syncTokens[cal] = result.nextSyncToken;
+    if (conflicts && s.notifyConflicts) new import_obsidian22.Notice(t("gcal_conflicts_notice", conflicts));
+    return pulled;
+  }
+  // ── Push-Reconcile (Obsidian → Google) ──
+  /** `skip` = Aufgaben, die dieser Lauf gerade aus Google zurückgeschrieben hat (stale Cache). */
+  async pushAll(skip) {
+    const s = this.host.settings;
+    const cal = s.calendarId;
+    const tasks = this.host.allTasks();
+    const eligible = /* @__PURE__ */ new Map();
+    for (const t2 of tasks) if (this.isEligible(t2)) eligible.set(t2.id, t2);
+    for (const [id, task] of eligible) {
+      if (skip.has(id)) continue;
+      const link = s.lastSynced[id];
+      const eventId = link?.eventId ?? this.frontmatterEventId(task);
+      const sig = signature(task, cal);
+      const stamp = (evId) => ({ eventId: evId, calendarId: cal, sig, due: task.due, dueTime: task.dueTime });
+      if (!eventId) {
+        if (!s.syncOnCreate) continue;
+        const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
+        const newId3 = ev?.id;
+        if (newId3) {
+          s.lastSynced[id] = stamp(newId3);
+          await this.writeBack(task, newId3, cal);
+        }
+      } else if (!link || link.sig !== sig || link.calendarId !== cal) {
+        if (!s.syncOnUpdate) continue;
+        try {
+          if (link && link.calendarId !== cal) {
+            await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+          }
+          await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+          s.lastSynced[id] = stamp(eventId);
+          await this.writeBack(task, eventId, cal);
+        } catch (e) {
+          if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
+          const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
+          const newId3 = ev?.id;
+          if (newId3) {
+            s.lastSynced[id] = stamp(newId3);
+            await this.writeBack(task, newId3, cal);
+          }
+        }
+      }
+    }
+    for (const id of Object.keys(s.lastSynced)) {
+      if (eligible.has(id)) continue;
+      if (!s.syncOnDelete) continue;
+      const link = s.lastSynced[id];
+      try {
+        await api(this.auth, "DELETE", `/calendars/${enc(link.calendarId)}/events/${enc(link.eventId)}`);
+      } catch (e) {
+        if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
+      }
+      delete s.lastSynced[id];
+      const t2 = this.host.allTasks().find((x) => x.id === id);
+      if (t2) await this.clearBack(t2);
+    }
+  }
+  isEligible(t2) {
+    if (!t2.due) return false;
+    if (isTrashed(t2.status)) return false;
+    if (this.host.settings.removeEventOnComplete && isDoneStatus(t2)) return false;
+    if (this.projectExcluded(t2)) return false;
+    return true;
+  }
+  frontmatterOf(path) {
+    const f = this.host.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof import_obsidian22.TFile)) return null;
+    return this.host.app.metadataCache.getFileCache(f)?.frontmatter ?? null;
+  }
+  projectExcluded(t2) {
+    return t2.project ? this.frontmatterOf(t2.project)?.gcal_sync === false : false;
+  }
+  frontmatterEventId(t2) {
+    const id = this.frontmatterOf(t2.path)?.gcal_event_id;
+    return typeof id === "string" && id ? id : void 0;
+  }
+  async writeBack(t2, eventId, calendarId) {
+    const f = this.host.app.vault.getAbstractFileByPath(t2.path);
+    if (!(f instanceof import_obsidian22.TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm) => {
+      fm.gcal_event_id = eventId;
+      fm.gcal_calendar_id = calendarId;
+    });
+  }
+  async clearBack(t2) {
+    const f = this.host.app.vault.getAbstractFileByPath(t2.path);
+    if (!(f instanceof import_obsidian22.TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm) => {
+      delete fm.gcal_event_id;
+      delete fm.gcal_calendar_id;
+    });
+  }
+  /** Datum/Uhrzeit aus Google in die Notiz zurückschreiben (Frontmatter `due` = kombiniert). */
+  async writeBackDue(t2, due, dueTime) {
+    const f = this.host.app.vault.getAbstractFileByPath(t2.path);
+    if (!(f instanceof import_obsidian22.TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm) => {
+      if (due) fm.due = combineDT(due, dueTime);
+      else delete fm.due;
+    });
+  }
+  // ── intern ──
+  emit(patch) {
+    this.info = { ...this.info, ...patch, account: this.host.settings.account };
+    for (const cb of this.statusCbs) cb(this.info);
+  }
+};
+function enc(s) {
+  return encodeURIComponent(s);
+}
+function sleep2(ms2) {
+  return new Promise((r) => window.setTimeout(r, ms2));
+}
+function isDoneStatus(t2) {
+  return isDone(t2.status);
+}
+
 // src/settingsTab.ts
 var CHIP_TIERS = ["shown", "onValue", "hidden"];
+var GCAL_GUIDE_URL = "https://github.com/avnibilgin/BeautyTasks#google-calendar-sync";
 function attachChipDrag(row, grip, zones, onDrop) {
   grip.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
@@ -9256,7 +10420,7 @@ function attachChipDrag(row, grip, zones, onDrop) {
     doc.addEventListener("pointerup", onUp);
   });
 }
-var FolderSuggest = class extends import_obsidian21.AbstractInputSuggest {
+var FolderSuggest = class extends import_obsidian23.AbstractInputSuggest {
   constructor(appRef, textInputEl, onPick) {
     super(appRef, textInputEl);
     this.appRef = appRef;
@@ -9266,7 +10430,7 @@ var FolderSuggest = class extends import_obsidian21.AbstractInputSuggest {
     const q = query.toLowerCase();
     const out = [];
     for (const f of this.appRef.vault.getAllLoadedFiles()) {
-      if (f instanceof import_obsidian21.TFolder && f.path.toLowerCase().includes(q)) {
+      if (f instanceof import_obsidian23.TFolder && f.path.toLowerCase().includes(q)) {
         out.push(f);
         if (out.length >= 100) break;
       }
@@ -9282,21 +10446,28 @@ var FolderSuggest = class extends import_obsidian21.AbstractInputSuggest {
     this.close();
   }
 };
-var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
+var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+    this.gcalStatusUnsub = null;
+  }
+  hide() {
+    this.gcalStatusUnsub?.();
+    this.gcalStatusUnsub = null;
   }
   display() {
     const { containerEl } = this;
+    this.gcalStatusUnsub?.();
+    this.gcalStatusUnsub = null;
     containerEl.empty();
     const p = this.plugin;
-    new import_obsidian21.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
+    new import_obsidian23.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
     const folderRow = (name, desc, get, set) => {
-      new import_obsidian21.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
+      new import_obsidian23.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
         text.setValue(get());
         const save = (raw) => {
-          const v = (0, import_obsidian21.normalizePath)(raw.trim());
+          const v = (0, import_obsidian23.normalizePath)(raw.trim());
           if (v && v !== ".") {
             set(v);
             void p.saveSettings();
@@ -9312,8 +10483,8 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
     folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => p.settings.itemsFolder = v);
     folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => p.settings.projectsFolder = v);
     folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => p.settings.attachmentsFolder = v);
-    new import_obsidian21.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
-    new import_obsidian21.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
+    new import_obsidian23.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
+    new import_obsidian23.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
       dd.addOption("auto", t("set_language_auto"));
       dd.addOption("en", "English");
       dd.addOption("de", "Deutsch");
@@ -9333,7 +10504,7 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
         p.renderAll();
       });
     });
-    new import_obsidian21.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
+    new import_obsidian23.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
       for (const id of VIEW_IDS) dd.addOption(id, viewTitle(id));
       dd.addOption("last", t("set_start_view_last"));
       dd.setValue(p.settings.startView);
@@ -9342,28 +10513,164 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
         await p.saveSettings();
       });
     });
-    new import_obsidian21.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
+    new import_obsidian23.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
       p.settings.parseNaturalLanguage = v;
       await p.saveSettings();
     }));
-    new import_obsidian21.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
+    new import_obsidian23.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
       p.settings.showDescriptionInList = v;
       await p.saveSettings();
       p.renderAll();
     }));
-    new import_obsidian21.Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) => tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
+    new import_obsidian23.Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) => tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
       p.settings.chipsIconsOnly = v;
       await p.saveSettings();
     }));
-    new import_obsidian21.Setting(containerEl).setName(t("set_chip_actions")).setHeading();
+    new import_obsidian23.Setting(containerEl).setName(t("set_chip_actions")).setHeading();
     containerEl.createEl("div", { cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
     this.renderChipActions(containerEl);
-    new import_obsidian21.Setting(containerEl).setName(t("tab_statuses")).setHeading();
+    new import_obsidian23.Setting(containerEl).setName(t("tab_statuses")).setHeading();
     renderStatusEditor(containerEl.createDiv({ cls: "bt-settings-status" }), p);
-    new import_obsidian21.Setting(containerEl).setName(t("set_data_heading")).setHeading();
-    new import_obsidian21.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
-    new import_obsidian21.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
-    new import_obsidian21.Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc")).addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
+    new import_obsidian23.Setting(containerEl).setName(t("set_data_heading")).setHeading();
+    new import_obsidian23.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
+    new import_obsidian23.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
+    new import_obsidian23.Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc")).addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
+    const gcalHost = containerEl.createDiv();
+    const drawGCal = () => {
+      gcalHost.empty();
+      this.renderGCal(gcalHost, drawGCal);
+    };
+    drawGCal();
+  }
+  /** Google-Kalender-Sektion: vor dem Verbinden ein schlanker Setup-Assistent, danach der
+   *  Verbunden-Zustand mit Status, Ziel-Kalender und Optionen (Feinkorn unter „Erweitert").
+   *  Progressive Offenlegung – Optionen erscheinen erst nach erfolgreicher Verbindung.
+   *  `redraw` zeichnet nur diese Sektion neu (kein this.display() → keine no-deprecated-Warnung). */
+  renderGCal(containerEl, redraw) {
+    const p = this.plugin;
+    const g = p.settings.gcal;
+    this.gcalStatusUnsub?.();
+    this.gcalStatusUnsub = null;
+    new import_obsidian23.Setting(containerEl).setName(t("set_gcal_heading")).setHeading();
+    if (!p.gcalAuth.isConnected()) {
+      containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
+      new import_obsidian23.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open(GCAL_GUIDE_URL)));
+      let connectBtn = null;
+      const refreshConnect = () => {
+        connectBtn?.setDisabled(!g.clientId || !g.clientSecret);
+      };
+      new import_obsidian23.Setting(containerEl).setName(t("gcal_client_id")).addText((txt) => txt.setValue(g.clientId).onChange((v) => {
+        g.clientId = v.trim();
+        void p.saveSettings();
+        refreshConnect();
+      }));
+      new import_obsidian23.Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
+        txt.inputEl.type = "password";
+        txt.setValue(g.clientSecret).onChange((v) => {
+          g.clientSecret = v.trim();
+          void p.saveSettings();
+          refreshConnect();
+        });
+      });
+      containerEl.createEl("div", { cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
+      new import_obsidian23.Setting(containerEl).addButton((b) => {
+        connectBtn = b;
+        b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret).onClick(async () => {
+          b.setButtonText(t("gcal_connecting")).setDisabled(true);
+          try {
+            await p.gcalConnect((dp) => new import_obsidian23.Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
+          } catch (e) {
+            new import_obsidian23.Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
+          }
+          redraw();
+        });
+      });
+      return;
+    }
+    const head = new import_obsidian23.Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "\u2014")).addButton((b) => b.setButtonText(t("gcal_disconnect_btn")).onClick(async () => {
+      await p.gcalDisconnect();
+      redraw();
+    }));
+    head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
+    if (!g.calendarId) containerEl.createEl("div", { cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
+    const statusSetting = new import_obsidian23.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
+    const renderStatus = (i) => {
+      const txt = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleString() : t("gcal_never"));
+      statusSetting.setName(txt);
+    };
+    this.gcalStatusUnsub = p.gcalSync.onStatus(renderStatus);
+    const calHost = containerEl.createDiv();
+    void (async () => {
+      let cals = [];
+      let ok = false;
+      try {
+        cals = await p.gcalCalendars();
+        ok = true;
+      } catch {
+      }
+      new import_obsidian23.Setting(calHost).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc")).addDropdown((dd) => {
+        if (cals.length) for (const c of cals) dd.addOption(c.id, c.summary);
+        else if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);
+        dd.setValue(g.calendarId);
+        dd.onChange((v) => {
+          g.calendarId = v;
+          void p.saveSettings();
+          void p.gcalSync.syncNow();
+        });
+      });
+      if (ok && !cals.some((c) => c.summary === DEFAULT_CALENDAR_NAME)) {
+        new import_obsidian23.Setting(calHost).setName(t("gcal_tip_create")).setDesc(t("gcal_tip_create_desc")).addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setCta().onClick(async () => {
+          try {
+            await p.gcalCreateDefaultCalendar();
+          } catch (e) {
+            new import_obsidian23.Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e)));
+          }
+          redraw();
+        }));
+      }
+    })();
+    new import_obsidian23.Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc")).addToggle((tg) => tg.setValue(g.enabled).onChange((v) => {
+      g.enabled = v;
+      void p.saveSettings();
+      if (v) void p.gcalSync.syncNow();
+    }));
+    new import_obsidian23.Setting(containerEl).setName(t("gcal_autosync")).setDesc(t("gcal_autosync_desc")).addToggle((tg) => tg.setValue(g.autoSync).onChange((v) => {
+      g.autoSync = v;
+      void p.saveSettings();
+    }));
+    const adv = containerEl.createEl("details", { cls: "bt-gcal-advanced" });
+    adv.createEl("summary", { text: t("gcal_advanced") });
+    const av = adv.createDiv();
+    const boolRow = (key, get, set) => {
+      new import_obsidian23.Setting(av).setName(t(key)).addToggle((tg) => tg.setValue(get()).onChange((v) => {
+        set(v);
+        void p.saveSettings();
+      }));
+    };
+    boolRow("gcal_on_create", () => g.syncOnCreate, (v) => g.syncOnCreate = v);
+    boolRow("gcal_on_update", () => g.syncOnUpdate, (v) => g.syncOnUpdate = v);
+    boolRow("gcal_on_delete", () => g.syncOnDelete, (v) => g.syncOnDelete = v);
+    boolRow("gcal_remove_on_complete", () => g.removeEventOnComplete, (v) => g.removeEventOnComplete = v);
+    new import_obsidian23.Setting(av).setName(t("gcal_duration")).addText((txt) => {
+      txt.inputEl.type = "number";
+      txt.setValue(String(g.defaultDurationMin)).onChange((v) => {
+        const n = parseInt(v, 10);
+        if (n > 0) {
+          g.defaultDurationMin = n;
+          void p.saveSettings();
+        }
+      });
+    });
+    new import_obsidian23.Setting(av).setName(t("gcal_timezone")).addText((txt) => txt.setValue(g.timezone).onChange((v) => {
+      g.timezone = v.trim() || g.timezone;
+      void p.saveSettings();
+    }));
+    new import_obsidian23.Setting(av).setName(t("gcal_statusbar")).addToggle((tg) => tg.setValue(g.showStatusBar).onChange((v) => {
+      g.showStatusBar = v;
+      void p.saveSettings();
+      p.refreshGCalStatusBar();
+    }));
+    boolRow("gcal_notify_conflicts", () => g.notifyConflicts, (v) => g.notifyConflicts = v);
   }
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.
    *  Beide Flächen haben getrennte Profile (chipProfiles). */
@@ -9430,8 +10737,8 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
       const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, surface, id))];
       const row = zone.createDiv({ cls: "bt-chip-row", attr: { "data-id": id } });
       const grip = row.createSpan({ cls: "bt-chip-grip", attr: { "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
-      (0, import_obsidian21.setIcon)(grip, "grip-vertical");
-      (0, import_obsidian21.setIcon)(row.createSpan({ cls: "bt-chip-row-ic" }), c.icon);
+      (0, import_obsidian23.setIcon)(grip, "grip-vertical");
+      (0, import_obsidian23.setIcon)(row.createSpan({ cls: "bt-chip-row-ic" }), c.icon);
       row.createSpan({ cls: "bt-chip-row-lbl", text: t(c.nameKey) });
       attachChipDrag(row, grip, zones, persist);
     }
@@ -9439,7 +10746,7 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
 };
 
 // src/importExport.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var EXPORT_FORMAT = "beautytasks";
 var EXPORT_VERSION = 2;
 var baseName5 = (p) => p.split("/").pop().replace(/\.md$/, "");
@@ -9496,10 +10803,10 @@ async function writeExportFile(plugin) {
   const d = /* @__PURE__ */ new Date();
   const z4 = (n2) => String(n2).padStart(2, "0");
   const stamp = `${d.getFullYear()}-${z4(d.getMonth() + 1)}-${z4(d.getDate())}-${z4(d.getHours())}${z4(d.getMinutes())}`;
-  let dest = (0, import_obsidian22.normalizePath)(`${base}/beautytasks-export-${stamp}.json`);
+  let dest = (0, import_obsidian24.normalizePath)(`${base}/beautytasks-export-${stamp}.json`);
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian22.normalizePath)(`${base}/beautytasks-export-${stamp} ${n}.json`);
+    dest = (0, import_obsidian24.normalizePath)(`${base}/beautytasks-export-${stamp} ${n}.json`);
     n++;
     if (n > 200) break;
   }
@@ -9521,10 +10828,10 @@ function parseExport(raw) {
 async function writeImportedTask(app, settings, et) {
   await ensureFolder(app, settings.itemsFolder);
   const slug = slugify(et.title);
-  let dest = (0, import_obsidian22.normalizePath)(settings.itemsFolder + "/" + slug + ".md");
+  let dest = (0, import_obsidian24.normalizePath)(settings.itemsFolder + "/" + slug + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian22.normalizePath)(settings.itemsFolder + "/" + slug + " " + n + ".md");
+    dest = (0, import_obsidian24.normalizePath)(settings.itemsFolder + "/" + slug + " " + n + ".md");
     n++;
     if (n > 500) break;
   }
@@ -9555,10 +10862,10 @@ async function writeImportedList(app, settings, list) {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(list.name);
-  let dest = (0, import_obsidian22.normalizePath)(folder + "/" + base + ".md");
+  let dest = (0, import_obsidian24.normalizePath)(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian22.normalizePath)(folder + "/" + base + " " + n + ".md");
+    dest = (0, import_obsidian24.normalizePath)(folder + "/" + base + " " + n + ".md");
     n++;
     if (n > 200) break;
   }
@@ -9623,7 +10930,7 @@ async function importData(plugin, data) {
   }
   return { created, skipped, listsCreated, labelsAdded };
 }
-var JsonFilePickerModal = class extends import_obsidian22.FuzzySuggestModal {
+var JsonFilePickerModal = class extends import_obsidian24.FuzzySuggestModal {
   constructor(app, onPick) {
     super(app);
     this.onPick = onPick;
@@ -9661,7 +10968,7 @@ function pickOsJsonFile(onText) {
 }
 
 // src/importTaskNotes.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var DEFAULT_MAPPING = {
   title: "title",
   status: "status",
@@ -9761,7 +11068,7 @@ function mapPriority(raw) {
 }
 function scanTaskNotes(app, taskTag, folder, tagsKey) {
   const tag = taskTag.replace(/^#/, "").trim().toLowerCase();
-  const pref = folder.trim() ? (0, import_obsidian23.normalizePath)(folder.trim()) + "/" : null;
+  const pref = folder.trim() ? (0, import_obsidian25.normalizePath)(folder.trim()) + "/" : null;
   const out = [];
   for (const f of app.vault.getMarkdownFiles()) {
     if (pref && !f.path.startsWith(pref)) continue;
@@ -9837,7 +11144,7 @@ async function buildImportData(app, files, mapping, taskTag) {
   }
   return { tasks, lists: [...listByKey.values()], labels: [...labelSet], lossy };
 }
-var ImportTaskNotesModal = class extends import_obsidian23.Modal {
+var ImportTaskNotesModal = class extends import_obsidian25.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -9849,11 +11156,11 @@ var ImportTaskNotesModal = class extends import_obsidian23.Modal {
     modalEl.addClass("bt-new-modal");
     contentEl.createEl("h3", { text: t("tn_import_title") });
     contentEl.createEl("p", { cls: "bt-confirm-msg", text: t("tn_import_desc") });
-    new import_obsidian23.Setting(contentEl).setName(t("tn_import_tag")).setDesc(t("tn_import_tag_desc")).addText((tx) => tx.setPlaceholder("task").setValue(this.taskTag).onChange((v) => {
+    new import_obsidian25.Setting(contentEl).setName(t("tn_import_tag")).setDesc(t("tn_import_tag_desc")).addText((tx) => tx.setPlaceholder("task").setValue(this.taskTag).onChange((v) => {
       this.taskTag = v;
       this.updateCount();
     }));
-    new import_obsidian23.Setting(contentEl).setName(t("tn_import_folder")).setDesc(t("tn_import_folder_desc")).addText((tx) => tx.setPlaceholder(t("tn_import_folder_ph")).setValue(this.folder).onChange((v) => {
+    new import_obsidian25.Setting(contentEl).setName(t("tn_import_folder")).setDesc(t("tn_import_folder_desc")).addText((tx) => tx.setPlaceholder(t("tn_import_folder_ph")).setValue(this.folder).onChange((v) => {
       this.folder = v;
       this.updateCount();
     }));
@@ -9875,7 +11182,7 @@ var ImportTaskNotesModal = class extends import_obsidian23.Modal {
   async run() {
     const files = scanTaskNotes(this.app, this.taskTag, this.folder, DEFAULT_MAPPING.tags);
     if (!files.length) {
-      new import_obsidian23.Notice(t("tn_import_none"));
+      new import_obsidian25.Notice(t("tn_import_none"));
       return;
     }
     try {
@@ -9890,18 +11197,18 @@ var ImportTaskNotesModal = class extends import_obsidian23.Modal {
       }
       if (shown) await this.plugin.saveSettings();
       this.close();
-      new import_obsidian23.Notice(t("tn_import_done", r.created, r.skipped) + (lossy ? " " + t("tn_import_lossy", lossy) : ""));
+      new import_obsidian25.Notice(t("tn_import_done", r.created, r.skipped) + (lossy ? " " + t("tn_import_lossy", lossy) : ""));
       window.setTimeout(() => this.plugin.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks TaskNotes import error", e);
-      new import_obsidian23.Notice(t("tn_import_failed"));
+      new import_obsidian25.Notice(t("tn_import_failed"));
     }
   }
 };
 
 // src/whatsNew.ts
-var import_obsidian24 = require("obsidian");
-var WhatsNewModal = class extends import_obsidian24.Modal {
+var import_obsidian26 = require("obsidian");
+var WhatsNewModal = class extends import_obsidian26.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -9920,7 +11227,7 @@ var WhatsNewModal = class extends import_obsidian24.Modal {
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
       const row = list.createDiv({ cls: "bt-wn-item" });
-      (0, import_obsidian24.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
+      (0, import_obsidian26.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
       const body = row.createDiv({ cls: "bt-wn-body" });
       body.createDiv({ cls: "bt-wn-item-t", text: it.title });
       body.createDiv({ cls: "bt-wn-item-d", text: it.desc });
@@ -9934,9 +11241,10 @@ var WhatsNewModal = class extends import_obsidian24.Modal {
 };
 
 // src/main.ts
-var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
+var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   constructor() {
     super(...arguments);
+    this.gcalStatusBar = null;
     this.currentView = "heute";
     this.currentProject = null;
     this.currentLabel = null;
@@ -9973,6 +11281,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
+    this.setupGCal();
     this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(async () => {
       const wasExisting = this.settings.didInitialSetup;
@@ -9992,6 +11301,8 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();
+      this.gcalSync.start();
+      void this.gcalSync.syncNow();
       const minorKey = (v) => v.split(".").slice(0, 2).join(".");
       if (wasExisting && minorKey(prevVersion ?? "") !== minorKey(this.manifest.version)) new WhatsNewModal(this).open();
       if (this.settings.lastSeenVersion !== this.manifest.version) {
@@ -10014,10 +11325,11 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
+    this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
     this.addCommand({
       id: "count-tasks",
       name: t("cmd_count_tasks"),
-      callback: () => new import_obsidian25.Notice(t("notice_count", this.index.all().length, this.index.open().length))
+      callback: () => new import_obsidian27.Notice(t("notice_count", this.index.all().length, this.index.open().length))
     });
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
@@ -10026,14 +11338,14 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       id: "import-from-lists",
       name: t("cmd_import"),
       callback: async () => {
-        new import_obsidian25.Notice(t("notice_import_running"));
+        new import_obsidian27.Notice(t("notice_import_running"));
         try {
           const n = await runMigration(this.app, this.settings);
-          new import_obsidian25.Notice(t("notice_imported", n));
+          new import_obsidian27.Notice(t("notice_imported", n));
           window.setTimeout(() => this.index.build(), 800);
         } catch (e) {
           console.error("BeautyTasks import error", e);
-          new import_obsidian25.Notice(t("notice_import_failed"));
+          new import_obsidian27.Notice(t("notice_import_failed"));
         }
       }
     });
@@ -10063,7 +11375,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
    *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
   applyLocale() {
-    setLocale(this.settings.locale === "auto" ? import_obsidian25.moment.locale() : this.settings.locale);
+    setLocale(this.settings.locale === "auto" ? import_obsidian27.moment.locale() : this.settings.locale);
   }
   /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
   resolveStartView() {
@@ -10316,7 +11628,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
         void this.archiveProject(path, false);
       };
     });
-    new import_obsidian25.Notice(frag, 8e3);
+    new import_obsidian27.Notice(frag, 8e3);
   }
   async setProjectVisible(path, visible) {
     this.refreshOnChange(path);
@@ -10360,26 +11672,26 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async exportTasksJson() {
     try {
       const path = await writeExportFile(this);
-      new import_obsidian25.Notice(t("notice_export_done", path));
+      new import_obsidian27.Notice(t("notice_export_done", path));
     } catch (e) {
       console.error("BeautyTasks export error", e);
-      new import_obsidian25.Notice(t("notice_export_failed"));
+      new import_obsidian27.Notice(t("notice_export_failed"));
     }
   }
   /** JSON-Rohtext einlesen, Aufgaben anlegen (Duplikat-Schutz), Index neu aufbauen. */
   async importTasksFromText(raw) {
     const data = parseExport(raw);
     if (!data) {
-      new import_obsidian25.Notice(t("notice_import_invalid"));
+      new import_obsidian27.Notice(t("notice_import_invalid"));
       return;
     }
     try {
       const r = await importData(this, data);
-      new import_obsidian25.Notice(t("notice_import_summary", r.created, r.skipped));
+      new import_obsidian27.Notice(t("notice_import_summary", r.created, r.skipped));
       window.setTimeout(() => this.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks JSON import error", e);
-      new import_obsidian25.Notice(t("notice_import_failed"));
+      new import_obsidian27.Notice(t("notice_import_failed"));
     }
   }
   /** Import über die In-Vault-Auswahl (alle .json-Dateien). */
@@ -10422,7 +11734,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(oldName)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = [...new Set(arr.map((x) => x === oldName ? nu : x))];
       });
@@ -10430,7 +11742,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const fl of listFilters(this.app)) {
       if (!fl.criteria.labels.includes(oldName)) continue;
       const ff = this.app.vault.getAbstractFileByPath(fl.path);
-      if (ff instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
+      if (ff instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
         if (Array.isArray(fm.labels)) fm.labels = [...new Set(fm.labels.map(String).map((x) => x === oldName ? nu : x))];
       });
     }
@@ -10455,7 +11767,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   }
   /** Reagiert auf jedes Umbenennen einer verwalteten Notiz und zieht alle Referenzen selbst nach. */
   async onNoteRenamed(file, oldPath) {
-    if (!(file instanceof import_obsidian25.TFile) || file.extension !== "md") return;
+    if (!(file instanceof import_obsidian27.TFile) || file.extension !== "md") return;
     const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.type;
     if (type !== "project" && type !== "area" && type !== "filter" && type !== "task") return;
     const oldBase = oldPath.split("/").pop().replace(/\.md$/i, "");
@@ -10474,14 +11786,14 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (this.wikiBase(task.project) !== oldBase) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (this.wikiBase(fm.project) === oldBase) fm.project = "[[" + newBase + "]]";
       });
     }
     for (const fl of listFilters(this.app)) {
       if (!fl.criteria.projects.includes(oldBase)) continue;
       const f = this.app.vault.getAbstractFileByPath(fl.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (Array.isArray(fm.projects)) fm.projects = [...new Set(fm.projects.map(String).map((x) => x === oldBase ? newBase : x))];
       });
     }
@@ -10491,7 +11803,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (this.wikiBase(task.parent) !== oldBase) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (this.wikiBase(fm.parent) === oldBase) fm.parent = "[[" + newBase + "]]";
       });
     }
@@ -10516,7 +11828,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(name)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = arr.filter((x) => x !== name);
       });
@@ -10725,7 +12037,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const name = label.trim();
     if (!name) return;
     if (kind === "cancelled") {
-      new import_obsidian25.Notice(t("status_only_one_trash"));
+      new import_obsidian27.Notice(t("status_only_one_trash"));
       return;
     }
     const list = this.statusList();
@@ -10757,11 +12069,11 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
     if (kind === "cancelled" && list.some((x) => x.kind === "cancelled")) {
-      new import_obsidian25.Notice(t("status_only_one_trash"));
+      new import_obsidian27.Notice(t("status_only_one_trash"));
       return;
     }
     if (list.filter((x) => x.kind === s.kind).length <= 1) {
-      new import_obsidian25.Notice(t("status_need_kind"));
+      new import_obsidian27.Notice(t("status_need_kind"));
       return;
     }
     s.kind = kind;
@@ -10812,20 +12124,20 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s) return;
     if (list.filter((x) => x.kind === s.kind).length <= 1) {
-      new import_obsidian25.Notice(t("status_need_kind"));
+      new import_obsidian27.Notice(t("status_need_kind"));
       return;
     }
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = target;
       });
     }
     this.settings.statuses = list.filter((x) => x.id !== id);
     await this.commitStatuses();
-    if (affected.length) new import_obsidian25.Notice(t("status_reassigned", affected.length, statusLabel(target)));
+    if (affected.length) new import_obsidian27.Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
   // ── Aufgaben-Aktionen ──
   openNewTask(project, label, today = false, status) {
@@ -10870,7 +12182,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   fireReminder(task) {
     const body = task.title;
     try {
-      if (typeof Notification !== "undefined" && !import_obsidian25.Platform.isMobile) {
+      if (typeof Notification !== "undefined" && !import_obsidian27.Platform.isMobile) {
         const n = new Notification("BeautyTasks", { body });
         n.onclick = () => {
           window.focus();
@@ -10879,11 +12191,11 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       }
     } catch {
     }
-    new import_obsidian25.Notice("\u23F0 " + body, 1e4);
+    new import_obsidian27.Notice("\u23F0 " + body, 1e4);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (isoVal) fm[field] = isoVal;
       else delete fm[field];
@@ -10891,7 +12203,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   }
   async setTaskDuration(task, minutes) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (minutes) fm.duration = minutes;
       else delete fm.duration;
@@ -10912,7 +12224,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async swapTaskLabel(task, remove, add) {
     if (remove === add) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       let arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
       if (remove) arr = arr.filter((x) => x !== remove);
@@ -10923,7 +12235,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   /** Priorität einer Aufgabe setzen (Kanban „nach Priorität"). „normal" = kein Frontmatter-Feld. */
   async setTaskPriority(task, priority) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.priority = priority !== "normal" ? priority : null;
     });
@@ -10932,7 +12244,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
    *  Referenz als `[[Basename]]` – wie im Task-Modal; der Index löst den Basename auf. */
   async setTaskProject(task, project) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.project = project ? "[[" + project + "]]" : null;
     });
@@ -10940,7 +12252,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async setTaskStatus(task, status) {
     if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
@@ -10978,7 +12290,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((t2) => !isTrashed(t2.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = cancelId;
         fm.cancelled = stamp;
       });
@@ -10989,46 +12301,46 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
-    new import_obsidian25.Notice(t("msg_restored", task.title));
+    new import_obsidian27.Notice(t("msg_restored", task.title));
   }
   /** Einzelne Aufgabe endgültig löschen (in Obsidians Papierkorb – dort wiederherstellbar). */
   async deleteTaskForever(path) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (f instanceof import_obsidian25.TFile) await this.app.fileManager.trashFile(f);
+    if (f instanceof import_obsidian27.TFile) await this.app.fileManager.trashFile(f);
   }
   /** Alle abgebrochenen Aufgaben wiederherstellen (reversibel, ohne Rückfrage). */
   async restoreAllCancelled() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian25.Notice(t("report_trash_empty_restore"));
+      new import_obsidian27.Notice(t("report_trash_empty_restore"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
-    new import_obsidian25.Notice(t("report_tasks_restored", items.length));
+    new import_obsidian27.Notice(t("report_tasks_restored", items.length));
   }
   /** Papierkorb leeren: alle abgebrochenen Aufgaben in Obsidians Papierkorb verschieben. */
   async emptyTrash() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian25.Notice(t("msg_trash_empty"));
+      new import_obsidian27.Notice(t("msg_trash_empty"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.trashFile(f);
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.trashFile(f);
     }
-    new import_obsidian25.Notice(t("msg_trash_emptied", items.length));
+    new import_obsidian27.Notice(t("msg_trash_emptied", items.length));
   }
   async loadSettings() {
     const saved = await this.loadData();
@@ -11039,13 +12351,126 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
         editor: { order: legacy.chipOrder, tiers: legacy.chipTiers }
       };
     }
-    if (saved?.chipsIconsOnly === void 0 && import_obsidian25.Platform.isMobile) {
+    if (saved?.chipsIconsOnly === void 0 && import_obsidian27.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);
+    this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
   }
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+  /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
+   *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */
+  setupGCal() {
+    const gcal = this.settings.gcal;
+    const store = {
+      load: () => gcal.tokens,
+      save: async (tokens) => {
+        gcal.tokens = tokens;
+        await this.saveSettings();
+      }
+    };
+    this.gcalAuth = new GCalAuth(
+      () => ({ clientId: gcal.clientId, clientSecret: gcal.clientSecret }),
+      store
+    );
+    const host = {
+      app: this.app,
+      settings: gcal,
+      persist: () => this.saveSettings(),
+      allTasks: () => this.index.all(),
+      subscribe: (cb) => this.index.subscribe(cb)
+    };
+    this.gcalSync = new GCalSync(host, this.gcalAuth);
+    this.register(() => this.gcalSync.stop());
+    const bar = this.addStatusBarItem();
+    bar.addClass("bt-gcal-sb");
+    bar.addEventListener("click", () => void this.gcalSync.syncNow());
+    this.gcalStatusBar = bar;
+    this.register(this.gcalSync.onStatus((i) => this.renderStatusBar(i)));
+  }
+  /** Statusleiste zeichnen (nur wenn verbunden UND showStatusBar). Icon + Tooltip je Zustand. */
+  renderStatusBar(i) {
+    const bar = this.gcalStatusBar;
+    if (!bar) return;
+    const g = this.settings.gcal;
+    const show = g.showStatusBar && this.gcalAuth.isConnected();
+    bar.style.display = show ? "" : "none";
+    if (!show) return;
+    bar.empty();
+    bar.toggleClass("mod-error", i.status === "error");
+    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-sync";
+    (0, import_obsidian27.setIcon)(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
+    const detail = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " \u2014 " + t("gcal_reconnect_hint") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
+    bar.setAttr("aria-label", t("set_gcal_heading") + " \xB7 " + detail);
+  }
+  /** Statusleiste neu zeichnen (nach Verbinden/Abmelden oder Toggle showStatusBar). */
+  refreshGCalStatusBar() {
+    this.renderStatusBar(this.gcalSync.getStatus());
+  }
+  /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
+  isListGcalExcluded(path) {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof import_obsidian27.TFile)) return false;
+    const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+    return fm?.gcal_sync === false;
+  }
+  /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
+  async setListGcalExcluded(path, excluded) {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof import_obsidian27.TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (excluded) fm.gcal_sync = false;
+      else delete fm.gcal_sync;
+    });
+    void this.gcalSync.syncNow();
+  }
+  /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
+   *  E-Mail holen, bei Bedarf eigenen „BeautyTasks"-Kalender anlegen, aktivieren, initial pushen.
+   *  Wirft bei Fehler (die UI zeigt die Meldung). */
+  async gcalConnect(onDevicePrompt) {
+    const g = this.settings.gcal;
+    await this.gcalAuth.connect(onDevicePrompt);
+    try {
+      g.account = await fetchAccountEmail(this.gcalAuth);
+    } catch {
+      g.account = null;
+    }
+    try {
+      const cals = await this.gcalCalendars();
+      if (!g.calendarId || !cals.some((c) => c.id === g.calendarId)) {
+        g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+      }
+    } catch (e) {
+      console.warn("BeautyTasks: Ziel-Kalender konnte nicht sichergestellt werden", e);
+    }
+    g.enabled = true;
+    await this.saveSettings();
+    this.refreshGCalStatusBar();
+    void this.gcalSync.syncNow();
+  }
+  /** Verbindung trennen (Token widerrufen + löschen). Kalenderwahl bleibt für erneutes Verbinden. */
+  async gcalDisconnect() {
+    const g = this.settings.gcal;
+    await this.gcalAuth.disconnect();
+    g.account = null;
+    g.enabled = false;
+    await this.saveSettings();
+    this.refreshGCalStatusBar();
+  }
+  /** Kalenderliste für den Ziel-Kalender-Picker. */
+  gcalCalendars() {
+    return listCalendars(this.gcalAuth);
+  }
+  /** Eigenen „BeautyTasks"-Kalender anlegen (oder vorhandenen finden) und als Ziel setzen.
+   *  Bestehende Events ziehen beim nächsten Sync via move nach. Braucht den calendar.app.created-
+   *  Scope → nach Scope-Erweiterung ggf. einmal neu verbinden. Wirft bei Fehler (UI zeigt Meldung). */
+  async gcalCreateDefaultCalendar() {
+    const g = this.settings.gcal;
+    g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+    await this.saveSettings();
+    void this.gcalSync.syncNow();
   }
 };

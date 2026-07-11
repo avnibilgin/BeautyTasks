@@ -1,12 +1,16 @@
-import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon } from "obsidian";
+import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { ChipId, ChipTier, ChipSurface } from "./types";
 import { CHIPS, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
+import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
 import { t } from "./i18n";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
+
+/** README-Abschnitt mit der Google-Kalender-Einrichtung (statt nur zur Console zu verlinken). */
+const GCAL_GUIDE_URL = "https://github.com/avnibilgin/BeautyTasks#google-calendar-sync";
 
 /** Pointer-basiertes Ziehen einer Chip-Zeile ZWISCHEN den drei Tier-Zonen (Maus + Touch,
  *  Popout-sicher über row.ownerDocument). Beim Loslassen ruft onDrop() – der Aufrufer liest
@@ -64,8 +68,13 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  private gcalStatusUnsub: (() => void) | null = null;
+
+  hide(): void { this.gcalStatusUnsub?.(); this.gcalStatusUnsub = null; }
+
   display(): void {
     const { containerEl } = this;
+    this.gcalStatusUnsub?.(); this.gcalStatusUnsub = null;   // altes Status-Abo lösen (Re-Render)
     containerEl.empty();
     const p = this.plugin;
 
@@ -147,6 +156,125 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc"))
       .addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
+
+    // ── Google Kalender ── (eigener Container → Neuzeichnen ohne this.display()-Selbstaufruf)
+    const gcalHost = containerEl.createDiv();
+    const drawGCal = (): void => { gcalHost.empty(); this.renderGCal(gcalHost, drawGCal); };
+    drawGCal();
+  }
+
+  /** Google-Kalender-Sektion: vor dem Verbinden ein schlanker Setup-Assistent, danach der
+   *  Verbunden-Zustand mit Status, Ziel-Kalender und Optionen (Feinkorn unter „Erweitert").
+   *  Progressive Offenlegung – Optionen erscheinen erst nach erfolgreicher Verbindung.
+   *  `redraw` zeichnet nur diese Sektion neu (kein this.display() → keine no-deprecated-Warnung). */
+  private renderGCal(containerEl: HTMLElement, redraw: () => void): void {
+    const p = this.plugin;
+    const g = p.settings.gcal!;
+    this.gcalStatusUnsub?.(); this.gcalStatusUnsub = null;   // Abo vor Neuaufbau lösen
+    new Setting(containerEl).setName(t("set_gcal_heading")).setHeading();
+
+    // ── Nicht verbunden: Assistent ──
+    if (!p.gcalAuth.isConnected()) {
+      containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
+      new Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn"))
+        .onClick(() => window.open(GCAL_GUIDE_URL)));
+      // „Verbinden" muss reaktiv (de)aktiviert werden, sobald beide Felder gefüllt sind –
+      // sonst bliebe der Button vom leeren Erst-Render dauerhaft deaktiviert.
+      let connectBtn: import("obsidian").ButtonComponent | null = null;
+      const refreshConnect = (): void => { connectBtn?.setDisabled(!g.clientId || !g.clientSecret); };
+      new Setting(containerEl).setName(t("gcal_client_id")).addText((txt) =>
+        txt.setValue(g.clientId).onChange((v) => { g.clientId = v.trim(); void p.saveSettings(); refreshConnect(); }));
+      new Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
+        txt.inputEl.type = "password";
+        txt.setValue(g.clientSecret).onChange((v) => { g.clientSecret = v.trim(); void p.saveSettings(); refreshConnect(); });
+      });
+      containerEl.createEl("div", { cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
+      new Setting(containerEl).addButton((b) => {
+        connectBtn = b;
+        b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret)
+          .onClick(async () => {
+            b.setButtonText(t("gcal_connecting")).setDisabled(true);
+            try {
+              await p.gcalConnect((dp) => new Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
+            } catch (e) {
+              new Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
+            }
+            redraw();
+          });
+      });
+      return;
+    }
+
+    // ── Verbunden: Kopf mit Status ──
+    const head = new Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "—"))
+      .addButton((b) => b.setButtonText(t("gcal_disconnect_btn"))
+        .onClick(async () => { await p.gcalDisconnect(); redraw(); }));
+    head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
+
+    // Kein Ziel-Kalender (z. B. Auto-Anlage fehlgeschlagen) → deutlich führen statt still nichts tun.
+    if (!g.calendarId) containerEl.createEl("div", { cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
+
+    const statusSetting = new Setting(containerEl)
+      .addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
+    const renderStatus = (i: import("./gcalSync").GCalStatusInfo): void => {
+      const txt = i.status === "syncing" ? t("gcal_syncing")
+        : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "")
+        : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleString() : t("gcal_never"));
+      statusSetting.setName(txt);
+    };
+    this.gcalStatusUnsub = p.gcalSync.onStatus(renderStatus);   // ruft cb sofort mit aktuellem Stand
+
+    // Ziel-Kalender + (nur wenn in Google noch KEIN „BeautyTasks"-Kalender existiert) eine Tipp-Zeile
+    // zum Anlegen. Kalenderliste EINMAL laden und den ganzen Abschnitt daraus aufbauen.
+    const calHost = containerEl.createDiv();
+    void (async () => {
+      let cals: CalendarInfo[] = [];
+      let ok = false;
+      try { cals = await p.gcalCalendars(); ok = true; } catch { /* offline → Fallback unten */ }
+      new Setting(calHost).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc"))
+        .addDropdown((dd) => {
+          if (cals.length) for (const c of cals) dd.addOption(c.id, c.summary);
+          else if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);   // offline: aktuelle Wahl zeigen
+          dd.setValue(g.calendarId);
+          dd.onChange((v) => { g.calendarId = v; void p.saveSettings(); void p.gcalSync.syncNow(); });
+        });
+      // Tipp/Anlegen nur, wenn geprüft UND noch kein eigener BeautyTasks-Kalender existiert.
+      if (ok && !cals.some((c) => c.summary === DEFAULT_CALENDAR_NAME)) {
+        new Setting(calHost).setName(t("gcal_tip_create")).setDesc(t("gcal_tip_create_desc"))
+          .addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setCta()
+            .onClick(async () => {
+              try { await p.gcalCreateDefaultCalendar(); }
+              catch (e) { new Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e))); }
+              redraw();
+            }));
+      }
+    })();
+
+    new Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc"))
+      .addToggle((tg) => tg.setValue(g.enabled).onChange((v) => { g.enabled = v; void p.saveSettings(); if (v) void p.gcalSync.syncNow(); }));
+    new Setting(containerEl).setName(t("gcal_autosync")).setDesc(t("gcal_autosync_desc"))
+      .addToggle((tg) => tg.setValue(g.autoSync).onChange((v) => { g.autoSync = v; void p.saveSettings(); }));
+
+    // ── Erweitert (zugeklappt) ──
+    const adv = containerEl.createEl("details", { cls: "bt-gcal-advanced" });
+    adv.createEl("summary", { text: t("gcal_advanced") });
+    const av = adv.createDiv();
+    const boolRow = (key: string, get: () => boolean, set: (v: boolean) => void): void => {
+      new Setting(av).setName(t(key)).addToggle((tg) => tg.setValue(get()).onChange((v) => { set(v); void p.saveSettings(); }));
+    };
+    boolRow("gcal_on_create", () => g.syncOnCreate, (v) => (g.syncOnCreate = v));
+    boolRow("gcal_on_update", () => g.syncOnUpdate, (v) => (g.syncOnUpdate = v));
+    boolRow("gcal_on_delete", () => g.syncOnDelete, (v) => (g.syncOnDelete = v));
+    boolRow("gcal_remove_on_complete", () => g.removeEventOnComplete, (v) => (g.removeEventOnComplete = v));
+    new Setting(av).setName(t("gcal_duration")).addText((txt) => {
+      txt.inputEl.type = "number";
+      txt.setValue(String(g.defaultDurationMin)).onChange((v) => { const n = parseInt(v, 10); if (n > 0) { g.defaultDurationMin = n; void p.saveSettings(); } });
+    });
+    new Setting(av).setName(t("gcal_timezone")).addText((txt) =>
+      txt.setValue(g.timezone).onChange((v) => { g.timezone = v.trim() || g.timezone; void p.saveSettings(); }));
+    new Setting(av).setName(t("gcal_statusbar")).addToggle((tg) =>
+      tg.setValue(g.showStatusBar).onChange((v) => { g.showStatusBar = v; void p.saveSettings(); p.refreshGCalStatusBar(); }));
+    boolRow("gcal_notify_conflicts", () => g.notifyConflicts, (v) => (g.notifyConflicts = v));
   }
 
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.

@@ -26,6 +26,19 @@ export interface NavMenuItem {
   type?: "project" | "area";   // nur für projects/areas
 }
 
+/** Fügt genau den Kalender-Sync-Ein/Ausschalt-Eintrag hinzu – nur wenn mit Google verbunden.
+ *  Wiederverwendet vom Projekt/Bereich-Menü UND vom Eingang (der NUR diesen Eintrag bekommt).
+ *  Liefert, ob etwas hinzugefügt wurde (der Aufrufer zeigt das Menü nur dann). */
+export function addGcalSyncItem(menu: Menu, plugin: BeautyTasksPlugin, path: string): boolean {
+  if (!plugin.gcalSync.canSync()) return false;   // nur wenn Sync wirklich aktiv (nicht bloß verbunden)
+  const excluded = plugin.isListGcalExcluded(path);
+  menu.addItem((m) => m.setSection("bt-gcal")
+    .setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"))
+    .setIcon(excluded ? "calendar-sync" : "calendar-off")
+    .onClick(() => void plugin.setListGcalExcluded(path, !excluded)));
+  return true;
+}
+
 function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
   if (item.sec === "filters") { new FilterModal(plugin, item.key).open(); return; }
   const kind = item.sec === "labels" ? "label" : (item.type ?? "project");
@@ -101,6 +114,9 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
     menu.addItem((m) => m.setSection("bt-arrange").setTitle(t("btn_move_down")).setIcon("chevron-down")
       .onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
+
+  // — Kalender-Sync (nur Projekt/Bereich; Helfer prüft die Verbindung selbst) —
+  if (isProjLike) addGcalSyncItem(menu, plugin, item.key);
 
   // — Archivieren / Löschen —
   if (isProjLike) {

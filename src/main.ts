@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment, setIcon } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
@@ -21,10 +21,15 @@ import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
 import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
+import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
+import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
   index!: TaskIndex;
+  gcalAuth!: GCalAuth;
+  gcalSync!: GCalSync;
+  private gcalStatusBar: HTMLElement | null = null;
   currentView: ViewId = "heute";
   currentProject: string | null = null;
   currentLabel: string | null = null;                   // aktives Label-Board
@@ -49,6 +54,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
+    this.setupGCal();
     // Reminder-Scanfenster: bei echtem Vorwert Verpasstes nachfeuern (auf Grace begrenzt),
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
     this.reminderScan = this.settings.reminderLastScan || Date.now();
@@ -70,6 +76,8 @@ export default class BeautyTasksPlugin extends Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
+      this.gcalSync.start();  // Auto-Push verdrahten + einmal initial abgleichen
+      void this.gcalSync.syncNow();
       // „Neu"-Modal nur für bestehende Nutzer und nur bei einem MINOR/MAJOR-Sprung (z. B. 1.7→1.8),
       // NICHT bei reinen Patches (1.8.0→1.8.1) – sonst nervt es bei Bugfix-Releases. Der Command
       // „Neuigkeiten anzeigen" öffnet es jederzeit manuell.
@@ -108,6 +116,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
+    this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
     this.addCommand({
       id: "count-tasks", name: t("cmd_count_tasks"),
       callback: () => new Notice(t("notice_count", this.index.all().length, this.index.open().length)),
@@ -1057,6 +1066,124 @@ export default class BeautyTasksPlugin extends Plugin {
     // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
+    // Google-Kalender-Sub-Objekt mit Defaults auffüllen (fehlende/neue Felder ergänzen,
+    // gespeicherte Werte behalten). Lebendes Objekt – Auth/Engine mutieren tokens/lastSynced darin.
+    this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
+
+  /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
+   *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */
+  private setupGCal(): void {
+    const gcal = this.settings.gcal!;
+    const store: TokenStore = {
+      load: () => gcal.tokens,
+      save: async (tokens) => { gcal.tokens = tokens; await this.saveSettings(); },
+    };
+    this.gcalAuth = new GCalAuth(
+      () => ({ clientId: gcal.clientId, clientSecret: gcal.clientSecret }),
+      store,
+    );
+    const host: GCalSyncHost = {
+      app: this.app,
+      settings: gcal,
+      persist: () => this.saveSettings(),
+      allTasks: () => this.index.all(),
+      subscribe: (cb) => this.index.subscribe(cb),
+    };
+    this.gcalSync = new GCalSync(host, this.gcalAuth);
+    this.register(() => this.gcalSync.stop());   // Auto-Push-Abo + Debounce beim Unload lösen
+
+    // Statusleiste: dünner Abonnent des Engine-Status (Ruhe/Sync/Fehler). Klick = manuell syncen.
+    const bar = this.addStatusBarItem();
+    bar.addClass("bt-gcal-sb");
+    bar.addEventListener("click", () => void this.gcalSync.syncNow());
+    this.gcalStatusBar = bar;
+    this.register(this.gcalSync.onStatus((i) => this.renderStatusBar(i)));   // ruft sofort initial
+  }
+
+  /** Statusleiste zeichnen (nur wenn verbunden UND showStatusBar). Icon + Tooltip je Zustand. */
+  private renderStatusBar(i: GCalStatusInfo): void {
+    const bar = this.gcalStatusBar;
+    if (!bar) return;
+    const g = this.settings.gcal!;
+    const show = g.showStatusBar && this.gcalAuth.isConnected();
+    bar.style.display = show ? "" : "none";
+    if (!show) return;
+    bar.empty();
+    bar.toggleClass("mod-error", i.status === "error");
+    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-sync";
+    setIcon(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
+    const detail = i.status === "syncing" ? t("gcal_syncing")
+      : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " — " + t("gcal_reconnect_hint")
+      : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
+    bar.setAttr("aria-label", t("set_gcal_heading") + " · " + detail);
+  }
+
+  /** Statusleiste neu zeichnen (nach Verbinden/Abmelden oder Toggle showStatusBar). */
+  refreshGCalStatusBar(): void { this.renderStatusBar(this.gcalSync.getStatus()); }
+
+  /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
+  isListGcalExcluded(path: string): boolean {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return false;
+    const fm: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(f)?.frontmatter;
+    return fm?.gcal_sync === false;
+  }
+
+  /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
+  async setListGcalExcluded(path: string, excluded: boolean): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      if (excluded) fm.gcal_sync = false; else delete fm.gcal_sync;
+    });
+    void this.gcalSync.syncNow();
+  }
+
+  /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
+   *  E-Mail holen, bei Bedarf eigenen „BeautyTasks"-Kalender anlegen, aktivieren, initial pushen.
+   *  Wirft bei Fehler (die UI zeigt die Meldung). */
+  async gcalConnect(onDevicePrompt?: (p: DevicePrompt) => void): Promise<void> {
+    const g = this.settings.gcal!;
+    await this.gcalAuth.connect(onDevicePrompt);
+    try { g.account = await fetchAccountEmail(this.gcalAuth); } catch { g.account = null; }
+    // Ziel-Kalender sicherstellen: leer ODER zeigt auf einen nicht (mehr) existierenden Kalender
+    // (z. B. in Google gelöscht) -> eigenen „BeautyTasks"-Kalender finden/anlegen. Eine bewusst
+    // gewählte, noch existierende Wahl bleibt unangetastet. Schlägt es fehl (z. B. Recht nicht
+    // bestätigt), bleibt calendarId leer -> die Settings zeigen einen deutlichen Hinweis.
+    try {
+      const cals = await this.gcalCalendars();
+      if (!g.calendarId || !cals.some((c) => c.id === g.calendarId)) {
+        g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+      }
+    } catch (e) { console.warn("BeautyTasks: Ziel-Kalender konnte nicht sichergestellt werden", e); }
+    g.enabled = true;
+    await this.saveSettings();
+    this.refreshGCalStatusBar();
+    void this.gcalSync.syncNow();
+  }
+
+  /** Verbindung trennen (Token widerrufen + löschen). Kalenderwahl bleibt für erneutes Verbinden. */
+  async gcalDisconnect(): Promise<void> {
+    const g = this.settings.gcal!;
+    await this.gcalAuth.disconnect();
+    g.account = null;
+    g.enabled = false;
+    await this.saveSettings();
+    this.refreshGCalStatusBar();
+  }
+
+  /** Kalenderliste für den Ziel-Kalender-Picker. */
+  gcalCalendars(): Promise<CalendarInfo[]> { return listCalendars(this.gcalAuth); }
+
+  /** Eigenen „BeautyTasks"-Kalender anlegen (oder vorhandenen finden) und als Ziel setzen.
+   *  Bestehende Events ziehen beim nächsten Sync via move nach. Braucht den calendar.app.created-
+   *  Scope → nach Scope-Erweiterung ggf. einmal neu verbinden. Wirft bei Fehler (UI zeigt Meldung). */
+  async gcalCreateDefaultCalendar(): Promise<void> {
+    const g = this.settings.gcal!;
+    g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+    await this.saveSettings();
+    void this.gcalSync.syncNow();
+  }
 }

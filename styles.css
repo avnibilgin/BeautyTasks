@@ -1399,7 +1399,9 @@ body {
 /* ── Chip-„+"-Menü (Weitere Aktionen) ──────────────────────────────────────
    Eigenes Popover (bt-plus): ausgeblendete Chips mit Umrandung + Wert-Vorschau,
    im Editor zusätzlich die Aufgabenaktionen. */
-.bt-pop.bt-plus { min-width: 240px; }
+/* Plus-Menü darf höher werden als die 320px-Basis (viele Aktionen) -> kein Scrollbalken, solange
+   es auf den Bildschirm passt; openPopover positioniert es so, dass es in den Viewport passt. */
+.bt-pop.bt-plus { min-width: 240px; max-height: calc(100vh - 24px); }
 .bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px 6px; }
 .bt-pop.bt-plus .bt-row-danger .bt-row-lbl,
 .bt-pop.bt-plus .bt-row-danger .bt-row-ic { color: var(--text-error); }
@@ -1496,3 +1498,36 @@ body {
 .bt-kanban-head .bt-kanban-grip svg { width: 15px; height: 15px; }
 /* Nur wenn die Kopfzeile selbst überfahren wird – nicht beim Überfliegen der Karten. */
 .bt-kanban-head.bt-col-draggable:hover .bt-kanban-grip { opacity: 0.9; }
+
+/* ── Google-Kalender-Einstellungen ────────────────────────────────────────── */
+/* Grüner „Verbunden"-Punkt vor der E-Mail im Sektionskopf. */
+.bt-gcal-dot {
+  display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%;
+  background: var(--color-green, #4caf50); vertical-align: middle;
+}
+/* „Erweitert"-Aufklappblock: dezenter Titel, klickbar. */
+.bt-gcal-advanced { margin: 6px 0 2px; }
+.bt-gcal-advanced > summary {
+  cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small);
+  padding: 6px 0; list-style-position: inside;
+}
+.bt-gcal-advanced > summary:hover { color: var(--text-normal); }
+/* Statusleisten-Element: Icon, klickbar; Fehler = rot. */
+.bt-gcal-sb { cursor: pointer; display: inline-flex; align-items: center; }
+.bt-gcal-sb .bt-gcal-sb-ic { display: inline-flex; }
+.bt-gcal-sb.mod-error { color: var(--text-error); }
+/* Sync-Schalter je Zeile in der Verwaltungsliste (Zustand + Klick). */
+.bt-mrow-sync {
+  display: inline-flex; align-items: center; cursor: pointer;
+  color: var(--text-muted); padding: 2px; border-radius: 4px;
+}
+.bt-mrow-sync svg { width: 16px; height: 16px; }
+.bt-mrow-sync:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-mrow-sync.is-off { opacity: 0.45; }
+/* Hinweis in den Einstellungen, wenn kein Ziel-Kalender gewählt ist. */
+.bt-gcal-warn {
+  margin: 8px 0; padding: 8px 12px; border-radius: 6px;
+  border-left: 3px solid var(--text-warning, #e0a030);
+  background: var(--background-modifier-error-hover, rgba(224, 160, 48, 0.12));
+  color: var(--text-normal); font-size: var(--font-ui-small);
+}

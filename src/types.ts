@@ -88,6 +88,7 @@ export interface BeautyTasksSettings {
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
   didInitialSetup: boolean;        // intern: Erst-Setup (Inbox anlegen) einmalig gelaufen
   lastSeenVersion?: string;        // intern: zuletzt im „Neu"-Modal gezeigte Plugin-Version
+  gcal?: import("./gcalSync").GCalSyncSettings;   // Google-Kalender-Sync (undefined = nie eingerichtet)
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
