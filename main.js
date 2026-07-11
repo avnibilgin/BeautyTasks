@@ -242,7 +242,8 @@ var STRINGS = {
     set_gcal_heading: "Google Calendar",
     gcal_not_connected: "Not connected",
     gcal_setup_desc: 'Sync dated tasks to Google Calendar. Uses your own Google API credentials (one-time setup, ~5 min). Create an OAuth client of type "Desktop app" and paste its ID and secret below.',
-    gcal_help_btn: "Open Google Cloud credentials",
+    gcal_help_btn: "Open setup guide",
+    gcal_setup_hint: "First time? The setup guide walks you through creating the Google credentials.",
     gcal_client_id: "Client ID",
     gcal_client_secret: "Client secret",
     gcal_connect_btn: "Connect",
@@ -644,7 +645,8 @@ var STRINGS = {
     set_gcal_heading: "Google Kalender",
     gcal_not_connected: "Nicht verbunden",
     gcal_setup_desc: "Aufgaben mit Datum in Google Kalender spiegeln. Nutzt deine eigenen Google-API-Zugangsdaten (einmalige Einrichtung, ~5 Min). Lege einen OAuth-Client vom Typ \u201EDesktop-App\u201C an und f\xFCge ID und Secret unten ein.",
-    gcal_help_btn: "Google-Cloud-Zugangsdaten \xF6ffnen",
+    gcal_help_btn: "Einrichtungs-Anleitung \xF6ffnen",
+    gcal_setup_hint: "Zum ersten Mal? Die Anleitung f\xFChrt dich durch das Erstellen der Google-Zugangsdaten.",
     gcal_client_id: "Client-ID",
     gcal_client_secret: "Client-Secret",
     gcal_connect_btn: "Verbinden",
@@ -1046,7 +1048,8 @@ var STRINGS = {
     set_gcal_heading: "Google Calendar",
     gcal_not_connected: "No conectado",
     gcal_setup_desc: 'Sincroniza tareas con fecha en Google Calendar. Usa tus propias credenciales de la API de Google (configuraci\xF3n \xFAnica, ~5 min). Crea un cliente OAuth de tipo "Aplicaci\xF3n de escritorio" y pega su ID y secreto abajo.',
-    gcal_help_btn: "Abrir credenciales de Google Cloud",
+    gcal_help_btn: "Abrir la gu\xEDa de configuraci\xF3n",
+    gcal_setup_hint: "\xBFPrimera vez? La gu\xEDa te explica c\xF3mo crear las credenciales de Google.",
     gcal_client_id: "ID de cliente",
     gcal_client_secret: "Secreto de cliente",
     gcal_connect_btn: "Conectar",
@@ -1448,7 +1451,8 @@ var STRINGS = {
     set_gcal_heading: "Google Agenda",
     gcal_not_connected: "N\xE3o conectado",
     gcal_setup_desc: 'Sincronize tarefas com data no Google Agenda. Usa suas pr\xF3prias credenciais da API do Google (configura\xE7\xE3o \xFAnica, ~5 min). Crie um cliente OAuth do tipo "Aplicativo para computador" e cole o ID e o segredo abaixo.',
-    gcal_help_btn: "Abrir credenciais do Google Cloud",
+    gcal_help_btn: "Abrir o guia de configura\xE7\xE3o",
+    gcal_setup_hint: "Primeira vez? O guia orienta voc\xEA na cria\xE7\xE3o das credenciais do Google.",
     gcal_client_id: "ID do cliente",
     gcal_client_secret: "Segredo do cliente",
     gcal_connect_btn: "Conectar",
@@ -1850,7 +1854,8 @@ var STRINGS = {
     set_gcal_heading: "Google Agenda",
     gcal_not_connected: "Non connect\xE9",
     gcal_setup_desc: `Synchronisez les t\xE2ches dat\xE9es avec Google Agenda. Utilise vos propres identifiants de l'API Google (configuration unique, ~5 min). Cr\xE9ez un client OAuth de type "Application de bureau" et collez son ID et son secret ci-dessous.`,
-    gcal_help_btn: "Ouvrir les identifiants Google Cloud",
+    gcal_help_btn: "Ouvrir le guide de configuration",
+    gcal_setup_hint: "Premi\xE8re fois ? Le guide vous explique comment cr\xE9er les identifiants Google.",
     gcal_client_id: "ID client",
     gcal_client_secret: "Secret client",
     gcal_connect_btn: "Connecter",
@@ -2252,7 +2257,8 @@ var STRINGS = {
     set_gcal_heading: "Google Takvim",
     gcal_not_connected: "Ba\u011Fl\u0131 de\u011Fil",
     gcal_setup_desc: 'Tarihli g\xF6revleri Google Takvim ile e\u015Fitleyin. Kendi Google API kimlik bilgilerinizi kullan\u0131r (tek seferlik kurulum, ~5 dk). "Masa\xFCst\xFC uygulamas\u0131" t\xFCr\xFCnde bir OAuth istemcisi olu\u015Fturun ve kimli\u011Fi ile gizli anahtar\u0131 a\u015Fa\u011F\u0131ya yap\u0131\u015Ft\u0131r\u0131n.',
-    gcal_help_btn: "Google Cloud kimlik bilgilerini a\xE7",
+    gcal_help_btn: "Kurulum k\u0131lavuzunu a\xE7",
+    gcal_setup_hint: "\u0130lk kez mi? K\u0131lavuz, Google kimlik bilgilerini olu\u015Fturma ad\u0131mlar\u0131nda size yol g\xF6sterir.",
     gcal_client_id: "\u0130stemci kimli\u011Fi",
     gcal_client_secret: "\u0130stemci gizli anahtar\u0131",
     gcal_connect_btn: "Ba\u011Flan",
@@ -2654,7 +2660,8 @@ var STRINGS = {
     set_gcal_heading: "Google \u65E5\u5386",
     gcal_not_connected: "\u672A\u8FDE\u63A5",
     gcal_setup_desc: "\u5C06\u6709\u65E5\u671F\u7684\u4EFB\u52A1\u540C\u6B65\u5230 Google \u65E5\u5386\u3002\u4F7F\u7528\u4F60\u81EA\u5DF1\u7684 Google API \u51ED\u636E\uFF08\u4E00\u6B21\u6027\u8BBE\u7F6E\uFF0C\u7EA6 5 \u5206\u949F\uFF09\u3002\u521B\u5EFA\u4E00\u4E2A\u7C7B\u578B\u4E3A\u201C\u684C\u9762\u5E94\u7528\u201D\u7684 OAuth \u5BA2\u6237\u7AEF\uFF0C\u5E76\u5C06\u5176 ID \u548C\u5BC6\u94A5\u7C98\u8D34\u5230\u4E0B\u65B9\u3002",
-    gcal_help_btn: "\u6253\u5F00 Google Cloud \u51ED\u636E",
+    gcal_help_btn: "\u6253\u5F00\u8BBE\u7F6E\u6307\u5357",
+    gcal_setup_hint: "\u7B2C\u4E00\u6B21\u4F7F\u7528\uFF1F\u8BE5\u6307\u5357\u4F1A\u5F15\u5BFC\u4F60\u521B\u5EFA Google \u51ED\u636E\u3002",
     gcal_client_id: "\u5BA2\u6237\u7AEF ID",
     gcal_client_secret: "\u5BA2\u6237\u7AEF\u5BC6\u94A5",
     gcal_connect_btn: "\u8FDE\u63A5",
@@ -3056,7 +3063,8 @@ var STRINGS = {
     set_gcal_heading: "Google \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
     gcal_not_connected: "\u041D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u043E",
     gcal_setup_desc: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0439\u0442\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u0434\u0430\u0442\u043E\u0439 \u0432 Google \u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C. \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0432\u0430\u0448\u0438 \u0441\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0435 \u0443\u0447\u0451\u0442\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 Google API (\u043E\u0434\u043D\u043E\u043A\u0440\u0430\u0442\u043D\u0430\u044F \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430, ~5 \u043C\u0438\u043D). \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043A\u043B\u0438\u0435\u043D\u0442 OAuth \u0442\u0438\u043F\u0430 \xAB\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0434\u043B\u044F \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0430\xBB \u0438 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0435\u0433\u043E ID \u0438 \u0441\u0435\u043A\u0440\u0435\u0442 \u043D\u0438\u0436\u0435.",
-    gcal_help_btn: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0443\u0447\u0451\u0442\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 Google Cloud",
+    gcal_help_btn: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0440\u0443\u043A\u043E\u0432\u043E\u0434\u0441\u0442\u0432\u043E \u043F\u043E \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0435",
+    gcal_setup_hint: "\u0412\u043F\u0435\u0440\u0432\u044B\u0435? \u0420\u0443\u043A\u043E\u0432\u043E\u0434\u0441\u0442\u0432\u043E \u043F\u0440\u043E\u0432\u0435\u0434\u0451\u0442 \u0432\u0430\u0441 \u0447\u0435\u0440\u0435\u0437 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 \u0443\u0447\u0451\u0442\u043D\u044B\u0445 \u0434\u0430\u043D\u043D\u044B\u0445 Google.",
     gcal_client_id: "ID \u043A\u043B\u0438\u0435\u043D\u0442\u0430",
     gcal_client_secret: "\u0421\u0435\u043A\u0440\u0435\u0442 \u043A\u043B\u0438\u0435\u043D\u0442\u0430",
     gcal_connect_btn: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u044C",
@@ -3458,7 +3466,8 @@ var STRINGS = {
     set_gcal_heading: "Google \u30AB\u30EC\u30F3\u30C0\u30FC",
     gcal_not_connected: "\u672A\u63A5\u7D9A",
     gcal_setup_desc: "\u671F\u65E5\u306E\u3042\u308B\u30BF\u30B9\u30AF\u3092 Google \u30AB\u30EC\u30F3\u30C0\u30FC\u306B\u540C\u671F\u3057\u307E\u3059\u3002\u81EA\u5206\u306E Google API \u8A8D\u8A3C\u60C5\u5831\u3092\u4F7F\u7528\u3057\u307E\u3059\uFF08\u521D\u56DE\u306E\u307F\u3001\u7D045\u5206\uFF09\u3002\u300C\u30C7\u30B9\u30AF\u30C8\u30C3\u30D7\u30A2\u30D7\u30EA\u300D\u30BF\u30A4\u30D7\u306E OAuth \u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u3092\u4F5C\u6210\u3057\u3001\u305D\u306E ID \u3068\u30B7\u30FC\u30AF\u30EC\u30C3\u30C8\u3092\u4E0B\u306B\u8CBC\u308A\u4ED8\u3051\u3066\u304F\u3060\u3055\u3044\u3002",
-    gcal_help_btn: "Google Cloud \u306E\u8A8D\u8A3C\u60C5\u5831\u3092\u958B\u304F",
+    gcal_help_btn: "\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u30AC\u30A4\u30C9\u3092\u958B\u304F",
+    gcal_setup_hint: "\u521D\u3081\u3066\u3067\u3059\u304B\uFF1F\u30AC\u30A4\u30C9\u304C Google \u8A8D\u8A3C\u60C5\u5831\u306E\u4F5C\u6210\u624B\u9806\u3092\u6848\u5185\u3057\u307E\u3059\u3002",
     gcal_client_id: "\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8 ID",
     gcal_client_secret: "\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u30B7\u30FC\u30AF\u30EC\u30C3\u30C8",
     gcal_connect_btn: "\u63A5\u7D9A",
@@ -3860,7 +3869,8 @@ var STRINGS = {
     set_gcal_heading: "Google Calendar",
     gcal_not_connected: "Non connesso",
     gcal_setup_desc: `Sincronizza le attivit\xE0 con data su Google Calendar. Usa le tue credenziali dell'API di Google (configurazione una tantum, ~5 min). Crea un client OAuth di tipo "App desktop" e incolla ID e secret qui sotto.`,
-    gcal_help_btn: "Apri le credenziali Google Cloud",
+    gcal_help_btn: "Apri la guida alla configurazione",
+    gcal_setup_hint: "Prima volta? La guida ti accompagna nella creazione delle credenziali Google.",
     gcal_client_id: "ID client",
     gcal_client_secret: "Secret client",
     gcal_connect_btn: "Connetti",
@@ -10364,6 +10374,7 @@ function isDoneStatus(t2) {
 
 // src/settingsTab.ts
 var CHIP_TIERS = ["shown", "onValue", "hidden"];
+var GCAL_GUIDE_URL = "https://github.com/avnibilgin/BeautyTasks#google-calendar-sync";
 function attachChipDrag(row, grip, zones, onDrop) {
   grip.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
@@ -10543,7 +10554,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     new import_obsidian23.Setting(containerEl).setName(t("set_gcal_heading")).setHeading();
     if (!p.gcalAuth.isConnected()) {
       containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
-      new import_obsidian23.Setting(containerEl).setName(t("gcal_help_btn")).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open("https://console.cloud.google.com/apis/credentials")));
+      new import_obsidian23.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open(GCAL_GUIDE_URL)));
       let connectBtn = null;
       const refreshConnect = () => {
         connectBtn?.setDisabled(!g.clientId || !g.clientSecret);
@@ -10561,6 +10572,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
           refreshConnect();
         });
       });
+      containerEl.createEl("div", { cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
       new import_obsidian23.Setting(containerEl).addButton((b) => {
         connectBtn = b;
         b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret).onClick(async () => {

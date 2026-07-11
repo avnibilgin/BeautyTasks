@@ -158,6 +158,39 @@ By default, notes live under these folders (all configurable in settings):
 | Areas | `BeautyTasks/Areas` |
 | Attachments | `BeautyTasks/Attachments` |
 
+## Google Calendar sync
+
+BeautyTasks can mirror every task that has a **due date** into Google Calendar, two-way: the **date and time** flow in both directions, while everything else (title, duration, reminders) is driven by Obsidian. It uses **your own** Google API credentials — no third-party server is involved, and your token stays in your vault.
+
+### Setup (one-time, ~5 min)
+
+1. **Project** — open the [Google Cloud Console](https://console.cloud.google.com) and create or pick a project.
+2. **Enable the API** — go to *APIs & Services → Library*, search for **Google Calendar API**, and click **Enable**.
+3. **Consent screen** — open *Google Auth Platform → Get started*: set an app name and your email, and choose **Audience = External**. Then open **Audience** and **Publish app** so the status is **In production**.
+   > ⚠️ **Important:** In *Testing* mode, refresh tokens for calendar scopes expire after **7 days**, so the sync would break every week. *In production* they stay valid. You do **not** need Google to verify the app while you are the only user.
+4. **Create the client** — go to *Clients → Create client*, set Application type to **Desktop app**, click **Create**, then copy the **Client ID** and **Client secret**.
+5. **Connect** — in Obsidian open *Settings → BeautyTasks → Google Calendar*, paste the Client ID and secret, and click **Connect**. On the “Google hasn’t verified this app” screen choose **Advanced → Continue** — this is expected for a personal app.
+6. **Calendar** — BeautyTasks creates and selects a dedicated **“BeautyTasks”** calendar (small blast radius; your other calendars are never touched). Done.
+
+The required permissions (`calendar.events`, `calendar.readonly`, `calendar.app.created`) are requested when you connect — there is nothing to pre-register in the consent screen. On **mobile**, step 5 uses a device-code login (you enter a short code on another device) instead of the desktop loopback flow.
+
+### What syncs
+
+| Field | Obsidian → Google | Google → Obsidian |
+| --- | --- | --- |
+| Title | ✅ | — (Obsidian wins) |
+| Date / time (`due`) | ✅ | ✅ written back |
+| Duration | ✅ | — |
+| Reminders | ✅ (as popups) | — |
+
+- On a conflict (both sides changed the date), **Obsidian wins**.
+- Existence is Obsidian-driven: an event deleted in Google is recreated as long as the task still has a date. To remove it for good, change the task in Obsidian or exclude its list.
+- Exclude a project/area from sync via its right-click menu, the icon in the management list, or the edit dialog.
+
+### Where credentials live
+
+Your Client ID/secret and the OAuth token are stored locally in `.obsidian/plugins/beautytasks/data.json` (git-ignored). **Disconnect** in settings revokes the token with Google and deletes it locally. If you sync your vault by other means (Obsidian Sync, Dropbox, iCloud…), this file travels with it.
+
 ## Commands
 
 | Command | What it does |

@@ -9,6 +9,9 @@ import { t } from "./i18n";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
 
+/** README-Abschnitt mit der Google-Kalender-Einrichtung (statt nur zur Console zu verlinken). */
+const GCAL_GUIDE_URL = "https://github.com/avnibilgin/BeautyTasks#google-calendar-sync";
+
 /** Pointer-basiertes Ziehen einer Chip-Zeile ZWISCHEN den drei Tier-Zonen (Maus + Touch,
  *  Popout-sicher über row.ownerDocument). Beim Loslassen ruft onDrop() – der Aufrufer liest
  *  Zonen-Zugehörigkeit + Reihenfolge aus dem DOM und persistiert chipTiers/chipOrder. */
@@ -173,9 +176,8 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     // ── Nicht verbunden: Assistent ──
     if (!p.gcalAuth.isConnected()) {
       containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
-      new Setting(containerEl).setName(t("gcal_help_btn"))
-        .addButton((b) => b.setButtonText(t("gcal_help_btn"))
-          .onClick(() => window.open("https://console.cloud.google.com/apis/credentials")));
+      new Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn"))
+        .onClick(() => window.open(GCAL_GUIDE_URL)));
       // „Verbinden" muss reaktiv (de)aktiviert werden, sobald beide Felder gefüllt sind –
       // sonst bliebe der Button vom leeren Erst-Render dauerhaft deaktiviert.
       let connectBtn: import("obsidian").ButtonComponent | null = null;
@@ -186,6 +188,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         txt.inputEl.type = "password";
         txt.setValue(g.clientSecret).onChange((v) => { g.clientSecret = v.trim(); void p.saveSettings(); refreshConnect(); });
       });
+      containerEl.createEl("div", { cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
       new Setting(containerEl).addButton((b) => {
         connectBtn = b;
         b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret)
