@@ -29,8 +29,11 @@ import { GCalAuth, GCalAuthError } from "./gcalAuth";
  * Alle HTTP-Calls über requestUrl (kein fetch → keine CORS/Origin-Probleme).
  */
 
-/** Ungültiger/abgelaufener syncToken (HTTP 410) → Voll-Resync nötig. */
-class InvalidSyncToken extends Error {}
+/** HTTP-Fehler der Kalender-API mit Statuscode – für gezielte Behandlung:
+ *  404/410 = Event/Kalender weg (neu anlegen bzw. ignorieren); 410 im Pull = syncToken abgelaufen. */
+class GCalHttpError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
 
 const API = "https://www.googleapis.com/calendar/v3";
 const SYNC_SOURCE = "beautytasks";
@@ -117,7 +120,6 @@ async function api(
     if (res.status === 204 || !res.text) return null;      // z. B. DELETE
     if (res.status < 400) { try { return res.json as Record<string, unknown>; } catch { return null; } }
     if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen – bitte neu verbinden.");
-    if (res.status === 410) throw new InvalidSyncToken("410");   // syncToken abgelaufen → Voll-Resync
     // 403/429 (Quota/Rate) und 5xx: mit exponentiellem Backoff wiederholen
     if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
       await sleep(Math.min(30000, 2 ** attempt * 1000) + Math.random() * 500);
@@ -125,7 +127,7 @@ async function api(
     }
     let msg = `HTTP ${res.status}`;
     try { msg = ((res.json as Record<string, unknown>).error as { message?: string })?.message ?? msg; } catch { /* text unten */ }
-    throw new Error("Google Kalender: " + msg);
+    throw new GCalHttpError(res.status, "Google Kalender: " + msg);
   }
 }
 
@@ -318,7 +320,7 @@ export class GCalSync {
     try {
       result = await pullEvents(this.auth, cal, s.syncTokens[cal]);
     } catch (e) {
-      if (!(e instanceof InvalidSyncToken)) throw e;
+      if (!(e instanceof GCalHttpError && e.status === 410)) throw e;
       delete s.syncTokens[cal];                        // Token tot → einmal voll neu ziehen
       result = await pullEvents(this.auth, cal, undefined);
     }
@@ -392,13 +394,21 @@ export class GCalSync {
         if (newId) { s.lastSynced[id] = stamp(newId); await this.writeBack(task, newId, cal); }
       } else if (!link || link.sig !== sig || link.calendarId !== cal) {
         if (!s.syncOnUpdate) continue;
-        if (link && link.calendarId !== cal) {
-          // Kalenderwechsel: Google kann Events verschieben (move)
-          await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+        try {
+          if (link && link.calendarId !== cal) {
+            // Kalenderwechsel: Google kann Events verschieben (move)
+            await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+          }
+          await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+          s.lastSynced[id] = stamp(eventId);
+          await this.writeBack(task, eventId, cal);
+        } catch (e) {
+          if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
+          // Event (oder Kalender) in Google weg → neu anlegen
+          const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
+          const newId = ev?.id as string;
+          if (newId) { s.lastSynced[id] = stamp(newId); await this.writeBack(task, newId, cal); }
         }
-        await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
-        s.lastSynced[id] = stamp(eventId);
-        await this.writeBack(task, eventId, cal);
       }
     }
 
@@ -408,7 +418,7 @@ export class GCalSync {
       if (!s.syncOnDelete) continue;
       const link = s.lastSynced[id];
       try { await api(this.auth, "DELETE", `/calendars/${enc(link.calendarId)}/events/${enc(link.eventId)}`); }
-      catch (e) { if (!(e instanceof Error && /404|410/.test(e.message))) throw e; }   // schon weg = ok
+      catch (e) { if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e; }   // schon weg = ok
       delete s.lastSynced[id];
       const t = this.host.allTasks().find((x) => x.id === id);
       if (t) await this.clearBack(t);

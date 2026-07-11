@@ -9536,7 +9536,11 @@ div{max-width:28rem;text-align:center;line-height:1.5;padding:2rem}
 }
 
 // src/gcalSync.ts
-var InvalidSyncToken = class extends Error {
+var GCalHttpError = class extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
 };
 var API = "https://www.googleapis.com/calendar/v3";
 var SYNC_SOURCE = "beautytasks";
@@ -9581,7 +9585,6 @@ async function api(auth, method, path, body) {
       }
     }
     if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen \u2013 bitte neu verbinden.");
-    if (res.status === 410) throw new InvalidSyncToken("410");
     if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
       await sleep2(Math.min(3e4, 2 ** attempt * 1e3) + Math.random() * 500);
       continue;
@@ -9591,7 +9594,7 @@ async function api(auth, method, path, body) {
       msg = res.json.error?.message ?? msg;
     } catch {
     }
-    throw new Error("Google Kalender: " + msg);
+    throw new GCalHttpError(res.status, "Google Kalender: " + msg);
   }
 }
 async function listCalendars(auth) {
@@ -9778,7 +9781,7 @@ var GCalSync = class {
     try {
       result = await pullEvents(this.auth, cal, s.syncTokens[cal]);
     } catch (e) {
-      if (!(e instanceof InvalidSyncToken)) throw e;
+      if (!(e instanceof GCalHttpError && e.status === 410)) throw e;
       delete s.syncTokens[cal];
       result = await pullEvents(this.auth, cal, void 0);
     }
@@ -9851,12 +9854,22 @@ var GCalSync = class {
         }
       } else if (!link || link.sig !== sig || link.calendarId !== cal) {
         if (!s.syncOnUpdate) continue;
-        if (link && link.calendarId !== cal) {
-          await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+        try {
+          if (link && link.calendarId !== cal) {
+            await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+          }
+          await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+          s.lastSynced[id] = stamp(eventId);
+          await this.writeBack(task, eventId, cal);
+        } catch (e) {
+          if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
+          const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
+          const newId3 = ev?.id;
+          if (newId3) {
+            s.lastSynced[id] = stamp(newId3);
+            await this.writeBack(task, newId3, cal);
+          }
         }
-        await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
-        s.lastSynced[id] = stamp(eventId);
-        await this.writeBack(task, eventId, cal);
       }
     }
     for (const id of Object.keys(s.lastSynced)) {
@@ -9866,7 +9879,7 @@ var GCalSync = class {
       try {
         await api(this.auth, "DELETE", `/calendars/${enc(link.calendarId)}/events/${enc(link.eventId)}`);
       } catch (e) {
-        if (!(e instanceof Error && /404|410/.test(e.message))) throw e;
+        if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
       }
       delete s.lastSynced[id];
       const t2 = this.host.allTasks().find((x) => x.id === id);
@@ -11997,12 +12010,13 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     } catch {
       g.account = null;
     }
-    if (!g.calendarId) {
-      try {
+    try {
+      const cals = await this.gcalCalendars();
+      if (!g.calendarId || !cals.some((c) => c.id === g.calendarId)) {
         g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
-      } catch (e) {
-        console.warn("BeautyTasks: BeautyTasks-Kalender konnte nicht automatisch angelegt werden", e);
       }
+    } catch (e) {
+      console.warn("BeautyTasks: Ziel-Kalender konnte nicht sichergestellt werden", e);
     }
     g.enabled = true;
     await this.saveSettings();
