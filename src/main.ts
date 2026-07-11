@@ -1169,4 +1169,14 @@ export default class BeautyTasksPlugin extends Plugin {
 
   /** Kalenderliste für den Ziel-Kalender-Picker. */
   gcalCalendars(): Promise<CalendarInfo[]> { return listCalendars(this.gcalAuth); }
+
+  /** Eigenen „BeautyTasks"-Kalender anlegen (oder vorhandenen finden) und als Ziel setzen.
+   *  Bestehende Events ziehen beim nächsten Sync via move nach. Braucht den calendar.app.created-
+   *  Scope → nach Scope-Erweiterung ggf. einmal neu verbinden. Wirft bei Fehler (UI zeigt Meldung). */
+  async gcalCreateDefaultCalendar(): Promise<void> {
+    const g = this.settings.gcal!;
+    g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+    await this.saveSettings();
+    void this.gcalSync.syncNow();
+  }
 }

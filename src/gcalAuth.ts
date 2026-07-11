@@ -23,9 +23,11 @@ const REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
 const DEVICE_ENDPOINT = "https://oauth2.googleapis.com/device/code";
 const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
-/** calendar.events = Events schreiben; calendar.readonly = Kalenderliste/Anzeige. */
+/** calendar.events = Events schreiben; calendar.readonly = Kalenderliste/Anzeige;
+ *  calendar.app.created = eigenen „BeautyTasks"-Sekundärkalender anlegen/verwalten (schmales Recht,
+ *  kein Zugriff auf fremde Kalender-Verwaltung). */
 export const GCAL_SCOPE =
-  "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly";
+  "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.app.created";
 
 /** Access-Token 60 s vor Ablauf als „abgelaufen" behandeln (Uhr-Drift/Latenz-Puffer). */
 const EXPIRY_SKEW_MS = 60_000;

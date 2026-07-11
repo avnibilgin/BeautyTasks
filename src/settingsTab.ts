@@ -217,7 +217,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     };
     this.gcalStatusUnsub = p.gcalSync.onStatus(renderStatus);   // ruft cb sofort mit aktuellem Stand
 
-    // Ziel-Kalender (Liste async nachladen; Platzhalter = aktuelle Wahl)
+    // Ziel-Kalender (Liste async nachladen; Platzhalter = aktuelle Wahl) + „BeautyTasks anlegen".
     new Setting(containerEl).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc"))
       .addDropdown((dd) => {
         if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);
@@ -231,7 +231,13 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
             dd.setValue(g.calendarId);
           } catch { /* Platzhalter behalten */ }
         })();
-      });
+      })
+      .addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setTooltip(t("gcal_create_calendar_desc"))
+        .onClick(async () => {
+          try { await p.gcalCreateDefaultCalendar(); }
+          catch (e) { new Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e))); }
+          redraw();
+        }));
 
     new Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc"))
       .addToggle((tg) => tg.setValue(g.enabled).onChange((v) => { g.enabled = v; void p.saveSettings(); if (v) void p.gcalSync.syncNow(); }));

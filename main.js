@@ -257,6 +257,9 @@ var STRINGS = {
     gcal_sync_now_btn: "Sync now",
     gcal_target_calendar: "Target calendar",
     gcal_target_calendar_desc: "Which calendar dated tasks are mirrored into.",
+    gcal_create_calendar_btn: "Create BeautyTasks calendar",
+    gcal_create_calendar_desc: 'Create a dedicated "BeautyTasks" calendar and use it (existing events move over on the next sync).',
+    gcal_create_calendar_failed: "Couldn't create the calendar: {0} \u2014 you may need to disconnect and reconnect (new permission).",
     gcal_enabled: "Sync dated tasks",
     gcal_enabled_desc: "Mirror every task that has a due date as an event.",
     gcal_autosync: "Sync automatically",
@@ -652,6 +655,9 @@ var STRINGS = {
     gcal_sync_now_btn: "Jetzt synchronisieren",
     gcal_target_calendar: "Ziel-Kalender",
     gcal_target_calendar_desc: "In welchen Kalender datierte Aufgaben gespiegelt werden.",
+    gcal_create_calendar_btn: "BeautyTasks-Kalender anlegen",
+    gcal_create_calendar_desc: "Einen eigenen Kalender \u201EBeautyTasks\u201C anlegen und verwenden (bestehende Events ziehen beim n\xE4chsten Sync mit um).",
+    gcal_create_calendar_failed: "Kalender konnte nicht angelegt werden: {0} \u2014 evtl. einmal abmelden und neu verbinden (neue Berechtigung).",
     gcal_enabled: "Aufgaben mit Datum synchronisieren",
     gcal_enabled_desc: "Jede Aufgabe mit F\xE4lligkeitsdatum als Termin spiegeln.",
     gcal_autosync: "Automatisch synchronisieren",
@@ -9528,7 +9534,14 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
         } catch {
         }
       })();
-    });
+    }).addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setTooltip(t("gcal_create_calendar_desc")).onClick(async () => {
+      try {
+        await p.gcalCreateDefaultCalendar();
+      } catch (e) {
+        new import_obsidian21.Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e)));
+      }
+      redraw();
+    }));
     new import_obsidian21.Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc")).addToggle((tg) => tg.setValue(g.enabled).onChange((v) => {
       g.enabled = v;
       void p.saveSettings();
@@ -10147,7 +10160,7 @@ var TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 var REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
 var DEVICE_ENDPOINT = "https://oauth2.googleapis.com/device/code";
 var DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
-var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly";
+var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.app.created";
 var EXPIRY_SKEW_MS = 6e4;
 var LOOPBACK_TIMEOUT_MS = 18e4;
 var GCalAuthError = class extends Error {
@@ -11993,5 +12006,14 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   /** Kalenderliste für den Ziel-Kalender-Picker. */
   gcalCalendars() {
     return listCalendars(this.gcalAuth);
+  }
+  /** Eigenen „BeautyTasks"-Kalender anlegen (oder vorhandenen finden) und als Ziel setzen.
+   *  Bestehende Events ziehen beim nächsten Sync via move nach. Braucht den calendar.app.created-
+   *  Scope → nach Scope-Erweiterung ggf. einmal neu verbinden. Wirft bei Fehler (UI zeigt Meldung). */
+  async gcalCreateDefaultCalendar() {
+    const g = this.settings.gcal;
+    g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
+    await this.saveSettings();
+    void this.gcalSync.syncNow();
   }
 };
