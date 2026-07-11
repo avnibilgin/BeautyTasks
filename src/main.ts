@@ -1112,7 +1112,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!show) return;
     bar.empty();
     bar.toggleClass("mod-error", i.status === "error");
-    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-check";
+    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-sync";
     setIcon(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
     const detail = i.status === "syncing" ? t("gcal_syncing")
       : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " — " + t("gcal_reconnect_hint")

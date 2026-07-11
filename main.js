@@ -7230,7 +7230,7 @@ function buildItemMenu(menu, plugin, item, source = "sidebar") {
   }
   if (isProjLike && plugin.gcalAuth.isConnected()) {
     const excluded = plugin.isListGcalExcluded(item.key);
-    menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-plus" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(item.key, !excluded)));
+    menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-sync" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(item.key, !excluded)));
   }
   if (isProjLike) {
     menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_archive")).setIcon("archive").onClick(() => plugin.archiveWithUndo(item.key, item.name)));
@@ -11973,7 +11973,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     if (!show) return;
     bar.empty();
     bar.toggleClass("mod-error", i.status === "error");
-    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-check";
+    const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-sync";
     (0, import_obsidian27.setIcon)(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
     const detail = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " \u2014 " + t("gcal_reconnect_hint") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
     bar.setAttr("aria-label", t("set_gcal_heading") + " \xB7 " + detail);

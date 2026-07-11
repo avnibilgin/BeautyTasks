@@ -107,7 +107,7 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
     const excluded = plugin.isListGcalExcluded(item.key);
     menu.addItem((m) => m.setSection("bt-gcal")
       .setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"))
-      .setIcon(excluded ? "calendar-plus" : "calendar-off")
+      .setIcon(excluded ? "calendar-sync" : "calendar-off")
       .onClick(() => void plugin.setListGcalExcluded(item.key, !excluded)));
   }
 
