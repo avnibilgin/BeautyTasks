@@ -7176,7 +7176,7 @@ var NewItemModal = class extends import_obsidian15.Modal {
 
 // src/navMenu.ts
 function addGcalSyncItem(menu, plugin, path) {
-  if (!plugin.gcalAuth.isConnected()) return false;
+  if (!plugin.gcalSync.canSync()) return false;
   const excluded = plugin.isListGcalExcluded(path);
   menu.addItem((m) => m.setSection("bt-gcal").setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude")).setIcon(excluded ? "calendar-sync" : "calendar-off").onClick(() => void plugin.setListGcalExcluded(path, !excluded)));
   return true;
@@ -7525,7 +7525,7 @@ function colorDot(row, plugin, current2, previewKey, defaultColor, onPick) {
   };
 }
 function syncSwitch(row, plugin, path) {
-  if (!plugin.gcalAuth.isConnected()) return;
+  if (!plugin.gcalSync.canSync()) return;
   let excluded = plugin.isListGcalExcluded(path);
   const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", "data-tooltip-position": "top", tabindex: "0" } });
   const paint = () => {
@@ -9777,6 +9777,8 @@ var GCalSync = class {
       void this.syncNow();
     }, DEBOUNCE_MS);
   }
+  /** Ist der Sync tatsächlich aktiv (verbunden UND Hauptschalter an UND Ziel-Kalender gesetzt)?
+   *  Auch die UI (per-Listen-Schalter/-Menü) hängt daran – tote Bedienelemente vermeiden. */
   canSync() {
     const s = this.host.settings;
     return s.enabled && !!s.calendarId && this.auth.isConnected();

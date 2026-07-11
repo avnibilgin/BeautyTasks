@@ -284,7 +284,9 @@ export class GCalSync {
     this.debounceTimer = window.setTimeout(() => { this.debounceTimer = null; void this.syncNow(); }, DEBOUNCE_MS);
   }
 
-  private canSync(): boolean {
+  /** Ist der Sync tatsächlich aktiv (verbunden UND Hauptschalter an UND Ziel-Kalender gesetzt)?
+   *  Auch die UI (per-Listen-Schalter/-Menü) hängt daran – tote Bedienelemente vermeiden. */
+  canSync(): boolean {
     const s = this.host.settings;
     return s.enabled && !!s.calendarId && this.auth.isConnected();
   }

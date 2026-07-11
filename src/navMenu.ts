@@ -30,7 +30,7 @@ export interface NavMenuItem {
  *  Wiederverwendet vom Projekt/Bereich-Menü UND vom Eingang (der NUR diesen Eintrag bekommt).
  *  Liefert, ob etwas hinzugefügt wurde (der Aufrufer zeigt das Menü nur dann). */
 export function addGcalSyncItem(menu: Menu, plugin: BeautyTasksPlugin, path: string): boolean {
-  if (!plugin.gcalAuth.isConnected()) return false;
+  if (!plugin.gcalSync.canSync()) return false;   // nur wenn Sync wirklich aktiv (nicht bloß verbunden)
   const excluded = plugin.isListGcalExcluded(path);
   menu.addItem((m) => m.setSection("bt-gcal")
     .setTitle(excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"))

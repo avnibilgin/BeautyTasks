@@ -194,7 +194,7 @@ function colorDot(row: HTMLElement, plugin: BeautyTasksPlugin, current: string |
  *  Führt den Zustand LOKAL/optimistisch – NICHT über den metadataCache neu lesen: der ist nach
  *  processFrontMatter noch stale, sonst bräuchte es zwei Klicks. */
 function syncSwitch(row: HTMLElement, plugin: BeautyTasksPlugin, path: string): void {
-  if (!plugin.gcalAuth.isConnected()) return;
+  if (!plugin.gcalSync.canSync()) return;   // nur wenn Sync wirklich aktiv (nicht bloß verbunden)
   let excluded = plugin.isListGcalExcluded(path);
   const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", "data-tooltip-position": "top", tabindex: "0" } });
   const paint = (): void => {
