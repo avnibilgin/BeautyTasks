@@ -259,6 +259,7 @@ var STRINGS = {
     gcal_target_calendar_desc: "Which calendar dated tasks are mirrored into.",
     gcal_create_calendar_btn: "Create BeautyTasks calendar",
     gcal_create_calendar_desc: 'Create a dedicated "BeautyTasks" calendar and use it (existing events move over on the next sync).',
+    gcal_sync_list: "Sync with Google Calendar",
     gcal_tip_create: "Tip: use a dedicated calendar",
     gcal_tip_create_desc: "Create your own Google calendar and migrate your tasks there (clean separation from your main calendar).",
     gcal_create_calendar_failed: "Couldn't create the calendar: {0} \u2014 you may need to disconnect and reconnect (new permission).",
@@ -660,6 +661,7 @@ var STRINGS = {
     gcal_target_calendar_desc: "In welchen Kalender datierte Aufgaben gespiegelt werden.",
     gcal_create_calendar_btn: "BeautyTasks-Kalender anlegen",
     gcal_create_calendar_desc: "Einen eigenen Kalender \u201EBeautyTasks\u201C anlegen und verwenden (bestehende Events ziehen beim n\xE4chsten Sync mit um).",
+    gcal_sync_list: "Mit Google Kalender synchronisieren",
     gcal_tip_create: "Tipp: Eigenen Kalender verwenden",
     gcal_tip_create_desc: "Lege einen eigenen Google-Kalender an und migriere deine Aufgaben dorthin (saubere Trennung vom Hauptkalender).",
     gcal_create_calendar_failed: "Kalender konnte nicht angelegt werden: {0} \u2014 evtl. einmal abmelden und neu verbinden (neue Berechtigung).",
@@ -7050,6 +7052,9 @@ var NewItemModal = class extends import_obsidian15.Modal {
     this.plugin = plugin;
     this.kind = kind;
     this.edit = edit;
+    this.syncExcluded = false;
+    // aktueller Stand des Sync-Toggles
+    this.syncExcludedInit = null;
     this.name = edit?.name ?? "";
     this.color = edit?.color ?? null;
     this.visible = edit ? edit.visible : true;
@@ -7093,6 +7098,26 @@ var NewItemModal = class extends import_obsidian15.Modal {
         flip();
       }
     };
+    if (this.edit && this.kind !== "label" && this.plugin.gcalSync.canSync()) {
+      this.syncExcludedInit = this.plugin.isListGcalExcluded(this.edit.key);
+      this.syncExcluded = this.syncExcludedInit;
+      const on = () => !this.syncExcluded;
+      const syncRow = contentEl.createDiv({ cls: "bt-new-row" });
+      syncRow.createEl("label", { text: t("gcal_sync_list") });
+      const sw2 = syncRow.createDiv({ cls: "bt-mrow-switch" + (on() ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on()), tabindex: "0" } });
+      const flip2 = () => {
+        this.syncExcluded = !this.syncExcluded;
+        sw2.toggleClass("is-on", on());
+        sw2.setAttr("aria-checked", String(on()));
+      };
+      sw2.onclick = flip2;
+      sw2.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          flip2();
+        }
+      };
+    }
     const prev = contentEl.createDiv({ cls: "bt-new-preview" });
     this.previewIc = prev.createSpan({ cls: "bt-new-preview-ic" });
     (0, import_obsidian15.setIcon)(this.previewIc, ICON[this.kind]);
@@ -7169,6 +7194,7 @@ var NewItemModal = class extends import_obsidian15.Modal {
     } else {
       if (this.color !== e.color) await this.plugin.setProjectColor(e.key, this.color);
       if (this.visible !== e.visible) await this.plugin.setProjectVisible(e.key, this.visible);
+      if (this.syncExcludedInit !== null && this.syncExcluded !== this.syncExcludedInit) await this.plugin.setListGcalExcluded(e.key, this.syncExcluded);
       if (name !== e.name) await this.plugin.renameProject(e.key, name);
     }
   }

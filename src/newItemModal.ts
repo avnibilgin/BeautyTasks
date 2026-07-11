@@ -21,6 +21,8 @@ export class NewItemModal extends Modal {
   private name: string;
   private color: string | null;
   private visible: boolean;
+  private syncExcluded = false;              // aktueller Stand des Sync-Toggles
+  private syncExcludedInit: boolean | null = null;   // Ausgangswert; null = Toggle nicht gezeigt
   private previewIc!: HTMLElement;
   private previewNm!: HTMLElement;
 
@@ -56,6 +58,21 @@ export class NewItemModal extends Modal {
     const flip = () => { this.visible = !this.visible; sw.toggleClass("is-on", this.visible); sw.setAttr("aria-checked", String(this.visible)); };
     sw.onclick = flip;
     sw.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
+
+    // Google-Kalender-Sync für diese Liste – nur beim Bearbeiten eines Projekts/Bereichs UND nur
+    // wenn der Sync aktiv ist (konsistent mit canSync(), wie die anderen Sync-Bedienelemente).
+    // Wird wie die übrigen Felder ERST beim Speichern angewendet (Abbrechen verwirft).
+    if (this.edit && this.kind !== "label" && this.plugin.gcalSync.canSync()) {
+      this.syncExcludedInit = this.plugin.isListGcalExcluded(this.edit.key);
+      this.syncExcluded = this.syncExcludedInit;
+      const on = (): boolean => !this.syncExcluded;
+      const syncRow = contentEl.createDiv({ cls: "bt-new-row" });
+      syncRow.createEl("label", { text: t("gcal_sync_list") });
+      const sw2 = syncRow.createDiv({ cls: "bt-mrow-switch" + (on() ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on()), tabindex: "0" } });
+      const flip2 = (): void => { this.syncExcluded = !this.syncExcluded; sw2.toggleClass("is-on", on()); sw2.setAttr("aria-checked", String(on())); };
+      sw2.onclick = flip2;
+      sw2.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip2(); } };
+    }
 
     // Live-Vorschau
     const prev = contentEl.createDiv({ cls: "bt-new-preview" });
@@ -132,6 +149,7 @@ export class NewItemModal extends Modal {
     } else {
       if (this.color !== e.color) await this.plugin.setProjectColor(e.key, this.color);
       if (this.visible !== e.visible) await this.plugin.setProjectVisible(e.key, this.visible);
+      if (this.syncExcludedInit !== null && this.syncExcluded !== this.syncExcludedInit) await this.plugin.setListGcalExcluded(e.key, this.syncExcluded);
       if (name !== e.name) await this.plugin.renameProject(e.key, name);
     }
   }
