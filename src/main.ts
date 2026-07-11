@@ -1149,7 +1149,11 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.gcalAuth.connect(onDevicePrompt);
     try { g.account = await fetchAccountEmail(this.gcalAuth); } catch { g.account = null; }
     if (!g.calendarId) {
-      try { g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone); } catch { /* Nutzer wählt selbst */ }
+      // Erstnutzer: eigenen „BeautyTasks"-Kalender automatisch anlegen. Schlägt das fehl (z. B.
+      // Recht nicht bestätigt), bleibt calendarId leer -> die Settings zeigen einen deutlichen
+      // Hinweis (statt still ins Leere zu laufen).
+      try { g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone); }
+      catch (e) { console.warn("BeautyTasks: BeautyTasks-Kalender konnte nicht automatisch angelegt werden", e); }
     }
     g.enabled = true;
     await this.saveSettings();

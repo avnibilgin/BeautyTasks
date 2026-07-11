@@ -260,6 +260,7 @@ var STRINGS = {
     gcal_create_calendar_btn: "Create BeautyTasks calendar",
     gcal_create_calendar_desc: 'Create a dedicated "BeautyTasks" calendar and use it (existing events move over on the next sync).',
     gcal_create_calendar_failed: "Couldn't create the calendar: {0} \u2014 you may need to disconnect and reconnect (new permission).",
+    gcal_no_calendar_warn: "No target calendar selected yet \u2014 pick one below or create the BeautyTasks calendar. Nothing syncs until then.",
     gcal_enabled: "Sync dated tasks",
     gcal_enabled_desc: "Mirror every task that has a due date as an event.",
     gcal_autosync: "Sync automatically",
@@ -658,6 +659,7 @@ var STRINGS = {
     gcal_create_calendar_btn: "BeautyTasks-Kalender anlegen",
     gcal_create_calendar_desc: "Einen eigenen Kalender \u201EBeautyTasks\u201C anlegen und verwenden (bestehende Events ziehen beim n\xE4chsten Sync mit um).",
     gcal_create_calendar_failed: "Kalender konnte nicht angelegt werden: {0} \u2014 evtl. einmal abmelden und neu verbinden (neue Berechtigung).",
+    gcal_no_calendar_warn: "Noch kein Ziel-Kalender gew\xE4hlt \u2014 bitte unten w\xE4hlen oder den BeautyTasks-Kalender anlegen. Bis dahin wird nichts synchronisiert.",
     gcal_enabled: "Aufgaben mit Datum synchronisieren",
     gcal_enabled_desc: "Jede Aufgabe mit F\xE4lligkeitsdatum als Termin spiegeln.",
     gcal_autosync: "Automatisch synchronisieren",
@@ -9511,6 +9513,7 @@ var BeautyTasksSettingTab = class extends import_obsidian21.PluginSettingTab {
       redraw();
     }));
     head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
+    if (!g.calendarId) containerEl.createEl("div", { cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
     const statusSetting = new import_obsidian21.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
     const renderStatus = (i) => {
       const txt = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleString() : t("gcal_never"));
@@ -11986,7 +11989,8 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     if (!g.calendarId) {
       try {
         g.calendarId = await ensureDefaultCalendar(this.gcalAuth, g.timezone);
-      } catch {
+      } catch (e) {
+        console.warn("BeautyTasks: BeautyTasks-Kalender konnte nicht automatisch angelegt werden", e);
       }
     }
     g.enabled = true;

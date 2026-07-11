@@ -1516,3 +1516,10 @@ body {
 .bt-gcal-sb { cursor: pointer; display: inline-flex; align-items: center; }
 .bt-gcal-sb .bt-gcal-sb-ic { display: inline-flex; }
 .bt-gcal-sb.mod-error { color: var(--text-error); }
+/* Hinweis in den Einstellungen, wenn kein Ziel-Kalender gewählt ist. */
+.bt-gcal-warn {
+  margin: 8px 0; padding: 8px 12px; border-radius: 6px;
+  border-left: 3px solid var(--text-warning, #e0a030);
+  background: var(--background-modifier-error-hover, rgba(224, 160, 48, 0.12));
+  color: var(--text-normal); font-size: var(--font-ui-small);
+}

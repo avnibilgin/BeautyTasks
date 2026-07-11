@@ -207,6 +207,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         .onClick(async () => { await p.gcalDisconnect(); redraw(); }));
     head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
 
+    // Kein Ziel-Kalender (z. B. Auto-Anlage fehlgeschlagen) → deutlich führen statt still nichts tun.
+    if (!g.calendarId) containerEl.createEl("div", { cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
+
     const statusSetting = new Setting(containerEl)
       .addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
     const renderStatus = (i: import("./gcalSync").GCalStatusInfo): void => {
