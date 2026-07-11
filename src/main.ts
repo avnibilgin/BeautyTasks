@@ -21,10 +21,14 @@ import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
 import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
+import { GCalAuth, TokenStore } from "./gcalAuth";
+import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS } from "./gcalSync";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
   index!: TaskIndex;
+  gcalAuth!: GCalAuth;
+  gcalSync!: GCalSync;
   currentView: ViewId = "heute";
   currentProject: string | null = null;
   currentLabel: string | null = null;                   // aktives Label-Board
@@ -49,6 +53,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
+    this.setupGCal();
     // Reminder-Scanfenster: bei echtem Vorwert Verpasstes nachfeuern (auf Grace begrenzt),
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
     this.reminderScan = this.settings.reminderLastScan || Date.now();
@@ -70,6 +75,8 @@ export default class BeautyTasksPlugin extends Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
+      this.gcalSync.start();  // Auto-Push verdrahten + einmal initial abgleichen
+      void this.gcalSync.syncNow();
       // „Neu"-Modal nur für bestehende Nutzer und nur bei einem MINOR/MAJOR-Sprung (z. B. 1.7→1.8),
       // NICHT bei reinen Patches (1.8.0→1.8.1) – sonst nervt es bei Bugfix-Releases. Der Command
       // „Neuigkeiten anzeigen" öffnet es jederzeit manuell.
@@ -108,6 +115,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
+    this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
     this.addCommand({
       id: "count-tasks", name: t("cmd_count_tasks"),
       callback: () => new Notice(t("notice_count", this.index.all().length, this.index.open().length)),
@@ -1057,6 +1065,32 @@ export default class BeautyTasksPlugin extends Plugin {
     // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
+    // Google-Kalender-Sub-Objekt mit Defaults auffüllen (fehlende/neue Felder ergänzen,
+    // gespeicherte Werte behalten). Lebendes Objekt – Auth/Engine mutieren tokens/lastSynced darin.
+    this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
+
+  /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
+   *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */
+  private setupGCal(): void {
+    const gcal = this.settings.gcal!;
+    const store: TokenStore = {
+      load: () => gcal.tokens,
+      save: async (tokens) => { gcal.tokens = tokens; await this.saveSettings(); },
+    };
+    this.gcalAuth = new GCalAuth(
+      () => ({ clientId: gcal.clientId, clientSecret: gcal.clientSecret }),
+      store,
+    );
+    const host: GCalSyncHost = {
+      app: this.app,
+      settings: gcal,
+      persist: () => this.saveSettings(),
+      allTasks: () => this.index.all(),
+      subscribe: (cb) => this.index.subscribe(cb),
+    };
+    this.gcalSync = new GCalSync(host, this.gcalAuth);
+    this.register(() => this.gcalSync.stop());   // Auto-Push-Abo + Debounce beim Unload lösen
+  }
 }

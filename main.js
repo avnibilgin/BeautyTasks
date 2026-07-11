@@ -22,7 +22,7 @@ __export(main_exports, {
   default: () => BeautyTasksPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian25 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 
 // src/types.ts
 var CHIP_IDS = ["status", "due", "priority", "label", "recurrence", "deadline", "reminder", "parent", "details"];
@@ -232,6 +232,7 @@ var STRINGS = {
     cmd_import: "Import from Tasks/Lists",
     cmd_search: "Search tasks",
     cmd_whatsnew: "Show what's new",
+    cmd_gcal_sync_now: "Sync with Google Calendar now",
     cmd_export_json: "Export tasks (JSON)",
     cmd_import_json: "Import tasks (JSON)",
     cmd_import_tasknotes: "Import from TaskNotes",
@@ -590,6 +591,7 @@ var STRINGS = {
     cmd_import: "Aus Tasks/Lists importieren",
     cmd_search: "Aufgaben suchen",
     cmd_whatsnew: "Neuigkeiten anzeigen",
+    cmd_gcal_sync_now: "Jetzt mit Google Kalender synchronisieren",
     cmd_export_json: "Aufgaben exportieren (JSON)",
     cmd_import_json: "Aufgaben importieren (JSON)",
     cmd_import_tasknotes: "Aus TaskNotes importieren",
@@ -7643,21 +7645,21 @@ function parseRecurrence(rule) {
 }
 var z3 = (n) => String(n).padStart(2, "0");
 var toIso = (d) => d.getFullYear() + "-" + z3(d.getMonth() + 1) + "-" + z3(d.getDate());
-var addDays3 = (isoDate, days) => {
-  const d = /* @__PURE__ */ new Date(isoDate + "T00:00:00");
+var addDays3 = (isoDate2, days) => {
+  const d = /* @__PURE__ */ new Date(isoDate2 + "T00:00:00");
   d.setDate(d.getDate() + days);
   return toIso(d);
 };
-function advance(isoDate, rule) {
-  const d = /* @__PURE__ */ new Date(isoDate + "T00:00:00");
+function advance(isoDate2, rule) {
+  const d = /* @__PURE__ */ new Date(isoDate2 + "T00:00:00");
   if (rule.unit === "day") d.setDate(d.getDate() + rule.n);
   else if (rule.unit === "week") d.setDate(d.getDate() + rule.n * 7);
   else if (rule.unit === "month") d.setMonth(d.getMonth() + rule.n);
   else d.setFullYear(d.getFullYear() + rule.n);
   return toIso(d);
 }
-function advanceUntilFuture(isoDate, rule, today) {
-  let d = advance(isoDate, rule);
+function advanceUntilFuture(isoDate2, rule, today) {
+  let d = advance(isoDate2, rule);
   let guard = 0;
   while (d <= today && guard++ < 1e3) d = advance(d, rule);
   return d;
@@ -9933,8 +9935,503 @@ var WhatsNewModal = class extends import_obsidian24.Modal {
   }
 };
 
+// src/gcalAuth.ts
+var import_obsidian25 = require("obsidian");
+var AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
+var TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+var REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
+var DEVICE_ENDPOINT = "https://oauth2.googleapis.com/device/code";
+var DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly";
+var EXPIRY_SKEW_MS = 6e4;
+var LOOPBACK_TIMEOUT_MS = 18e4;
+var GCalAuthError = class extends Error {
+};
+function base64url(buf) {
+  let s = "";
+  const bytes = new Uint8Array(buf);
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function randomToken(bytes = 32) {
+  return base64url(crypto.getRandomValues(new Uint8Array(bytes)).buffer);
+}
+async function pkcePair() {
+  const verifier = randomToken(32);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return { verifier, challenge: base64url(digest) };
+}
+function form(params) {
+  return Object.entries(params).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
+}
+async function postForm(url, params) {
+  const res = await (0, import_obsidian25.requestUrl)({
+    url,
+    method: "POST",
+    contentType: "application/x-www-form-urlencoded",
+    body: form(params),
+    throw: false
+  });
+  let json = {};
+  try {
+    json = res.json;
+  } catch {
+  }
+  if (res.status >= 400) {
+    const err = json.error_description || json.error || `HTTP ${res.status}`;
+    throw new GCalAuthError(String(err));
+  }
+  return json;
+}
+function toTokens(json, prevRefresh) {
+  const access = json.access_token;
+  const refresh = json.refresh_token ?? prevRefresh;
+  const expiresIn = json.expires_in ?? 3600;
+  if (!access || !refresh) throw new GCalAuthError("Unvollst\xE4ndige Token-Antwort von Google.");
+  return {
+    accessToken: access,
+    refreshToken: refresh,
+    expiresAt: Date.now() + expiresIn * 1e3,
+    scope: json.scope
+  };
+}
+var GCalAuth = class {
+  constructor(getCredentials, store) {
+    this.getCredentials = getCredentials;
+    this.store = store;
+  }
+  isConnected() {
+    const t2 = this.store.load();
+    return !!t2?.refreshToken;
+  }
+  account() {
+    return this.store.load()?.account ?? null;
+  }
+  /** Gültiges Access-Token liefern; bei Bedarf transparent per Refresh-Token erneuern. */
+  async getAccessToken() {
+    const t2 = this.store.load();
+    if (!t2?.refreshToken) throw new GCalAuthError("Nicht mit Google verbunden.");
+    if (t2.accessToken && Date.now() < t2.expiresAt - EXPIRY_SKEW_MS) return t2.accessToken;
+    return this.refresh(t2);
+  }
+  async refresh(t2) {
+    const creds = this.requireCredentials();
+    const json = await postForm(TOKEN_ENDPOINT, {
+      client_id: creds.clientId,
+      ...creds.clientSecret ? { client_secret: creds.clientSecret } : {},
+      refresh_token: t2.refreshToken,
+      grant_type: "refresh_token"
+    });
+    const next = toTokens(json, t2.refreshToken);
+    next.account = t2.account;
+    await this.store.save(next);
+    return next.accessToken;
+  }
+  /** Plattform-passender Login. onDevicePrompt nur für den Mobile-Device-Flow relevant. */
+  async connect(onDevicePrompt) {
+    const tokens = import_obsidian25.Platform.isDesktopApp ? await this.connectLoopback() : await this.connectDevice(onDevicePrompt);
+    await this.store.save(tokens);
+    return tokens;
+  }
+  /** Verbindung trennen: Refresh-Token bei Google widerrufen + lokal löschen (best effort). */
+  async disconnect() {
+    const t2 = this.store.load();
+    if (t2?.refreshToken) {
+      try {
+        await postForm(REVOKE_ENDPOINT, { token: t2.refreshToken });
+      } catch {
+      }
+    }
+    await this.store.save(null);
+  }
+  requireCredentials() {
+    const creds = this.getCredentials();
+    if (!creds?.clientId) throw new GCalAuthError("Keine Google-Zugangsdaten hinterlegt.");
+    return creds;
+  }
+  // ── Desktop: Loopback-Server + PKCE ──
+  async connectLoopback() {
+    const creds = this.requireCredentials();
+    const { verifier, challenge } = await pkcePair();
+    const state = randomToken(16);
+    const http = require("http");
+    const { code, redirectUri } = await new Promise(
+      (resolve, reject) => {
+        const server = http.createServer((req, res) => {
+          try {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            if (!url.searchParams.has("code") && !url.searchParams.has("error")) {
+              res.writeHead(204).end();
+              return;
+            }
+            const ok = url.searchParams.get("state") === state && url.searchParams.has("code");
+            res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+            res.end(loopbackPage(ok));
+            server.close();
+            window.clearTimeout(timer);
+            if (url.searchParams.get("error")) return reject(new GCalAuthError(url.searchParams.get("error")));
+            if (!ok) return reject(new GCalAuthError("Ung\xFCltige Antwort (state stimmt nicht)."));
+            resolve({ code: url.searchParams.get("code"), redirectUri: base });
+          } catch (e) {
+            reject(e instanceof Error ? e : new GCalAuthError(String(e)));
+          }
+        });
+        let base = "";
+        const timer = window.setTimeout(() => {
+          server.close();
+          reject(new GCalAuthError("Zeit\xFCberschreitung bei der Google-Anmeldung."));
+        }, LOOPBACK_TIMEOUT_MS);
+        server.on("error", (e) => {
+          window.clearTimeout(timer);
+          reject(e);
+        });
+        server.listen(0, "127.0.0.1", () => {
+          const addr = server.address();
+          const port = typeof addr === "object" && addr ? addr.port : 0;
+          base = `http://127.0.0.1:${port}`;
+          const authUrl = AUTH_ENDPOINT + "?" + form({
+            client_id: creds.clientId,
+            redirect_uri: base,
+            response_type: "code",
+            scope: GCAL_SCOPE,
+            code_challenge: challenge,
+            code_challenge_method: "S256",
+            state,
+            access_type: "offline",
+            prompt: "consent"
+            // erzwingt refresh_token auch bei erneutem Login
+          });
+          window.open(authUrl);
+        });
+      }
+    );
+    const json = await postForm(TOKEN_ENDPOINT, {
+      client_id: creds.clientId,
+      ...creds.clientSecret ? { client_secret: creds.clientSecret } : {},
+      code,
+      code_verifier: verifier,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri
+    });
+    return toTokens(json);
+  }
+  // ── Mobile: Device-Code-Flow ──
+  async connectDevice(onPrompt) {
+    const creds = this.requireCredentials();
+    const dev = await postForm(DEVICE_ENDPOINT, { client_id: creds.clientId, scope: GCAL_SCOPE });
+    const deviceCode = dev.device_code;
+    const intervalMs = (dev.interval ?? 5) * 1e3;
+    const expiresAt = Date.now() + (dev.expires_in ?? 1800) * 1e3;
+    onPrompt?.({
+      userCode: dev.user_code,
+      verificationUrl: dev.verification_url ?? dev.verification_uri,
+      expiresInSec: dev.expires_in ?? 1800
+    });
+    let wait = intervalMs;
+    for (; ; ) {
+      if (Date.now() > expiresAt) throw new GCalAuthError("Der Anmeldecode ist abgelaufen.");
+      await sleep(wait);
+      const res = await (0, import_obsidian25.requestUrl)({
+        url: TOKEN_ENDPOINT,
+        method: "POST",
+        contentType: "application/x-www-form-urlencoded",
+        body: form({
+          client_id: creds.clientId,
+          ...creds.clientSecret ? { client_secret: creds.clientSecret } : {},
+          device_code: deviceCode,
+          grant_type: DEVICE_GRANT
+        }),
+        throw: false
+      });
+      const json = res.json ?? {};
+      if (res.status < 400) return toTokens(json);
+      const err = json.error;
+      if (err === "authorization_pending") continue;
+      if (err === "slow_down") {
+        wait += 5e3;
+        continue;
+      }
+      throw new GCalAuthError(json.error_description || err || `HTTP ${res.status}`);
+    }
+  }
+};
+function sleep(ms2) {
+  return new Promise((r) => window.setTimeout(r, ms2));
+}
+function loopbackPage(ok) {
+  const msg = ok ? "\u2705 BeautyTasks ist jetzt mit Google Kalender verbunden." : "\u26A0\uFE0F Anmeldung fehlgeschlagen. Bitte in Obsidian erneut versuchen.";
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<title>BeautyTasks</title><style>
+body{font-family:system-ui,sans-serif;background:#1e1e1e;color:#eee;display:flex;
+min-height:100vh;align-items:center;justify-content:center;margin:0}
+div{max-width:28rem;text-align:center;line-height:1.5;padding:2rem}
+</style></head><body><div><p>${msg}</p><p>Du kannst dieses Fenster schlie\xDFen.</p></div></body></html>`;
+}
+
+// src/gcalSync.ts
+var import_obsidian26 = require("obsidian");
+var API = "https://www.googleapis.com/calendar/v3";
+var SYNC_SOURCE = "beautytasks";
+var DEBOUNCE_MS = 2e3;
+var DEFAULT_GCAL_SETTINGS = {
+  enabled: false,
+  clientId: "",
+  clientSecret: "",
+  calendarId: "",
+  timezone: "Europe/Berlin",
+  defaultDurationMin: 60,
+  autoSync: true,
+  syncOnCreate: true,
+  syncOnUpdate: true,
+  syncOnDelete: true,
+  removeEventOnComplete: false,
+  notifyConflicts: false,
+  showStatusBar: true,
+  account: null,
+  tokens: null,
+  lastSynced: {}
+};
+async function api(auth, method, path, body) {
+  const token = await auth.getAccessToken();
+  for (let attempt = 0; ; attempt++) {
+    const res = await (0, import_obsidian26.requestUrl)({
+      url: API + path,
+      method,
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: body != null ? JSON.stringify(body) : void 0,
+      throw: false
+    });
+    if (res.status === 204 || !res.text) return null;
+    if (res.status < 400) {
+      try {
+        return res.json;
+      } catch {
+        return null;
+      }
+    }
+    if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen \u2013 bitte neu verbinden.");
+    if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
+      await sleep2(Math.min(3e4, 2 ** attempt * 1e3) + Math.random() * 500);
+      continue;
+    }
+    let msg = `HTTP ${res.status}`;
+    try {
+      msg = res.json.error?.message ?? msg;
+    } catch {
+    }
+    throw new Error("Google Kalender: " + msg);
+  }
+}
+var isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+var isoDateTime = (d) => `${isoDate(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`;
+function reminderOverrides(task, start) {
+  const mins = resolveReminders(task).map((r) => Math.round((start.getTime() - r.fireAt.getTime()) / 6e4)).filter((m) => m >= 0 && m <= 40320);
+  return [...new Set(mins)].slice(0, 5).map((minutes) => ({ method: "popup", minutes }));
+}
+function eventBody(task, s) {
+  const timed = !!task.dueTime;
+  const startDate = /* @__PURE__ */ new Date(task.due + "T" + (task.dueTime ?? "00:00"));
+  let start, end;
+  if (timed) {
+    const endDate = new Date(startDate.getTime() + (task.duration ?? s.defaultDurationMin) * 6e4);
+    start = { dateTime: isoDateTime(startDate), timeZone: s.timezone };
+    end = { dateTime: isoDateTime(endDate), timeZone: s.timezone };
+  } else {
+    const next = new Date(startDate.getTime());
+    next.setDate(next.getDate() + 1);
+    start = { date: task.due };
+    end = { date: isoDate(next) };
+  }
+  const overrides = reminderOverrides(task, startDate);
+  return {
+    summary: task.title,
+    start,
+    end,
+    reminders: overrides.length ? { useDefault: false, overrides } : { useDefault: true },
+    extendedProperties: { private: { syncSource: SYNC_SOURCE, btTaskId: task.id } }
+  };
+}
+function signature(task, calendarId) {
+  return JSON.stringify([
+    task.title,
+    task.due,
+    task.dueTime,
+    task.duration,
+    (task.reminders ?? []).join(","),
+    calendarId
+  ]);
+}
+var GCalSync = class {
+  constructor(host, auth) {
+    this.host = host;
+    this.auth = auth;
+    this.statusCbs = /* @__PURE__ */ new Set();
+    this.info = { status: "disconnected", lastSyncedAt: null, lastError: null, account: null };
+    this.unsub = null;
+    this.debounceTimer = null;
+    this.running = false;
+    this.rerun = false;
+    this.info.account = host.settings.account;
+    this.info.status = auth.isConnected() ? "idle" : "disconnected";
+  }
+  // ── Öffentliche API ──
+  onStatus(cb) {
+    this.statusCbs.add(cb);
+    cb(this.info);
+    return () => this.statusCbs.delete(cb);
+  }
+  getStatus() {
+    return this.info;
+  }
+  /** Auto-Sync verdrahten (bei Vault-Änderungen entprellt pushen). Idempotent. */
+  start() {
+    if (this.unsub) return;
+    this.unsub = this.host.subscribe(() => this.scheduleSync());
+  }
+  stop() {
+    this.unsub?.();
+    this.unsub = null;
+    if (this.debounceTimer) {
+      window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+  }
+  scheduleSync() {
+    if (!this.canSync() || !this.host.settings.autoSync) return;
+    if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+    this.debounceTimer = window.setTimeout(() => {
+      this.debounceTimer = null;
+      void this.syncNow();
+    }, DEBOUNCE_MS);
+  }
+  canSync() {
+    const s = this.host.settings;
+    return s.enabled && !!s.calendarId && this.auth.isConnected();
+  }
+  /** Ein Push-Durchlauf (manuell oder entprellt). Re-entrancy-sicher. */
+  async syncNow() {
+    if (!this.canSync()) return;
+    if (this.running) {
+      this.rerun = true;
+      return;
+    }
+    this.running = true;
+    this.emit({ status: "syncing", lastError: null });
+    try {
+      await this.pushAll();
+      this.emit({ status: "idle", lastSyncedAt: Date.now(), lastError: null });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.emit({ status: "error", lastError: msg });
+    } finally {
+      this.running = false;
+      if (this.rerun) {
+        this.rerun = false;
+        void this.syncNow();
+      }
+    }
+  }
+  // ── Push-Reconcile ──
+  async pushAll() {
+    const s = this.host.settings;
+    const cal = s.calendarId;
+    const tasks = this.host.allTasks();
+    const eligible = /* @__PURE__ */ new Map();
+    for (const t2 of tasks) if (this.isEligible(t2)) eligible.set(t2.id, t2);
+    let changed = false;
+    for (const [id, task] of eligible) {
+      const link = s.lastSynced[id];
+      const eventId = link?.eventId ?? this.frontmatterEventId(task);
+      const sig = signature(task, cal);
+      if (!eventId) {
+        if (!s.syncOnCreate) continue;
+        const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
+        const newId3 = ev?.id;
+        if (newId3) {
+          s.lastSynced[id] = { eventId: newId3, calendarId: cal, sig };
+          await this.writeBack(task, newId3, cal);
+          changed = true;
+        }
+      } else if (!link || link.sig !== sig || link.calendarId !== cal) {
+        if (!s.syncOnUpdate) continue;
+        if (link && link.calendarId !== cal) {
+          await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+        }
+        await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+        s.lastSynced[id] = { eventId, calendarId: cal, sig };
+        await this.writeBack(task, eventId, cal);
+        changed = true;
+      }
+    }
+    for (const id of Object.keys(s.lastSynced)) {
+      if (eligible.has(id)) continue;
+      if (!s.syncOnDelete) continue;
+      const link = s.lastSynced[id];
+      try {
+        await api(this.auth, "DELETE", `/calendars/${enc(link.calendarId)}/events/${enc(link.eventId)}`);
+      } catch (e) {
+        if (!(e instanceof Error && /404|410/.test(e.message))) throw e;
+      }
+      delete s.lastSynced[id];
+      const t2 = this.host.allTasks().find((x) => x.id === id);
+      if (t2) await this.clearBack(t2);
+      changed = true;
+    }
+    if (changed) await this.host.persist();
+  }
+  isEligible(t2) {
+    if (!t2.due) return false;
+    if (isTrashed(t2.status)) return false;
+    if (this.host.settings.removeEventOnComplete && isDoneStatus(t2)) return false;
+    if (this.projectExcluded(t2)) return false;
+    return true;
+  }
+  frontmatterOf(path) {
+    const f = this.host.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof import_obsidian26.TFile)) return null;
+    return this.host.app.metadataCache.getFileCache(f)?.frontmatter ?? null;
+  }
+  projectExcluded(t2) {
+    return t2.project ? this.frontmatterOf(t2.project)?.gcal_sync === false : false;
+  }
+  frontmatterEventId(t2) {
+    const id = this.frontmatterOf(t2.path)?.gcal_event_id;
+    return typeof id === "string" && id ? id : void 0;
+  }
+  async writeBack(t2, eventId, calendarId) {
+    const f = this.host.app.vault.getAbstractFileByPath(t2.path);
+    if (!(f instanceof import_obsidian26.TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm) => {
+      fm.gcal_event_id = eventId;
+      fm.gcal_calendar_id = calendarId;
+    });
+  }
+  async clearBack(t2) {
+    const f = this.host.app.vault.getAbstractFileByPath(t2.path);
+    if (!(f instanceof import_obsidian26.TFile)) return;
+    await this.host.app.fileManager.processFrontMatter(f, (fm) => {
+      delete fm.gcal_event_id;
+      delete fm.gcal_calendar_id;
+    });
+  }
+  // ── intern ──
+  emit(patch) {
+    this.info = { ...this.info, ...patch, account: this.host.settings.account };
+    for (const cb of this.statusCbs) cb(this.info);
+  }
+};
+function enc(s) {
+  return encodeURIComponent(s);
+}
+function sleep2(ms2) {
+  return new Promise((r) => window.setTimeout(r, ms2));
+}
+function isDoneStatus(t2) {
+  return isDone(t2.status);
+}
+
 // src/main.ts
-var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
+var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   constructor() {
     super(...arguments);
     this.currentView = "heute";
@@ -9973,6 +10470,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
     this.index.subscribe(() => this.renderAll());
+    this.setupGCal();
     this.reminderScan = this.settings.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(async () => {
       const wasExisting = this.settings.didInitialSetup;
@@ -9992,6 +10490,8 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       this.index.build();
       this.renderAll();
       this.scanReminders();
+      this.gcalSync.start();
+      void this.gcalSync.syncNow();
       const minorKey = (v) => v.split(".").slice(0, 2).join(".");
       if (wasExisting && minorKey(prevVersion ?? "") !== minorKey(this.manifest.version)) new WhatsNewModal(this).open();
       if (this.settings.lastSeenVersion !== this.manifest.version) {
@@ -10014,10 +10514,11 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
+    this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
     this.addCommand({
       id: "count-tasks",
       name: t("cmd_count_tasks"),
-      callback: () => new import_obsidian25.Notice(t("notice_count", this.index.all().length, this.index.open().length))
+      callback: () => new import_obsidian27.Notice(t("notice_count", this.index.all().length, this.index.open().length))
     });
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
@@ -10026,14 +10527,14 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       id: "import-from-lists",
       name: t("cmd_import"),
       callback: async () => {
-        new import_obsidian25.Notice(t("notice_import_running"));
+        new import_obsidian27.Notice(t("notice_import_running"));
         try {
           const n = await runMigration(this.app, this.settings);
-          new import_obsidian25.Notice(t("notice_imported", n));
+          new import_obsidian27.Notice(t("notice_imported", n));
           window.setTimeout(() => this.index.build(), 800);
         } catch (e) {
           console.error("BeautyTasks import error", e);
-          new import_obsidian25.Notice(t("notice_import_failed"));
+          new import_obsidian27.Notice(t("notice_import_failed"));
         }
       }
     });
@@ -10063,7 +10564,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
    *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
   applyLocale() {
-    setLocale(this.settings.locale === "auto" ? import_obsidian25.moment.locale() : this.settings.locale);
+    setLocale(this.settings.locale === "auto" ? import_obsidian27.moment.locale() : this.settings.locale);
   }
   /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
   resolveStartView() {
@@ -10316,7 +10817,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
         void this.archiveProject(path, false);
       };
     });
-    new import_obsidian25.Notice(frag, 8e3);
+    new import_obsidian27.Notice(frag, 8e3);
   }
   async setProjectVisible(path, visible) {
     this.refreshOnChange(path);
@@ -10360,26 +10861,26 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async exportTasksJson() {
     try {
       const path = await writeExportFile(this);
-      new import_obsidian25.Notice(t("notice_export_done", path));
+      new import_obsidian27.Notice(t("notice_export_done", path));
     } catch (e) {
       console.error("BeautyTasks export error", e);
-      new import_obsidian25.Notice(t("notice_export_failed"));
+      new import_obsidian27.Notice(t("notice_export_failed"));
     }
   }
   /** JSON-Rohtext einlesen, Aufgaben anlegen (Duplikat-Schutz), Index neu aufbauen. */
   async importTasksFromText(raw) {
     const data = parseExport(raw);
     if (!data) {
-      new import_obsidian25.Notice(t("notice_import_invalid"));
+      new import_obsidian27.Notice(t("notice_import_invalid"));
       return;
     }
     try {
       const r = await importData(this, data);
-      new import_obsidian25.Notice(t("notice_import_summary", r.created, r.skipped));
+      new import_obsidian27.Notice(t("notice_import_summary", r.created, r.skipped));
       window.setTimeout(() => this.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks JSON import error", e);
-      new import_obsidian25.Notice(t("notice_import_failed"));
+      new import_obsidian27.Notice(t("notice_import_failed"));
     }
   }
   /** Import über die In-Vault-Auswahl (alle .json-Dateien). */
@@ -10422,7 +10923,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(oldName)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = [...new Set(arr.map((x) => x === oldName ? nu : x))];
       });
@@ -10430,7 +10931,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const fl of listFilters(this.app)) {
       if (!fl.criteria.labels.includes(oldName)) continue;
       const ff = this.app.vault.getAbstractFileByPath(fl.path);
-      if (ff instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
+      if (ff instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
         if (Array.isArray(fm.labels)) fm.labels = [...new Set(fm.labels.map(String).map((x) => x === oldName ? nu : x))];
       });
     }
@@ -10455,7 +10956,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   }
   /** Reagiert auf jedes Umbenennen einer verwalteten Notiz und zieht alle Referenzen selbst nach. */
   async onNoteRenamed(file, oldPath) {
-    if (!(file instanceof import_obsidian25.TFile) || file.extension !== "md") return;
+    if (!(file instanceof import_obsidian27.TFile) || file.extension !== "md") return;
     const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.type;
     if (type !== "project" && type !== "area" && type !== "filter" && type !== "task") return;
     const oldBase = oldPath.split("/").pop().replace(/\.md$/i, "");
@@ -10474,14 +10975,14 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (this.wikiBase(task.project) !== oldBase) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (this.wikiBase(fm.project) === oldBase) fm.project = "[[" + newBase + "]]";
       });
     }
     for (const fl of listFilters(this.app)) {
       if (!fl.criteria.projects.includes(oldBase)) continue;
       const f = this.app.vault.getAbstractFileByPath(fl.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (Array.isArray(fm.projects)) fm.projects = [...new Set(fm.projects.map(String).map((x) => x === oldBase ? newBase : x))];
       });
     }
@@ -10491,7 +10992,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (this.wikiBase(task.parent) !== oldBase) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (this.wikiBase(fm.parent) === oldBase) fm.parent = "[[" + newBase + "]]";
       });
     }
@@ -10516,7 +11017,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(name)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = arr.filter((x) => x !== name);
       });
@@ -10725,7 +11226,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const name = label.trim();
     if (!name) return;
     if (kind === "cancelled") {
-      new import_obsidian25.Notice(t("status_only_one_trash"));
+      new import_obsidian27.Notice(t("status_only_one_trash"));
       return;
     }
     const list = this.statusList();
@@ -10757,11 +11258,11 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
     if (kind === "cancelled" && list.some((x) => x.kind === "cancelled")) {
-      new import_obsidian25.Notice(t("status_only_one_trash"));
+      new import_obsidian27.Notice(t("status_only_one_trash"));
       return;
     }
     if (list.filter((x) => x.kind === s.kind).length <= 1) {
-      new import_obsidian25.Notice(t("status_need_kind"));
+      new import_obsidian27.Notice(t("status_need_kind"));
       return;
     }
     s.kind = kind;
@@ -10812,20 +11313,20 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s) return;
     if (list.filter((x) => x.kind === s.kind).length <= 1) {
-      new import_obsidian25.Notice(t("status_need_kind"));
+      new import_obsidian27.Notice(t("status_need_kind"));
       return;
     }
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = target;
       });
     }
     this.settings.statuses = list.filter((x) => x.id !== id);
     await this.commitStatuses();
-    if (affected.length) new import_obsidian25.Notice(t("status_reassigned", affected.length, statusLabel(target)));
+    if (affected.length) new import_obsidian27.Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
   // ── Aufgaben-Aktionen ──
   openNewTask(project, label, today = false, status) {
@@ -10870,7 +11371,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   fireReminder(task) {
     const body = task.title;
     try {
-      if (typeof Notification !== "undefined" && !import_obsidian25.Platform.isMobile) {
+      if (typeof Notification !== "undefined" && !import_obsidian27.Platform.isMobile) {
         const n = new Notification("BeautyTasks", { body });
         n.onclick = () => {
           window.focus();
@@ -10879,11 +11380,11 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
       }
     } catch {
     }
-    new import_obsidian25.Notice("\u23F0 " + body, 1e4);
+    new import_obsidian27.Notice("\u23F0 " + body, 1e4);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (isoVal) fm[field] = isoVal;
       else delete fm[field];
@@ -10891,7 +11392,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   }
   async setTaskDuration(task, minutes) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (minutes) fm.duration = minutes;
       else delete fm.duration;
@@ -10912,7 +11413,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async swapTaskLabel(task, remove, add) {
     if (remove === add) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       let arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
       if (remove) arr = arr.filter((x) => x !== remove);
@@ -10923,7 +11424,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   /** Priorität einer Aufgabe setzen (Kanban „nach Priorität"). „normal" = kein Frontmatter-Feld. */
   async setTaskPriority(task, priority) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.priority = priority !== "normal" ? priority : null;
     });
@@ -10932,7 +11433,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
    *  Referenz als `[[Basename]]` – wie im Task-Modal; der Index löst den Basename auf. */
   async setTaskProject(task, project) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.project = project ? "[[" + project + "]]" : null;
     });
@@ -10940,7 +11441,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
   async setTaskStatus(task, status) {
     if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian25.TFile)) return;
+    if (!(f instanceof import_obsidian27.TFile)) return;
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
@@ -10978,7 +11479,7 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((t2) => !isTrashed(t2.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = cancelId;
         fm.cancelled = stamp;
       });
@@ -10989,46 +11490,46 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
-    new import_obsidian25.Notice(t("msg_restored", task.title));
+    new import_obsidian27.Notice(t("msg_restored", task.title));
   }
   /** Einzelne Aufgabe endgültig löschen (in Obsidians Papierkorb – dort wiederherstellbar). */
   async deleteTaskForever(path) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (f instanceof import_obsidian25.TFile) await this.app.fileManager.trashFile(f);
+    if (f instanceof import_obsidian27.TFile) await this.app.fileManager.trashFile(f);
   }
   /** Alle abgebrochenen Aufgaben wiederherstellen (reversibel, ohne Rückfrage). */
   async restoreAllCancelled() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian25.Notice(t("report_trash_empty_restore"));
+      new import_obsidian27.Notice(t("report_trash_empty_restore"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
-    new import_obsidian25.Notice(t("report_tasks_restored", items.length));
+    new import_obsidian27.Notice(t("report_tasks_restored", items.length));
   }
   /** Papierkorb leeren: alle abgebrochenen Aufgaben in Obsidians Papierkorb verschieben. */
   async emptyTrash() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian25.Notice(t("msg_trash_empty"));
+      new import_obsidian27.Notice(t("msg_trash_empty"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian25.TFile) await this.app.fileManager.trashFile(f);
+      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.trashFile(f);
     }
-    new import_obsidian25.Notice(t("msg_trash_emptied", items.length));
+    new import_obsidian27.Notice(t("msg_trash_emptied", items.length));
   }
   async loadSettings() {
     const saved = await this.loadData();
@@ -11039,13 +11540,39 @@ var BeautyTasksPlugin = class extends import_obsidian25.Plugin {
         editor: { order: legacy.chipOrder, tiers: legacy.chipTiers }
       };
     }
-    if (saved?.chipsIconsOnly === void 0 && import_obsidian25.Platform.isMobile) {
+    if (saved?.chipsIconsOnly === void 0 && import_obsidian27.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);
+    this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
   }
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+  /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
+   *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */
+  setupGCal() {
+    const gcal = this.settings.gcal;
+    const store = {
+      load: () => gcal.tokens,
+      save: async (tokens) => {
+        gcal.tokens = tokens;
+        await this.saveSettings();
+      }
+    };
+    this.gcalAuth = new GCalAuth(
+      () => ({ clientId: gcal.clientId, clientSecret: gcal.clientSecret }),
+      store
+    );
+    const host = {
+      app: this.app,
+      settings: gcal,
+      persist: () => this.saveSettings(),
+      allTasks: () => this.index.all(),
+      subscribe: (cb) => this.index.subscribe(cb)
+    };
+    this.gcalSync = new GCalSync(host, this.gcalAuth);
+    this.register(() => this.gcalSync.stop());
   }
 };
