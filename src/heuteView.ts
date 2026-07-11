@@ -350,7 +350,7 @@ interface BoardColumn {
   onAdd: () => void;                            // „+ Aufgabe" in dieser Spalte
 }
 
-const NO_LABEL = " nolabel";   // Sentinel-ID der „Ohne Label"-Spalte (kein gültiger Label-Name)
+const NO_LABEL = "\u0000nolabel";   // Sentinel-ID der „Ohne Label"-Spalte (kein gültiger Label-Name)
 
 /** Status-Spalten (Standard-Kanban): Ziehen setzt den Status. */
 function statusColumns(plugin: BeautyTasksPlugin, add: BoardAdd): BoardColumn[] {
