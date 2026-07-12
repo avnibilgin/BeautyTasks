@@ -432,6 +432,7 @@ var STRINGS = {
     filter_delete: "Delete",
     filter_save: "Save",
     filter_need_name: "Please enter a name.",
+    filter_name_taken: "A filter with this name already exists.",
     filter_facets_active: "{0} active",
     filter_all: "All",
     filter_n_selected: "{0} selected",
@@ -843,6 +844,7 @@ var STRINGS = {
     filter_delete: "L\xF6schen",
     filter_save: "Speichern",
     filter_need_name: "Bitte einen Namen eingeben.",
+    filter_name_taken: "Ein Filter mit diesem Namen existiert bereits.",
     filter_facets_active: "{0} aktiv",
     filter_all: "Alle",
     filter_n_selected: "{0} ausgew\xE4hlt",
@@ -1254,6 +1256,7 @@ var STRINGS = {
     filter_delete: "Eliminar",
     filter_save: "Guardar",
     filter_need_name: "Introduce un nombre.",
+    filter_name_taken: "Ya existe un filtro con ese nombre.",
     filter_facets_active: "{0} activos",
     filter_all: "Todos",
     filter_n_selected: "{0} seleccionados",
@@ -1665,6 +1668,7 @@ var STRINGS = {
     filter_delete: "Excluir",
     filter_save: "Salvar",
     filter_need_name: "Digite um nome.",
+    filter_name_taken: "J\xE1 existe um filtro com esse nome.",
     filter_facets_active: "{0} ativos",
     filter_all: "Todos",
     filter_n_selected: "{0} selecionados",
@@ -2076,6 +2080,7 @@ var STRINGS = {
     filter_delete: "Supprimer",
     filter_save: "Enregistrer",
     filter_need_name: "Veuillez saisir un nom.",
+    filter_name_taken: "Un filtre portant ce nom existe d\xE9j\xE0.",
     filter_facets_active: "{0} actifs",
     filter_all: "Tous",
     filter_n_selected: "{0} s\xE9lectionn\xE9s",
@@ -2487,6 +2492,7 @@ var STRINGS = {
     filter_delete: "Sil",
     filter_save: "Kaydet",
     filter_need_name: "L\xFCtfen bir ad girin.",
+    filter_name_taken: "Bu ada sahip bir filtre zaten var.",
     filter_facets_active: "{0} etkin",
     filter_all: "T\xFCm\xFC",
     filter_n_selected: "{0} se\xE7ili",
@@ -2898,6 +2904,7 @@ var STRINGS = {
     filter_delete: "\u5220\u9664",
     filter_save: "\u4FDD\u5B58",
     filter_need_name: "\u8BF7\u8F93\u5165\u540D\u79F0\u3002",
+    filter_name_taken: "\u5DF2\u5B58\u5728\u540C\u540D\u7684\u8FC7\u6EE4\u5668\u3002",
     filter_facets_active: "{0} \u9879\u542F\u7528",
     filter_all: "\u5168\u90E8",
     filter_n_selected: "\u5DF2\u9009 {0} \u9879",
@@ -3309,6 +3316,7 @@ var STRINGS = {
     filter_delete: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
     filter_save: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
     filter_need_name: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435.",
+    filter_name_taken: "\u0424\u0438\u043B\u044C\u0442\u0440 \u0441 \u0442\u0430\u043A\u0438\u043C \u0438\u043C\u0435\u043D\u0435\u043C \u0443\u0436\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u0435\u0442.",
     filter_facets_active: "{0} \u0430\u043A\u0442\u0438\u0432\u043D\u043E",
     filter_all: "\u0412\u0441\u0435",
     filter_n_selected: "\u0412\u044B\u0431\u0440\u0430\u043D\u043E: {0}",
@@ -3720,6 +3728,7 @@ var STRINGS = {
     filter_delete: "\u524A\u9664",
     filter_save: "\u4FDD\u5B58",
     filter_need_name: "\u540D\u524D\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    filter_name_taken: "\u3053\u306E\u540D\u524D\u306E\u30D5\u30A3\u30EB\u30BF\u30FC\u306F\u65E2\u306B\u5B58\u5728\u3057\u307E\u3059\u3002",
     filter_facets_active: "{0} \u4EF6\u6709\u52B9",
     filter_all: "\u3059\u3079\u3066",
     filter_n_selected: "{0} \u4EF6\u9078\u629E",
@@ -4131,6 +4140,7 @@ var STRINGS = {
     filter_delete: "Elimina",
     filter_save: "Salva",
     filter_need_name: "Inserisci un nome.",
+    filter_name_taken: "Esiste gi\xE0 un filtro con questo nome.",
     filter_facets_active: "{0} attivi",
     filter_all: "Tutti",
     filter_n_selected: "{0} selezionati",
@@ -7286,6 +7296,7 @@ var FilterModal = class extends import_obsidian14.Modal {
     this.editPath = editPath ?? null;
     const existing = editPath ? readFilter(plugin.app, editPath) : null;
     this.name = existing?.name ?? "";
+    this.origName = this.name;
     this.c = { ...DEFAULT_CRITERIA, ...existing?.criteria ?? {} };
     this.o = { ...DEFAULT_OPTIONS, ...existing?.options ?? {} };
     this.color = existing?.color ?? null;
@@ -7468,8 +7479,18 @@ var FilterModal = class extends import_obsidian14.Modal {
       return;
     }
     if (this.editPath) {
-      await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
-      if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(this.editPath, this.visible);
+      let path = this.editPath;
+      if (name !== this.origName) {
+        const base = await this.plugin.renameFilter(this.editPath, name);
+        if (base === null) {
+          new import_obsidian14.Notice(t("filter_name_taken"));
+          return;
+        }
+        const slash = this.editPath.lastIndexOf("/");
+        path = (slash >= 0 ? this.editPath.slice(0, slash + 1) : "") + base + ".md";
+      }
+      await this.plugin.updateFilter(path, this.c, this.o, this.color);
+      if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(path, this.visible);
     } else {
       await this.plugin.createFilter(name, this.c, this.o, this.color, !this.visible);
     }

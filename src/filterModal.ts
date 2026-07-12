@@ -20,6 +20,7 @@ import { ConfirmModal } from "./confirmModal";
 
 export class FilterModal extends Modal {
   private name: string;
+  private readonly origName: string;
   private c: FilterCriteria;
   private o: ViewOptions;
   private color: string | null;
@@ -33,6 +34,7 @@ export class FilterModal extends Modal {
     this.editPath = editPath ?? null;
     const existing = editPath ? readFilter(plugin.app, editPath) : null;
     this.name = existing?.name ?? "";
+    this.origName = this.name;
     this.c = { ...DEFAULT_CRITERIA, ...(existing?.criteria ?? {}) };
     this.o = { ...DEFAULT_OPTIONS, ...(existing?.options ?? {}) };
     this.color = existing?.color ?? null;
@@ -190,8 +192,17 @@ export class FilterModal extends Modal {
     const name = this.name.trim();
     if (!name) { new Notice(t("filter_need_name")); return; }
     if (this.editPath) {
-      await this.plugin.updateFilter(this.editPath, this.c, this.o, this.color);
-      if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(this.editPath, this.visible);
+      // Name = Dateiname → bei Änderung erst umbenennen (liefert neuen Basenamen), dann auf
+      // den neuen Pfad schreiben. Kollision (null) bricht ab, damit nichts halb gespeichert wird.
+      let path = this.editPath;
+      if (name !== this.origName) {
+        const base = await this.plugin.renameFilter(this.editPath, name);
+        if (base === null) { new Notice(t("filter_name_taken")); return; }
+        const slash = this.editPath.lastIndexOf("/");
+        path = (slash >= 0 ? this.editPath.slice(0, slash + 1) : "") + base + ".md";
+      }
+      await this.plugin.updateFilter(path, this.c, this.o, this.color);
+      if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(path, this.visible);
     } else {
       await this.plugin.createFilter(name, this.c, this.o, this.color, !this.visible);
     }
