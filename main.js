@@ -6323,12 +6323,16 @@ function taskSearchText(task) {
 }
 function renderTaskSuggestion(match, el) {
   const task = match.item;
+  const done = isDone(task.status);
   el.addClass("bt-search-item");
-  el.createDiv({ cls: "bt-search-title", text: task.title });
+  el.createDiv({ cls: "bt-search-title" + (done ? " is-done" : ""), text: task.title });
   const meta = el.createDiv({ cls: "bt-search-meta" });
-  if (isDone(task.status)) meta.createSpan({ cls: "bt-search-tag is-done", text: t("sec_done") });
-  if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "#" + projectBase(task.project) });
-  if (task.due) meta.createSpan({ cls: "bt-search-tag", text: formatDate(task.due, todayStr()) });
+  if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "@" + projectBase(task.project) });
+  if (task.due) {
+    const today = todayStr();
+    const cls = done ? "" : task.due < today ? " is-overdue" : task.due === today ? " is-today" : "";
+    meta.createSpan({ cls: "bt-search-tag" + cls, text: formatDate(task.due, today) });
+  }
   for (const l of task.labels) meta.createSpan({ cls: "bt-search-tag", text: "#" + l });
 }
 var TaskSearchModal = class extends import_obsidian9.FuzzySuggestModal {
@@ -6338,7 +6342,11 @@ var TaskSearchModal = class extends import_obsidian9.FuzzySuggestModal {
     this.setPlaceholder(t("search_placeholder"));
   }
   getItems() {
-    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status));
+    const mtime = (tk) => {
+      const f = this.plugin.app.vault.getAbstractFileByPath(tk.path);
+      return f instanceof import_obsidian9.TFile ? f.stat.mtime : 0;
+    };
+    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status)).sort((a, b) => mtime(b) - mtime(a));
   }
   getItemText(task) {
     return taskSearchText(task);

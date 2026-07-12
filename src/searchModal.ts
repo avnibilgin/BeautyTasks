@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, FuzzyMatch } from "obsidian";
+import { App, FuzzySuggestModal, FuzzyMatch, TFile } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { formatDate, todayStr } from "./format";
@@ -16,12 +16,18 @@ function taskSearchText(task: Task): string {
 /** Einheitliche Aufgaben-Zeile für Such-/Picker-Modals (.bt-search-*). */
 function renderTaskSuggestion(match: FuzzyMatch<Task>, el: HTMLElement): void {
   const task = match.item;
+  const done = isDone(task.status);
   el.addClass("bt-search-item");
-  el.createDiv({ cls: "bt-search-title", text: task.title });
+  // Erledigt = durchgestrichener, gedimmter Titel (wie in der Liste) statt „Erledigt"-Wort.
+  el.createDiv({ cls: "bt-search-title" + (done ? " is-done" : ""), text: task.title });
   const meta = el.createDiv({ cls: "bt-search-meta" });
-  if (isDone(task.status)) meta.createSpan({ cls: "bt-search-tag is-done", text: t("sec_done") });
-  if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "#" + projectBase(task.project) });
-  if (task.due) meta.createSpan({ cls: "bt-search-tag", text: formatDate(task.due, todayStr()) });
+  // Projekt mit @ (Konvention: @ = Projekt/Bereich, # = Label).
+  if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "@" + projectBase(task.project) });
+  if (task.due) {   // Datum farbcodiert wie in der Liste (offene Aufgaben): überfällig / heute.
+    const today = todayStr();
+    const cls = done ? "" : task.due < today ? " is-overdue" : task.due === today ? " is-today" : "";
+    meta.createSpan({ cls: "bt-search-tag" + cls, text: formatDate(task.due, today) });
+  }
   for (const l of task.labels) meta.createSpan({ cls: "bt-search-tag", text: "#" + l });
 }
 
@@ -34,7 +40,12 @@ export class TaskSearchModal extends FuzzySuggestModal<Task> {
   }
 
   getItems(): Task[] {
-    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status));   // ohne Papierkorb
+    const mtime = (tk: Task): number => {
+      const f = this.plugin.app.vault.getAbstractFileByPath(tk.path);
+      return f instanceof TFile ? f.stat.mtime : 0;
+    };
+    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status))   // ohne Papierkorb
+      .sort((a, b) => mtime(b) - mtime(a));   // zuletzt geändert zuerst (leere Suche)
   }
 
   getItemText(task: Task): string { return taskSearchText(task); }

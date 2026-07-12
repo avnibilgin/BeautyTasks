@@ -244,8 +244,11 @@ body {
 /* Aufgaben-Suche (FuzzySuggestModal, außerhalb der View – eigene bt-search-*-Klassen). */
 .bt-search-item { display: flex; flex-direction: column; gap: 2px; }
 .bt-search-title { color: var(--text-normal); }
+.bt-search-title.is-done { color: var(--text-muted); text-decoration: line-through; }   /* erledigt: wie in der Liste */
 .bt-search-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; font-size: 0.8em; color: var(--text-muted); }
 .bt-search-tag.is-done { color: var(--text-faint); }
+.bt-search-tag.is-overdue { color: var(--bt-overdue); }   /* Datum überfällig */
+.bt-search-tag.is-today { color: var(--bt-today); }       /* Datum heute */
 
 .bt-view {
   padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
@@ -1286,13 +1289,14 @@ body {
 /* Modus-Segment oben im Facetten-Popover: „Aufgabe hat … eines | alle | keines".
    Randbündig (kein Seitenrand, kein Track-Hintergrund), Zellen ohne eigenen Rand. */
 .bt-mode-lead { padding: 4px 8px 5px; font-size: var(--font-smallest); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: var(--font-semibold); }
-.bt-mode-seg { display: flex; margin: 0 4px 6px; border-radius: var(--radius-s); background: var(--background-modifier-form-field); overflow: hidden; }
+/* Segment als eine Box (Track), drei Buttons darin; aktiv = Akzentfarbe + heller Text. */
+.bt-mode-seg { display: flex; margin: 0 4px 6px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); background: var(--background-modifier-form-field); overflow: hidden; }
 .bt-mode-opt { flex: 1; text-align: center; padding: 6px 4px; font-size: var(--font-ui-smaller); color: var(--text-muted); cursor: pointer; }
+.bt-mode-opt + .bt-mode-opt { border-left: 1px solid var(--background-modifier-border); }   /* Trennlinie zwischen den Buttons */
 .bt-mode-opt:hover { background: var(--background-modifier-hover); }
-/* Ausgewählter Modus: EINHEITLICH der dezente Grauton – kein Rand, Hintergrund füllt die ganze Zelle. */
-.bt-mode-opt.is-on { background: var(--background-modifier-hover); color: var(--text-normal); font-weight: var(--font-semibold); }
+.bt-mode-opt.is-on { background: var(--interactive-accent); color: var(--text-on-accent); font-weight: var(--font-semibold); }
 /* Mitlaufender Klartext-Satz – direkt unter dem Segment. */
-.bt-mode-sentence { padding: 0 8px 7px; font-size: var(--font-smallest); color: var(--text-muted); line-height: 1.35; }
+.bt-mode-sentence { padding: 0 8px 7px; margin-bottom: 4px; border-bottom: 1px solid var(--background-modifier-border); font-size: var(--font-smallest); color: var(--text-muted); line-height: 1.35; }
 /* Live-Trefferzahl im Fuß des Editors. */
 /* Trennlinie über dem Zähler – gleiche Linie wie unter den Sektionsköpfen. */
 .bt-filter-count {
