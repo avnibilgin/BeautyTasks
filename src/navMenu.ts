@@ -57,6 +57,13 @@ function deleteItem(plugin: BeautyTasksPlugin, item: NavMenuItem): Promise<void>
   return plugin.deleteProject(item.key);
 }
 
+/** Schnelles Umbenennen (nur der Name) je Typ – Schlüssel ist Pfad bzw. Label-Name. */
+function renameItem(plugin: BeautyTasksPlugin, item: NavMenuItem, v: string): void {
+  if (item.sec === "filters") { void plugin.renameFilter(item.key, v); return; }
+  if (item.sec === "labels") { void plugin.renameLabel(item.key, v); return; }
+  void plugin.renameProject(item.key, v);   // projects + areas (Pfad)
+}
+
 /** Übersetzungs-Schlüssel für „Zur …übersicht" je Sektion (Board-Kebab). */
 const GOTO_KEY: Record<NavSection, string> = {
   projects: "menu_goto_projects", areas: "menu_goto_areas", labels: "menu_goto_labels", filters: "menu_goto_filters",
@@ -82,11 +89,10 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
   menu.addItem((m) => m.setSection("bt-edit").setTitle(t("menu_edit")).setIcon("pencil")
     .onClick(() => openEdit(plugin, item)));
 
-  if (item.sec === "filters") {
-    menu.addItem((m) => m.setSection("bt-edit").setTitle(t("btn_rename")).setIcon("text-cursor-input")
-      .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: item.name, placeholder: t("filter_name") },
-        (v) => { void plugin.renameFilter(item.key, v); }).open()));
-  }
+  // — Umbenennen — (alle Typen; schnelles Prompt-Modal, konsistent statt „nur über Bearbeiten")
+  menu.addItem((m) => m.setSection("bt-edit").setTitle(t("btn_rename")).setIcon("text-cursor-input")
+    .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: item.name },
+      (v) => renameItem(plugin, item, v)).open()));
 
   if (isProjLike) {
     const toArea = item.type !== "area";

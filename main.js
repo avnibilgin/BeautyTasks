@@ -7887,6 +7887,17 @@ function deleteItem(plugin, item) {
   if (item.sec === "labels") return plugin.deleteLabel(item.key);
   return plugin.deleteProject(item.key);
 }
+function renameItem(plugin, item, v) {
+  if (item.sec === "filters") {
+    void plugin.renameFilter(item.key, v);
+    return;
+  }
+  if (item.sec === "labels") {
+    void plugin.renameLabel(item.key, v);
+    return;
+  }
+  void plugin.renameProject(item.key, v);
+}
 var GOTO_KEY = {
   projects: "menu_goto_projects",
   areas: "menu_goto_areas",
@@ -7901,15 +7912,11 @@ function buildItemMenu(menu, plugin, item, source = "sidebar") {
     menu.addItem((m) => m.setSection("bt-goto").setTitle(t(GOTO_KEY[item.sec])).setIcon("list-plus").onClick(() => void plugin.activateManage(item.sec)));
   }
   menu.addItem((m) => m.setSection("bt-edit").setTitle(t("menu_edit")).setIcon("pencil").onClick(() => openEdit(plugin, item)));
-  if (item.sec === "filters") {
-    menu.addItem((m) => m.setSection("bt-edit").setTitle(t("btn_rename")).setIcon("text-cursor-input").onClick(() => new PromptModal(
-      plugin.app,
-      { title: t("btn_rename"), value: item.name, placeholder: t("filter_name") },
-      (v) => {
-        void plugin.renameFilter(item.key, v);
-      }
-    ).open()));
-  }
+  menu.addItem((m) => m.setSection("bt-edit").setTitle(t("btn_rename")).setIcon("text-cursor-input").onClick(() => new PromptModal(
+    plugin.app,
+    { title: t("btn_rename"), value: item.name },
+    (v) => renameItem(plugin, item, v)
+  ).open()));
   if (isProjLike) {
     const toArea = item.type !== "area";
     menu.addItem((m) => m.setSection("bt-edit").setTitle(toArea ? t("tip_mark_area") : t("tip_unmark_area")).setIcon(toArea ? "circle-small" : "folder").onClick(() => void plugin.setProjectArea(item.key, toArea)));
