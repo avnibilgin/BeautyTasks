@@ -34,6 +34,25 @@ const EXPIRY_SKEW_MS = 60_000;
 /** Loopback-Login abbrechen, wenn der Nutzer nicht binnen dieser Zeit zustimmt. */
 const LOOPBACK_TIMEOUT_MS = 180_000;
 
+/**
+ * Minimal-Typen für Node-`http` – nur die Fläche, die der Loopback-Server nutzt.
+ * Bewusst selbst-enthalten (nicht `typeof import("http")`), damit auch ein Linter
+ * OHNE installierte `@types/node` (Store-Review) keine `any`-Werte sieht.
+ */
+interface LoopbackHttp {
+  createServer(handler: (req: { url?: string }, res: LoopbackResponse) => void): LoopbackServer;
+}
+interface LoopbackResponse {
+  writeHead(status: number, headers?: Record<string, string>): LoopbackResponse;
+  end(body?: string): void;
+}
+interface LoopbackServer {
+  listen(port: number, host: string, cb: () => void): void;
+  close(): void;
+  on(event: "error", cb: (e: Error) => void): void;
+  address(): { port: number } | string | null;
+}
+
 export interface GCalCredentials {
   clientId: string;
   clientSecret?: string;   // Desktop-Client; bei Device-Flow ebenfalls nötig
@@ -188,7 +207,7 @@ export class GCalAuth {
 
     // Node-http nur auf dem Desktop (Electron); als externes Builtin nicht gebündelt.
     // Zugriff über window.require, damit ESLint es nicht als Node-Import erkennt.
-    const http = (window as unknown as { require: (id: "http") => typeof import("http") }).require("http");
+    const http = (window as unknown as { require: (id: "http") => LoopbackHttp }).require("http");
 
     const { code, redirectUri } = await new Promise<{ code: string; redirectUri: string }>(
       (resolve, reject) => {
