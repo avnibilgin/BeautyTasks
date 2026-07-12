@@ -81,6 +81,43 @@ describe("matchesTask – Facetten (UND zwischen, ODER innerhalb)", () => {
   });
 });
 
+describe("matchesTask – Marker-Gruppen (✓ / + / −)", () => {
+  it("+ (labelsAll): alle müssen vorhanden sein (UND)", () => {
+    const c = crit({ labelsAll: ["a", "b"] });
+    expect(matchesTask(mk({ labels: ["a", "b", "c"] }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ labels: ["a"] }), c, TODAY)).toBe(false);
+  });
+  it("− (labelsNot): keines darf vorkommen (NICHT)", () => {
+    const c = crit({ labelsNot: ["irgendwann"] });
+    expect(matchesTask(mk({ labels: ["arbeit"] }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ labels: [] }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ labels: ["irgendwann"] }), c, TODAY)).toBe(false);
+  });
+  it("gemischt: ✓ einschließen UND − ausschließen im selben Feld", () => {
+    const c = crit({ labels: ["arbeit"], labelsNot: ["irgendwann"] });
+    expect(matchesTask(mk({ labels: ["arbeit"] }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ labels: ["arbeit", "irgendwann"] }), c, TODAY)).toBe(false);   // Ausschluss sticht
+    expect(matchesTask(mk({ labels: ["health"] }), c, TODAY)).toBe(false);                 // kein ✓-Treffer
+  });
+  it("Projekt −: schließt Projekt aus, Inbox (kein Projekt) bleibt", () => {
+    const c = crit({ projectsNot: ["Archiv"] });
+    expect(matchesTask(mk({ project: "P/Archiv.md" }), c, TODAY)).toBe(false);
+    expect(matchesTask(mk({ project: "P/Küche.md" }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ project: null }), c, TODAY)).toBe(true);
+  });
+  it("Priorität −: schließt gewählte Prioritäten aus", () => {
+    const c = crit({ prioritiesNot: ["normal"] });
+    expect(matchesTask(mk({ priority: "high" }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ priority: "normal" }), c, TODAY)).toBe(false);
+  });
+  it("Zielfilter „Jederzeit“: nodate + labelsNot irgendwann", () => {
+    const c = crit({ range: "nodate", labelsNot: ["irgendwann"] });
+    expect(matchesTask(mk({ due: null, labels: ["arbeit"] }), c, TODAY)).toBe(true);
+    expect(matchesTask(mk({ due: null, labels: ["irgendwann"] }), c, TODAY)).toBe(false);
+    expect(matchesTask(mk({ due: TODAY, labels: ["arbeit"] }), c, TODAY)).toBe(false);   // datiert fällt raus
+  });
+});
+
 describe("sortTasks", () => {
   it("smart: datiert zuerst (aufsteigend), Datumlose ans Ende", () => {
     const list = [mk({ id: "a", due: null }), mk({ id: "b", due: "2026-07-10" }), mk({ id: "c", due: "2026-07-08" })];

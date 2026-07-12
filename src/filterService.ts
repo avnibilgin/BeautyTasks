@@ -18,12 +18,13 @@ const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T)
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 
 function readCriteria(fm: Record<string, unknown>): FilterCriteria {
-  const prios = asStrArr(fm.priorities).filter((p): p is Priority => (FILTER_PRIORITIES as string[]).includes(p));
+  const prio = (v: unknown): Priority[] =>
+    asStrArr(v).filter((p): p is Priority => (FILTER_PRIORITIES as string[]).includes(p));
   return {
     range: oneOf<FilterRange>(fm.range, RANGES, DEFAULT_CRITERIA.range),
-    priorities: prios,
-    labels: asStrArr(fm.labels),
-    projects: asStrArr(fm.projects),
+    priorities: prio(fm.priorities), prioritiesNot: prio(fm.priorities_not),
+    labels: asStrArr(fm.labels), labelsAll: asStrArr(fm.labels_all), labelsNot: asStrArr(fm.labels_not),
+    projects: asStrArr(fm.projects), projectsNot: asStrArr(fm.projects_not),
     search: typeof fm.search === "string" ? fm.search : "",
   };
 }
@@ -64,8 +65,12 @@ function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: V
   const setOrDel = (k: string, v: unknown): void => { if (v == null) delete fm[k]; else fm[k] = v; };
   setOrDel("range", c.range === "any" ? null : c.range);
   setOrDel("priorities", c.priorities.length ? c.priorities : null);
+  setOrDel("priorities_not", c.prioritiesNot.length ? c.prioritiesNot : null);
   setOrDel("labels", c.labels.length ? c.labels : null);
+  setOrDel("labels_all", c.labelsAll.length ? c.labelsAll : null);
+  setOrDel("labels_not", c.labelsNot.length ? c.labelsNot : null);
   setOrDel("projects", c.projects.length ? c.projects : null);
+  setOrDel("projects_not", c.projectsNot.length ? c.projectsNot : null);
   setOrDel("search", c.search.trim() || null);
   writeViewOptions(fm, o);   // layout/sort/group/showDone (Defaults werden entfernt)
   setOrDel("color", color);

@@ -11,12 +11,18 @@ export type FilterRange = "any" | "today" | "overdue" | "next7" | "nodate";
 export type FilterSort = "smart" | "due" | "deadline" | "priority" | "created" | "title";
 export type FilterGroup = "none" | "date" | "deadline" | "priority" | "label" | "project";
 export type PageLayout = "list" | "board";
+/** Verknüpfungs-Modus einer Auswahl-Facette: irgendeines (ODER) / alle (UND) / keines (NICHT).
+ *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
+ *  EINE Priorität, dort gibt es nur any/none. */
+export type MatchMode = "any" | "all" | "none";
 
 export interface FilterCriteria {
   range: FilterRange;      // Zeitraum-Facette (Default „any" = alle)
-  priorities: Priority[];  // leer = alle (ODER innerhalb)
-  labels: string[];        // leer = alle (ODER innerhalb)
-  projects: string[];      // Basenamen, leer = alle (ODER innerhalb)
+  // Jede Auswahl-Facette führt ihre Werte pro Marker getrennt: ✓ (irgendeines/ODER),
+  // + (alle/UND, nur bei mehrwertigen Labels sinnvoll), − (keines/NICHT).
+  priorities: Priority[];  prioritiesNot: Priority[];              // ✓ / −
+  labels: string[];        labelsAll: string[]; labelsNot: string[];  // ✓ / + / −
+  projects: string[];      projectsNot: string[];                 // ✓ / −  (Basenamen)
   search: string;          // Freitext im Titel ("" = keiner)
 }
 
@@ -27,7 +33,13 @@ export interface ViewOptions {
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
 }
 
-export const DEFAULT_CRITERIA: FilterCriteria = { range: "any", priorities: [], labels: [], projects: [], search: "" };
+export const DEFAULT_CRITERIA: FilterCriteria = {
+  range: "any",
+  priorities: [], prioritiesNot: [],
+  labels: [], labelsAll: [], labelsNot: [],
+  projects: [], projectsNot: [],
+  search: "",
+};
 export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
@@ -53,9 +65,9 @@ export function addDays(iso: string, n: number): string {
 export function activeFacetCount(c: FilterCriteria): number {
   let n = 0;
   if (c.range !== "any") n++;
-  if (c.priorities.length) n++;
-  if (c.labels.length) n++;
-  if (c.projects.length) n++;
+  if (c.priorities.length || c.prioritiesNot.length) n++;
+  if (c.labels.length || c.labelsAll.length || c.labelsNot.length) n++;
+  if (c.projects.length || c.projectsNot.length) n++;
   if (c.search.trim()) n++;
   return n;
 }
@@ -70,12 +82,22 @@ function inRange(t: Task, range: FilterRange, today: string): boolean {
   return true;
 }
 
-/** Reine Prädikat-Auswertung einer Aufgabe gegen die Kriterien. */
+/** Reine Prädikat-Auswertung einer Aufgabe gegen die Kriterien. Je Facette:
+ *  ✓ (irgendeines muss zutreffen) UND + (alle müssen zutreffen) UND − (keines darf zutreffen). */
 export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean {
   if (!inRange(t, c.range, today)) return false;
+  // Prioritäten (einwertig): ✓ irgendeine / − keine
   if (c.priorities.length && !c.priorities.includes(t.priority)) return false;
+  if (c.prioritiesNot.includes(t.priority)) return false;
+  // Labels (mehrwertig): ✓ irgendeines / + alle / − keines
   if (c.labels.length && !c.labels.some((l) => t.labels.includes(l))) return false;
-  if (c.projects.length && !(t.project && c.projects.includes(baseName(t.project)))) return false;
+  if (!c.labelsAll.every((l) => t.labels.includes(l))) return false;
+  if (c.labelsNot.some((l) => t.labels.includes(l))) return false;
+  // Projekte (einwertig, Basename): ✓ irgendeines / − keines
+  const pb = t.project ? baseName(t.project) : null;
+  if (c.projects.length && !(pb !== null && c.projects.includes(pb))) return false;
+  if (pb !== null && c.projectsNot.includes(pb)) return false;
+  // Suche
   const q = c.search.trim().toLowerCase();
   if (q && !t.title.toLowerCase().includes(q)) return false;
   return true;

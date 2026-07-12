@@ -476,10 +476,12 @@ export default class BeautyTasksPlugin extends Plugin {
     }
     // Filter-Kriterien, die dieses Label per Klartext referenzieren, mitziehen (Obsidian fasst das nie an).
     for (const fl of listFilters(this.app)) {
-      if (!fl.criteria.labels.includes(oldName)) continue;
+      if (!fl.criteria.labels.includes(oldName) && !fl.criteria.labelsAll.includes(oldName) && !fl.criteria.labelsNot.includes(oldName)) continue;
       const ff = this.app.vault.getAbstractFileByPath(fl.path);
       if (ff instanceof TFile) await this.app.fileManager.processFrontMatter(ff, (fm: Record<string, unknown>) => {
-        if (Array.isArray(fm.labels)) fm.labels = [...new Set((fm.labels as unknown[]).map(String).map((x) => (x === oldName ? nu : x)))];
+        for (const key of ["labels", "labels_all", "labels_not"]) {
+          if (Array.isArray(fm[key])) fm[key] = [...new Set((fm[key] as unknown[]).map(String).map((x) => (x === oldName ? nu : x)))];
+        }
       });
     }
     this.settings.knownLabels = [...new Set(this.settings.knownLabels.map((x) => (x === oldName ? nu : x)))];
@@ -531,10 +533,12 @@ export default class BeautyTasksPlugin extends Plugin {
       });
     }
     for (const fl of listFilters(this.app)) {
-      if (!fl.criteria.projects.includes(oldBase)) continue;
+      if (!fl.criteria.projects.includes(oldBase) && !fl.criteria.projectsNot.includes(oldBase)) continue;
       const f = this.app.vault.getAbstractFileByPath(fl.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-        if (Array.isArray(fm.projects)) fm.projects = [...new Set((fm.projects as unknown[]).map(String).map((x) => (x === oldBase ? newBase : x)))];
+        for (const key of ["projects", "projects_not"]) {
+          if (Array.isArray(fm[key])) fm[key] = [...new Set((fm[key] as unknown[]).map(String).map((x) => (x === oldBase ? newBase : x)))];
+        }
       });
     }
   }

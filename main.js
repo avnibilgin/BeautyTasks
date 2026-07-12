@@ -89,6 +89,12 @@ var STRINGS = {
     sort_count: "Count",
     whatsnew_title: "What\u2019s new",
     whatsnew_ok: "Got it",
+    wn_excl_t: "Include and exclude in filters",
+    wn_excl_d: "Mark each value as \u2713 include or \u2212 exclude \u2014 mixed in the same field, for labels, projects and priorities.",
+    wn_fmode_t: "Mode: any \xB7 all \xB7 none",
+    wn_fmode_d: "Per field, choose at least one (OR), all (AND) or none (NOT).",
+    wn_anytime_t: "e.g. an \u201CAnytime\u201D filter",
+    wn_anytime_d: "Undated and without a certain label \u2014 now possible in a single filter.",
     wn_chips_t: "Customize input chips",
     wn_chips_d: "Show, hide and reorder the chips in quick add and the full editor separately \u2014 with a + menu for the rest.",
     wn_status_t: "Robust statuses",
@@ -436,6 +442,14 @@ var STRINGS = {
     filter_facets_active: "{0} active",
     filter_all: "All",
     filter_n_selected: "{0} selected",
+    filter_n_criteria: "{0} criteria selected",
+    filter_mode_lead: "Filter mode",
+    filter_mode_any: "any",
+    filter_mode_all: "all",
+    filter_mode_none: "none",
+    filter_mode_s_any: "At least one must match.",
+    filter_mode_s_all: "All must match.",
+    filter_mode_s_none: "None may match.",
     filter_range_any: "Any",
     filter_range_overdue: "Overdue",
     filter_range_today: "Today & overdue",
@@ -501,6 +515,12 @@ var STRINGS = {
     sort_count: "Anzahl",
     whatsnew_title: "Neu in dieser Version",
     whatsnew_ok: "Verstanden",
+    wn_excl_t: "Im Filter ein- und ausschlie\xDFen",
+    wn_excl_d: "Markiere jeden Wert als \u2713 einschlie\xDFen oder \u2212 ausschlie\xDFen \u2014 gemischt im selben Feld, f\xFCr Labels, Projekte und Priorit\xE4ten.",
+    wn_fmode_t: "Modus: eines \xB7 alle \xB7 keines",
+    wn_fmode_d: "Pro Feld w\xE4hlen: mindestens eines (ODER), alle (UND) oder keines (NICHT).",
+    wn_anytime_t: "z. B. ein \u201EJederzeit\u201C-Filter",
+    wn_anytime_d: "Ohne Datum und ohne ein bestimmtes Label \u2014 jetzt in einem einzigen Filter.",
     wn_chips_t: "Eingabe-Chips anpassen",
     wn_chips_d: "Chips in Schnelleingabe und vollem Editor getrennt ein-/ausblenden und sortieren \u2013 mit +-Men\xFC f\xFCr den Rest.",
     wn_status_t: "Robuste Status",
@@ -848,6 +868,14 @@ var STRINGS = {
     filter_facets_active: "{0} aktiv",
     filter_all: "Alle",
     filter_n_selected: "{0} ausgew\xE4hlt",
+    filter_n_criteria: "{0} Kriterien gew\xE4hlt",
+    filter_mode_lead: "Filtermodus",
+    filter_mode_any: "eines",
+    filter_mode_all: "alle",
+    filter_mode_none: "keines",
+    filter_mode_s_any: "Mindestens eines trifft zu.",
+    filter_mode_s_all: "Alle m\xFCssen zutreffen.",
+    filter_mode_s_none: "Keines darf zutreffen.",
     filter_range_any: "Alle",
     filter_range_overdue: "\xDCberf\xE4llig",
     filter_range_today: "Heute & \xFCberf\xE4llig",
@@ -913,6 +941,12 @@ var STRINGS = {
     sort_count: "Cantidad",
     whatsnew_title: "Novedades",
     whatsnew_ok: "Entendido",
+    wn_excl_t: "Incluir y excluir en filtros",
+    wn_excl_d: "Marca cada valor como \u2713 incluir o \u2212 excluir, mezclado en el mismo campo: etiquetas, proyectos y prioridades.",
+    wn_fmode_t: "Modo: alguno \xB7 todos \xB7 ninguno",
+    wn_fmode_d: "Por campo: al menos uno (O), todos (Y) o ninguno (NO).",
+    wn_anytime_t: "p. ej. un filtro \xABEn cualquier momento\xBB",
+    wn_anytime_d: "Sin fecha y sin una etiqueta concreta, ahora en un solo filtro.",
     wn_chips_t: "Personaliza los chips",
     wn_chips_d: "Muestra, oculta y reordena los chips en la entrada r\xE1pida y el editor completo por separado, con un men\xFA + para el resto.",
     wn_status_t: "Estados robustos",
@@ -1260,6 +1294,14 @@ var STRINGS = {
     filter_facets_active: "{0} activos",
     filter_all: "Todos",
     filter_n_selected: "{0} seleccionados",
+    filter_n_criteria: "{0} criterios seleccionados",
+    filter_mode_lead: "Modo de filtro",
+    filter_mode_any: "alguno",
+    filter_mode_all: "todos",
+    filter_mode_none: "ninguno",
+    filter_mode_s_any: "Al menos uno debe coincidir.",
+    filter_mode_s_all: "Todos deben coincidir.",
+    filter_mode_s_none: "Ninguno debe coincidir.",
     filter_range_any: "Cualquiera",
     filter_range_overdue: "Atrasadas",
     filter_range_today: "Hoy y atrasadas",
@@ -1325,6 +1367,12 @@ var STRINGS = {
     sort_count: "Quantidade",
     whatsnew_title: "Novidades",
     whatsnew_ok: "Entendi",
+    wn_excl_t: "Incluir e excluir nos filtros",
+    wn_excl_d: "Marque cada valor como \u2713 incluir ou \u2212 excluir, misturado no mesmo campo: etiquetas, projetos e prioridades.",
+    wn_fmode_t: "Modo: algum \xB7 todos \xB7 nenhum",
+    wn_fmode_d: "Por campo: pelo menos um (OU), todos (E) ou nenhum (N\xC3O).",
+    wn_anytime_t: "ex.: um filtro \u201CA qualquer momento\u201D",
+    wn_anytime_d: "Sem data e sem uma etiqueta espec\xEDfica \u2014 agora num \xFAnico filtro.",
     wn_chips_t: "Personalize os chips",
     wn_chips_d: "Mostre, oculte e reordene os chips na adi\xE7\xE3o r\xE1pida e no editor completo separadamente, com um menu + para o resto.",
     wn_status_t: "Status robustos",
@@ -1672,6 +1720,14 @@ var STRINGS = {
     filter_facets_active: "{0} ativos",
     filter_all: "Todos",
     filter_n_selected: "{0} selecionados",
+    filter_n_criteria: "{0} crit\xE9rios selecionados",
+    filter_mode_lead: "Modo de filtro",
+    filter_mode_any: "algum",
+    filter_mode_all: "todos",
+    filter_mode_none: "nenhum",
+    filter_mode_s_any: "Pelo menos um deve corresponder.",
+    filter_mode_s_all: "Todos devem corresponder.",
+    filter_mode_s_none: "Nenhum pode corresponder.",
     filter_range_any: "Qualquer",
     filter_range_overdue: "Atrasadas",
     filter_range_today: "Hoje e atrasadas",
@@ -1737,6 +1793,12 @@ var STRINGS = {
     sort_count: "Nombre",
     whatsnew_title: "Nouveaut\xE9s",
     whatsnew_ok: "Compris",
+    wn_excl_t: "Inclure et exclure dans les filtres",
+    wn_excl_d: "Marquez chaque valeur \u2713 inclure ou \u2212 exclure, m\xE9lang\xE9s dans le m\xEAme champ : \xE9tiquettes, projets et priorit\xE9s.",
+    wn_fmode_t: "Mode : au moins un \xB7 tous \xB7 aucun",
+    wn_fmode_d: "Par champ : au moins un (OU), tous (ET) ou aucun (NON).",
+    wn_anytime_t: "p. ex. un filtre \xAB \xC0 tout moment \xBB",
+    wn_anytime_d: "Sans date et sans une \xE9tiquette pr\xE9cise \u2014 d\xE9sormais dans un seul filtre.",
     wn_chips_t: "Personnalisez les puces",
     wn_chips_d: "Affichez, masquez et r\xE9organisez les puces dans l\u2019ajout rapide et l\u2019\xE9diteur complet s\xE9par\xE9ment, avec un menu + pour le reste.",
     wn_status_t: "Statuts robustes",
@@ -2084,6 +2146,14 @@ var STRINGS = {
     filter_facets_active: "{0} actifs",
     filter_all: "Tous",
     filter_n_selected: "{0} s\xE9lectionn\xE9s",
+    filter_n_criteria: "{0} crit\xE8res s\xE9lectionn\xE9s",
+    filter_mode_lead: "Mode de filtre",
+    filter_mode_any: "l'un",
+    filter_mode_all: "tous",
+    filter_mode_none: "aucun",
+    filter_mode_s_any: "Au moins un doit correspondre.",
+    filter_mode_s_all: "Tous doivent correspondre.",
+    filter_mode_s_none: "Aucun ne doit correspondre.",
     filter_range_any: "Toutes",
     filter_range_overdue: "En retard",
     filter_range_today: "Aujourd'hui et en retard",
@@ -2149,6 +2219,12 @@ var STRINGS = {
     sort_count: "Say\u0131",
     whatsnew_title: "Yenilikler",
     whatsnew_ok: "Anlad\u0131m",
+    wn_excl_t: "Filtrede dahil etme ve hari\xE7 tutma",
+    wn_excl_d: "Her de\u011Feri \u2713 dahil et veya \u2212 hari\xE7 tut olarak i\u015Faretle \u2014 ayn\u0131 alanda kar\u0131\u015F\u0131k; etiketler, projeler ve \xF6ncelikler.",
+    wn_fmode_t: "Mod: biri \xB7 hepsi \xB7 hi\xE7biri",
+    wn_fmode_d: "Alan ba\u015F\u0131na: en az biri (VEYA), hepsi (VE) veya hi\xE7biri (DE\u011E\u0130L).",
+    wn_anytime_t: "\xF6rn. bir \u201CHer zaman\u201D filtresi",
+    wn_anytime_d: "Tarihsiz ve belirli bir etiket olmadan \u2014 art\u0131k tek bir filtrede.",
     wn_chips_t: "Giri\u015F \xE7iplerini \xF6zelle\u015Ftirin",
     wn_chips_d: "H\u0131zl\u0131 ekleme ve tam d\xFCzenleyicideki \xE7ipleri ayr\u0131 ayr\u0131 g\xF6sterin, gizleyin ve yeniden s\u0131ralay\u0131n; gerisi i\xE7in + men\xFCs\xFC.",
     wn_status_t: "Sa\u011Flam durumlar",
@@ -2496,6 +2572,14 @@ var STRINGS = {
     filter_facets_active: "{0} etkin",
     filter_all: "T\xFCm\xFC",
     filter_n_selected: "{0} se\xE7ili",
+    filter_n_criteria: "{0} kriter se\xE7ili",
+    filter_mode_lead: "Filtre modu",
+    filter_mode_any: "biri",
+    filter_mode_all: "hepsi",
+    filter_mode_none: "hi\xE7biri",
+    filter_mode_s_any: "En az biri e\u015Fle\u015Fmeli.",
+    filter_mode_s_all: "Hepsi e\u015Fle\u015Fmeli.",
+    filter_mode_s_none: "Hi\xE7biri e\u015Fle\u015Fmemeli.",
     filter_range_any: "Herhangi",
     filter_range_overdue: "Gecikmi\u015F",
     filter_range_today: "Bug\xFCn ve gecikmi\u015F",
@@ -2561,6 +2645,12 @@ var STRINGS = {
     sort_count: "\u6570\u91CF",
     whatsnew_title: "\u65B0\u529F\u80FD",
     whatsnew_ok: "\u77E5\u9053\u4E86",
+    wn_excl_t: "\u7B5B\u9009\u4E2D\u5305\u542B\u4E0E\u6392\u9664",
+    wn_excl_d: "\u5C06\u6BCF\u4E2A\u503C\u6807\u8BB0\u4E3A \u2713 \u5305\u542B\u6216 \u2212 \u6392\u9664\uFF0C\u53EF\u5728\u540C\u4E00\u5B57\u6BB5\u6DF7\u7528\uFF1B\u9002\u7528\u4E8E\u6807\u7B7E\u3001\u9879\u76EE\u548C\u4F18\u5148\u7EA7\u3002",
+    wn_fmode_t: "\u6A21\u5F0F\uFF1A\u4EFB\u4E00 \xB7 \u5168\u90E8 \xB7 \u65E0",
+    wn_fmode_d: "\u6BCF\u4E2A\u5B57\u6BB5\u53EF\u9009\uFF1A\u81F3\u5C11\u4E00\u4E2A\uFF08\u6216\uFF09\u3001\u5168\u90E8\uFF08\u4E0E\uFF09\u6216\u65E0\uFF08\u975E\uFF09\u3002",
+    wn_anytime_t: "\u4F8B\u5982\u201C\u968F\u65F6\u201D\u7B5B\u9009",
+    wn_anytime_d: "\u65E0\u65E5\u671F\u4E14\u4E0D\u542B\u67D0\u4E2A\u6807\u7B7E\u2014\u2014\u73B0\u5728\u53EF\u5728\u4E00\u4E2A\u7B5B\u9009\u4E2D\u5B9E\u73B0\u3002",
     wn_chips_t: "\u81EA\u5B9A\u4E49\u8F93\u5165\u9879",
     wn_chips_d: "\u5728\u5FEB\u901F\u6DFB\u52A0\u548C\u5B8C\u6574\u7F16\u8F91\u5668\u4E2D\u5206\u522B\u663E\u793A\u3001\u9690\u85CF\u548C\u91CD\u65B0\u6392\u5E8F\u8F93\u5165\u9879\uFF0C\u5176\u4F59\u9879\u5728 + \u83DC\u5355\u4E2D\u3002",
     wn_status_t: "\u66F4\u7A33\u5065\u7684\u72B6\u6001",
@@ -2908,6 +2998,14 @@ var STRINGS = {
     filter_facets_active: "{0} \u9879\u542F\u7528",
     filter_all: "\u5168\u90E8",
     filter_n_selected: "\u5DF2\u9009 {0} \u9879",
+    filter_n_criteria: "\u5DF2\u9009 {0} \u4E2A\u6761\u4EF6",
+    filter_mode_lead: "\u7B5B\u9009\u6A21\u5F0F",
+    filter_mode_any: "\u4EFB\u4E00",
+    filter_mode_all: "\u5168\u90E8",
+    filter_mode_none: "\u65E0",
+    filter_mode_s_any: "\u81F3\u5C11\u5339\u914D\u4E00\u4E2A\u3002",
+    filter_mode_s_all: "\u5FC5\u987B\u5168\u90E8\u5339\u914D\u3002",
+    filter_mode_s_none: "\u4E0D\u80FD\u5339\u914D\u4EFB\u4F55\u4E00\u4E2A\u3002",
     filter_range_any: "\u4EFB\u610F",
     filter_range_overdue: "\u5DF2\u903E\u671F",
     filter_range_today: "\u4ECA\u5929\u53CA\u903E\u671F",
@@ -2973,6 +3071,12 @@ var STRINGS = {
     sort_count: "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E",
     whatsnew_title: "\u0427\u0442\u043E \u043D\u043E\u0432\u043E\u0433\u043E",
     whatsnew_ok: "\u041F\u043E\u043D\u044F\u0442\u043D\u043E",
+    wn_excl_t: "\u0412\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0438\u0441\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0432 \u0444\u0438\u043B\u044C\u0442\u0440\u0430\u0445",
+    wn_excl_d: "\u041E\u0442\u043C\u0435\u0447\u0430\u0439\u0442\u0435 \u043A\u0430\u0436\u0434\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435 \u043A\u0430\u043A \u2713 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0438\u043B\u0438 \u2212 \u0438\u0441\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u2014 \u0432\u043F\u0435\u0440\u0435\u043C\u0435\u0448\u043A\u0443 \u0432 \u043E\u0434\u043D\u043E\u043C \u043F\u043E\u043B\u0435: \u043C\u0435\u0442\u043A\u0438, \u043F\u0440\u043E\u0435\u043A\u0442\u044B \u0438 \u043F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442\u044B.",
+    wn_fmode_t: "\u0420\u0435\u0436\u0438\u043C: \u043B\u044E\u0431\u043E\u0435 \xB7 \u0432\u0441\u0435 \xB7 \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E",
+    wn_fmode_d: "\u0414\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u043F\u043E\u043B\u044F: \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u043E (\u0418\u041B\u0418), \u0432\u0441\u0435 (\u0418) \u0438\u043B\u0438 \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E (\u041D\u0415).",
+    wn_anytime_t: "\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, \u0444\u0438\u043B\u044C\u0442\u0440 \xAB\u0412 \u043B\u044E\u0431\u043E\u0435 \u0432\u0440\u0435\u043C\u044F\xBB",
+    wn_anytime_d: "\u0411\u0435\u0437 \u0434\u0430\u0442\u044B \u0438 \u0431\u0435\u0437 \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0451\u043D\u043D\u043E\u0439 \u043C\u0435\u0442\u043A\u0438 \u2014 \u0442\u0435\u043F\u0435\u0440\u044C \u0432 \u043E\u0434\u043D\u043E\u043C \u0444\u0438\u043B\u044C\u0442\u0440\u0435.",
     wn_chips_t: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0447\u0438\u043F\u044B \u0432\u0432\u043E\u0434\u0430",
     wn_chips_d: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0439\u0442\u0435, \u0441\u043A\u0440\u044B\u0432\u0430\u0439\u0442\u0435 \u0438 \u043F\u0435\u0440\u0435\u0443\u043F\u043E\u0440\u044F\u0434\u043E\u0447\u0438\u0432\u0430\u0439\u0442\u0435 \u0447\u0438\u043F\u044B \u0432 \u0431\u044B\u0441\u0442\u0440\u043E\u043C \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0438 \u0438 \u043F\u043E\u043B\u043D\u043E\u043C \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440\u0435 \u043F\u043E \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u0438 \u2014 \u0441 \u043C\u0435\u043D\u044E + \u0434\u043B\u044F \u043E\u0441\u0442\u0430\u043B\u044C\u043D\u043E\u0433\u043E.",
     wn_status_t: "\u041D\u0430\u0434\u0451\u0436\u043D\u044B\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B",
@@ -3320,6 +3424,14 @@ var STRINGS = {
     filter_facets_active: "{0} \u0430\u043A\u0442\u0438\u0432\u043D\u043E",
     filter_all: "\u0412\u0441\u0435",
     filter_n_selected: "\u0412\u044B\u0431\u0440\u0430\u043D\u043E: {0}",
+    filter_n_criteria: "\u041A\u0440\u0438\u0442\u0435\u0440\u0438\u0435\u0432 \u0432\u044B\u0431\u0440\u0430\u043D\u043E: {0}",
+    filter_mode_lead: "\u0420\u0435\u0436\u0438\u043C \u0444\u0438\u043B\u044C\u0442\u0440\u0430",
+    filter_mode_any: "\u043B\u044E\u0431\u043E\u0439",
+    filter_mode_all: "\u0432\u0441\u0435",
+    filter_mode_none: "\u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E",
+    filter_mode_s_any: "\u0425\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u043E \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u0435\u0442.",
+    filter_mode_s_all: "\u0414\u043E\u043B\u0436\u043D\u044B \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u0442\u044C \u0432\u0441\u0435.",
+    filter_mode_s_none: "\u041D\u0438 \u043E\u0434\u043D\u043E \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u0435\u0442.",
     filter_range_any: "\u041B\u044E\u0431\u043E\u0439",
     filter_range_overdue: "\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043D\u044B\u0435",
     filter_range_today: "\u0421\u0435\u0433\u043E\u0434\u043D\u044F \u0438 \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043D\u044B\u0435",
@@ -3385,6 +3497,12 @@ var STRINGS = {
     sort_count: "\u4EF6\u6570",
     whatsnew_title: "\u65B0\u6A5F\u80FD",
     whatsnew_ok: "OK",
+    wn_excl_t: "\u30D5\u30A3\u30EB\u30BF\u30FC\u3067\u542B\u3081\u308B\uFF0F\u9664\u5916\u3059\u308B",
+    wn_excl_d: "\u5404\u5024\u3092 \u2713 \u542B\u3081\u308B\u30FB\u2212 \u9664\u5916\u3068\u3057\u3066\u6307\u5B9A \u2014 \u540C\u3058\u9805\u76EE\u5185\u3067\u6DF7\u5728\u53EF\u80FD\u3002\u30E9\u30D9\u30EB\u30FB\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u30FB\u512A\u5148\u5EA6\u306B\u5BFE\u5FDC\u3002",
+    wn_fmode_t: "\u30E2\u30FC\u30C9\uFF1A\u3044\u305A\u308C\u304B\u30FB\u3059\u3079\u3066\u30FB\u306A\u3057",
+    wn_fmode_d: "\u9805\u76EE\u3054\u3068\u306B\u3001\u5C11\u306A\u304F\u3068\u30821\u3064\uFF08OR\uFF09\u3001\u3059\u3079\u3066\uFF08AND\uFF09\u3001\u306A\u3057\uFF08NOT\uFF09\u3092\u9078\u629E\u3002",
+    wn_anytime_t: "\u4F8B\uFF1A\u300C\u3044\u3064\u3067\u3082\u300D\u30D5\u30A3\u30EB\u30BF\u30FC",
+    wn_anytime_d: "\u65E5\u4ED8\u306A\u3057\u30FB\u7279\u5B9A\u306E\u30E9\u30D9\u30EB\u306A\u3057 \u2014 1\u3064\u306E\u30D5\u30A3\u30EB\u30BF\u30FC\u3067\u5B9F\u73FE\u3002",
     wn_chips_t: "\u5165\u529B\u30C1\u30C3\u30D7\u3092\u30AB\u30B9\u30BF\u30DE\u30A4\u30BA",
     wn_chips_d: "\u30AF\u30A4\u30C3\u30AF\u8FFD\u52A0\u3068\u30D5\u30EB\u30A8\u30C7\u30A3\u30BF\u30FC\u306E\u30C1\u30C3\u30D7\u3092\u500B\u5225\u306B\u8868\u793A\u30FB\u975E\u8868\u793A\u30FB\u4E26\u3079\u66FF\u3048\u3002\u6B8B\u308A\u306F + \u30E1\u30CB\u30E5\u30FC\u306B\u3002",
     wn_status_t: "\u5805\u7262\u306A\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -3732,6 +3850,14 @@ var STRINGS = {
     filter_facets_active: "{0} \u4EF6\u6709\u52B9",
     filter_all: "\u3059\u3079\u3066",
     filter_n_selected: "{0} \u4EF6\u9078\u629E",
+    filter_n_criteria: "{0} \u4EF6\u306E\u6761\u4EF6\u3092\u9078\u629E",
+    filter_mode_lead: "\u30D5\u30A3\u30EB\u30BF\u30FC\u30E2\u30FC\u30C9",
+    filter_mode_any: "\u3044\u305A\u308C\u304B",
+    filter_mode_all: "\u3059\u3079\u3066",
+    filter_mode_none: "\u306A\u3057",
+    filter_mode_s_any: "\u5C11\u306A\u304F\u3068\u30821\u3064\u304C\u4E00\u81F4\u3002",
+    filter_mode_s_all: "\u3059\u3079\u3066\u304C\u4E00\u81F4\u3002",
+    filter_mode_s_none: "\u3069\u308C\u3082\u4E00\u81F4\u3057\u306A\u3044\u3002",
     filter_range_any: "\u3059\u3079\u3066",
     filter_range_overdue: "\u671F\u9650\u5207\u308C",
     filter_range_today: "\u4ECA\u65E5\u3068\u671F\u9650\u5207\u308C",
@@ -3797,6 +3923,12 @@ var STRINGS = {
     sort_count: "Numero",
     whatsnew_title: "Novit\xE0",
     whatsnew_ok: "Ho capito",
+    wn_excl_t: "Includere ed escludere nei filtri",
+    wn_excl_d: "Segna ogni valore come \u2713 includi o \u2212 escludi, misti nello stesso campo: etichette, progetti e priorit\xE0.",
+    wn_fmode_t: "Modalit\xE0: uno \xB7 tutti \xB7 nessuno",
+    wn_fmode_d: "Per campo: almeno uno (O), tutti (E) o nessuno (NON).",
+    wn_anytime_t: "es. un filtro \u201CIn qualsiasi momento\u201D",
+    wn_anytime_d: "Senza data e senza una certa etichetta \u2014 ora in un solo filtro.",
     wn_chips_t: "Personalizza i chip",
     wn_chips_d: "Mostra, nascondi e riordina i chip nell\u2019aggiunta rapida e nell\u2019editor completo separatamente, con un menu + per il resto.",
     wn_status_t: "Stati robusti",
@@ -4144,6 +4276,14 @@ var STRINGS = {
     filter_facets_active: "{0} attivi",
     filter_all: "Tutti",
     filter_n_selected: "{0} selezionati",
+    filter_n_criteria: "{0} criteri selezionati",
+    filter_mode_lead: "Modalit\xE0 filtro",
+    filter_mode_any: "uno",
+    filter_mode_all: "tutti",
+    filter_mode_none: "nessuno",
+    filter_mode_s_any: "Almeno uno deve corrispondere.",
+    filter_mode_s_all: "Tutti devono corrispondere.",
+    filter_mode_s_none: "Nessuno deve corrispondere.",
     filter_range_any: "Qualsiasi",
     filter_range_overdue: "In ritardo",
     filter_range_today: "Oggi e in ritardo",
@@ -5418,7 +5558,17 @@ function openDatePicker(anchor, value, onPick, dur) {
 var import_obsidian7 = require("obsidian");
 
 // src/filterEngine.ts
-var DEFAULT_CRITERIA = { range: "any", priorities: [], labels: [], projects: [], search: "" };
+var DEFAULT_CRITERIA = {
+  range: "any",
+  priorities: [],
+  prioritiesNot: [],
+  labels: [],
+  labelsAll: [],
+  labelsNot: [],
+  projects: [],
+  projectsNot: [],
+  search: ""
+};
 var DEFAULT_OPTIONS = { layout: "list", sort: "smart", group: "none", showDone: false };
 var RANGES = ["any", "overdue", "today", "next7", "nodate"];
 var SORTS = ["smart", "due", "deadline", "priority", "created", "title"];
@@ -5436,9 +5586,9 @@ function addDays(iso3, n) {
 function activeFacetCount(c) {
   let n = 0;
   if (c.range !== "any") n++;
-  if (c.priorities.length) n++;
-  if (c.labels.length) n++;
-  if (c.projects.length) n++;
+  if (c.priorities.length || c.prioritiesNot.length) n++;
+  if (c.labels.length || c.labelsAll.length || c.labelsNot.length) n++;
+  if (c.projects.length || c.projectsNot.length) n++;
   if (c.search.trim()) n++;
   return n;
 }
@@ -5454,8 +5604,13 @@ function inRange(t2, range, today) {
 function matchesTask(t2, c, today) {
   if (!inRange(t2, c.range, today)) return false;
   if (c.priorities.length && !c.priorities.includes(t2.priority)) return false;
+  if (c.prioritiesNot.includes(t2.priority)) return false;
   if (c.labels.length && !c.labels.some((l) => t2.labels.includes(l))) return false;
-  if (c.projects.length && !(t2.project && c.projects.includes(baseName2(t2.project)))) return false;
+  if (!c.labelsAll.every((l) => t2.labels.includes(l))) return false;
+  if (c.labelsNot.some((l) => t2.labels.includes(l))) return false;
+  const pb = t2.project ? baseName2(t2.project) : null;
+  if (c.projects.length && !(pb !== null && c.projects.includes(pb))) return false;
+  if (pb !== null && c.projectsNot.includes(pb)) return false;
   const q = c.search.trim().toLowerCase();
   if (q && !t2.title.toLowerCase().includes(q)) return false;
   return true;
@@ -5518,12 +5673,16 @@ async function setNoteViewOption(app, path, patch) {
 var asStrArr = (v) => Array.isArray(v) ? v.map(String) : [];
 var oneOf2 = (v, allowed, fallback) => typeof v === "string" && allowed.includes(v) ? v : fallback;
 function readCriteria(fm) {
-  const prios = asStrArr(fm.priorities).filter((p) => FILTER_PRIORITIES.includes(p));
+  const prio = (v) => asStrArr(v).filter((p) => FILTER_PRIORITIES.includes(p));
   return {
     range: oneOf2(fm.range, RANGES, DEFAULT_CRITERIA.range),
-    priorities: prios,
+    priorities: prio(fm.priorities),
+    prioritiesNot: prio(fm.priorities_not),
     labels: asStrArr(fm.labels),
+    labelsAll: asStrArr(fm.labels_all),
+    labelsNot: asStrArr(fm.labels_not),
     projects: asStrArr(fm.projects),
+    projectsNot: asStrArr(fm.projects_not),
     search: typeof fm.search === "string" ? fm.search : ""
   };
 }
@@ -5561,8 +5720,12 @@ function applyToFrontmatter(fm, c, o, color) {
   };
   setOrDel("range", c.range === "any" ? null : c.range);
   setOrDel("priorities", c.priorities.length ? c.priorities : null);
+  setOrDel("priorities_not", c.prioritiesNot.length ? c.prioritiesNot : null);
   setOrDel("labels", c.labels.length ? c.labels : null);
+  setOrDel("labels_all", c.labelsAll.length ? c.labelsAll : null);
+  setOrDel("labels_not", c.labelsNot.length ? c.labelsNot : null);
   setOrDel("projects", c.projects.length ? c.projects : null);
+  setOrDel("projects_not", c.projectsNot.length ? c.projectsNot : null);
   setOrDel("search", c.search.trim() || null);
   writeViewOptions(fm, o);
   setOrDel("color", color);
@@ -7349,32 +7512,55 @@ var FilterModal = class extends import_obsidian14.Modal {
       contentEl,
       t("filter_priorities"),
       FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })),
-      () => this.c.priorities,
-      (arr) => {
-        this.c.priorities = arr;
+      {
+        modeOf: (k) => this.c.prioritiesNot.includes(k) ? "none" : this.c.priorities.includes(k) ? "any" : null,
+        toggle: (k, pen) => {
+          const p = k;
+          const was = this.c.prioritiesNot.includes(p) ? "none" : this.c.priorities.includes(p) ? "any" : null;
+          this.c.priorities = this.c.priorities.filter((x) => x !== p);
+          this.c.prioritiesNot = this.c.prioritiesNot.filter((x) => x !== p);
+          if (was !== pen) (pen === "none" ? this.c.prioritiesNot : this.c.priorities).push(p);
+        },
+        clear: () => {
+          this.c.priorities = [];
+          this.c.prioritiesNot = [];
+        },
+        pens: ["any", "none"]
       }
     );
     const labels = this.plugin.getLabels().map((l) => ({ key: l.name, label: l.name }));
-    if (labels.length) this.facet(
-      contentEl,
-      t("filter_labels"),
-      labels,
-      () => this.c.labels,
-      (arr) => {
-        this.c.labels = arr;
-      }
-    );
+    if (labels.length) this.facet(contentEl, t("filter_labels"), labels, {
+      modeOf: (k) => this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null,
+      toggle: (k, pen) => {
+        const was = this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null;
+        this.c.labels = this.c.labels.filter((x) => x !== k);
+        this.c.labelsAll = this.c.labelsAll.filter((x) => x !== k);
+        this.c.labelsNot = this.c.labelsNot.filter((x) => x !== k);
+        if (was !== pen) (pen === "all" ? this.c.labelsAll : pen === "none" ? this.c.labelsNot : this.c.labels).push(k);
+      },
+      clear: () => {
+        this.c.labels = [];
+        this.c.labelsAll = [];
+        this.c.labelsNot = [];
+      },
+      pens: ["any", "all", "none"]
+    });
     const { eingang, bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
     const projOpts = [...eingang ? [eingang] : [], ...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) }));
-    if (projOpts.length) this.facet(
-      contentEl,
-      t("filter_projects"),
-      projOpts,
-      () => this.c.projects,
-      (arr) => {
-        this.c.projects = arr;
-      }
-    );
+    if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
+      modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
+      toggle: (k, pen) => {
+        const was = this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null;
+        this.c.projects = this.c.projects.filter((x) => x !== k);
+        this.c.projectsNot = this.c.projectsNot.filter((x) => x !== k);
+        if (was !== pen) (pen === "none" ? this.c.projectsNot : this.c.projects).push(k);
+      },
+      clear: () => {
+        this.c.projects = [];
+        this.c.projectsNot = [];
+      },
+      pens: ["any", "none"]
+    });
     new import_obsidian14.Setting(contentEl).setName(t("filter_search")).addText((tx) => tx.setPlaceholder(t("filter_search_ph")).setValue(this.c.search).onChange((v) => {
       this.c.search = v;
       this.refresh();
@@ -7391,43 +7577,56 @@ var FilterModal = class extends import_obsidian14.Modal {
   onClose() {
     this.contentEl.empty();
   }
-  /** Mehrfachauswahl als kompaktes Dropdown (Button + Popover mit Häkchen). Optisch wie die
-   *  Sort/Group/Time-Dropdowns; „Alle" oben leert die Auswahl. ODER innerhalb der Facette. */
-  facet(parent, label, opts, get, set) {
+  /** Mehrfachauswahl mit PRO-WERT-Marker. Der Modus oben (eines/alle/keines) ist nur der „Stift":
+   *  Ein Klick auf einen Wert setzt/entfernt ihn im aktuellen Stift; jeder Wert behält seinen Marker
+   *  (✓ = eines/ODER · + = alle/UND · − = keines/NICHT), auch wenn der Stift gewechselt wird. */
+  facet(parent, label, opts, ctl) {
     const btn = new import_obsidian14.Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
     const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
     (0, import_obsidian14.setIcon)(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
-    const summary = () => {
-      const sel = get();
-      if (!sel.length) return t("filter_all");
-      if (sel.length <= 2) return sel.map((k) => opts.find((o) => o.key === k)?.label ?? k).join(", ");
-      return t("filter_n_selected", sel.length);
+    const iconOf = (m) => m === "all" ? "plus" : m === "none" ? "minus" : "check";
+    const syncLbl = () => {
+      const n = opts.filter((o) => ctl.modeOf(o.key)).length;
+      lbl.setText(n ? t("filter_n_criteria", n) : t("filter_all"));
     };
-    const syncLbl = () => lbl.setText(summary());
     syncLbl();
+    let pen = ctl.pens[0];
     btn.onclick = () => openPopover(btn, (pop) => {
       pop.addClass("bt-facet-pop");
-      const row = (on, text, onClick) => {
-        const r = pop.createDiv({ cls: "bt-row" + (on ? " is-active" : "") });
-        const ic = r.createSpan({ cls: "bt-row-ic" });
-        if (on) (0, import_obsidian14.setIcon)(ic, "check");
-        r.createSpan({ cls: "bt-row-lbl", text });
-        r.onclick = onClick;
-      };
       const render = () => {
         pop.empty();
         pop.addClass("bt-facet-pop");
-        row(get().length === 0, t("filter_all"), () => {
-          set([]);
+        if (ctl.pens.length > 1) {
+          pop.addClass("bt-mode-pop");
+          pop.createDiv({ cls: "bt-mode-lead", text: t("filter_mode_lead") });
+          const seg = pop.createDiv({ cls: "bt-mode-seg" });
+          for (const m of ctl.pens) {
+            const opt = seg.createSpan({ cls: "bt-mode-opt" + (pen === m ? " is-on" : ""), text: t("filter_mode_" + m) });
+            opt.onclick = () => {
+              pen = m;
+              render();
+            };
+          }
+          pop.createDiv({ cls: "bt-mode-sentence", text: t("filter_mode_s_" + pen) });
+        }
+        const rowEl = (active, icon, text, onClick) => {
+          const r = pop.createDiv({ cls: "bt-row" + (active ? " is-active" : "") });
+          const ic = r.createSpan({ cls: "bt-row-ic" });
+          if (icon) (0, import_obsidian14.setIcon)(ic, icon);
+          r.createSpan({ cls: "bt-row-lbl", text });
+          r.onclick = onClick;
+        };
+        const empty = !opts.some((o) => ctl.modeOf(o.key));
+        rowEl(empty, empty ? "check" : null, t("filter_all"), () => {
+          ctl.clear();
           syncLbl();
           this.refresh();
           render();
         });
         for (const o of opts) {
-          const on = get().includes(o.key);
-          row(on, o.label, () => {
-            const cur = get();
-            set(cur.includes(o.key) ? cur.filter((x) => x !== o.key) : [...cur, o.key]);
+          const m = ctl.modeOf(o.key);
+          rowEl(!!m, m ? iconOf(m) : null, o.label, () => {
+            ctl.toggle(o.key, pen);
             syncLbl();
             this.refresh();
             render();
@@ -11320,10 +11519,9 @@ var WhatsNewModal = class extends import_obsidian26.Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
     const items = [
-      { icon: "calendar-sync", title: t("wn_gcal_t"), desc: t("wn_gcal_d") },
-      { icon: "calendar-plus", title: t("wn_gcalcal_t"), desc: t("wn_gcalcal_d") },
-      { icon: "list-checks", title: t("wn_gcallist_t"), desc: t("wn_gcallist_d") },
-      { icon: "activity", title: t("wn_gcalstat_t"), desc: t("wn_gcalstat_d") }
+      { icon: "filter", title: t("wn_excl_t"), desc: t("wn_excl_d") },
+      { icon: "sliders-horizontal", title: t("wn_fmode_t"), desc: t("wn_fmode_d") },
+      { icon: "infinity", title: t("wn_anytime_t"), desc: t("wn_anytime_d") }
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
@@ -11841,10 +12039,12 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
       });
     }
     for (const fl of listFilters(this.app)) {
-      if (!fl.criteria.labels.includes(oldName)) continue;
+      if (!fl.criteria.labels.includes(oldName) && !fl.criteria.labelsAll.includes(oldName) && !fl.criteria.labelsNot.includes(oldName)) continue;
       const ff = this.app.vault.getAbstractFileByPath(fl.path);
       if (ff instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
-        if (Array.isArray(fm.labels)) fm.labels = [...new Set(fm.labels.map(String).map((x) => x === oldName ? nu : x))];
+        for (const key of ["labels", "labels_all", "labels_not"]) {
+          if (Array.isArray(fm[key])) fm[key] = [...new Set(fm[key].map(String).map((x) => x === oldName ? nu : x))];
+        }
       });
     }
     this.settings.knownLabels = [...new Set(this.settings.knownLabels.map((x) => x === oldName ? nu : x))];
@@ -11892,10 +12092,12 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
       });
     }
     for (const fl of listFilters(this.app)) {
-      if (!fl.criteria.projects.includes(oldBase)) continue;
+      if (!fl.criteria.projects.includes(oldBase) && !fl.criteria.projectsNot.includes(oldBase)) continue;
       const f = this.app.vault.getAbstractFileByPath(fl.path);
       if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
-        if (Array.isArray(fm.projects)) fm.projects = [...new Set(fm.projects.map(String).map((x) => x === oldBase ? newBase : x))];
+        for (const key of ["projects", "projects_not"]) {
+          if (Array.isArray(fm[key])) fm[key] = [...new Set(fm[key].map(String).map((x) => x === oldBase ? newBase : x))];
+        }
       });
     }
   }

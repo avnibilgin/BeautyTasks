@@ -11,7 +11,7 @@ import { openPopover } from "./popover";
 import { projectDisplayName, t } from "./i18n";
 import { PRIO_KEY } from "./taskModal";
 import {
-  FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
+  FilterCriteria, ViewOptions, MatchMode, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
   RANGES, FILTER_PRIORITIES, applyFilter, activeFacetCount,
 } from "./filterEngine";
 import { readFilter } from "./filterService";
@@ -78,18 +78,47 @@ export class FilterModal extends Modal {
       () => this.c.range, (v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
 
     this.facet(contentEl, t("filter_priorities"),
-      FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })),
-      () => this.c.priorities, (arr) => { this.c.priorities = arr as Priority[]; });
+      FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })), {
+        modeOf: (k) => this.c.prioritiesNot.includes(k as Priority) ? "none" : this.c.priorities.includes(k as Priority) ? "any" : null,
+        toggle: (k, pen) => {
+          const p = k as Priority;
+          const was = this.c.prioritiesNot.includes(p) ? "none" : this.c.priorities.includes(p) ? "any" : null;
+          this.c.priorities = this.c.priorities.filter((x) => x !== p);
+          this.c.prioritiesNot = this.c.prioritiesNot.filter((x) => x !== p);
+          if (was !== pen) (pen === "none" ? this.c.prioritiesNot : this.c.priorities).push(p);
+        },
+        clear: () => { this.c.priorities = []; this.c.prioritiesNot = []; },
+        pens: ["any", "none"],
+      });
 
     const labels = this.plugin.getLabels().map((l) => ({ key: l.name, label: l.name }));
-    if (labels.length) this.facet(contentEl, t("filter_labels"), labels,
-      () => this.c.labels, (arr) => { this.c.labels = arr; });
+    if (labels.length) this.facet(contentEl, t("filter_labels"), labels, {
+      modeOf: (k) => this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null,
+      toggle: (k, pen) => {
+        const was = this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null;
+        this.c.labels = this.c.labels.filter((x) => x !== k);
+        this.c.labelsAll = this.c.labelsAll.filter((x) => x !== k);
+        this.c.labelsNot = this.c.labelsNot.filter((x) => x !== k);
+        if (was !== pen) (pen === "all" ? this.c.labelsAll : pen === "none" ? this.c.labelsNot : this.c.labels).push(k);
+      },
+      clear: () => { this.c.labels = []; this.c.labelsAll = []; this.c.labelsNot = []; },
+      pens: ["any", "all", "none"],
+    });
 
     const { eingang, bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
     const projOpts = [...(eingang ? [eingang] : []), ...bereiche, ...projekte]
       .map((p) => ({ key: p.name, label: projectDisplayName(p.name) }));
-    if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts,
-      () => this.c.projects, (arr) => { this.c.projects = arr; });
+    if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
+      modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
+      toggle: (k, pen) => {
+        const was = this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null;
+        this.c.projects = this.c.projects.filter((x) => x !== k);
+        this.c.projectsNot = this.c.projectsNot.filter((x) => x !== k);
+        if (was !== pen) (pen === "none" ? this.c.projectsNot : this.c.projects).push(k);
+      },
+      clear: () => { this.c.projects = []; this.c.projectsNot = []; },
+      pens: ["any", "none"],
+    });
 
     new Setting(contentEl).setName(t("filter_search")).addText((tx) =>
       tx.setPlaceholder(t("filter_search_ph")).setValue(this.c.search).onChange((v) => { this.c.search = v; this.refresh(); }));
@@ -110,42 +139,53 @@ export class FilterModal extends Modal {
 
   onClose(): void { this.contentEl.empty(); }
 
-  /** Mehrfachauswahl als kompaktes Dropdown (Button + Popover mit Häkchen). Optisch wie die
-   *  Sort/Group/Time-Dropdowns; „Alle" oben leert die Auswahl. ODER innerhalb der Facette. */
-  private facet(parent: HTMLElement, label: string, opts: { key: string; label: string }[],
-    get: () => string[], set: (arr: string[]) => void): void {
+  /** Mehrfachauswahl mit PRO-WERT-Marker. Der Modus oben (eines/alle/keines) ist nur der „Stift":
+   *  Ein Klick auf einen Wert setzt/entfernt ihn im aktuellen Stift; jeder Wert behält seinen Marker
+   *  (✓ = eines/ODER · + = alle/UND · − = keines/NICHT), auch wenn der Stift gewechselt wird. */
+  private facet(parent: HTMLElement, label: string, opts: { key: string; label: string }[], ctl: {
+    modeOf: (k: string) => MatchMode | null;   // aktueller Marker eines Werts, null = nicht gewählt
+    toggle: (k: string, pen: MatchMode) => void;
+    clear: () => void;
+    pens: MatchMode[];
+  }): void {
     const btn = new Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
     const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
     setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
-    const summary = (): string => {
-      const sel = get();
-      if (!sel.length) return t("filter_all");
-      if (sel.length <= 2) return sel.map((k) => opts.find((o) => o.key === k)?.label ?? k).join(", ");
-      return t("filter_n_selected", sel.length);
+    const iconOf = (m: MatchMode): string => (m === "all" ? "plus" : m === "none" ? "minus" : "check");
+    const syncLbl = (): void => {   // Zusammenfassung: „N Kriterien gewählt" (Gesamtzahl)
+      const n = opts.filter((o) => ctl.modeOf(o.key)).length;
+      lbl.setText(n ? t("filter_n_criteria", n) : t("filter_all"));
     };
-    const syncLbl = (): void => lbl.setText(summary());
     syncLbl();
 
+    let pen: MatchMode = ctl.pens[0];   // Standard-Stift = „eines"
     btn.onclick = () => openPopover(btn, (pop) => {
       pop.addClass("bt-facet-pop");
-      const row = (on: boolean, text: string, onClick: () => void): void => {
-        const r = pop.createDiv({ cls: "bt-row" + (on ? " is-active" : "") });
-        const ic = r.createSpan({ cls: "bt-row-ic" });   // Slot immer da -> Beschriftungen bündig
-        if (on) setIcon(ic, "check");
-        r.createSpan({ cls: "bt-row-lbl", text });
-        r.onclick = onClick;
-      };
       const render = (): void => {
         pop.empty();
         pop.addClass("bt-facet-pop");
-        row(get().length === 0, t("filter_all"), () => { set([]); syncLbl(); this.refresh(); render(); });
+        if (ctl.pens.length > 1) {   // Stift-Segment oben – wechselt nur den Stift, ändert keine Auswahl
+          pop.addClass("bt-mode-pop");
+          pop.createDiv({ cls: "bt-mode-lead", text: t("filter_mode_lead") });
+          const seg = pop.createDiv({ cls: "bt-mode-seg" });
+          for (const m of ctl.pens) {
+            const opt = seg.createSpan({ cls: "bt-mode-opt" + (pen === m ? " is-on" : ""), text: t("filter_mode_" + m) });
+            opt.onclick = () => { pen = m; render(); };
+          }
+          pop.createDiv({ cls: "bt-mode-sentence", text: t("filter_mode_s_" + pen) });   // beschreibt den aktiven Stift
+        }
+        const rowEl = (active: boolean, icon: string | null, text: string, onClick: () => void): void => {
+          const r = pop.createDiv({ cls: "bt-row" + (active ? " is-active" : "") });
+          const ic = r.createSpan({ cls: "bt-row-ic" });   // Slot immer da -> Beschriftungen bündig
+          if (icon) setIcon(ic, icon);
+          r.createSpan({ cls: "bt-row-lbl", text });
+          r.onclick = onClick;
+        };
+        const empty = !opts.some((o) => ctl.modeOf(o.key));
+        rowEl(empty, empty ? "check" : null, t("filter_all"), () => { ctl.clear(); syncLbl(); this.refresh(); render(); });
         for (const o of opts) {
-          const on = get().includes(o.key);
-          row(on, o.label, () => {
-            const cur = get();
-            set(cur.includes(o.key) ? cur.filter((x) => x !== o.key) : [...cur, o.key]);
-            syncLbl(); this.refresh(); render();
-          });
+          const m = ctl.modeOf(o.key);
+          rowEl(!!m, m ? iconOf(m) : null, o.label, () => { ctl.toggle(o.key, pen); syncLbl(); this.refresh(); render(); });
         }
       };
       render();

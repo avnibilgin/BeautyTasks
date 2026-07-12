@@ -1276,6 +1276,23 @@ body {
 .bt-facet-pop { max-height: 320px; overflow-y: auto; min-width: 180px; }
 .bt-facet-pop .bt-row-ic { width: 16px; display: inline-flex; flex-shrink: 0; }
 .bt-facet-pop .bt-row-ic svg { width: 15px; height: 15px; }
+/* Facetten-Button färbt sich nach Modus (Ausschluss rot, positives UND im Akzent). */
+.bt-facet-dd.is-exclude { color: var(--text-error); border-color: var(--text-error); }
+.bt-facet-dd.is-exclude .bt-facet-dd-chev { color: var(--text-error); }
+.bt-facet-dd.is-all { color: var(--interactive-accent); border-color: var(--interactive-accent); }
+.bt-facet-dd.is-all .bt-facet-dd-chev { color: var(--interactive-accent); }
+/* Modus-Popover: feste Breite, damit der Live-Satz das Popover nicht breiter macht. */
+.bt-facet-pop.bt-mode-pop { width: 240px; }
+/* Modus-Segment oben im Facetten-Popover: „Aufgabe hat … eines | alle | keines".
+   Randbündig (kein Seitenrand, kein Track-Hintergrund), Zellen ohne eigenen Rand. */
+.bt-mode-lead { padding: 4px 8px 5px; font-size: var(--font-smallest); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: var(--font-semibold); }
+.bt-mode-seg { display: flex; margin: 0 4px 6px; border-radius: var(--radius-s); background: var(--background-modifier-form-field); overflow: hidden; }
+.bt-mode-opt { flex: 1; text-align: center; padding: 6px 4px; font-size: var(--font-ui-smaller); color: var(--text-muted); cursor: pointer; }
+.bt-mode-opt:hover { background: var(--background-modifier-hover); }
+/* Ausgewählter Modus: EINHEITLICH der dezente Grauton – kein Rand, Hintergrund füllt die ganze Zelle. */
+.bt-mode-opt.is-on { background: var(--background-modifier-hover); color: var(--text-normal); font-weight: var(--font-semibold); }
+/* Mitlaufender Klartext-Satz – direkt unter dem Segment. */
+.bt-mode-sentence { padding: 0 8px 7px; font-size: var(--font-smallest); color: var(--text-muted); line-height: 1.35; }
 /* Live-Trefferzahl im Fuß des Editors. */
 /* Trennlinie über dem Zähler – gleiche Linie wie unter den Sektionsköpfen. */
 .bt-filter-count {
