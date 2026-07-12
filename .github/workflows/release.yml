@@ -1,0 +1,48 @@
+name: Release
+
+# Baut das Plugin bei einem Version-Tag (z. B. 1.11.0), attestiert die Assets
+# (Build-Provenance, kryptografisch überprüfbar) und legt das GitHub-Release an.
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write # Release + Assets anlegen
+  id-token: write # OIDC-Token für die Attestation
+  attestations: write # Attestations schreiben
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate artifact attestations
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            main.js manifest.json styles.css

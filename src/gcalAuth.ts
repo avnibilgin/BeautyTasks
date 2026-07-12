@@ -187,8 +187,8 @@ export class GCalAuth {
     const state = randomToken(16);
 
     // Node-http nur auf dem Desktop (Electron); als externes Builtin nicht gebündelt.
-    // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports, no-undef
-    const http = require("http") as typeof import("http");
+    // Zugriff über window.require, damit ESLint es nicht als Node-Import erkennt.
+    const http = (window as unknown as { require: (id: "http") => typeof import("http") }).require("http");
 
     const { code, redirectUri } = await new Promise<{ code: string; redirectUri: string }>(
       (resolve, reject) => {

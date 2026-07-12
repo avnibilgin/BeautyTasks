@@ -1231,22 +1231,22 @@ body {
 .bt-filter-title .bt-manage-btn { align-self: center; position: relative; top: 1px; }
 .bt-filter-title .bt-manage-btn .svg-icon { width: 18px; height: 18px; }
 /* Editor-Modal: kompakt, KEINE Trennlinien zwischen den Zeilen (nur unter Sektionsköpfen).
-   !important + beide Seiten, weil Themes die Zeilenlinie mal als border-top, mal border-bottom
-   setzen und Obsidians .setting-item-Regel sonst gewinnt. */
+   border wird beidseitig genullt, weil Themes die Zeilenlinie mal als border-top,
+   mal border-bottom setzen. */
 .bt-filter-modal { width: 440px; max-width: 92vw; }
 .bt-filter-modal h3 { margin: 0 0 4px; }
-.bt-filter-modal .setting-item {
-  /* !important schlägt Obsidians .modal:not(.mod-settings) .setting-item… (höhere Spezifität),
-     ohne die Core-Regel global anzufassen. Nur vertikal, damit die Zeilen bündig zu den
-     Sektionsköpfen bleiben. */
-  border: 0 !important; box-shadow: none !important; padding: 6px 0 !important; align-items: center;
+/* .setting-item doppelt = (0,4,0); schlägt Obsidians/Theme-Regel für den Zeilenrahmen
+   (spezifischer als 0,3,0) ohne !important. Nur vertikal, damit die Zeilen bündig zu den
+   Sektionsköpfen bleiben. */
+.modal.bt-filter-modal .setting-item.setting-item {
+  border: 0; box-shadow: none; padding: 6px 0; align-items: center;
 }
 .bt-filter-modal .setting-item-name { font-size: var(--font-ui-small); }
 /* Alle Steuerelemente im Modal flach (kein Schatten) UND mit sichtbarem Rand –
    native Dropdowns haben von Haus aus keinen Rand, daher hier angleichen. WICHTIG:
    background-COLOR (nicht background-Shorthand), sonst wird das native Chevron-Hintergrundbild
    des <select> mitgelöscht -> Dropdown ohne Pfeil (z. B. „Zeitraum"). */
-.bt-filter-modal .bt-facet-dd, .bt-filter-modal .dropdown { box-shadow: none !important; }
+.modal.bt-filter-modal .bt-facet-dd, .modal.bt-filter-modal .dropdown { box-shadow: none; }
 .bt-filter-modal .dropdown {
   border: 1px solid var(--background-modifier-border);
   background-color: var(--background-modifier-form-field);

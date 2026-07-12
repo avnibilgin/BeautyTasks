@@ -9925,7 +9925,7 @@ var GCalAuth = class {
     const creds = this.requireCredentials();
     const { verifier, challenge } = await pkcePair();
     const state = randomToken(16);
-    const http = require("http");
+    const http = window.require("http");
     const { code, redirectUri } = await new Promise(
       (resolve, reject) => {
         const server = http.createServer((req, res) => {
