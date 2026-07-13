@@ -28,11 +28,10 @@ import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDef
  *  einem 24er-Raster gezeichnet und werden deshalb um 100/24 skaliert.
  *
  *  bt-add-task: gefüllter Kreis in der Akzentfarbe (currentColor) mit ausgestanztem „+"
- *  (fill-rule evenodd). Darunter liegt ein Kreis in --text-on-accent, damit das Plus weiß
- *  erscheint statt den Hintergrund durchscheinen zu lassen. */
+ *  (fill-rule evenodd). Das Plus ist bewusst transparent statt weiß: so nimmt es den
+ *  Hintergrund an – hell im Light-, dunkel im Dark-Theme – ohne feste Farbe. */
 function registerIcons(): void {
   addIcon("bt-add-task", `<g transform="scale(4.1667)">
-    <circle cx="12" cy="12" r="10.5" fill="var(--text-on-accent)"/>
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M12 23c6.075 0 11-4.925 11-11S18.075 1 12 1 1 5.925 1 12s4.925 11 11 11m-.711-16.5a.75.75 0 1 1 1.5 0v4.789H17.5a.75.75 0 0 1 0 1.5h-4.711V17.5a.75.75 0 0 1-1.5 0V12.79H6.5a.75.75 0 1 1 0-1.5h4.789z"/>
   </g>`);
 }
