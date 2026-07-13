@@ -22,7 +22,7 @@ __export(main_exports, {
   default: () => BeautyTasksPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/types.ts
 var CHIP_IDS = ["status", "due", "priority", "label", "recurrence", "deadline", "reminder", "parent", "details"];
@@ -60,6 +60,14 @@ var STRINGS = {
     layout_list: "List",
     layout_board: "Board",
     menu_cancel_task: "Cancel task",
+    layout_calendar: "Calendar",
+    cal_prev: "Previous",
+    cal_next: "Next",
+    cal_today: "Today",
+    cal_mode_month: "Month",
+    cal_mode_week: "Week",
+    cal_more: "+{0} more",
+    cal_allday: "All-day",
     tab_statuses: "Statuses",
     status_add: "Add status",
     placeholder_status_name: "Status name",
@@ -488,6 +496,14 @@ var STRINGS = {
     layout_list: "Liste",
     layout_board: "Board",
     menu_cancel_task: "Abbrechen",
+    layout_calendar: "Kalender",
+    cal_prev: "Zur\xFCck",
+    cal_next: "Weiter",
+    cal_today: "Heute",
+    cal_mode_month: "Monat",
+    cal_mode_week: "Woche",
+    cal_more: "+{0} weitere",
+    cal_allday: "Ganzt\xE4gig",
     tab_statuses: "Status",
     status_add: "Status hinzuf\xFCgen",
     placeholder_status_name: "Status-Name",
@@ -916,6 +932,14 @@ var STRINGS = {
     layout_list: "Lista",
     layout_board: "Tablero",
     menu_cancel_task: "Cancelar tarea",
+    layout_calendar: "Calendario",
+    cal_prev: "Anterior",
+    cal_next: "Siguiente",
+    cal_today: "Hoy",
+    cal_mode_month: "Mes",
+    cal_mode_week: "Semana",
+    cal_more: "+{0} m\xE1s",
+    cal_allday: "Todo el d\xEDa",
     tab_statuses: "Estados",
     status_add: "A\xF1adir estado",
     placeholder_status_name: "Nombre del estado",
@@ -1344,6 +1368,14 @@ var STRINGS = {
     layout_list: "Lista",
     layout_board: "Quadro",
     menu_cancel_task: "Cancelar tarefa",
+    layout_calendar: "Calend\xE1rio",
+    cal_prev: "Anterior",
+    cal_next: "Pr\xF3ximo",
+    cal_today: "Hoje",
+    cal_mode_month: "M\xEAs",
+    cal_mode_week: "Semana",
+    cal_more: "+{0} mais",
+    cal_allday: "Dia inteiro",
     tab_statuses: "Status",
     status_add: "Adicionar status",
     placeholder_status_name: "Nome do status",
@@ -1772,6 +1804,14 @@ var STRINGS = {
     layout_list: "Liste",
     layout_board: "Tableau",
     menu_cancel_task: "Annuler la t\xE2che",
+    layout_calendar: "Calendrier",
+    cal_prev: "Pr\xE9c\xE9dent",
+    cal_next: "Suivant",
+    cal_today: "Aujourd\u2019hui",
+    cal_mode_month: "Mois",
+    cal_mode_week: "Semaine",
+    cal_more: "+{0} autres",
+    cal_allday: "Toute la journ\xE9e",
     tab_statuses: "Statuts",
     status_add: "Ajouter un statut",
     placeholder_status_name: "Nom du statut",
@@ -2200,6 +2240,14 @@ var STRINGS = {
     layout_list: "Liste",
     layout_board: "Pano",
     menu_cancel_task: "G\xF6revi iptal et",
+    layout_calendar: "Takvim",
+    cal_prev: "\xD6nceki",
+    cal_next: "Sonraki",
+    cal_today: "Bug\xFCn",
+    cal_mode_month: "Ay",
+    cal_mode_week: "Hafta",
+    cal_more: "+{0} daha",
+    cal_allday: "T\xFCm g\xFCn",
     tab_statuses: "Durumlar",
     status_add: "Durum ekle",
     placeholder_status_name: "Durum ad\u0131",
@@ -2628,6 +2676,14 @@ var STRINGS = {
     layout_list: "\u5217\u8868",
     layout_board: "\u770B\u677F",
     menu_cancel_task: "\u53D6\u6D88\u4EFB\u52A1",
+    layout_calendar: "\u65E5\u5386",
+    cal_prev: "\u4E0A\u4E00\u4E2A",
+    cal_next: "\u4E0B\u4E00\u4E2A",
+    cal_today: "\u4ECA\u5929",
+    cal_mode_month: "\u6708",
+    cal_mode_week: "\u5468",
+    cal_more: "+{0} \u66F4\u591A",
+    cal_allday: "\u5168\u5929",
     tab_statuses: "\u72B6\u6001",
     status_add: "\u6DFB\u52A0\u72B6\u6001",
     placeholder_status_name: "\u72B6\u6001\u540D\u79F0",
@@ -3056,6 +3112,14 @@ var STRINGS = {
     layout_list: "\u0421\u043F\u0438\u0441\u043E\u043A",
     layout_board: "\u0414\u043E\u0441\u043A\u0430",
     menu_cancel_task: "\u041E\u0442\u043C\u0435\u043D\u0438\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
+    layout_calendar: "\u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
+    cal_prev: "\u041D\u0430\u0437\u0430\u0434",
+    cal_next: "\u0412\u043F\u0435\u0440\u0451\u0434",
+    cal_today: "\u0421\u0435\u0433\u043E\u0434\u043D\u044F",
+    cal_mode_month: "\u041C\u0435\u0441\u044F\u0446",
+    cal_mode_week: "\u041D\u0435\u0434\u0435\u043B\u044F",
+    cal_more: "+{0} \u0435\u0449\u0451",
+    cal_allday: "\u0412\u0435\u0441\u044C \u0434\u0435\u043D\u044C",
     tab_statuses: "\u0421\u0442\u0430\u0442\u0443\u0441\u044B",
     status_add: "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441",
     placeholder_status_name: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430",
@@ -3484,6 +3548,14 @@ var STRINGS = {
     layout_list: "\u30EA\u30B9\u30C8",
     layout_board: "\u30DC\u30FC\u30C9",
     menu_cancel_task: "\u30BF\u30B9\u30AF\u3092\u30AD\u30E3\u30F3\u30BB\u30EB",
+    layout_calendar: "\u30AB\u30EC\u30F3\u30C0\u30FC",
+    cal_prev: "\u524D\u3078",
+    cal_next: "\u6B21\u3078",
+    cal_today: "\u4ECA\u65E5",
+    cal_mode_month: "\u6708",
+    cal_mode_week: "\u9031",
+    cal_more: "\u4ED6 {0} \u4EF6",
+    cal_allday: "\u7D42\u65E5",
     tab_statuses: "\u30B9\u30C6\u30FC\u30BF\u30B9",
     status_add: "\u30B9\u30C6\u30FC\u30BF\u30B9\u3092\u8FFD\u52A0",
     placeholder_status_name: "\u30B9\u30C6\u30FC\u30BF\u30B9\u540D",
@@ -3912,6 +3984,14 @@ var STRINGS = {
     layout_list: "Elenco",
     layout_board: "Bacheca",
     menu_cancel_task: "Annulla attivit\xE0",
+    layout_calendar: "Calendario",
+    cal_prev: "Precedente",
+    cal_next: "Successivo",
+    cal_today: "Oggi",
+    cal_mode_month: "Mese",
+    cal_mode_week: "Settimana",
+    cal_more: "+{0} altri",
+    cal_allday: "Tutto il giorno",
     tab_statuses: "Stati",
     status_add: "Aggiungi stato",
     placeholder_status_name: "Nome dello stato",
@@ -4419,20 +4499,20 @@ function todayStr() {
 }
 function localStamp() {
   const d = /* @__PURE__ */ new Date();
-  const z4 = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${z4(d.getMonth() + 1)}-${z4(d.getDate())}T${z4(d.getHours())}:${z4(d.getMinutes())}:${z4(d.getSeconds())}`;
+  const z6 = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z6(d.getMonth() + 1)}-${z6(d.getDate())}T${z6(d.getHours())}:${z6(d.getMinutes())}:${z6(d.getSeconds())}`;
 }
 function monthShort(monthIndex) {
   return new Intl.DateTimeFormat(getLocale(), { month: "short" }).format(new Date(2020, monthIndex, 1)).replace(/\.$/, "");
 }
-var dateOf = (iso3) => iso3.slice(0, 10);
-var timeOf = (iso3) => {
-  const m = iso3.match(/T(\d{2}:\d{2})/);
+var dateOf = (iso4) => iso4.slice(0, 10);
+var timeOf = (iso4) => {
+  const m = iso4.match(/T(\d{2}:\d{2})/);
   return m ? m[1] : null;
 };
 var combineDT = (date, time) => time ? date + "T" + time : date;
-function formatDate(iso3, today = todayStr()) {
-  const d = /* @__PURE__ */ new Date(dateOf(iso3) + "T00:00");
+function formatDate(iso4, today = todayStr()) {
+  const d = /* @__PURE__ */ new Date(dateOf(iso4) + "T00:00");
   const tn = /* @__PURE__ */ new Date(dateOf(today) + "T00:00");
   const diff = Math.round((d.getTime() - tn.getTime()) / 864e5);
   if (diff === 0) return t("date_today");
@@ -4441,17 +4521,17 @@ function formatDate(iso3, today = todayStr()) {
   const sameYear = d.getFullYear() === tn.getFullYear();
   return `${d.getDate()} ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
 }
-function formatDateTime(iso3, today = todayStr()) {
-  const tm = timeOf(iso3);
-  return formatDate(iso3, today) + (tm ? " \xB7 " + tm : "");
+function formatDateTime(iso4, today = todayStr()) {
+  const tm = timeOf(iso4);
+  return formatDate(iso4, today) + (tm ? " \xB7 " + tm : "");
 }
 function formatDuration(min) {
   if (min < 60) return min + " min";
   const h = Math.floor(min / 60), m = min % 60;
   return m ? `${h} h ${m} min` : `${h} h`;
 }
-function dueWhen(iso3, today = todayStr()) {
-  const d = dateOf(iso3), tn = dateOf(today);
+function dueWhen(iso4, today = todayStr()) {
+  const d = dateOf(iso4), tn = dateOf(today);
   return d < tn ? "past" : d === tn ? "today" : "future";
 }
 
@@ -4537,8 +4617,8 @@ function serializeDetailLog(entries) {
 }
 function nowLogTs(d) {
   d = d || /* @__PURE__ */ new Date();
-  const z4 = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + z4(d.getMonth() + 1) + "-" + z4(d.getDate()) + " " + z4(d.getHours()) + ":" + z4(d.getMinutes()) + ":" + z4(d.getSeconds());
+  const z6 = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z6(d.getMonth() + 1) + "-" + z6(d.getDate()) + " " + z6(d.getHours()) + ":" + z6(d.getMinutes()) + ":" + z6(d.getSeconds());
 }
 function formatLogTime(ts, now) {
   const m = String(ts || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
@@ -4613,8 +4693,8 @@ var normalizeLabel = (s) => slugify(s).toLowerCase().replace(/^#/, "").replace(/
 var newId = (p) => p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 var todayIso = () => {
   const d = /* @__PURE__ */ new Date();
-  const z4 = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + z4(d.getMonth() + 1) + "-" + z4(d.getDate());
+  const z6 = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z6(d.getMonth() + 1) + "-" + z6(d.getDate());
 };
 function buildFrontmatter(obj) {
   const clean = {};
@@ -5149,7 +5229,7 @@ async function runMigration(app, settings) {
 }
 
 // src/heuteView.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/datePicker.ts
 var import_obsidian5 = require("obsidian");
@@ -5512,14 +5592,14 @@ function openDatePicker(anchor, value, onPick, dur, opts) {
         let selEl = null;
         for (let i = 0; i < 24 * 60; i += 15) {
           const mins = (START + i) % (24 * 60);
-          const hhmm = z(Math.floor(mins / 60)) + ":" + z(mins % 60);
-          if (f && !hhmm.startsWith(f)) continue;
-          const it = drop.createDiv({ cls: "bt-time-opt" + (hhmm === curTime ? " is-sel" : ""), text: hhmm });
-          if (hhmm === curTime) selEl = it;
+          const hhmm2 = z(Math.floor(mins / 60)) + ":" + z(mins % 60);
+          if (f && !hhmm2.startsWith(f)) continue;
+          const it = drop.createDiv({ cls: "bt-time-opt" + (hhmm2 === curTime ? " is-sel" : ""), text: hhmm2 });
+          if (hhmm2 === curTime) selEl = it;
           it.onmousedown = (e) => {
             e.preventDefault();
-            curTime = hhmm;
-            ti.value = hhmm;
+            curTime = hhmm2;
+            ti.value = hhmm2;
             apply();
             drop.removeClass("is-open");
           };
@@ -5649,19 +5729,19 @@ var DEFAULT_CRITERIA = {
   projectsNot: [],
   search: ""
 };
-var DEFAULT_OPTIONS = { layout: "list", sort: "smart", group: "none", showDone: false };
+var DEFAULT_OPTIONS = { layout: "list", sort: "smart", group: "none", showDone: false, calMode: "month" };
 var RANGES = ["any", "overdue", "today", "next7", "nodate"];
 var SORTS = ["smart", "due", "deadline", "priority", "created", "title"];
 var GROUPS = ["none", "date", "deadline", "priority", "label", "project"];
-var LAYOUTS = ["list", "board"];
+var LAYOUTS = ["list", "board", "calendar"];
 var FILTER_PRIORITIES = ["highest", "high", "medium", "normal"];
 var baseName2 = (p) => p.split("/").pop().replace(/\.md$/, "");
 var PRIO_RANK = { highest: 0, high: 1, medium: 2, normal: 3, low: 4, lowest: 5 };
-function addDays(iso3, n) {
-  const d = /* @__PURE__ */ new Date(iso3 + "T00:00:00");
+function addDays(iso4, n) {
+  const d = /* @__PURE__ */ new Date(iso4 + "T00:00:00");
   d.setDate(d.getDate() + n);
-  const z4 = (x) => String(x).padStart(2, "0");
-  return d.getFullYear() + "-" + z4(d.getMonth() + 1) + "-" + z4(d.getDate());
+  const z6 = (x) => String(x).padStart(2, "0");
+  return d.getFullYear() + "-" + z6(d.getMonth() + 1) + "-" + z6(d.getDate());
 }
 function activeFacetCount(c) {
   let n = 0;
@@ -5716,6 +5796,104 @@ function applyFilter(idx, c, opts, today) {
 
 // src/pageOptions.ts
 var import_obsidian6 = require("obsidian");
+
+// src/calendarModel.ts
+var CAL_MODES = ["month", "week"];
+var z2 = (n) => String(n).padStart(2, "0");
+var iso2 = (d) => d.getFullYear() + "-" + z2(d.getMonth() + 1) + "-" + z2(d.getDate());
+var parseISO = (s) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+function addDays2(isoDate2, n) {
+  const d = parseISO(isoDate2);
+  d.setDate(d.getDate() + n);
+  return iso2(d);
+}
+function addMonths(isoDate2, n) {
+  const d = parseISO(isoDate2);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return iso2(d);
+}
+function startOfWeek(isoDate2) {
+  const d = parseISO(isoDate2);
+  d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  return iso2(d);
+}
+var sameMonth = (a, b) => a.slice(0, 7) === b.slice(0, 7);
+function monthGrid(anchor) {
+  const first = anchor.slice(0, 8) + "01";
+  const start = startOfWeek(first);
+  return Array.from({ length: 42 }, (_, i) => addDays2(start, i));
+}
+function weekDays(anchor) {
+  const start = startOfWeek(anchor);
+  return Array.from({ length: 7 }, (_, i) => addDays2(start, i));
+}
+function bucketByDue(tasks) {
+  const out = /* @__PURE__ */ new Map();
+  for (const tk of tasks) {
+    if (!tk.due) continue;
+    const key = dateOf(tk.due);
+    const arr = out.get(key);
+    if (arr) arr.push(tk);
+    else out.set(key, [tk]);
+  }
+  return out;
+}
+function minutesOf(task) {
+  const tm = task.dueTime ?? (task.due ? timeOf(task.due) : null);
+  if (!tm) return null;
+  const m = tm.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const min = +m[1] * 60 + +m[2];
+  return min >= 0 && min < 1440 ? min : null;
+}
+var DEFAULT_BLOCK_MIN = 30;
+function layoutDay(tasks) {
+  const blocks = [];
+  for (const task of tasks) {
+    const startMin = minutesOf(task);
+    if (startMin === null) continue;
+    const dur = task.duration && task.duration > 0 ? task.duration : DEFAULT_BLOCK_MIN;
+    blocks.push({ task, startMin, endMin: Math.min(startMin + dur, 1440), col: 0, cols: 1 });
+  }
+  blocks.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin || a.task.title.localeCompare(b.task.title));
+  let cluster = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    if (!cluster.length) return;
+    const cols = Math.max(...cluster.map((b) => b.col)) + 1;
+    for (const b of cluster) b.cols = cols;
+    cluster = [];
+  };
+  const colEnds = [];
+  for (const b of blocks) {
+    if (b.startMin >= clusterEnd) {
+      flush();
+      colEnds.length = 0;
+    }
+    let c = colEnds.findIndex((end) => end <= b.startMin);
+    if (c === -1) {
+      c = colEnds.length;
+      colEnds.push(b.endMin);
+    } else {
+      colEnds[c] = b.endMin;
+    }
+    b.col = c;
+    cluster.push(b);
+    clusterEnd = Math.max(clusterEnd, b.endMin);
+  }
+  flush();
+  return blocks;
+}
+var allDayOf = (tasks) => tasks.filter((tk) => minutesOf(tk) === null);
+
+// src/pageOptions.ts
 var oneOf = (v, allowed, fallback) => typeof v === "string" && allowed.includes(v) ? v : fallback;
 function readViewOptions(fm) {
   const o = fm ?? {};
@@ -5723,7 +5901,8 @@ function readViewOptions(fm) {
     layout: oneOf(o.layout, LAYOUTS, DEFAULT_OPTIONS.layout),
     sort: oneOf(o.sort, SORTS, DEFAULT_OPTIONS.sort),
     group: oneOf(o.group, GROUPS, DEFAULT_OPTIONS.group),
-    showDone: o.showDone === true
+    showDone: o.showDone === true,
+    calMode: oneOf(o.calMode, CAL_MODES, DEFAULT_OPTIONS.calMode)
   };
 }
 function writeViewOptions(fm, o) {
@@ -5735,6 +5914,7 @@ function writeViewOptions(fm, o) {
   setOrDel("sort", o.sort, DEFAULT_OPTIONS.sort);
   setOrDel("group", o.group, DEFAULT_OPTIONS.group);
   setOrDel("showDone", o.showDone, false);
+  setOrDel("calMode", o.calMode, DEFAULT_OPTIONS.calMode);
 }
 function readNoteViewOptions(app, path) {
   const f = app.vault.getAbstractFileByPath(path);
@@ -5876,9 +6056,9 @@ var import_obsidian14 = require("obsidian");
 var import_obsidian11 = require("obsidian");
 
 // src/quickEntry.ts
-var z2 = (n) => String(n).padStart(2, "0");
-var iso2 = (d) => d.getFullYear() + "-" + z2(d.getMonth() + 1) + "-" + z2(d.getDate());
-var addDays2 = (d, n) => {
+var z3 = (n) => String(n).padStart(2, "0");
+var iso3 = (d) => d.getFullYear() + "-" + z3(d.getMonth() + 1) + "-" + z3(d.getDate());
+var addDays3 = (d, n) => {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
@@ -5886,7 +6066,7 @@ var addDays2 = (d, n) => {
 var nextWeekday = (from, target) => {
   let off = (target - from.getDay() + 7) % 7;
   if (off === 0) off = 7;
-  return addDays2(from, off);
+  return addDays3(from, off);
 };
 var WD = {
   sonntag: 0,
@@ -5972,14 +6152,14 @@ function parseQuickEntry(raw, projects = []) {
     if (!m) return;
     const d = fn(m);
     if (d && !isNaN(d.getTime())) {
-      faellig = iso2(d);
+      faellig = iso3(d);
       text = text.replace(m[0], " ");
     }
   };
   grab(re("heute|today"), () => today);
-  grab(re("\xFCbermorgen|day\\s+after\\s+tomorrow"), () => addDays2(today, 2));
-  grab(re("morgen|tomorrow"), () => addDays2(today, 1));
-  grab(re("in\\s+(\\d+)\\s+(?:tagen|days?)"), (m) => addDays2(today, parseInt(m[1], 10)));
+  grab(re("\xFCbermorgen|day\\s+after\\s+tomorrow"), () => addDays3(today, 2));
+  grab(re("morgen|tomorrow"), () => addDays3(today, 1));
+  grab(re("in\\s+(\\d+)\\s+(?:tagen|days?)"), (m) => addDays3(today, parseInt(m[1], 10)));
   grab(re("(?:n\xE4chste[nr]?\\s+woche|next\\s+week)"), () => nextWeekday(today, 1));
   grab(
     re("(?:am|n\xE4chste[nr]?|diesen|kommende[nr]?|on|next|this|coming)\\s+(" + WDNAMES + ")"),
@@ -6016,7 +6196,7 @@ function parseQuickEntry(raw, projects = []) {
     return d.getMonth() === +m[2] - 1 ? d : null;
   });
   let time = "";
-  const hm = (h, mi) => h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z2(h) + ":" + z2(mi) : null;
+  const hm = (h, mi) => h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z3(h) + ":" + z3(mi) : null;
   const grabTime = (rx, fn) => {
     if (time) return;
     const m = text.match(rx);
@@ -6657,8 +6837,8 @@ function openReminders(host, anchor) {
         openDatePicker(
           anchor,
           "",
-          (iso3) => {
-            if (iso3 && iso3.includes("T")) add(iso3);
+          (iso4) => {
+            if (iso4 && iso4.includes("T")) add(iso4);
           },
           void 0,
           { commit: "confirm", requireTime: true, confirmLabel: t("rem_add") }
@@ -8094,7 +8274,7 @@ function openViewPanel(anchor, plugin) {
         const sw = doneRow.createDiv({ cls: "bt-panel-switch" + (o.showDone ? " is-on" : "") });
         sw.onclick = () => apply({ showDone: !o.showDone });
       }
-      if (page.tier === "full" || page.key === "heute") {
+      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute")) {
         cap(t("filter_arrange"));
         ddRow(pop, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v }));
         const groups = o.layout === "board" ? groupOptions(page.kind).filter((g) => g !== "date" && g !== "deadline") : groupOptions(page.kind);
@@ -8554,9 +8734,9 @@ function parseRecurrence(rule) {
   if (!m) return null;
   return { n: m[1] ? parseInt(m[1], 10) : 1, unit: m[2] };
 }
-var z3 = (n) => String(n).padStart(2, "0");
-var toIso = (d) => d.getFullYear() + "-" + z3(d.getMonth() + 1) + "-" + z3(d.getDate());
-var addDays3 = (isoDate2, days) => {
+var z4 = (n) => String(n).padStart(2, "0");
+var toIso = (d) => d.getFullYear() + "-" + z4(d.getMonth() + 1) + "-" + z4(d.getDate());
+var addDays4 = (isoDate2, days) => {
   const d = /* @__PURE__ */ new Date(isoDate2 + "T00:00:00");
   d.setDate(d.getDate() + days);
   return toIso(d);
@@ -8575,7 +8755,7 @@ function advanceUntilFuture(isoDate2, rule, today) {
   while (d <= today && guard++ < 1e3) d = advance(d, rule);
   return d;
 }
-var ms = (iso3) => (/* @__PURE__ */ new Date(iso3 + "T00:00:00")).getTime();
+var ms = (iso4) => (/* @__PURE__ */ new Date(iso4 + "T00:00:00")).getTime();
 function nextInstance(task, today) {
   if (!task.recurrence) return null;
   const rule = parseRecurrence(task.recurrence);
@@ -8586,7 +8766,7 @@ function nextInstance(task, today) {
     let nextScheduled = null;
     if (task.scheduled) {
       const gap = Math.round((ms(task.scheduled) - ms(task.due)) / 864e5);
-      nextScheduled = addDays3(nextDue, gap);
+      nextScheduled = addDays4(nextDue, gap);
     }
     return { due: nextDue, scheduled: nextScheduled };
   }
@@ -8596,8 +8776,245 @@ function nextInstance(task, today) {
   return null;
 }
 
-// src/heuteView.ts
+// src/calendarView.ts
+var import_obsidian18 = require("obsidian");
+var HOUR_PX = 44;
+var SNAP_MIN = 15;
+var MONTH_CHIPS = 3;
+var MIN_DUR = 15;
+var anchors = /* @__PURE__ */ new Map();
+var pageKey = (plugin) => (plugin.currentProject ?? plugin.currentLabel ?? plugin.currentFilter ?? plugin.currentView ?? "") + "|cal";
 var dragPath = null;
+var z5 = (n) => String(n).padStart(2, "0");
+var hhmm = (min) => z5(Math.floor(min / 60)) + ":" + z5(min % 60);
+var snap = (min) => Math.max(0, Math.min(1425, Math.round(min / SNAP_MIN) * SNAP_MIN));
+var weekdayShort2 = (dayIdx) => new Intl.DateTimeFormat(getLocale(), { weekday: "short" }).format(new Date(2021, 7, 1 + dayIdx));
+var monthYear2 = (isoDate2) => new Intl.DateTimeFormat(getLocale(), { month: "long", year: "numeric" }).format(parseISO(isoDate2));
+function renderCalendar(root, plugin, tasks, today, opts, redraw) {
+  root.addClass("bt-sizer-board");
+  const key = pageKey(plugin);
+  const anchor = anchors.get(key) ?? today;
+  const mode = opts.calMode;
+  const buckets = bucketByDue(tasks);
+  const go = (next) => {
+    anchors.set(key, next);
+    redraw();
+  };
+  const step = (dir) => go(mode === "month" ? addMonths(anchor, dir) : addDays2(anchor, dir * 7));
+  const head = root.createDiv({ cls: "bt-calview-head" });
+  const nav = head.createDiv({ cls: "bt-calview-nav" });
+  const navBtn = (icon, label, onClick) => {
+    const b = nav.createEl("button", { cls: "bt-calview-nav-btn", attr: { "aria-label": label, "data-tooltip-position": "top" } });
+    (0, import_obsidian18.setIcon)(b, icon);
+    b.onclick = onClick;
+  };
+  navBtn("chevron-left", t("cal_prev"), () => step(-1));
+  navBtn("chevron-right", t("cal_next"), () => step(1));
+  const todayBtn = nav.createEl("button", { cls: "bt-calview-today", text: t("cal_today") });
+  todayBtn.onclick = () => go(today);
+  head.createSpan({ cls: "bt-calview-title", text: mode === "month" ? monthYear2(anchor) : weekTitle(anchor) });
+  const seg = head.createDiv({ cls: "bt-tabs bt-calview-seg" });
+  for (const m of CAL_MODES) {
+    const b = seg.createEl("button", { cls: "bt-tab" + (mode === m ? " is-active" : ""), text: t("cal_mode_" + m) });
+    b.onclick = () => void plugin.setPageViewOption({ calMode: m });
+  }
+  if (mode === "month") renderMonth(root, plugin, buckets, anchor, today, redraw);
+  else renderWeek(root, plugin, buckets, anchor, today, redraw);
+}
+function weekTitle(anchor) {
+  const days = weekDays(anchor);
+  const a = parseISO(days[0]), b = parseISO(days[6]);
+  const fmt = (d, withMonth) => new Intl.DateTimeFormat(getLocale(), withMonth ? { day: "numeric", month: "long" } : { day: "numeric" }).format(d);
+  const year = new Intl.DateTimeFormat(getLocale(), { year: "numeric" }).format(b);
+  return `${fmt(a, a.getMonth() !== b.getMonth())} \u2013 ${fmt(b, true)} ${year}`;
+}
+function renderMonth(root, plugin, buckets, anchor, today, redraw) {
+  const wrap = root.createDiv({ cls: "bt-calview bt-calview-month" });
+  const wd = wrap.createDiv({ cls: "bt-calview-weekdays" });
+  for (const i of [1, 2, 3, 4, 5, 6, 0]) wd.createDiv({ cls: "bt-calview-wd", text: weekdayShort2(i) });
+  const grid = wrap.createDiv({ cls: "bt-calview-grid" });
+  for (const day of monthGrid(anchor)) {
+    const cell = grid.createDiv({ cls: "bt-calview-cell" });
+    if (!sameMonth(day, anchor)) cell.addClass("is-other");
+    if (day === today) cell.addClass("is-today");
+    const wdIdx = parseISO(day).getDay();
+    if (wdIdx === 0 || wdIdx === 6) cell.addClass("is-weekend");
+    const num = cell.createDiv({ cls: "bt-calview-daynum", text: String(parseISO(day).getDate()) });
+    const addHere = () => plugin.openNewTaskOn(day);
+    num.onclick = (e) => {
+      e.stopPropagation();
+      addHere();
+    };
+    cell.onclick = addHere;
+    const items = sortDay(buckets.get(day) ?? []);
+    const list = cell.createDiv({ cls: "bt-calview-chips" });
+    for (const tk of items.slice(0, MONTH_CHIPS)) renderChip(list, plugin, tk);
+    if (items.length > MONTH_CHIPS) {
+      const more = cell.createDiv({ cls: "bt-calview-more", text: t("cal_more", items.length - MONTH_CHIPS) });
+      more.onclick = (e) => {
+        e.stopPropagation();
+        openPopover(more, (pop) => {
+          pop.addClass("bt-calview-pop");
+          pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
+          for (const tk of items) renderChip(pop, plugin, tk);
+        });
+      };
+    }
+    dropTarget(cell, plugin, (task) => combineDT(day, task.dueTime), redraw);
+  }
+}
+var dayTitle = (day) => new Intl.DateTimeFormat(getLocale(), { weekday: "long", day: "numeric", month: "long" }).format(parseISO(day));
+function sortDay(list) {
+  return [...list].sort((a, b) => {
+    const da = isDone(a.status) ? 1 : 0, db = isDone(b.status) ? 1 : 0;
+    if (da !== db) return da - db;
+    const ta = a.dueTime ?? "99:99", tb = b.dueTime ?? "99:99";
+    return ta.localeCompare(tb) || a.title.localeCompare(b.title);
+  });
+}
+function renderWeek(root, plugin, buckets, anchor, today, redraw) {
+  const days = weekDays(anchor);
+  const wrap = root.createDiv({ cls: "bt-calview bt-calview-week" });
+  const head = wrap.createDiv({ cls: "bt-calview-week-head" });
+  head.createDiv({ cls: "bt-calview-gutter" });
+  for (const day of days) {
+    const d = head.createDiv({ cls: "bt-calview-dayhead" + (day === today ? " is-today" : "") });
+    d.createSpan({ cls: "bt-calview-dayhead-wd", text: weekdayShort2(parseISO(day).getDay()) });
+    d.createSpan({ cls: "bt-calview-dayhead-num", text: String(parseISO(day).getDate()) });
+    d.onclick = () => plugin.openNewTaskOn(day);
+  }
+  const allday = wrap.createDiv({ cls: "bt-calview-allday" });
+  const gut = allday.createDiv({ cls: "bt-calview-gutter" });
+  gut.createSpan({ text: t("cal_allday") });
+  for (const day of days) {
+    const cell = allday.createDiv({ cls: "bt-calview-allday-cell" + (day === today ? " is-today" : "") });
+    for (const tk of sortDay(allDayOf(buckets.get(day) ?? []))) renderChip(cell, plugin, tk);
+    dropTarget(cell, plugin, () => day, redraw);
+  }
+  const gridWrap = wrap.createDiv({ cls: "bt-calview-timegrid" });
+  const gutter = gridWrap.createDiv({ cls: "bt-calview-gutter bt-calview-hours" });
+  for (let h = 0; h < 24; h++) {
+    const row = gutter.createDiv({ cls: "bt-calview-hour" });
+    row.style.height = HOUR_PX + "px";
+    if (h) row.createSpan({ text: z5(h) + ":00" });
+  }
+  for (const day of days) {
+    const col = gridWrap.createDiv({ cls: "bt-calview-daycol" + (day === today ? " is-today" : "") });
+    col.style.height = 24 * HOUR_PX + "px";
+    for (let h = 1; h < 24; h++) {
+      const line = col.createDiv({ cls: "bt-calview-line" });
+      line.style.top = h * HOUR_PX + "px";
+    }
+    if (day === today) {
+      const now = /* @__PURE__ */ new Date();
+      const nowLine = col.createDiv({ cls: "bt-calview-now" });
+      nowLine.style.top = (now.getHours() * 60 + now.getMinutes()) / 60 * HOUR_PX + "px";
+    }
+    col.onclick = (e) => {
+      if (e.target !== col && !e.target.hasClass("bt-calview-line")) return;
+      plugin.openNewTaskOn(day, hhmm(snap(yToMin(e.clientY, col))));
+    };
+    for (const b of layoutDay(sortDay(buckets.get(day) ?? []))) {
+      const el = col.createDiv({ cls: "bt-calview-block" });
+      el.style.top = b.startMin / 60 * HOUR_PX + "px";
+      el.style.height = Math.max(18, (b.endMin - b.startMin) / 60 * HOUR_PX - 2) + "px";
+      el.style.left = `calc(${b.col / b.cols * 100}% + 2px)`;
+      el.style.width = `calc(${1 / b.cols * 100}% - 4px)`;
+      decorate(el, plugin, b.task);
+      el.createDiv({ cls: "bt-calview-block-time", text: hhmm(b.startMin) });
+      el.createDiv({ cls: "bt-calview-block-title", text: b.task.title });
+      dragSource(el, b.task);
+      const grip = el.createDiv({ cls: "bt-calview-resize" });
+      grip.onmousedown = (e) => startResize(e, el, b.task, b.startMin, plugin, redraw);
+    }
+    dropTarget(col, plugin, (_task, ev) => combineDT(day, hhmm(snap(yToMin(ev.clientY, col)))), redraw);
+  }
+  gridWrap.scrollTop = 7 * HOUR_PX;
+}
+function yToMin(clientY, col) {
+  const r = col.getBoundingClientRect();
+  return (clientY - r.top) / HOUR_PX * 60;
+}
+function startResize(e, el, task, startMin, plugin, redraw) {
+  e.preventDefault();
+  e.stopPropagation();
+  const col = el.parentElement;
+  const doc = el.ownerDocument;
+  let minutes = Math.max(MIN_DUR, task.duration ?? 30);
+  const onMove = (ev) => {
+    minutes = Math.max(MIN_DUR, snap(yToMin(ev.clientY, col)) - startMin);
+    el.style.height = Math.max(18, minutes / 60 * HOUR_PX - 2) + "px";
+  };
+  const onUp = () => {
+    doc.removeEventListener("mousemove", onMove);
+    doc.removeEventListener("mouseup", onUp);
+    if (minutes !== task.duration) void plugin.setTaskDuration(task, minutes).then(redraw);
+  };
+  doc.addEventListener("mousemove", onMove);
+  doc.addEventListener("mouseup", onUp);
+}
+function renderChip(parent, plugin, task) {
+  const chip = parent.createDiv({ cls: "bt-calview-chip" });
+  decorate(chip, plugin, task);
+  if (task.dueTime) chip.createSpan({ cls: "bt-calview-chip-time", text: task.dueTime });
+  chip.createSpan({ cls: "bt-calview-chip-title", text: task.title });
+  dragSource(chip, task);
+}
+function decorate(el, plugin, task) {
+  el.dataset.path = task.path;
+  if (isDone(task.status)) el.addClass("is-done");
+  el.style.setProperty("--bt-cal-tint", prioTint(task));
+  el.onclick = (e) => {
+    e.stopPropagation();
+    plugin.openEditTask(task);
+  };
+}
+var PRIO_TINT = {
+  highest: "#ef4444",
+  high: "#f59e0b",
+  medium: "#3b82f6"
+};
+var prioTint = (task) => PRIO_TINT[task.priority] ?? "var(--interactive-accent)";
+function dragSource(el, task) {
+  el.setAttr("draggable", "true");
+  el.addEventListener("dragstart", (e) => {
+    dragPath = task.path;
+    el.addClass("is-dragging");
+    e.dataTransfer?.setData("text/plain", task.path);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  });
+  el.addEventListener("dragend", () => {
+    dragPath = null;
+    el.removeClass("is-dragging");
+  });
+}
+function dropTarget(el, plugin, dueOf, redraw) {
+  el.addEventListener("dragover", (e) => {
+    if (!dragPath) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    el.addClass("is-drop");
+  });
+  el.addEventListener("dragleave", (e) => {
+    if (!el.contains(e.relatedTarget)) el.removeClass("is-drop");
+  });
+  el.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    el.removeClass("is-drop");
+    const path = e.dataTransfer?.getData("text/plain") || dragPath;
+    dragPath = null;
+    if (!path) return;
+    const task = plugin.index.get(path);
+    if (!task) return;
+    const next = dueOf(task, e);
+    if (next === combineDT(task.due ?? "", task.dueTime)) return;
+    void plugin.setTaskDate(task, "due", next).then(redraw);
+  });
+}
+
+// src/heuteView.ts
+var dragPath2 = null;
 var dragFromCol = null;
 var boardScroll = /* @__PURE__ */ new Map();
 var VIEW_PREFIX = "beautytasks-";
@@ -8613,6 +9030,10 @@ var VIEW_ICON = {
 };
 var TITLE_KEY = { heute: "view_today", demnaechst: "view_upcoming", wiederkehrend: "view_recurring", erledigt: "view_done" };
 var viewTitle = (id) => t(TITLE_KEY[id]);
+function calendarTasks(plugin, opts) {
+  const open = plugin.index.open();
+  return opts.showDone ? [...open, ...plugin.index.done()] : open;
+}
 function renderViewInto(c, plugin, view) {
   const today = todayStr();
   c.empty();
@@ -8638,6 +9059,8 @@ function renderViewInto(c, plugin, view) {
     const open = [...overdue, ...dueToday];
     if (!open.length && !(opts.showDone && doneToday.length)) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
+    } else if (opts.layout === "calendar") {
+      renderCalendar(root, plugin, calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
@@ -8656,6 +9079,8 @@ function renderViewInto(c, plugin, view) {
     const groups = idx.upcomingByDate(today);
     if (!groups.length) {
       emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled");
+    } else if (opts.layout === "calendar") {
+      renderCalendar(root, plugin, calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
@@ -8686,12 +9111,12 @@ function renderViewInto(c, plugin, view) {
       }
       const bar = root.createDiv({ cls: "bt-trash-actions" });
       const rAll = bar.createEl("button", { cls: "bt-trash-btn" });
-      (0, import_obsidian18.setIcon)(rAll.createSpan(), "archive-restore");
+      (0, import_obsidian19.setIcon)(rAll.createSpan(), "archive-restore");
       rAll.createSpan({ text: t("trash_restore_all") });
       rAll.onclick = () => void plugin.restoreAllCancelled();
       const emptyWrap = bar.createDiv({ cls: "bt-trash-act" });
       const emptyBtn = emptyWrap.createEl("button", { cls: "bt-trash-btn is-danger" });
-      (0, import_obsidian18.setIcon)(emptyBtn.createSpan(), "trash-2");
+      (0, import_obsidian19.setIcon)(emptyBtn.createSpan(), "trash-2");
       emptyBtn.createSpan({ text: t("trash_empty") });
       emptyBtn.onclick = () => confirmInline(emptyWrap, t("confirm_empty_trash_q"), () => void plugin.emptyTrash(), redraw);
       section(root, plugin, t("nav_trash"), items, today, false, true);
@@ -8742,7 +9167,7 @@ var projectName = (path) => path.split("/").pop().replace(/\.md$/, "");
 function emptyState(root, icon, key) {
   root.addClass("is-empty");
   const box = root.createDiv({ cls: "bt-empty" });
-  (0, import_obsidian18.setIcon)(box.createDiv({ cls: "bt-empty-ic" }), icon);
+  (0, import_obsidian19.setIcon)(box.createDiv({ cls: "bt-empty-ic" }), icon);
   box.createDiv({ cls: "bt-empty-text", text: t(key) });
 }
 function addBar(root, plugin, onAdd) {
@@ -8843,6 +9268,10 @@ function renderPageBody(root, plugin, tasks, opts, today, add) {
     renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, add);
     return;
   }
+  if (opts.layout === "calendar") {
+    renderCalendar(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, () => plugin.renderMain());
+    return;
+  }
   const sorted = sortTasks(open, opts.sort);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
   for (const g of filterGroups(plugin, sorted, opts.group, today)) {
@@ -8879,10 +9308,10 @@ function pageHeader(root, plugin, titleEl, opts = {}) {
   if (opts.menu) {
     const it = opts.menu;
     const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
-    (0, import_obsidian18.setIcon)(kebab.createSpan(), "more-horizontal");
+    (0, import_obsidian19.setIcon)(kebab.createSpan(), "more-horizontal");
     kebab.onclick = (e) => {
       e.stopPropagation();
-      const m = new import_obsidian18.Menu();
+      const m = new import_obsidian19.Menu();
       buildItemMenu(m, plugin, it, "board");
       m.showAtMouseEvent(e);
     };
@@ -9005,7 +9434,7 @@ function attachEdgeAutoscroll(board) {
     }
   };
   board.addEventListener("dragover", (e) => {
-    if (!dragPath) return;
+    if (!dragPath2) return;
     const r = board.getBoundingClientRect();
     hSpeed = e.clientX < r.left + EDGE ? -ramp(e.clientX - r.left) : e.clientX > r.right - EDGE ? ramp(r.right - e.clientX) : 0;
     if (hSpeed && !rafId) rafId = window.requestAnimationFrame(tick);
@@ -9063,7 +9492,7 @@ function attachColumnDrag(colEl, handle, board, groupKey, plugin) {
 }
 function setupColumnDnd(colEl, col, plugin) {
   colEl.addEventListener("dragover", (e) => {
-    if (!dragPath) return;
+    if (!dragPath2) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     colEl.addClass("is-drop");
@@ -9074,9 +9503,9 @@ function setupColumnDnd(colEl, col, plugin) {
   colEl.addEventListener("drop", (e) => {
     e.preventDefault();
     colEl.removeClass("is-drop");
-    const path = e.dataTransfer?.getData("text/plain") || dragPath;
+    const path = e.dataTransfer?.getData("text/plain") || dragPath2;
     const fromCol = dragFromCol;
-    dragPath = null;
+    dragPath2 = null;
     dragFromCol = null;
     if (!path) return;
     const task = plugin.index.get(path);
@@ -9102,7 +9531,7 @@ function renderKanbanBoard(root, plugin, tasks, today, opts, add) {
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
     if (reorderable && !sentinel) {
       head.addClass("bt-col-draggable");
-      (0, import_obsidian18.setIcon)(head.createSpan({ cls: "bt-kanban-grip" }), "grip-vertical");
+      (0, import_obsidian19.setIcon)(head.createSpan({ cls: "bt-kanban-grip" }), "grip-vertical");
       attachColumnDrag(colEl, head, board, groupKey, plugin);
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
@@ -9125,14 +9554,14 @@ function groupLabel(dateISO, today) {
   const wd = new Intl.DateTimeFormat(getLocale(), { weekday: "short" }).format(/* @__PURE__ */ new Date(dateISO + "T00:00:00"));
   return wd + ", " + lbl;
 }
-function renderedPaths(plugin, anchors) {
+function renderedPaths(plugin, anchors2) {
   const present = /* @__PURE__ */ new Set();
   const walk = (tk) => {
     if (present.has(tk.path)) return;
     present.add(tk.path);
     for (const kid of plugin.index.children(tk.path)) if (!isTrashed(kid.status)) walk(kid);
   };
-  for (const a of anchors) walk(a);
+  for (const a of anchors2) walk(a);
   return present;
 }
 function section(parent, plugin, title, tasks, today, collapsible = false, trash = false, present) {
@@ -9149,7 +9578,7 @@ function section(parent, plugin, title, tasks, today, collapsible = false, trash
     const chev = head.createSpan({ cls: "bt-collapse-ic" });
     const apply = () => {
       sec.toggleClass("is-collapsed", plugin.doneCollapsed);
-      (0, import_obsidian18.setIcon)(chev, plugin.doneCollapsed ? "chevron-right" : "chevron-down");
+      (0, import_obsidian19.setIcon)(chev, plugin.doneCollapsed ? "chevron-right" : "chevron-down");
     };
     apply();
     head.onclick = () => {
@@ -9176,7 +9605,7 @@ function renderLinkedText(el, plugin, text, sourcePath) {
     return;
   }
   el.addClass("bt-md-inline");
-  void import_obsidian18.MarkdownRenderer.render(plugin.app, text, el, sourcePath, plugin.titleRenderComp).catch(() => {
+  void import_obsidian19.MarkdownRenderer.render(plugin.app, text, el, sourcePath, plugin.titleRenderComp).catch(() => {
     el.empty();
     el.setText(text);
   });
@@ -9187,7 +9616,7 @@ function renderLinkedText(el, plugin, text, sourcePath) {
     e.stopPropagation();
     if (a.classList.contains("internal-link")) {
       const href = a.getAttribute("data-href") || a.getAttribute("href") || "";
-      void plugin.app.workspace.openLinkText(href, sourcePath, import_obsidian18.Keymap.isModEvent(e));
+      void plugin.app.workspace.openLinkText(href, sourcePath, import_obsidian19.Keymap.isModEvent(e));
     } else {
       const href = a.getAttribute("href");
       if (href) window.open(href);
@@ -9204,14 +9633,14 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   if (opts.draggable && !trash) {
     row.setAttr("draggable", "true");
     row.addEventListener("dragstart", (e) => {
-      dragPath = task.path;
+      dragPath2 = task.path;
       dragFromCol = opts.colId ?? null;
       row.addClass("is-dragging");
       e.dataTransfer?.setData("text/plain", task.path);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     });
     row.addEventListener("dragend", () => {
-      dragPath = null;
+      dragPath2 = null;
       dragFromCol = null;
       row.removeClass("is-dragging");
     });
@@ -9219,7 +9648,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   const check = row.createDiv({ cls: "bt-check" });
   if (trash) {
     check.addClass("bt-check-x");
-    (0, import_obsidian18.setIcon)(check, "x");
+    (0, import_obsidian19.setIcon)(check, "x");
   } else if (isDone(task.status)) {
     check.addClass("is-done");
     const c = statusColor(task.status);
@@ -9230,7 +9659,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   } else {
     if (task.status !== firstOpenStatus()) {
       check.addClass("bt-check-status");
-      (0, import_obsidian18.setIcon)(check, statusIcon(task.status));
+      (0, import_obsidian19.setIcon)(check, statusIcon(task.status));
       check.style.setProperty("--bt-status-col", statusTint(task.status));
     } else {
       const c = statusColor(task.status);
@@ -9262,7 +9691,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
   if (task.reminders.length) {
     const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" \xB7 "), "data-tooltip-position": "top" } });
-    (0, import_obsidian18.setIcon)(rem, "alarm-clock");
+    (0, import_obsidian19.setIcon)(rem, "alarm-clock");
   }
   for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label", text: l });
   if (task.scheduled) {
@@ -9276,7 +9705,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   if (comments > 0) {
     const chip = meta.createSpan({ cls: "bt-comments" });
     const ic = chip.createSpan({ cls: "bt-comments-ic" });
-    (0, import_obsidian18.setIcon)(ic, "paperclip");
+    (0, import_obsidian19.setIcon)(ic, "paperclip");
     chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
   }
   if (trash) {
@@ -9339,7 +9768,7 @@ function attachCheckActions(check, plugin, task) {
   check.addEventListener("touchcancel", clear);
 }
 function showStatusMenu(plugin, task, x, y) {
-  const menu = new import_obsidian18.Menu();
+  const menu = new import_obsidian19.Menu();
   for (const s of allStatuses()) {
     if (s.kind === "cancelled") menu.addSeparator();
     menu.addItem((it) => {
@@ -9366,7 +9795,7 @@ function activate(el, handler) {
 function navItem(c, o) {
   const item = c.createDiv({ cls: "bt-nav-item" + (o.active ? " is-active" : "") + (o.cls ? " " + o.cls : ""), attr: { role: "button", tabindex: "0" } });
   const ic = item.createSpan({ cls: "bt-nav-ic" });
-  (0, import_obsidian18.setIcon)(ic, o.icon);
+  (0, import_obsidian19.setIcon)(ic, o.icon);
   if (o.iconColor) ic.setCssStyles({ color: o.iconColor });
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
   if (o.count) item.createSpan({ cls: "bt-nav-count", text: String(o.count) });
@@ -9378,7 +9807,7 @@ function navItem(c, o) {
 }
 function navHintRow(c, icon, label, onClick) {
   const row = c.createDiv({ cls: "bt-nav-hint", attr: { role: "button", tabindex: "0" } });
-  (0, import_obsidian18.setIcon)(row.createSpan({ cls: "bt-nav-hint-ic" }), icon);
+  (0, import_obsidian19.setIcon)(row.createSpan({ cls: "bt-nav-hint-ic" }), icon);
   row.createSpan({ cls: "bt-nav-hint-lbl", text: label });
   activate(row, onClick);
 }
@@ -9390,7 +9819,7 @@ function navHead(c, plugin, id, title, tip, placeholder, redraw, submit, onAddCl
   toggle.createSpan({ cls: "bt-nav-head-lbl", text: title });
   activate(toggle, () => manageSec ? void plugin.activateManage(manageSec) : void plugin.toggleNavSection(id));
   const add = head.createDiv({ cls: "bt-nav-head-add", attr: { role: "button", tabindex: "0", "aria-label": tip, "data-tooltip-position": "top" } });
-  (0, import_obsidian18.setIcon)(add, "plus");
+  (0, import_obsidian19.setIcon)(add, "plus");
   activate(add, () => {
     if (onAddClick) {
       onAddClick();
@@ -9425,11 +9854,11 @@ function navHead(c, plugin, id, title, tip, placeholder, redraw, submit, onAddCl
     window.setTimeout(() => input.focus(), 0);
   });
   const chev = head.createDiv({ cls: "bt-nav-head-chevron", attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed), "aria-label": t("nav_toggle_section"), "data-tooltip-position": "top" } });
-  (0, import_obsidian18.setIcon)(chev, collapsed ? "chevron-right" : "chevron-down");
+  (0, import_obsidian19.setIcon)(chev, collapsed ? "chevron-right" : "chevron-down");
   activate(chev, () => void plugin.toggleNavSection(id));
   if (id === "projects" || id === "areas" || id === "labels" || id === "filters") {
     head.oncontextmenu = (e) => {
-      const menu = new import_obsidian18.Menu();
+      const menu = new import_obsidian19.Menu();
       if (showHiddenSubmenu(menu, plugin, id)) {
         e.preventDefault();
         menu.showAtMouseEvent(e);
@@ -9447,9 +9876,9 @@ function renderReorderList(c, plugin, sec, entries) {
   for (const e of entries) {
     const row = list.createDiv({ cls: "bt-reorder-row", attr: { "data-key": e.key } });
     const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
-    (0, import_obsidian18.setIcon)(grip, "grip-vertical");
+    (0, import_obsidian19.setIcon)(grip, "grip-vertical");
     const ic = row.createSpan({ cls: "bt-nav-ic" });
-    (0, import_obsidian18.setIcon)(ic, e.icon);
+    (0, import_obsidian19.setIcon)(ic, e.icon);
     if (e.color) ic.setCssStyles({ color: e.color });
     row.createSpan({ cls: "bt-nav-lbl", text: e.name });
     grip.onkeydown = (ev) => {
@@ -9483,7 +9912,7 @@ function renderNavInto(c, plugin) {
       active: plugin.currentProject === ib.path,
       onClick: () => void plugin.activateProject(ib.path),
       onContext: (e) => {
-        const m = new import_obsidian18.Menu();
+        const m = new import_obsidian19.Menu();
         if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e);
       }
     });
@@ -9509,7 +9938,7 @@ function renderNavInto(c, plugin) {
         active: plugin.currentProject === p.path,
         onClick: () => void plugin.activateProject(p.path),
         onContext: (e) => {
-          const m = new import_obsidian18.Menu();
+          const m = new import_obsidian19.Menu();
           buildItemMenu(m, plugin, { sec, key: p.path, name: p.name, hidden: p.hidden, color: p.color, type: kind });
           m.showAtMouseEvent(e);
         }
@@ -9544,7 +9973,7 @@ function renderNavInto(c, plugin) {
         active: plugin.currentFilter === fl.path,
         onClick: () => void plugin.activateFilter(fl.path),
         onContext: (e) => {
-          const m = new import_obsidian18.Menu();
+          const m = new import_obsidian19.Menu();
           buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color });
           m.showAtMouseEvent(e);
         }
@@ -9577,7 +10006,7 @@ function renderNavInto(c, plugin) {
         active: plugin.currentLabel === name,
         onClick: () => void plugin.activateLabel(name),
         onContext: (e) => {
-          const m = new import_obsidian18.Menu();
+          const m = new import_obsidian19.Menu();
           buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) });
           m.showAtMouseEvent(e);
         }
@@ -9617,7 +10046,7 @@ function navCount(plugin, id) {
   if (id === "wiederkehrend") return plugin.index.open().filter((tk) => tk.recurrence).length;
   return 0;
 }
-var MainView = class extends import_obsidian18.ItemView {
+var MainView = class extends import_obsidian19.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -9647,7 +10076,7 @@ var MainView = class extends import_obsidian18.ItemView {
   draw() {
     if (!this.contentEl) return;
     if (this.renderComp) this.removeChild(this.renderComp);
-    this.renderComp = this.addChild(new import_obsidian18.Component());
+    this.renderComp = this.addChild(new import_obsidian19.Component());
     this.plugin.titleRenderComp = this.renderComp;
     if (this.plugin.manageOpen) renderManageInto(this.contentEl, this.plugin);
     else if (this.plugin.currentFilter) renderFilterBoardInto(this.contentEl, this.plugin, this.plugin.currentFilter);
@@ -9664,7 +10093,7 @@ var MainView = class extends import_obsidian18.ItemView {
     if (titleEl) titleEl.setText(this.getDisplayText());
   }
 };
-var NavView = class extends import_obsidian18.ItemView {
+var NavView = class extends import_obsidian19.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -9693,8 +10122,8 @@ var NavView = class extends import_obsidian18.ItemView {
 };
 
 // src/quickAddModal.ts
-var import_obsidian19 = require("obsidian");
-var QuickAddModal = class extends import_obsidian19.Modal {
+var import_obsidian20 = require("obsidian");
+var QuickAddModal = class extends import_obsidian20.Modal {
   constructor(plugin, project) {
     super(plugin.app);
     this.plugin = plugin;
@@ -9749,10 +10178,10 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     this.chipBar = row.createDiv({ cls: "bt-chips bt-qa-chips" });
     const right = row.createDiv({ cls: "bt-qa-foot-right" });
     const full = right.createEl("button", { cls: "bt-qa-icon", attr: { "aria-label": t("qa_open_full"), "data-tooltip-position": "top" } });
-    (0, import_obsidian19.setIcon)(full, "maximize-2");
+    (0, import_obsidian20.setIcon)(full, "maximize-2");
     full.onclick = () => this.openInFull();
     const submit = right.createEl("button", { cls: "mod-cta bt-qa-submit", attr: { "aria-label": t("btn_add_task"), "data-tooltip-position": "top" } });
-    (0, import_obsidian19.setIcon)(submit, "arrow-up");
+    (0, import_obsidian20.setIcon)(submit, "arrow-up");
     submit.onclick = () => void this.submit();
     this.parse();
     this.renderChips();
@@ -9837,7 +10266,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
       else renderValueChip(bar, host, c, set);
     }
     const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : ""), attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
-    (0, import_obsidian19.setIcon)(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
+    (0, import_obsidian20.setIcon)(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
     acts.onclick = (e) => {
       e.stopPropagation();
       this.openPlusMenu(acts);
@@ -9846,7 +10275,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
   /** Details-Chip: öffnet den vollen Editor mit aufgeklapptem Detailbereich (kein Inline-Log). */
   renderDetailsChip(bar) {
     const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details", attr: { "aria-label": t("details"), "data-tooltip-position": "top" } });
-    (0, import_obsidian19.setIcon)(chip.createSpan({ cls: "bt-chip-ic" }), "paperclip");
+    (0, import_obsidian20.setIcon)(chip.createSpan({ cls: "bt-chip-ic" }), "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
     chip.onclick = (e) => {
       e.stopPropagation();
@@ -9873,11 +10302,11 @@ var QuickAddModal = class extends import_obsidian19.Modal {
     const all = [eingang, ...bereiche, ...projekte].filter(Boolean);
     const sel = all.find((p) => p.name === this.f.project);
     const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
-    (0, import_obsidian19.setIcon)(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
+    (0, import_obsidian20.setIcon)(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
     if (sel?.color) ic.setCssStyles({ color: sel.color });
     this.projektBtn.createSpan({ text: this.f.project ? projectDisplayName(this.f.project) : t("no_project") });
     const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" });
-    (0, import_obsidian19.setIcon)(car, "chevron-down");
+    (0, import_obsidian20.setIcon)(car, "chevron-down");
   }
   openProject(anchor) {
     openPopover(anchor, (pop, close) => {
@@ -9908,7 +10337,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
   async submit() {
     const title = this.titleValue();
     if (!title) {
-      new import_obsidian19.Notice(t("err_enter_taskname"));
+      new import_obsidian20.Notice(t("err_enter_taskname"));
       return;
     }
     await createTaskNote(this.app, this.plugin.settings, {
@@ -9927,7 +10356,7 @@ var QuickAddModal = class extends import_obsidian19.Modal {
       parent: this.f.parent,
       project: this.f.project
     });
-    new import_obsidian19.Notice(t("qa_added"));
+    new import_obsidian20.Notice(t("qa_added"));
     const project = this.f.project;
     this.f = {
       title: "",
@@ -9979,10 +10408,10 @@ var QuickAddModal = class extends import_obsidian19.Modal {
 };
 
 // src/settingsTab.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/statusEditor.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 var KIND_KEY = { open: "status_kind_open", done: "status_kind_done", cancelled: "status_kind_cancelled" };
 var KIND_ICON2 = { open: "circle", done: "check-circle", cancelled: "x-circle" };
 var ICON_PRESETS = [
@@ -10042,7 +10471,7 @@ function then(p, redraw) {
 function statusRow(list, plugin, s, groupCount, roles, persist, redraw) {
   const row = list.createDiv({ cls: "bt-manage-row bt-status-row", attr: { "data-key": s.id } });
   const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
-  (0, import_obsidian20.setIcon)(grip, "grip-vertical");
+  (0, import_obsidian21.setIcon)(grip, "grip-vertical");
   grip.onkeydown = (e) => {
     if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -10054,7 +10483,7 @@ function statusRow(list, plugin, s, groupCount, roles, persist, redraw) {
   };
   attachRowDrag(row, grip, list, () => persist());
   const dot = row.createSpan({ cls: "bt-status-dot" });
-  (0, import_obsidian20.setIcon)(dot, statusIcon(s.id));
+  (0, import_obsidian21.setIcon)(dot, statusIcon(s.id));
   dot.style.color = statusTint(s.id);
   const name = row.createSpan({ cls: "bt-manage-name bt-status-name", text: statusLabel(s.id) });
   name.onclick = () => startStatusRename(row, plugin, s, redraw);
@@ -10104,7 +10533,7 @@ function openKindPicker(anchor, plugin, s, redraw) {
     ["open", "done", "cancelled"].forEach((k) => {
       const row = pop.createDiv({ cls: "bt-row" + (s.kind === k ? " is-active" : "") });
       const ic = row.createSpan({ cls: "bt-row-ic" });
-      (0, import_obsidian20.setIcon)(ic, KIND_ICON2[k]);
+      (0, import_obsidian21.setIcon)(ic, KIND_ICON2[k]);
       row.createSpan({ cls: "bt-row-lbl", text: t(KIND_KEY[k]) });
       row.onclick = () => {
         then(plugin.setStatusKind(s.id, k), redraw);
@@ -10118,7 +10547,7 @@ function openIconPicker(anchor, plugin, s, redraw) {
     pop.addClass("bt-icon-grid");
     for (const ic of ICON_PRESETS) {
       const b = pop.createEl("button", { cls: "bt-icon-cell" + (s.icon === ic ? " is-active" : ""), attr: { "aria-label": ic } });
-      (0, import_obsidian20.setIcon)(b, ic);
+      (0, import_obsidian21.setIcon)(b, ic);
       b.onclick = () => {
         then(plugin.setStatusIcon(s.id, ic), redraw);
         close();
@@ -10128,10 +10557,10 @@ function openIconPicker(anchor, plugin, s, redraw) {
 }
 
 // src/gcalSync.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // src/gcalAuth.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 var AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 var TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 var REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
@@ -10160,7 +10589,7 @@ function form(params) {
   return Object.entries(params).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
 }
 async function postForm(url, params) {
-  const res = await (0, import_obsidian21.requestUrl)({
+  const res = await (0, import_obsidian22.requestUrl)({
     url,
     method: "POST",
     contentType: "application/x-www-form-urlencoded",
@@ -10224,7 +10653,7 @@ var GCalAuth = class {
   }
   /** Plattform-passender Login. onDevicePrompt nur für den Mobile-Device-Flow relevant. */
   async connect(onDevicePrompt) {
-    const tokens = import_obsidian21.Platform.isDesktopApp ? await this.connectLoopback() : await this.connectDevice(onDevicePrompt);
+    const tokens = import_obsidian22.Platform.isDesktopApp ? await this.connectLoopback() : await this.connectDevice(onDevicePrompt);
     await this.store.save(tokens);
     return tokens;
   }
@@ -10326,7 +10755,7 @@ var GCalAuth = class {
     for (; ; ) {
       if (Date.now() > expiresAt) throw new GCalAuthError("Der Anmeldecode ist abgelaufen.");
       await sleep(wait);
-      const res = await (0, import_obsidian21.requestUrl)({
+      const res = await (0, import_obsidian22.requestUrl)({
         url: TOKEN_ENDPOINT,
         method: "POST",
         contentType: "application/x-www-form-urlencoded",
@@ -10397,7 +10826,7 @@ var DEFAULT_GCAL_SETTINGS = {
 async function api(auth, method, path, body) {
   const token = await auth.getAccessToken();
   for (let attempt = 0; ; attempt++) {
-    const res = await (0, import_obsidian22.requestUrl)({
+    const res = await (0, import_obsidian23.requestUrl)({
       url: API + path,
       method,
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
@@ -10657,7 +11086,7 @@ var GCalSync = class {
       pulled.add(taskId);
     }
     if (result.nextSyncToken) s.syncTokens[cal] = result.nextSyncToken;
-    if (conflicts && s.notifyConflicts) new import_obsidian22.Notice(t("gcal_conflicts_notice", conflicts));
+    if (conflicts && s.notifyConflicts) new import_obsidian23.Notice(t("gcal_conflicts_notice", conflicts));
     return pulled;
   }
   // ── Push-Reconcile (Obsidian → Google) ──
@@ -10725,7 +11154,7 @@ var GCalSync = class {
   }
   frontmatterOf(path) {
     const f = this.host.app.vault.getAbstractFileByPath(path);
-    if (!(f instanceof import_obsidian22.TFile)) return null;
+    if (!(f instanceof import_obsidian23.TFile)) return null;
     return this.host.app.metadataCache.getFileCache(f)?.frontmatter ?? null;
   }
   projectExcluded(t2) {
@@ -10737,7 +11166,7 @@ var GCalSync = class {
   }
   async writeBack(t2, eventId, calendarId) {
     const f = this.host.app.vault.getAbstractFileByPath(t2.path);
-    if (!(f instanceof import_obsidian22.TFile)) return;
+    if (!(f instanceof import_obsidian23.TFile)) return;
     await this.host.app.fileManager.processFrontMatter(f, (fm) => {
       fm.gcal_event_id = eventId;
       fm.gcal_calendar_id = calendarId;
@@ -10745,7 +11174,7 @@ var GCalSync = class {
   }
   async clearBack(t2) {
     const f = this.host.app.vault.getAbstractFileByPath(t2.path);
-    if (!(f instanceof import_obsidian22.TFile)) return;
+    if (!(f instanceof import_obsidian23.TFile)) return;
     await this.host.app.fileManager.processFrontMatter(f, (fm) => {
       delete fm.gcal_event_id;
       delete fm.gcal_calendar_id;
@@ -10754,7 +11183,7 @@ var GCalSync = class {
   /** Datum/Uhrzeit aus Google in die Notiz zurückschreiben (Frontmatter `due` = kombiniert). */
   async writeBackDue(t2, due, dueTime) {
     const f = this.host.app.vault.getAbstractFileByPath(t2.path);
-    if (!(f instanceof import_obsidian22.TFile)) return;
+    if (!(f instanceof import_obsidian23.TFile)) return;
     await this.host.app.fileManager.processFrontMatter(f, (fm) => {
       if (due) fm.due = combineDT(due, dueTime);
       else delete fm.due;
@@ -10786,18 +11215,18 @@ function attachChipDrag(row, grip, zones, onDrop) {
     row.addClass("is-dragging");
     const onMove = (me) => {
       const y = me.clientY;
-      let target = zones.find((z4) => {
-        const r = z4.getBoundingClientRect();
+      let target = zones.find((z6) => {
+        const r = z6.getBoundingClientRect();
         return y >= r.top && y <= r.bottom;
       });
       if (!target) {
         let best = Infinity;
-        for (const z4 of zones) {
-          const r = z4.getBoundingClientRect();
+        for (const z6 of zones) {
+          const r = z6.getBoundingClientRect();
           const dy = y < r.top ? r.top - y : y - r.bottom;
           if (dy < best) {
             best = dy;
-            target = z4;
+            target = z6;
           }
         }
       }
@@ -10824,7 +11253,7 @@ function attachChipDrag(row, grip, zones, onDrop) {
     doc.addEventListener("pointerup", onUp);
   });
 }
-var FolderSuggest = class extends import_obsidian23.AbstractInputSuggest {
+var FolderSuggest = class extends import_obsidian24.AbstractInputSuggest {
   constructor(appRef, textInputEl, onPick) {
     super(appRef, textInputEl);
     this.appRef = appRef;
@@ -10834,7 +11263,7 @@ var FolderSuggest = class extends import_obsidian23.AbstractInputSuggest {
     const q = query.toLowerCase();
     const out = [];
     for (const f of this.appRef.vault.getAllLoadedFiles()) {
-      if (f instanceof import_obsidian23.TFolder && f.path.toLowerCase().includes(q)) {
+      if (f instanceof import_obsidian24.TFolder && f.path.toLowerCase().includes(q)) {
         out.push(f);
         if (out.length >= 100) break;
       }
@@ -10850,7 +11279,7 @@ var FolderSuggest = class extends import_obsidian23.AbstractInputSuggest {
     this.close();
   }
 };
-var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
+var BeautyTasksSettingTab = class extends import_obsidian24.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -10866,12 +11295,12 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     this.gcalStatusUnsub = null;
     containerEl.empty();
     const p = this.plugin;
-    new import_obsidian23.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
+    new import_obsidian24.Setting(containerEl).setName(t("set_folders_heading")).setHeading();
     const folderRow = (name, desc, get, set) => {
-      new import_obsidian23.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
+      new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
         text.setValue(get());
         const save = (raw) => {
-          const v = (0, import_obsidian23.normalizePath)(raw.trim());
+          const v = (0, import_obsidian24.normalizePath)(raw.trim());
           if (v && v !== ".") {
             set(v);
             void p.saveSettings();
@@ -10887,8 +11316,8 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => p.settings.itemsFolder = v);
     folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => p.settings.projectsFolder = v);
     folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => p.settings.attachmentsFolder = v);
-    new import_obsidian23.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
-    new import_obsidian23.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
+    new import_obsidian24.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
+    new import_obsidian24.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
       dd.addOption("auto", t("set_language_auto"));
       dd.addOption("en", "English");
       dd.addOption("de", "Deutsch");
@@ -10908,7 +11337,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
         p.renderAll();
       });
     });
-    new import_obsidian23.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
+    new import_obsidian24.Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
       for (const id of VIEW_IDS) dd.addOption(id, viewTitle(id));
       dd.addOption("last", t("set_start_view_last"));
       dd.setValue(p.settings.startView);
@@ -10917,28 +11346,28 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
         await p.saveSettings();
       });
     });
-    new import_obsidian23.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
+    new import_obsidian24.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
       p.settings.parseNaturalLanguage = v;
       await p.saveSettings();
     }));
-    new import_obsidian23.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
+    new import_obsidian24.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
       p.settings.showDescriptionInList = v;
       await p.saveSettings();
       p.renderAll();
     }));
-    new import_obsidian23.Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) => tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
+    new import_obsidian24.Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) => tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
       p.settings.chipsIconsOnly = v;
       await p.saveSettings();
     }));
-    new import_obsidian23.Setting(containerEl).setName(t("set_chip_actions")).setHeading();
+    new import_obsidian24.Setting(containerEl).setName(t("set_chip_actions")).setHeading();
     containerEl.createEl("div", { cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
     this.renderChipActions(containerEl);
-    new import_obsidian23.Setting(containerEl).setName(t("tab_statuses")).setHeading();
+    new import_obsidian24.Setting(containerEl).setName(t("tab_statuses")).setHeading();
     renderStatusEditor(containerEl.createDiv({ cls: "bt-settings-status" }), p);
-    new import_obsidian23.Setting(containerEl).setName(t("set_data_heading")).setHeading();
-    new import_obsidian23.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
-    new import_obsidian23.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
-    new import_obsidian23.Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc")).addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
+    new import_obsidian24.Setting(containerEl).setName(t("set_data_heading")).setHeading();
+    new import_obsidian24.Setting(containerEl).setName(t("set_export")).setDesc(t("set_export_desc")).addButton((b) => b.setButtonText(t("set_export_btn")).setCta().onClick(() => void p.exportTasksJson()));
+    new import_obsidian24.Setting(containerEl).setName(t("set_import")).setDesc(t("set_import_desc")).addButton((b) => b.setButtonText(t("set_import_vault_btn")).onClick(() => p.importTasksFromVault())).addButton((b) => b.setButtonText(t("set_import_os_btn")).onClick(() => p.importTasksFromOs()));
+    new import_obsidian24.Setting(containerEl).setName(t("set_import_tn")).setDesc(t("set_import_tn_desc")).addButton((b) => b.setButtonText(t("set_import_tn_btn")).onClick(() => p.importFromTaskNotes()));
     const gcalHost = containerEl.createDiv();
     const drawGCal = () => {
       gcalHost.empty();
@@ -10955,20 +11384,20 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     const g = p.settings.gcal;
     this.gcalStatusUnsub?.();
     this.gcalStatusUnsub = null;
-    new import_obsidian23.Setting(containerEl).setName(t("set_gcal_heading")).setHeading();
+    new import_obsidian24.Setting(containerEl).setName(t("set_gcal_heading")).setHeading();
     if (!p.gcalAuth.isConnected()) {
       containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
-      new import_obsidian23.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open(GCAL_GUIDE_URL)));
+      new import_obsidian24.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn")).onClick(() => window.open(GCAL_GUIDE_URL)));
       let connectBtn = null;
       const refreshConnect = () => {
         connectBtn?.setDisabled(!g.clientId || !g.clientSecret);
       };
-      new import_obsidian23.Setting(containerEl).setName(t("gcal_client_id")).addText((txt) => txt.setValue(g.clientId).onChange((v) => {
+      new import_obsidian24.Setting(containerEl).setName(t("gcal_client_id")).addText((txt) => txt.setValue(g.clientId).onChange((v) => {
         g.clientId = v.trim();
         void p.saveSettings();
         refreshConnect();
       }));
-      new import_obsidian23.Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
+      new import_obsidian24.Setting(containerEl).setName(t("gcal_client_secret")).addText((txt) => {
         txt.inputEl.type = "password";
         txt.setValue(g.clientSecret).onChange((v) => {
           g.clientSecret = v.trim();
@@ -10977,27 +11406,27 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
         });
       });
       containerEl.createEl("div", { cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
-      new import_obsidian23.Setting(containerEl).addButton((b) => {
+      new import_obsidian24.Setting(containerEl).addButton((b) => {
         connectBtn = b;
         b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret).onClick(async () => {
           b.setButtonText(t("gcal_connecting")).setDisabled(true);
           try {
-            await p.gcalConnect((dp) => new import_obsidian23.Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
+            await p.gcalConnect((dp) => new import_obsidian24.Notice(t("gcal_device_prompt", dp.verificationUrl, dp.userCode), 0));
           } catch (e) {
-            new import_obsidian23.Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
+            new import_obsidian24.Notice(t("gcal_connect_failed", e instanceof Error ? e.message : String(e)));
           }
           redraw();
         });
       });
       return;
     }
-    const head = new import_obsidian23.Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "\u2014")).addButton((b) => b.setButtonText(t("gcal_disconnect_btn")).onClick(async () => {
+    const head = new import_obsidian24.Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "\u2014")).addButton((b) => b.setButtonText(t("gcal_disconnect_btn")).onClick(async () => {
       await p.gcalDisconnect();
       redraw();
     }));
     head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
     if (!g.calendarId) containerEl.createEl("div", { cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
-    const statusSetting = new import_obsidian23.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
+    const statusSetting = new import_obsidian24.Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));
     const renderStatus = (i) => {
       const txt = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleString() : t("gcal_never"));
       statusSetting.setName(txt);
@@ -11012,7 +11441,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
         ok = true;
       } catch {
       }
-      new import_obsidian23.Setting(calHost).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc")).addDropdown((dd) => {
+      new import_obsidian24.Setting(calHost).setName(t("gcal_target_calendar")).setDesc(t("gcal_target_calendar_desc")).addDropdown((dd) => {
         if (cals.length) for (const c of cals) dd.addOption(c.id, c.summary);
         else if (g.calendarId) dd.addOption(g.calendarId, g.calendarId);
         dd.setValue(g.calendarId);
@@ -11023,22 +11452,22 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
         });
       });
       if (ok && !cals.some((c) => c.summary === DEFAULT_CALENDAR_NAME)) {
-        new import_obsidian23.Setting(calHost).setName(t("gcal_tip_create")).setDesc(t("gcal_tip_create_desc")).addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setCta().onClick(async () => {
+        new import_obsidian24.Setting(calHost).setName(t("gcal_tip_create")).setDesc(t("gcal_tip_create_desc")).addButton((b) => b.setButtonText(t("gcal_create_calendar_btn")).setCta().onClick(async () => {
           try {
             await p.gcalCreateDefaultCalendar();
           } catch (e) {
-            new import_obsidian23.Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e)));
+            new import_obsidian24.Notice(t("gcal_create_calendar_failed", e instanceof Error ? e.message : String(e)));
           }
           redraw();
         }));
       }
     })();
-    new import_obsidian23.Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc")).addToggle((tg) => tg.setValue(g.enabled).onChange((v) => {
+    new import_obsidian24.Setting(containerEl).setName(t("gcal_enabled")).setDesc(t("gcal_enabled_desc")).addToggle((tg) => tg.setValue(g.enabled).onChange((v) => {
       g.enabled = v;
       void p.saveSettings();
       if (v) void p.gcalSync.syncNow();
     }));
-    new import_obsidian23.Setting(containerEl).setName(t("gcal_autosync")).setDesc(t("gcal_autosync_desc")).addToggle((tg) => tg.setValue(g.autoSync).onChange((v) => {
+    new import_obsidian24.Setting(containerEl).setName(t("gcal_autosync")).setDesc(t("gcal_autosync_desc")).addToggle((tg) => tg.setValue(g.autoSync).onChange((v) => {
       g.autoSync = v;
       void p.saveSettings();
     }));
@@ -11046,7 +11475,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     adv.createEl("summary", { text: t("gcal_advanced") });
     const av = adv.createDiv();
     const boolRow = (key, get, set) => {
-      new import_obsidian23.Setting(av).setName(t(key)).addToggle((tg) => tg.setValue(get()).onChange((v) => {
+      new import_obsidian24.Setting(av).setName(t(key)).addToggle((tg) => tg.setValue(get()).onChange((v) => {
         set(v);
         void p.saveSettings();
       }));
@@ -11055,7 +11484,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     boolRow("gcal_on_update", () => g.syncOnUpdate, (v) => g.syncOnUpdate = v);
     boolRow("gcal_on_delete", () => g.syncOnDelete, (v) => g.syncOnDelete = v);
     boolRow("gcal_remove_on_complete", () => g.removeEventOnComplete, (v) => g.removeEventOnComplete = v);
-    new import_obsidian23.Setting(av).setName(t("gcal_duration")).addText((txt) => {
+    new import_obsidian24.Setting(av).setName(t("gcal_duration")).addText((txt) => {
       txt.inputEl.type = "number";
       txt.setValue(String(g.defaultDurationMin)).onChange((v) => {
         const n = parseInt(v, 10);
@@ -11065,11 +11494,11 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
         }
       });
     });
-    new import_obsidian23.Setting(av).setName(t("gcal_timezone")).addText((txt) => txt.setValue(g.timezone).onChange((v) => {
+    new import_obsidian24.Setting(av).setName(t("gcal_timezone")).addText((txt) => txt.setValue(g.timezone).onChange((v) => {
       g.timezone = v.trim() || g.timezone;
       void p.saveSettings();
     }));
-    new import_obsidian23.Setting(av).setName(t("gcal_statusbar")).addToggle((tg) => tg.setValue(g.showStatusBar).onChange((v) => {
+    new import_obsidian24.Setting(av).setName(t("gcal_statusbar")).addToggle((tg) => tg.setValue(g.showStatusBar).onChange((v) => {
       g.showStatusBar = v;
       void p.saveSettings();
       p.refreshGCalStatusBar();
@@ -11116,9 +11545,9 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
     const persist = () => {
       const order = [];
       const tiers = {};
-      for (const z4 of zones) {
-        const tier = z4.getAttr("data-tier");
-        for (const r of Array.from(z4.children)) {
+      for (const z6 of zones) {
+        const tier = z6.getAttr("data-tier");
+        for (const r of Array.from(z6.children)) {
           const id = r.getAttr("data-id");
           if (!id) continue;
           order.push(id);
@@ -11141,8 +11570,8 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
       const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, surface, id))];
       const row = zone.createDiv({ cls: "bt-chip-row", attr: { "data-id": id } });
       const grip = row.createSpan({ cls: "bt-chip-grip", attr: { "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
-      (0, import_obsidian23.setIcon)(grip, "grip-vertical");
-      (0, import_obsidian23.setIcon)(row.createSpan({ cls: "bt-chip-row-ic" }), c.icon);
+      (0, import_obsidian24.setIcon)(grip, "grip-vertical");
+      (0, import_obsidian24.setIcon)(row.createSpan({ cls: "bt-chip-row-ic" }), c.icon);
       row.createSpan({ cls: "bt-chip-row-lbl", text: t(c.nameKey) });
       attachChipDrag(row, grip, zones, persist);
     }
@@ -11150,7 +11579,7 @@ var BeautyTasksSettingTab = class extends import_obsidian23.PluginSettingTab {
 };
 
 // src/importExport.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var EXPORT_FORMAT = "beautytasks";
 var EXPORT_VERSION = 2;
 var baseName5 = (p) => p.split("/").pop().replace(/\.md$/, "");
@@ -11205,12 +11634,12 @@ async function writeExportFile(plugin) {
   const base = parts.length > 1 ? parts.slice(0, -1).join("/") : settings.itemsFolder;
   await ensureFolder(app, base);
   const d = /* @__PURE__ */ new Date();
-  const z4 = (n2) => String(n2).padStart(2, "0");
-  const stamp = `${d.getFullYear()}-${z4(d.getMonth() + 1)}-${z4(d.getDate())}-${z4(d.getHours())}${z4(d.getMinutes())}`;
-  let dest = (0, import_obsidian24.normalizePath)(`${base}/beautytasks-export-${stamp}.json`);
+  const z6 = (n2) => String(n2).padStart(2, "0");
+  const stamp = `${d.getFullYear()}-${z6(d.getMonth() + 1)}-${z6(d.getDate())}-${z6(d.getHours())}${z6(d.getMinutes())}`;
+  let dest = (0, import_obsidian25.normalizePath)(`${base}/beautytasks-export-${stamp}.json`);
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian24.normalizePath)(`${base}/beautytasks-export-${stamp} ${n}.json`);
+    dest = (0, import_obsidian25.normalizePath)(`${base}/beautytasks-export-${stamp} ${n}.json`);
     n++;
     if (n > 200) break;
   }
@@ -11232,10 +11661,10 @@ function parseExport(raw) {
 async function writeImportedTask(app, settings, et) {
   await ensureFolder(app, settings.itemsFolder);
   const slug = slugify(et.title);
-  let dest = (0, import_obsidian24.normalizePath)(settings.itemsFolder + "/" + slug + ".md");
+  let dest = (0, import_obsidian25.normalizePath)(settings.itemsFolder + "/" + slug + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian24.normalizePath)(settings.itemsFolder + "/" + slug + " " + n + ".md");
+    dest = (0, import_obsidian25.normalizePath)(settings.itemsFolder + "/" + slug + " " + n + ".md");
     n++;
     if (n > 500) break;
   }
@@ -11266,10 +11695,10 @@ async function writeImportedList(app, settings, list) {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(list.name);
-  let dest = (0, import_obsidian24.normalizePath)(folder + "/" + base + ".md");
+  let dest = (0, import_obsidian25.normalizePath)(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = (0, import_obsidian24.normalizePath)(folder + "/" + base + " " + n + ".md");
+    dest = (0, import_obsidian25.normalizePath)(folder + "/" + base + " " + n + ".md");
     n++;
     if (n > 200) break;
   }
@@ -11334,7 +11763,7 @@ async function importData(plugin, data) {
   }
   return { created, skipped, listsCreated, labelsAdded };
 }
-var JsonFilePickerModal = class extends import_obsidian24.FuzzySuggestModal {
+var JsonFilePickerModal = class extends import_obsidian25.FuzzySuggestModal {
   constructor(app, onPick) {
     super(app);
     this.onPick = onPick;
@@ -11372,7 +11801,7 @@ function pickOsJsonFile(onText) {
 }
 
 // src/importTaskNotes.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var DEFAULT_MAPPING = {
   title: "title",
   status: "status",
@@ -11472,7 +11901,7 @@ function mapPriority(raw) {
 }
 function scanTaskNotes(app, taskTag, folder, tagsKey) {
   const tag = taskTag.replace(/^#/, "").trim().toLowerCase();
-  const pref = folder.trim() ? (0, import_obsidian25.normalizePath)(folder.trim()) + "/" : null;
+  const pref = folder.trim() ? (0, import_obsidian26.normalizePath)(folder.trim()) + "/" : null;
   const out = [];
   for (const f of app.vault.getMarkdownFiles()) {
     if (pref && !f.path.startsWith(pref)) continue;
@@ -11548,7 +11977,7 @@ async function buildImportData(app, files, mapping, taskTag) {
   }
   return { tasks, lists: [...listByKey.values()], labels: [...labelSet], lossy };
 }
-var ImportTaskNotesModal = class extends import_obsidian25.Modal {
+var ImportTaskNotesModal = class extends import_obsidian26.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -11560,11 +11989,11 @@ var ImportTaskNotesModal = class extends import_obsidian25.Modal {
     modalEl.addClass("bt-new-modal");
     contentEl.createEl("h3", { text: t("tn_import_title") });
     contentEl.createEl("p", { cls: "bt-confirm-msg", text: t("tn_import_desc") });
-    new import_obsidian25.Setting(contentEl).setName(t("tn_import_tag")).setDesc(t("tn_import_tag_desc")).addText((tx) => tx.setPlaceholder("task").setValue(this.taskTag).onChange((v) => {
+    new import_obsidian26.Setting(contentEl).setName(t("tn_import_tag")).setDesc(t("tn_import_tag_desc")).addText((tx) => tx.setPlaceholder("task").setValue(this.taskTag).onChange((v) => {
       this.taskTag = v;
       this.updateCount();
     }));
-    new import_obsidian25.Setting(contentEl).setName(t("tn_import_folder")).setDesc(t("tn_import_folder_desc")).addText((tx) => tx.setPlaceholder(t("tn_import_folder_ph")).setValue(this.folder).onChange((v) => {
+    new import_obsidian26.Setting(contentEl).setName(t("tn_import_folder")).setDesc(t("tn_import_folder_desc")).addText((tx) => tx.setPlaceholder(t("tn_import_folder_ph")).setValue(this.folder).onChange((v) => {
       this.folder = v;
       this.updateCount();
     }));
@@ -11586,7 +12015,7 @@ var ImportTaskNotesModal = class extends import_obsidian25.Modal {
   async run() {
     const files = scanTaskNotes(this.app, this.taskTag, this.folder, DEFAULT_MAPPING.tags);
     if (!files.length) {
-      new import_obsidian25.Notice(t("tn_import_none"));
+      new import_obsidian26.Notice(t("tn_import_none"));
       return;
     }
     try {
@@ -11601,18 +12030,18 @@ var ImportTaskNotesModal = class extends import_obsidian25.Modal {
       }
       if (shown) await this.plugin.saveSettings();
       this.close();
-      new import_obsidian25.Notice(t("tn_import_done", r.created, r.skipped) + (lossy ? " " + t("tn_import_lossy", lossy) : ""));
+      new import_obsidian26.Notice(t("tn_import_done", r.created, r.skipped) + (lossy ? " " + t("tn_import_lossy", lossy) : ""));
       window.setTimeout(() => this.plugin.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks TaskNotes import error", e);
-      new import_obsidian25.Notice(t("tn_import_failed"));
+      new import_obsidian26.Notice(t("tn_import_failed"));
     }
   }
 };
 
 // src/whatsNew.ts
-var import_obsidian26 = require("obsidian");
-var WhatsNewModal = class extends import_obsidian26.Modal {
+var import_obsidian27 = require("obsidian");
+var WhatsNewModal = class extends import_obsidian27.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -11630,7 +12059,7 @@ var WhatsNewModal = class extends import_obsidian26.Modal {
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
       const row = list.createDiv({ cls: "bt-wn-item" });
-      (0, import_obsidian26.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
+      (0, import_obsidian27.setIcon)(row.createDiv({ cls: "bt-wn-ic" }), it.icon);
       const body = row.createDiv({ cls: "bt-wn-body" });
       body.createDiv({ cls: "bt-wn-item-t", text: it.title });
       body.createDiv({ cls: "bt-wn-item-d", text: it.desc });
@@ -11645,11 +12074,11 @@ var WhatsNewModal = class extends import_obsidian26.Modal {
 
 // src/main.ts
 function registerIcons() {
-  (0, import_obsidian27.addIcon)("bt-add-task", `<g transform="scale(4.1667)">
+  (0, import_obsidian28.addIcon)("bt-add-task", `<g transform="scale(4.1667)">
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M12 23c6.075 0 11-4.925 11-11S18.075 1 12 1 1 5.925 1 12s4.925 11 11 11m-.711-16.5a.75.75 0 1 1 1.5 0v4.789H17.5a.75.75 0 0 1 0 1.5h-4.711V17.5a.75.75 0 0 1-1.5 0V12.79H6.5a.75.75 0 1 1 0-1.5h4.789z"/>
   </g>`);
 }
-var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
+var BeautyTasksPlugin = class extends import_obsidian28.Plugin {
   constructor() {
     super(...arguments);
     this.gcalStatusBar = null;
@@ -11738,7 +12167,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     this.addCommand({
       id: "count-tasks",
       name: t("cmd_count_tasks"),
-      callback: () => new import_obsidian27.Notice(t("notice_count", this.index.all().length, this.index.open().length))
+      callback: () => new import_obsidian28.Notice(t("notice_count", this.index.all().length, this.index.open().length))
     });
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
@@ -11747,14 +12176,14 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
       id: "import-from-lists",
       name: t("cmd_import"),
       callback: async () => {
-        new import_obsidian27.Notice(t("notice_import_running"));
+        new import_obsidian28.Notice(t("notice_import_running"));
         try {
           const n = await runMigration(this.app, this.settings);
-          new import_obsidian27.Notice(t("notice_imported", n));
+          new import_obsidian28.Notice(t("notice_imported", n));
           window.setTimeout(() => this.index.build(), 800);
         } catch (e) {
           console.error("BeautyTasks import error", e);
-          new import_obsidian27.Notice(t("notice_import_failed"));
+          new import_obsidian28.Notice(t("notice_import_failed"));
         }
       }
     });
@@ -11784,7 +12213,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
    *  gewählte Code. `moment.locale()` statt `getLanguage()` – letzteres bräuchte App ≥ 1.8.7. */
   applyLocale() {
-    setLocale(this.settings.locale === "auto" ? import_obsidian27.moment.locale() : this.settings.locale);
+    setLocale(this.settings.locale === "auto" ? import_obsidian28.moment.locale() : this.settings.locale);
   }
   /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
   resolveStartView() {
@@ -12037,7 +12466,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
         void this.archiveProject(path, false);
       };
     });
-    new import_obsidian27.Notice(frag, 8e3);
+    new import_obsidian28.Notice(frag, 8e3);
   }
   async setProjectVisible(path, visible) {
     this.refreshOnChange(path);
@@ -12081,26 +12510,26 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   async exportTasksJson() {
     try {
       const path = await writeExportFile(this);
-      new import_obsidian27.Notice(t("notice_export_done", path));
+      new import_obsidian28.Notice(t("notice_export_done", path));
     } catch (e) {
       console.error("BeautyTasks export error", e);
-      new import_obsidian27.Notice(t("notice_export_failed"));
+      new import_obsidian28.Notice(t("notice_export_failed"));
     }
   }
   /** JSON-Rohtext einlesen, Aufgaben anlegen (Duplikat-Schutz), Index neu aufbauen. */
   async importTasksFromText(raw) {
     const data = parseExport(raw);
     if (!data) {
-      new import_obsidian27.Notice(t("notice_import_invalid"));
+      new import_obsidian28.Notice(t("notice_import_invalid"));
       return;
     }
     try {
       const r = await importData(this, data);
-      new import_obsidian27.Notice(t("notice_import_summary", r.created, r.skipped));
+      new import_obsidian28.Notice(t("notice_import_summary", r.created, r.skipped));
       window.setTimeout(() => this.index.build(), 800);
     } catch (e) {
       console.error("BeautyTasks JSON import error", e);
-      new import_obsidian27.Notice(t("notice_import_failed"));
+      new import_obsidian28.Notice(t("notice_import_failed"));
     }
   }
   /** Import über die In-Vault-Auswahl (alle .json-Dateien). */
@@ -12143,7 +12572,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(oldName)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = [...new Set(arr.map((x) => x === oldName ? nu : x))];
       });
@@ -12151,7 +12580,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     for (const fl of listFilters(this.app)) {
       if (!fl.criteria.labels.includes(oldName) && !fl.criteria.labelsAll.includes(oldName) && !fl.criteria.labelsNot.includes(oldName)) continue;
       const ff = this.app.vault.getAbstractFileByPath(fl.path);
-      if (ff instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
+      if (ff instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(ff, (fm) => {
         for (const key of ["labels", "labels_all", "labels_not"]) {
           if (Array.isArray(fm[key])) fm[key] = [...new Set(fm[key].map(String).map((x) => x === oldName ? nu : x))];
         }
@@ -12178,7 +12607,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   }
   /** Reagiert auf jedes Umbenennen einer verwalteten Notiz und zieht alle Referenzen selbst nach. */
   async onNoteRenamed(file, oldPath) {
-    if (!(file instanceof import_obsidian27.TFile) || file.extension !== "md") return;
+    if (!(file instanceof import_obsidian28.TFile) || file.extension !== "md") return;
     const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.type;
     if (type !== "project" && type !== "area" && type !== "filter" && type !== "task") return;
     const oldBase = oldPath.split("/").pop().replace(/\.md$/i, "");
@@ -12197,14 +12626,14 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     for (const task of this.index.all()) {
       if (this.wikiBase(task.project) !== oldBase) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (this.wikiBase(fm.project) === oldBase) fm.project = "[[" + newBase + "]]";
       });
     }
     for (const fl of listFilters(this.app)) {
       if (!fl.criteria.projects.includes(oldBase) && !fl.criteria.projectsNot.includes(oldBase)) continue;
       const f = this.app.vault.getAbstractFileByPath(fl.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         for (const key of ["projects", "projects_not"]) {
           if (Array.isArray(fm[key])) fm[key] = [...new Set(fm[key].map(String).map((x) => x === oldBase ? newBase : x))];
         }
@@ -12216,7 +12645,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     for (const task of this.index.all()) {
       if (this.wikiBase(task.parent) !== oldBase) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         if (this.wikiBase(fm.parent) === oldBase) fm.parent = "[[" + newBase + "]]";
       });
     }
@@ -12241,7 +12670,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     for (const task of this.index.all()) {
       if (!task.labels.includes(name)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         const arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
         fm.labels = arr.filter((x) => x !== name);
       });
@@ -12450,7 +12879,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     const name = label.trim();
     if (!name) return;
     if (kind === "cancelled") {
-      new import_obsidian27.Notice(t("status_only_one_trash"));
+      new import_obsidian28.Notice(t("status_only_one_trash"));
       return;
     }
     const list = this.statusList();
@@ -12482,11 +12911,11 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s || s.kind === kind) return;
     if (kind === "cancelled" && list.some((x) => x.kind === "cancelled")) {
-      new import_obsidian27.Notice(t("status_only_one_trash"));
+      new import_obsidian28.Notice(t("status_only_one_trash"));
       return;
     }
     if (list.filter((x) => x.kind === s.kind).length <= 1) {
-      new import_obsidian27.Notice(t("status_need_kind"));
+      new import_obsidian28.Notice(t("status_need_kind"));
       return;
     }
     s.kind = kind;
@@ -12537,20 +12966,20 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     const s = list.find((x) => x.id === id);
     if (!s) return;
     if (list.filter((x) => x.kind === s.kind).length <= 1) {
-      new import_obsidian27.Notice(t("status_need_kind"));
+      new import_obsidian28.Notice(t("status_need_kind"));
       return;
     }
     const target = list.find((x) => x.id !== id && x.kind === s.kind)?.id ?? list.find((x) => x.id !== id && x.kind === "open")?.id ?? firstOpenStatus();
     const affected = this.index.all().filter((tk) => tk.status === id);
     for (const tk of affected) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = target;
       });
     }
     this.settings.statuses = list.filter((x) => x.id !== id);
     await this.commitStatuses();
-    if (affected.length) new import_obsidian27.Notice(t("status_reassigned", affected.length, statusLabel(target)));
+    if (affected.length) new import_obsidian28.Notice(t("status_reassigned", affected.length, statusLabel(target)));
   }
   // ── Aufgaben-Aktionen ──
   openNewTask(project, label, today = false, status) {
@@ -12558,6 +12987,10 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   }
   openEditTask(task) {
     new TaskModal(this, task).open();
+  }
+  /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot. */
+  openNewTaskOn(due, dueTime) {
+    new TaskModal(this, void 0, void 0, { seed: { due, dueTime: dueTime ?? null } }).open();
   }
   openQuickAdd(project) {
     new QuickAddModal(this, project).open();
@@ -12595,7 +13028,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   fireReminder(task) {
     const body = task.title;
     try {
-      if (typeof Notification !== "undefined" && !import_obsidian27.Platform.isMobile) {
+      if (typeof Notification !== "undefined" && !import_obsidian28.Platform.isMobile) {
         const n = new Notification("BeautyTasks", { body });
         n.onclick = () => {
           window.focus();
@@ -12604,11 +13037,11 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
       }
     } catch {
     }
-    new import_obsidian27.Notice("\u23F0 " + body, 1e4);
+    new import_obsidian28.Notice("\u23F0 " + body, 1e4);
   }
   async setTaskDate(task, field, isoVal) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (isoVal) fm[field] = isoVal;
       else delete fm[field];
@@ -12616,7 +13049,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   }
   async setTaskDuration(task, minutes) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (minutes) fm.duration = minutes;
       else delete fm.duration;
@@ -12637,7 +13070,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   async swapTaskLabel(task, remove, add) {
     if (remove === add) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       let arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
       if (remove) arr = arr.filter((x) => x !== remove);
@@ -12648,7 +13081,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   /** Priorität einer Aufgabe setzen (Kanban „nach Priorität"). „normal" = kein Frontmatter-Feld. */
   async setTaskPriority(task, priority) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.priority = priority !== "normal" ? priority : null;
     });
@@ -12657,7 +13090,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
    *  Referenz als `[[Basename]]` – wie im Task-Modal; der Index löst den Basename auf. */
   async setTaskProject(task, project) {
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.project = project ? "[[" + project + "]]" : null;
     });
@@ -12665,7 +13098,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   async setTaskStatus(task, status) {
     if (task.status === status) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
@@ -12703,7 +13136,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((t2) => !isTrashed(t2.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = cancelId;
         fm.cancelled = stamp;
       });
@@ -12714,46 +13147,46 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
-    new import_obsidian27.Notice(t("msg_restored", task.title));
+    new import_obsidian28.Notice(t("msg_restored", task.title));
   }
   /** Einzelne Aufgabe endgültig löschen (in Obsidians Papierkorb – dort wiederherstellbar). */
   async deleteTaskForever(path) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (f instanceof import_obsidian27.TFile) await this.app.fileManager.trashFile(f);
+    if (f instanceof import_obsidian28.TFile) await this.app.fileManager.trashFile(f);
   }
   /** Alle abgebrochenen Aufgaben wiederherstellen (reversibel, ohne Rückfrage). */
   async restoreAllCancelled() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian27.Notice(t("report_trash_empty_restore"));
+      new import_obsidian28.Notice(t("report_trash_empty_restore"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
     }
-    new import_obsidian27.Notice(t("report_tasks_restored", items.length));
+    new import_obsidian28.Notice(t("report_tasks_restored", items.length));
   }
   /** Papierkorb leeren: alle abgebrochenen Aufgaben in Obsidians Papierkorb verschieben. */
   async emptyTrash() {
     const items = this.index.cancelled();
     if (!items.length) {
-      new import_obsidian27.Notice(t("msg_trash_empty"));
+      new import_obsidian28.Notice(t("msg_trash_empty"));
       return;
     }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof import_obsidian27.TFile) await this.app.fileManager.trashFile(f);
+      if (f instanceof import_obsidian28.TFile) await this.app.fileManager.trashFile(f);
     }
-    new import_obsidian27.Notice(t("msg_trash_emptied", items.length));
+    new import_obsidian28.Notice(t("msg_trash_emptied", items.length));
   }
   async loadSettings() {
     const saved = await this.loadData();
@@ -12764,7 +13197,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
         editor: { order: legacy.chipOrder, tiers: legacy.chipTiers }
       };
     }
-    if (saved?.chipsIconsOnly === void 0 && import_obsidian27.Platform.isMobile) {
+    if (saved?.chipsIconsOnly === void 0 && import_obsidian28.Platform.isMobile) {
       this.settings.chipsIconsOnly = true;
     }
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
@@ -12815,7 +13248,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
     bar.empty();
     bar.toggleClass("mod-error", i.status === "error");
     const icon = i.status === "syncing" ? "refresh-cw" : i.status === "error" ? "alert-circle" : "calendar-sync";
-    (0, import_obsidian27.setIcon)(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
+    (0, import_obsidian28.setIcon)(bar.createSpan({ cls: "bt-gcal-sb-ic" }), icon);
     const detail = i.status === "syncing" ? t("gcal_syncing") : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " \u2014 " + t("gcal_reconnect_hint") : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
     bar.setAttr("aria-label", t("set_gcal_heading") + " \xB7 " + detail);
   }
@@ -12826,14 +13259,14 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
   isListGcalExcluded(path) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (!(f instanceof import_obsidian27.TFile)) return false;
+    if (!(f instanceof import_obsidian28.TFile)) return false;
     const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
     return fm?.gcal_sync === false;
   }
   /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
   async setListGcalExcluded(path, excluded) {
     const f = this.app.vault.getAbstractFileByPath(path);
-    if (!(f instanceof import_obsidian27.TFile)) return;
+    if (!(f instanceof import_obsidian28.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       if (excluded) fm.gcal_sync = false;
       else delete fm.gcal_sync;

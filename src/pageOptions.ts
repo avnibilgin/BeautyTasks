@@ -3,6 +3,7 @@ import {
   ViewOptions, PageLayout, FilterSort, FilterGroup,
   SORTS, GROUPS, LAYOUTS, DEFAULT_OPTIONS,
 } from "./filterEngine";
+import { CalMode, CAL_MODES } from "./calendarModel";
 
 // Gemeinsames Lesen/Schreiben der Anzeige-Optionen (Layout/Sortieren/Gruppieren/Erledigte).
 // Notiz-Seiten (Projekte, Bereiche, Filter) speichern sie im Frontmatter (obsidian-nativ,
@@ -19,6 +20,7 @@ export function readViewOptions(fm: Record<string, unknown> | Partial<ViewOption
     sort: oneOf<FilterSort>(o.sort, SORTS, DEFAULT_OPTIONS.sort),
     group: oneOf<FilterGroup>(o.group, GROUPS, DEFAULT_OPTIONS.group),
     showDone: o.showDone === true,
+    calMode: oneOf<CalMode>(o.calMode, CAL_MODES, DEFAULT_OPTIONS.calMode),
   };
 }
 
@@ -29,6 +31,7 @@ export function writeViewOptions(fm: Record<string, unknown>, o: ViewOptions): v
   setOrDel("sort", o.sort, DEFAULT_OPTIONS.sort);
   setOrDel("group", o.group, DEFAULT_OPTIONS.group);
   setOrDel("showDone", o.showDone, false);
+  setOrDel("calMode", o.calMode, DEFAULT_OPTIONS.calMode);
 }
 
 /** Notiz-Seite (Projekt/Bereich): Anzeige-Optionen aus dem Frontmatter. */

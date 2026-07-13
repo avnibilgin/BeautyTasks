@@ -880,6 +880,10 @@ export default class BeautyTasksPlugin extends Plugin {
     new TaskModal(this, undefined, project, { defaultLabel: label, defaultToday: today, defaultStatus: status }).open();
   }
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
+  /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot. */
+  openNewTaskOn(due: string, dueTime?: string | null): void {
+    new TaskModal(this, undefined, undefined, { seed: { due, dueTime: dueTime ?? null } }).open();
+  }
   openQuickAdd(project?: string): void { new QuickAddModal(this, project).open(); }
   openSearch(): void { new TaskSearchModal(this).open(); }
 

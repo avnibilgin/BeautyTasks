@@ -7,10 +7,13 @@ import { TaskIndex } from "./taskIndex";
 // im UI. Die Engine ist bewusst rein (nur Task-Daten), damit später ein Query-Modus
 // (Vorschlag 1) dieselbe Auswertung wiederverwenden kann.
 
+import { CalMode } from "./calendarModel";
+export type { CalMode };
+
 export type FilterRange = "any" | "today" | "overdue" | "next7" | "nodate";
 export type FilterSort = "smart" | "due" | "deadline" | "priority" | "created" | "title";
 export type FilterGroup = "none" | "date" | "deadline" | "priority" | "label" | "project";
-export type PageLayout = "list" | "board";
+export type PageLayout = "list" | "board" | "calendar";
 /** Verknüpfungs-Modus einer Auswahl-Facette: irgendeines (ODER) / alle (UND) / keines (NICHT).
  *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
  *  EINE Priorität, dort gibt es nur any/none. */
@@ -27,10 +30,11 @@ export interface FilterCriteria {
 }
 
 export interface ViewOptions {
-  layout: PageLayout;      // Liste oder Kanban-Board
+  layout: PageLayout;      // Liste, Kanban-Board oder Kalender
   sort: FilterSort;
   group: FilterGroup;
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
+  calMode: CalMode;        // nur im Kalender-Layout: Monat oder Woche
 }
 
 export const DEFAULT_CRITERIA: FilterCriteria = {
@@ -40,13 +44,13 @@ export const DEFAULT_CRITERIA: FilterCriteria = {
   projects: [], projectsNot: [],
   search: "",
 };
-export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false };
+export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, calMode: "month" };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
 export const SORTS: FilterSort[] = ["smart", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
-export const LAYOUTS: PageLayout[] = ["list", "board"];
+export const LAYOUTS: PageLayout[] = ["list", "board", "calendar"];
 /** Prioritäten wie im Aufgaben-Picker (4 Stufen). */
 export const FILTER_PRIORITIES: Priority[] = ["highest", "high", "medium", "normal"];
 

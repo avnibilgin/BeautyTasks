@@ -1561,3 +1561,124 @@ body {
   background: var(--background-modifier-error-hover, rgba(224, 160, 48, 0.12));
   color: var(--text-normal); font-size: var(--font-ui-small);
 }
+
+/* ══ Kalender-Layout (drittes Layout neben Liste und Board) ═══════════════════════════════
+   Präfix bt-calview- (NICHT bt-cal-: das gehört dem Mini-Kalender im Datumswähler, .bt-pop). */
+.bt-calview-head { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.bt-calview-nav { display: flex; align-items: center; gap: 4px; }
+.bt-calview-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  padding: 0; border-radius: 6px; background: transparent; box-shadow: none; color: var(--text-muted); cursor: pointer;
+}
+.bt-calview-nav-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-calview-nav-btn svg { width: 16px; height: 16px; }
+.bt-calview-today {
+  padding: 4px 10px; border-radius: 6px; font-size: 0.85em; font-weight: 600;
+  background: transparent; border: 1px solid var(--background-modifier-border); color: var(--text-normal);
+  box-shadow: none; cursor: pointer;
+}
+.bt-calview-today:hover { background: var(--background-modifier-hover); }
+.bt-calview-title { font-size: 1.05em; font-weight: 650; color: var(--text-normal); }
+.bt-calview-seg { margin-left: auto; }
+
+/* ── Monat ── */
+.bt-calview-weekdays, .bt-calview-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.bt-calview-wd {
+  padding: 4px 6px; font-size: 0.72em; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-faint);
+}
+.bt-calview-grid {
+  border: 1px solid var(--background-modifier-border); border-radius: 8px; overflow: hidden;
+  background: var(--background-modifier-border);
+  gap: 1px;                                   /* die Lücke IST das Raster (Hintergrund scheint durch) */
+}
+.bt-calview-cell {
+  display: flex; flex-direction: column; gap: 2px; min-height: 104px; padding: 4px;
+  background: var(--background-primary); cursor: pointer;
+}
+.bt-calview-cell:hover { background: var(--background-modifier-hover); }
+.bt-calview-cell.is-weekend { background: var(--background-primary-alt); }
+.bt-calview-cell.is-other { opacity: 0.45; }
+.bt-calview-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
+.bt-calview-daynum {
+  align-self: flex-start; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.8em; font-weight: 600; color: var(--text-muted);
+}
+.bt-calview-cell.is-today .bt-calview-daynum { background: var(--interactive-accent); color: var(--text-on-accent); }
+.bt-calview-chips { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.bt-calview-more { padding: 1px 5px; font-size: 0.72em; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+.bt-calview-more:hover { color: var(--text-normal); text-decoration: underline; }
+
+/* ── Aufgaben-Chip (Monatszelle, Ganztägig-Zeile, „+N"-Popover) ── */
+.bt-calview-chip {
+  display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px;
+  font-size: 0.76em; line-height: 1.35; cursor: pointer; overflow: hidden;
+  background: color-mix(in srgb, var(--bt-cal-tint) 16%, transparent);
+  border-left: 2px solid var(--bt-cal-tint); color: var(--text-normal);
+}
+.bt-calview-chip:hover { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
+.bt-calview-chip.is-done { opacity: 0.55; }
+.bt-calview-chip.is-done .bt-calview-chip-title { text-decoration: line-through; }
+.bt-calview-chip.is-dragging { opacity: 0.4; }
+.bt-calview-chip-time { flex-shrink: 0; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-calview-chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-calview-pop { min-width: 240px; max-width: 320px; display: flex; flex-direction: column; gap: 2px; }
+
+/* ── Woche: Kopf, Ganztägig-Zeile, Zeitraster ── */
+.bt-calview-week { border: 1px solid var(--background-modifier-border); border-radius: 8px; overflow: hidden; }
+.bt-calview-gutter {
+  flex: 0 0 56px; font-size: 0.7em; color: var(--text-faint); text-align: right;
+  padding-right: 6px; box-sizing: border-box;
+}
+.bt-calview-week-head { display: flex; border-bottom: 1px solid var(--background-modifier-border); }
+.bt-calview-dayhead {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: center; gap: 5px;
+  padding: 6px 4px; cursor: pointer;
+}
+.bt-calview-dayhead:hover { background: var(--background-modifier-hover); }
+.bt-calview-dayhead-wd { font-size: 0.72em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+.bt-calview-dayhead-num { font-size: 0.95em; font-weight: 650; color: var(--text-normal); }
+.bt-calview-dayhead.is-today .bt-calview-dayhead-num {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px;
+  border-radius: 11px; background: var(--interactive-accent); color: var(--text-on-accent);
+}
+.bt-calview-allday { display: flex; border-bottom: 1px solid var(--background-modifier-border); min-height: 30px; }
+.bt-calview-allday .bt-calview-gutter { display: flex; align-items: center; justify-content: flex-end; }
+.bt-calview-allday-cell {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px;
+  border-left: 1px solid var(--background-modifier-border);
+}
+.bt-calview-allday-cell.is-today { background: color-mix(in srgb, var(--interactive-accent) 5%, transparent); }
+.bt-calview-allday-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
+
+.bt-calview-timegrid { display: flex; max-height: 62vh; overflow-y: auto; position: relative; }
+.bt-calview-hours { position: relative; }
+.bt-calview-hour { position: relative; }
+.bt-calview-hour span { position: absolute; top: -6px; right: 0; font-variant-numeric: tabular-nums; }
+.bt-calview-daycol {
+  flex: 1; min-width: 0; position: relative;
+  border-left: 1px solid var(--background-modifier-border);
+}
+.bt-calview-daycol.is-today { background: color-mix(in srgb, var(--interactive-accent) 4%, transparent); }
+.bt-calview-daycol.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
+.bt-calview-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--background-modifier-border); opacity: 0.5; }
+.bt-calview-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--text-error); z-index: 3; }
+.bt-calview-now::before {
+  content: ""; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--text-error);
+}
+.bt-calview-block {
+  position: absolute; z-index: 2; display: flex; flex-direction: column; overflow: hidden;
+  padding: 2px 5px; border-radius: 4px; cursor: pointer; box-sizing: border-box;
+  background: color-mix(in srgb, var(--bt-cal-tint) 22%, var(--background-primary));
+  border-left: 3px solid var(--bt-cal-tint); font-size: 0.75em; line-height: 1.3;
+}
+.bt-calview-block:hover { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
+.bt-calview-block.is-done { opacity: 0.55; }
+.bt-calview-block.is-done .bt-calview-block-title { text-decoration: line-through; }
+.bt-calview-block.is-dragging { opacity: 0.4; }
+.bt-calview-block-time { font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-calview-block-title { overflow: hidden; text-overflow: ellipsis; color: var(--text-normal); }
+.bt-calview-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+.bt-calview-resize:hover { background: var(--bt-cal-tint); opacity: 0.6; }

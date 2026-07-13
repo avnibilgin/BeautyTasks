@@ -13,6 +13,7 @@ import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
+import { renderCalendar } from "./calendarView";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -35,6 +36,16 @@ export const VIEW_ICON: Record<ViewId, string> = {
 };
 const TITLE_KEY: Record<ViewId, string> = { heute: "view_today", demnaechst: "view_upcoming", wiederkehrend: "view_recurring", erledigt: "view_done" };
 export const viewTitle = (id: ViewId): string => t(TITLE_KEY[id]);
+
+/** Aufgabenmenge für das Kalender-Layout der System-Views (Heute/Demnächst).
+ *  Diese Views schneiden ihre Menge bewusst zeitlich zu (nur heute bzw. nur Zukunft) – im Kalender
+ *  wäre damit fast jede Zelle leer und Zurückblättern sinnlos. Der Kalender zeigt dort deshalb ALLE
+ *  datierten Aufgaben; das Datum ist ja bereits seine Achse. Projekt-/Label-/Filterseiten behalten
+ *  dagegen ihre Menge (dort ist die Einschränkung die Aussage der Seite). */
+function calendarTasks(plugin: BeautyTasksPlugin, opts: ViewOptions): Task[] {
+  const open = plugin.index.open();
+  return opts.showDone ? [...open, ...plugin.index.done()] : open;
+}
 
 /** Rendert eine Dashboard-Ansicht in ein angehängtes DOM-Element (Deferred-sicher). */
 export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: ViewId): void {
@@ -64,6 +75,8 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const open = [...overdue, ...dueToday];
     if (!open.length && !(opts.showDone && doneToday.length)) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
+    } else if (opts.layout === "calendar") {
+      renderCalendar(root, plugin, calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
       // Board folgt der Gruppierung (Status/Label/Priorität/Projekt) – wie die vollen Seiten.
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
@@ -86,7 +99,9 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
     if (!groups.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
-    else if (opts.layout === "board") {
+    else if (opts.layout === "calendar") {
+      renderCalendar(root, plugin, calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
+    } else if (opts.layout === "board") {
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
       const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
@@ -275,6 +290,12 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Tas
   const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (opts.layout === "board") {
     renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, add);
+    return;
+  }
+  if (opts.layout === "calendar") {
+    // Datenänderungen (Drop/Resize) zeichnen ohnehin über index.subscribe neu; der Redraw hier ist
+    // für die Navigation nötig (Monat/Woche blättern ändert nur den transienten Anker).
+    renderCalendar(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, () => plugin.renderMain());
     return;
   }
   const sorted = sortTasks(open, opts.sort);

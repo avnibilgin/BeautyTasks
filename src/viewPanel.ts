@@ -46,7 +46,10 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
 
       // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
       // Überfällig/Heute-Split). „Demnächst" bleibt bewusst eine reine, ungruppierte Termin-Agenda.
-      if (page.tier === "full" || page.key === "heute") {
+      // Der Kalender hat seine Achse (das Datum) fest vorgegeben – Sortieren/Gruppieren wäre dort
+      // wirkungslos und wird deshalb gar nicht erst angeboten. Gespeicherte Werte bleiben erhalten
+      // (nicht destruktiv: zurück in Liste/Board wirken sie wieder).
+      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute")) {
         cap(t("filter_arrange"));
         ddRow(pop, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
         // Im Board-Layout nur die spaltenfähigen Gruppierungen anbieten – Datum/Deadline passen nicht
