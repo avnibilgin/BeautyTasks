@@ -226,7 +226,11 @@ function openReminders(host: ChipHost, anchor: HTMLElement): void {
       pop.createDiv({ cls: "bt-rem-sep" });
       popRow(pop, "calendar-clock", t("rem_tab_absolute"), () => {
         close();
-        openDatePicker(anchor, "", (iso) => { if (iso) add(iso); });
+        // HINZUFÜGEN, nicht setzen: der Picker muss im confirm-Modus laufen, sonst würde
+        // jeder Zwischenstand beim Tippen einer Uhrzeit eine eigene Erinnerung anlegen.
+        // requireTime: eine absolute Erinnerung ohne Uhrzeit hat keinen Feuerzeitpunkt.
+        openDatePicker(anchor, "", (iso) => { if (iso && iso.includes("T")) add(iso); }, undefined,
+          { commit: "confirm", requireTime: true, confirmLabel: t("rem_add") });
       });
     };
     render();
@@ -397,7 +401,7 @@ export function renderPlusChips(pop: HTMLElement, host: ChipHost, anchor: HTMLEl
  *  für beide Modale. */
 export function renderStatusChip(bar: HTMLElement, host: ChipHost, c: ChipDef): void {
   const cur = host.f.status ?? firstOpenStatus();
-  const chip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
+  const chip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur, "data-chip": c.id } });
   const sic = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(sic, statusIcon(cur)); sic.style.color = statusTint(cur);
   chip.createSpan({ cls: "bt-chip-lbl", text: statusLabel(cur) });
   chip.onclick = (e) => { e.stopPropagation(); c.open(host, chip); };
@@ -408,7 +412,13 @@ export function renderStatusChip(bar: HTMLElement, host: ChipHost, c: ChipDef): 
 export function renderValueChip(bar: HTMLElement, host: ChipHost, c: ChipDef, set: boolean): void {
   const iconsOnly = host.iconsOnly;
   const truncate = c.id === "parent" && set;
-  const chip = bar.createEl("button", { cls: "bt-chip" + (set ? " is-set" : "") + (truncate ? " bt-chip-truncate" : "") });
+  // data-chip: Anker-Kennung. renderChips() leert die Leiste (bar.empty()) und ersetzt die
+  // Chip-Elemente – ein Popover, das noch das ALTE Element als Anker hält, könnte sich sonst
+  // nicht mehr positionieren. openPopover() findet den Nachfolger darüber wieder.
+  const chip = bar.createEl("button", {
+    cls: "bt-chip" + (set ? " is-set" : "") + (truncate ? " bt-chip-truncate" : ""),
+    attr: { "data-chip": c.id },
+  });
   if (iconsOnly && !set) { chip.setAttribute("aria-label", t(c.nameKey)); chip.setAttribute("data-tooltip-position", "top"); }
   const ic = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(ic, c.icon);
   const lbl = chip.createSpan({ cls: "bt-chip-lbl" });

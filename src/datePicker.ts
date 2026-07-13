@@ -76,25 +76,46 @@ export function parseDuration(raw: string): number | null {
   return null;
 }
 
+/** Wie onPick gemeldet wird:
+ *  "live"    – bei jeder Änderung (auch beim Tippen). Für Felder, die einen Wert SETZEN
+ *              (Fälligkeit, Termin): jeder Aufruf überschreibt den vorigen, harmlos.
+ *  "confirm" – genau EINMAL, beim Bestätigen. Pflicht für Aufrufer, die HINZUFÜGEN
+ *              (Erinnerungen): dort würde jeder Zwischenstand des Tippens sonst zu einem
+ *              eigenen Eintrag ("1" -> 01:00, "11" -> 11:00, "11:32" -> 11:32). */
+export type DatePickerOpts = {
+  commit?: "live" | "confirm";
+  requireTime?: boolean;      // confirm-Modus: ohne Uhrzeit lässt sich nicht bestätigen
+  confirmLabel?: string;      // Beschriftung des Bestätigen-Buttons
+};
+
 /** Datums-Picker: Eingabefeld + Schnellzeilen + Monatskalender + optional Uhrzeit/Dauer.
  *  onPick("") = kein Datum. value darf "YYYY-MM-DD" oder "YYYY-MM-DDTHH:mm" sein.
  *  dur (optional) blendet die Dauer-Auswahl ein und meldet Änderungen separat. */
 export function openDatePicker(
   anchor: HTMLElement, value: string, onPick: (iso: string) => void,
   dur?: { value: number | null; onChange: (d: number | null) => void },
+  opts?: DatePickerOpts,
 ): void {
+  const live = (opts?.commit ?? "live") === "live";
+  const requireTime = !!opts?.requireTime;
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-date");
-    let curDate = value ? dateOf(value) : "";
+    if (!live) pop.addClass("bt-date-confirm");
+    let curDate = value ? dateOf(value) : (live ? "" : todayISO());
     let curTime = value ? timeOf(value) : null;
     let curDur = dur ? dur.value : null;
-    let timeOpen = !!curTime;
+    let timeOpen = !!curTime || requireTime;
 
-    const apply = () => onPick(curDate ? combineDT(curDate, curTime) : "");
+    // live: sofort melden. confirm: nur den Bestätigen-Button nachziehen, gemeldet wird in commit().
+    const apply = () => { if (live) onPick(curDate ? combineDT(curDate, curTime) : ""); else renderFoot(); };
+    const canCommit = () => !!curDate && (!requireTime || !!curTime);
+    const commit = () => { if (!canCommit()) return; onPick(combineDT(curDate, curTime)); close(); };
     // Schnellauswahl schließt sofort, SOLANGE der Uhrzeit-Bereich zu ist; sonst live anwenden.
+    // Im confirm-Modus schließt sie nie – erst der Bestätigen-Button gibt den Wert heraus.
     const setDate = (d: string) => {
       curDate = d;
       if (!d) curTime = null;
+      if (!live) { apply(); renderTime(); renderCal(); return; }
       if (timeOpen && d) { apply(); renderTime(); renderCal(); }
       else { apply(); close(); }
     };
@@ -125,7 +146,8 @@ export function openDatePicker(
     qrow("sun", "#f59e0b", t("date_tomorrow"), weekdayShort(tomorrow.getDay()), iso(tomorrow));
     qrow("sofa", "#3b82f6", t("date_this_weekend"), weekdayShort(sat.getDay()), iso(sat));
     qrow("calendar-days", "#a78bfa", t("date_next_week"), weekdayShort(mon.getDay()), iso(mon));
-    qrow("ban", "", t("date_no_date"), "", "");
+    // „Kein Datum" hebt den Wert auf – ergibt nur beim Setzen Sinn, nicht beim Hinzufügen.
+    if (live) qrow("ban", "", t("date_no_date"), "", "");
 
     const cal = pop.createDiv({ cls: "bt-date-cal" });
     let view = curDate ? new Date(curDate + "T00:00:00") : new Date();
@@ -201,10 +223,23 @@ export function openDatePicker(
       };
       ti.onkeydown = (ev) => {
         if (ev.key === "Escape") { drop.removeClass("is-open"); }
-        else if (ev.key === "Enter") { ev.preventDefault(); const v = parseTime(ti.value); if (v) { curTime = v; ti.value = v; apply(); } drop.removeClass("is-open"); ti.blur(); }
+        else if (ev.key === "Enter") {
+          ev.preventDefault();
+          const v = parseTime(ti.value); if (v) { curTime = v; ti.value = v; apply(); }
+          drop.removeClass("is-open");
+          if (!live) { commit(); return; }         // Enter = bestätigen (Popover schließt)
+          ti.blur();
+        }
       };
       const clear = row.createSpan({ cls: "bt-time-clear" }); setIcon(clear, "x");
-      clear.onmousedown = (e) => { e.preventDefault(); curTime = null; timeOpen = false; apply(); renderTime(); };
+      // Im confirm-Modus mit Uhrzeit-Pflicht bleibt das Feld stehen (nur leeren), sonst
+      // entstünde ein Wert ohne Uhrzeit – genau das, was hier nicht erlaubt ist.
+      clear.onmousedown = (e) => {
+        e.preventDefault();
+        curTime = null; ti.value = "";
+        if (live || !requireTime) timeOpen = false;
+        apply(); renderTime();
+      };
 
       // Dauer-Zeile: FREIE Eingabe + Overlay-Dropdown (genau wie die Uhrzeit).
       if (dur) {
@@ -235,5 +270,17 @@ export function openDatePicker(
       }
     }
     renderTime();
+
+    // ── Bestätigen (nur confirm-Modus) ────────────────────────────────────────
+    // Erst dieser Klick (oder Enter im Uhrzeitfeld) meldet den Wert – einmal.
+    const foot = pop.createDiv({ cls: "bt-date-foot" });
+    function renderFoot(): void {
+      if (live) return;
+      foot.empty();
+      const btn = foot.createEl("button", { cls: "bt-date-commit mod-cta", text: opts?.confirmLabel ?? t("date_confirm") });
+      btn.disabled = !canCommit();
+      btn.onclick = (ev) => { ev.stopPropagation(); commit(); };
+    }
+    renderFoot();
   });
 }

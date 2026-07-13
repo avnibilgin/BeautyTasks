@@ -59,7 +59,10 @@ export function resolveReminders(task: Task): ResolvedReminder[] {
     const p = parseReminder(raw);
     if (!p) continue;
     if ("abs" in p) {
-      const d = new Date(p.abs);                       // ISO ohne Z => lokale Zeit
+      // "YYYY-MM-DDTHH:mm" liest JS lokal, ein reines "YYYY-MM-DD" dagegen als UTC (und die
+      // Erinnerung feuerte je nach Zeitzone Stunden daneben). Datumsreine Werte entstehen im
+      // Plugin nicht mehr, können aber im Frontmatter stehen -> auf lokale Mitternacht heben.
+      const d = new Date(p.abs.length === 10 ? p.abs + "T00:00" : p.abs);
       if (!isNaN(d.getTime())) out.push({ raw, fireAt: d });
     } else {
       if (!task.due || !task.dueTime) continue;        // relativ braucht eine Uhrzeit

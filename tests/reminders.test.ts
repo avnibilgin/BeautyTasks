@@ -64,6 +64,12 @@ describe("resolveReminders", () => {
     const [r] = resolveReminders(mk({ reminders: ["2026-07-05T09:00"] }));
     expect(r.fireAt.getTime()).toBe(new Date("2026-07-05T09:00").getTime());
   });
+  it("datumsreiner Wert feuert zur LOKALEN Mitternacht (nicht UTC)", () => {
+    // new Date("2026-07-05") wäre UTC-Mitternacht -> in MESZ 02:00 lokal.
+    const [r] = resolveReminders(mk({ reminders: ["2026-07-05"] }));
+    expect(r.fireAt.getTime()).toBe(new Date("2026-07-05T00:00").getTime());
+    expect(r.fireAt.getHours()).toBe(0);
+  });
   it("erledigte/abgebrochene Aufgaben feuern nicht", () => {
     const base = { due: "2026-06-15", dueTime: "09:00", reminders: ["-0m"] };
     expect(resolveReminders(mk({ ...base, status: "done" }))).toHaveLength(0);

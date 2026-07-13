@@ -398,6 +398,8 @@ var STRINGS = {
     rem_tab_relative: "Before the task",
     rem_tab_absolute: "Date & time\u2026",
     rem_need_time: "Set a time first",
+    rem_add: "Add reminder",
+    date_confirm: "Apply",
     nav_filters: "Filters",
     filter_add: "New filter",
     sec_tasks: "Tasks",
@@ -824,6 +826,8 @@ var STRINGS = {
     rem_tab_relative: "Vor der Aufgabe",
     rem_tab_absolute: "Datum & Uhrzeit\u2026",
     rem_need_time: "Setz zuerst eine Uhrzeit",
+    rem_add: "Erinnerung hinzuf\xFCgen",
+    date_confirm: "\xDCbernehmen",
     nav_filters: "Filter",
     filter_add: "Neuer Filter",
     sec_tasks: "Aufgaben",
@@ -1250,6 +1254,8 @@ var STRINGS = {
     rem_tab_relative: "Antes de la tarea",
     rem_tab_absolute: "Fecha y hora\u2026",
     rem_need_time: "Primero establece una hora",
+    rem_add: "A\xF1adir recordatorio",
+    date_confirm: "Aplicar",
     nav_filters: "Filtros",
     filter_add: "Nuevo filtro",
     sec_tasks: "Tareas",
@@ -1676,6 +1682,8 @@ var STRINGS = {
     rem_tab_relative: "Antes da tarefa",
     rem_tab_absolute: "Data e hora\u2026",
     rem_need_time: "Defina uma hora primeiro",
+    rem_add: "Adicionar lembrete",
+    date_confirm: "Aplicar",
     nav_filters: "Filtros",
     filter_add: "Novo filtro",
     sec_tasks: "Tarefas",
@@ -2102,6 +2110,8 @@ var STRINGS = {
     rem_tab_relative: "Avant la t\xE2che",
     rem_tab_absolute: "Date et heure\u2026",
     rem_need_time: "D\xE9finissez d'abord une heure",
+    rem_add: "Ajouter un rappel",
+    date_confirm: "Appliquer",
     nav_filters: "Filtres",
     filter_add: "Nouveau filtre",
     sec_tasks: "T\xE2ches",
@@ -2528,6 +2538,8 @@ var STRINGS = {
     rem_tab_relative: "G\xF6revden \xF6nce",
     rem_tab_absolute: "Tarih ve saat\u2026",
     rem_need_time: "\xD6nce bir saat belirleyin",
+    rem_add: "Hat\u0131rlat\u0131c\u0131 ekle",
+    date_confirm: "Uygula",
     nav_filters: "Filtreler",
     filter_add: "Yeni filtre",
     sec_tasks: "G\xF6revler",
@@ -2954,6 +2966,8 @@ var STRINGS = {
     rem_tab_relative: "\u4EFB\u52A1\u4E4B\u524D",
     rem_tab_absolute: "\u65E5\u671F\u548C\u65F6\u95F4\u2026",
     rem_need_time: "\u8BF7\u5148\u8BBE\u7F6E\u65F6\u95F4",
+    rem_add: "\u6DFB\u52A0\u63D0\u9192",
+    date_confirm: "\u5E94\u7528",
     nav_filters: "\u7B5B\u9009\u5668",
     filter_add: "\u65B0\u5EFA\u7B5B\u9009\u5668",
     sec_tasks: "\u4EFB\u52A1",
@@ -3380,6 +3394,8 @@ var STRINGS = {
     rem_tab_relative: "\u041F\u0435\u0440\u0435\u0434 \u0437\u0430\u0434\u0430\u0447\u0435\u0439",
     rem_tab_absolute: "\u0414\u0430\u0442\u0430 \u0438 \u0432\u0440\u0435\u043C\u044F\u2026",
     rem_need_time: "\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0443\u043A\u0430\u0436\u0438\u0442\u0435 \u0432\u0440\u0435\u043C\u044F",
+    rem_add: "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435",
+    date_confirm: "\u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C",
     nav_filters: "\u0424\u0438\u043B\u044C\u0442\u0440\u044B",
     filter_add: "\u041D\u043E\u0432\u044B\u0439 \u0444\u0438\u043B\u044C\u0442\u0440",
     sec_tasks: "\u0417\u0430\u0434\u0430\u0447\u0438",
@@ -3806,6 +3822,8 @@ var STRINGS = {
     rem_tab_relative: "\u30BF\u30B9\u30AF\u306E\u524D",
     rem_tab_absolute: "\u65E5\u4ED8\u3068\u6642\u523B\u2026",
     rem_need_time: "\u5148\u306B\u6642\u523B\u3092\u8A2D\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044",
+    rem_add: "\u30EA\u30DE\u30A4\u30F3\u30C0\u30FC\u3092\u8FFD\u52A0",
+    date_confirm: "\u9069\u7528",
     nav_filters: "\u30D5\u30A3\u30EB\u30BF\u30FC",
     filter_add: "\u65B0\u3057\u3044\u30D5\u30A3\u30EB\u30BF\u30FC",
     sec_tasks: "\u30BF\u30B9\u30AF",
@@ -4232,6 +4250,8 @@ var STRINGS = {
     rem_tab_relative: "Prima dell'attivit\xE0",
     rem_tab_absolute: "Data e ora\u2026",
     rem_need_time: "Imposta prima un'ora",
+    rem_add: "Aggiungi promemoria",
+    date_confirm: "Applica",
     nav_filters: "Filtri",
     filter_add: "Nuovo filtro",
     sec_tasks: "Attivit\xE0",
@@ -4468,7 +4488,7 @@ function resolveReminders(task) {
     const p = parseReminder(raw);
     if (!p) continue;
     if ("abs" in p) {
-      const d = new Date(p.abs);
+      const d = new Date(p.abs.length === 10 ? p.abs + "T00:00" : p.abs);
       if (!isNaN(d.getTime())) out.push({ raw, fireAt: d });
     } else {
       if (!task.due || !task.dueTime) continue;
@@ -5136,9 +5156,18 @@ var import_obsidian5 = require("obsidian");
 
 // src/popover.ts
 var import_obsidian4 = require("obsidian");
-function openPopover(anchor, build, onClose) {
+function liveAnchor(anchor) {
+  if (anchor.isConnected) return anchor;
+  const id = anchor.getAttribute("data-chip");
+  if (!id) return null;
   const doc = anchor.ownerDocument;
+  const hits = doc.querySelectorAll(`[data-chip="${CSS.escape(id)}"]`);
+  return hits.length ? hits[hits.length - 1] : null;
+}
+function openPopover(anchorEl, build, onClose) {
+  const doc = anchorEl.ownerDocument;
   const win = doc.defaultView ?? activeWindow;
+  const anchor = liveAnchor(anchorEl) ?? anchorEl;
   const host = anchor.closest(".modal") ?? doc.body;
   const pop = host.createDiv({ cls: "bt-pop" });
   let closed = false;
@@ -5169,10 +5198,26 @@ function openPopover(anchor, build, onClose) {
     }
   };
   build(pop, close);
-  const r = anchor.getBoundingClientRect();
-  const below = r.bottom + 4;
-  const left = Math.max(8, Math.min(r.left, win.innerWidth - pop.offsetWidth - 8));
-  const top = below + pop.offsetHeight > win.innerHeight - 8 ? Math.max(8, r.top - pop.offsetHeight - 4) : below;
+  const ar = anchor.getBoundingClientRect();
+  const r = ar.width || ar.height ? ar : host.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const maxL = win.innerWidth - pw - 8, maxT = win.innerHeight - ph - 8;
+  const clampL = (x) => Math.max(8, Math.min(x, maxL));
+  const clampT = (y) => Math.max(8, Math.min(y, maxT));
+  let left, top;
+  if (r.bottom + 4 + ph <= win.innerHeight - 8) {
+    left = clampL(r.left);
+    top = r.bottom + 4;
+  } else if (r.right + 4 + pw <= win.innerWidth - 8) {
+    left = r.right + 4;
+    top = clampT(r.top);
+  } else if (r.left - 4 - pw >= 8) {
+    left = r.left - 4 - pw;
+    top = clampT(r.top);
+  } else {
+    left = clampL(r.left);
+    top = Math.max(8, r.top - ph - 4);
+  }
   pop.setCssStyles({ left: `${left}px`, top: `${top}px` });
   win.setTimeout(() => doc.addEventListener("mousedown", onDoc, true), 0);
   win.addEventListener("resize", close);
@@ -5319,17 +5364,35 @@ function parseDuration(raw) {
   if (m) return +m[1];
   return null;
 }
-function openDatePicker(anchor, value, onPick, dur) {
+function openDatePicker(anchor, value, onPick, dur, opts) {
+  const live = (opts?.commit ?? "live") === "live";
+  const requireTime = !!opts?.requireTime;
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-date");
-    let curDate = value ? dateOf(value) : "";
+    if (!live) pop.addClass("bt-date-confirm");
+    let curDate = value ? dateOf(value) : live ? "" : todayISO();
     let curTime = value ? timeOf(value) : null;
     let curDur = dur ? dur.value : null;
-    let timeOpen = !!curTime;
-    const apply = () => onPick(curDate ? combineDT(curDate, curTime) : "");
+    let timeOpen = !!curTime || requireTime;
+    const apply = () => {
+      if (live) onPick(curDate ? combineDT(curDate, curTime) : "");
+      else renderFoot();
+    };
+    const canCommit = () => !!curDate && (!requireTime || !!curTime);
+    const commit = () => {
+      if (!canCommit()) return;
+      onPick(combineDT(curDate, curTime));
+      close();
+    };
     const setDate = (d) => {
       curDate = d;
       if (!d) curTime = null;
+      if (!live) {
+        apply();
+        renderTime();
+        renderCal();
+        return;
+      }
       if (timeOpen && d) {
         apply();
         renderTime();
@@ -5377,7 +5440,7 @@ function openDatePicker(anchor, value, onPick, dur) {
     qrow("sun", "#f59e0b", t("date_tomorrow"), weekdayShort(tomorrow.getDay()), iso(tomorrow));
     qrow("sofa", "#3b82f6", t("date_this_weekend"), weekdayShort(sat.getDay()), iso(sat));
     qrow("calendar-days", "#a78bfa", t("date_next_week"), weekdayShort(mon.getDay()), iso(mon));
-    qrow("ban", "", t("date_no_date"), "", "");
+    if (live) qrow("ban", "", t("date_no_date"), "", "");
     const cal = pop.createDiv({ cls: "bt-date-cal" });
     let view = curDate ? /* @__PURE__ */ new Date(curDate + "T00:00:00") : /* @__PURE__ */ new Date();
     view = new Date(view.getFullYear(), view.getMonth(), 1);
@@ -5492,6 +5555,10 @@ function openDatePicker(anchor, value, onPick, dur) {
             apply();
           }
           drop.removeClass("is-open");
+          if (!live) {
+            commit();
+            return;
+          }
           ti.blur();
         }
       };
@@ -5500,7 +5567,8 @@ function openDatePicker(anchor, value, onPick, dur) {
       clear.onmousedown = (e) => {
         e.preventDefault();
         curTime = null;
-        timeOpen = false;
+        ti.value = "";
+        if (live || !requireTime) timeOpen = false;
         apply();
         renderTime();
       };
@@ -5551,6 +5619,18 @@ function openDatePicker(anchor, value, onPick, dur) {
       }
     }
     renderTime();
+    const foot = pop.createDiv({ cls: "bt-date-foot" });
+    function renderFoot() {
+      if (live) return;
+      foot.empty();
+      const btn = foot.createEl("button", { cls: "bt-date-commit mod-cta", text: opts?.confirmLabel ?? t("date_confirm") });
+      btn.disabled = !canCommit();
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        commit();
+      };
+    }
+    renderFoot();
   });
 }
 
@@ -6574,9 +6654,15 @@ function openReminders(host, anchor) {
       pop.createDiv({ cls: "bt-rem-sep" });
       popRow(pop, "calendar-clock", t("rem_tab_absolute"), () => {
         close();
-        openDatePicker(anchor, "", (iso3) => {
-          if (iso3) add(iso3);
-        });
+        openDatePicker(
+          anchor,
+          "",
+          (iso3) => {
+            if (iso3 && iso3.includes("T")) add(iso3);
+          },
+          void 0,
+          { commit: "confirm", requireTime: true, confirmLabel: t("rem_add") }
+        );
       });
     };
     render();
@@ -6768,7 +6854,7 @@ function renderPlusChips(pop, host, anchor, close) {
 }
 function renderStatusChip(bar, host, c) {
   const cur = host.f.status ?? firstOpenStatus();
-  const chip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur } });
+  const chip = bar.createEl("button", { cls: "bt-chip bt-chip-status is-set", attr: { "data-status": cur, "data-chip": c.id } });
   const sic = chip.createSpan({ cls: "bt-chip-ic" });
   (0, import_obsidian10.setIcon)(sic, statusIcon(cur));
   sic.style.color = statusTint(cur);
@@ -6781,7 +6867,10 @@ function renderStatusChip(bar, host, c) {
 function renderValueChip(bar, host, c, set) {
   const iconsOnly = host.iconsOnly;
   const truncate = c.id === "parent" && set;
-  const chip = bar.createEl("button", { cls: "bt-chip" + (set ? " is-set" : "") + (truncate ? " bt-chip-truncate" : "") });
+  const chip = bar.createEl("button", {
+    cls: "bt-chip" + (set ? " is-set" : "") + (truncate ? " bt-chip-truncate" : ""),
+    attr: { "data-chip": c.id }
+  });
   if (iconsOnly && !set) {
     chip.setAttribute("aria-label", t(c.nameKey));
     chip.setAttribute("data-tooltip-position", "top");

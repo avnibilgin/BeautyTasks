@@ -3,9 +3,23 @@ import { setIcon } from "obsidian";
 /** Einfaches Popover, an activeDocument.body gehängt (eigene Ebene über dem Modal),
  *  schließt bei Klick außerhalb. Wie .am-pop in BeautyTasks. Doc/Win werden beim
  *  Öffnen erfasst (Popout-Kompatibilität, kein activeDocument-Drift bei Cleanup). */
-export function openPopover(anchor: HTMLElement, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
+/** Lebenden Anker beschaffen: Chip-Leisten werden bei jeder Änderung komplett neu gebaut
+ *  (renderChips -> bar.empty()), ein zwischenzeitlich gemerktes Chip-Element ist danach aus
+ *  dem DOM gelöst. Dessen getBoundingClientRect() liefert nur Nullen -> das Popover landete
+ *  in der linken oberen Ecke. Über data-chip findet sich das nachgerenderte Element wieder. */
+function liveAnchor(anchor: HTMLElement): HTMLElement | null {
+  if (anchor.isConnected) return anchor;
+  const id = anchor.getAttribute("data-chip");
+  if (!id) return null;
   const doc = anchor.ownerDocument;
+  const hits = doc.querySelectorAll<HTMLElement>(`[data-chip="${CSS.escape(id)}"]`);
+  return hits.length ? hits[hits.length - 1] : null;   // oberstes/zuletzt geöffnetes Modal
+}
+
+export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
+  const doc = anchorEl.ownerDocument;
   const win = doc.defaultView ?? activeWindow;
+  const anchor = liveAnchor(anchorEl) ?? anchorEl;
   // Innerhalb eines Modals INS Modal einhängen (sonst reißt Obsidians Fokus-Trap den
   // Fokus zurück -> Eingabefelder im Popover lassen sich nicht bedienen). position:fixed
   // bleibt viewport-relativ (kein Transform am .modal), Positionierung stimmt weiterhin.
@@ -38,10 +52,30 @@ export function openPopover(anchor: HTMLElement, build: (pop: HTMLElement, close
   };
   build(pop, close);
 
-  const r = anchor.getBoundingClientRect();
-  const below = r.bottom + 4;
-  const left = Math.max(8, Math.min(r.left, win.innerWidth - pop.offsetWidth - 8));
-  const top = below + pop.offsetHeight > win.innerHeight - 8 ? Math.max(8, r.top - pop.offsetHeight - 4) : below;
+  // Letzte Sicherung: ist der Anker trotz allem nicht (mehr) im DOM, hat er eine Nullfläche.
+  // Dann NICHT bei 0/0 aufschlagen, sondern am Modal (bzw. Viewport) ausrichten.
+  const ar = anchor.getBoundingClientRect();
+  const r = ar.width || ar.height ? ar : host.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const maxL = win.innerWidth - pw - 8, maxT = win.innerHeight - ph - 8;
+  const clampL = (x: number) => Math.max(8, Math.min(x, maxL));
+  const clampT = (y: number) => Math.max(8, Math.min(y, maxT));
+
+  // 1. Standard: unter den Anker, linke Kanten bündig.
+  // 2. Passt darunter nichts mehr (hoher Picker + Anker weit unten), NICHT gerade nach oben
+  //    wegklappen – das schießt über das Modal hinaus. Stattdessen seitlich neben den Anker
+  //    setzen, oben bündig mit ihm, und vertikal in den Viewport klemmen: rechts, sonst links.
+  // 3. Ist seitlich auch kein Platz, bleibt als letzte Möglichkeit „über dem Anker".
+  let left: number, top: number;
+  if (r.bottom + 4 + ph <= win.innerHeight - 8) {
+    left = clampL(r.left); top = r.bottom + 4;
+  } else if (r.right + 4 + pw <= win.innerWidth - 8) {
+    left = r.right + 4; top = clampT(r.top);              // rechts daneben, oben bündig
+  } else if (r.left - 4 - pw >= 8) {
+    left = r.left - 4 - pw; top = clampT(r.top);          // links daneben, oben bündig
+  } else {
+    left = clampL(r.left); top = Math.max(8, r.top - ph - 4);
+  }
   pop.setCssStyles({ left: `${left}px`, top: `${top}px` });
 
   win.setTimeout(() => doc.addEventListener("mousedown", onDoc, true), 0);
