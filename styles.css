@@ -578,20 +578,21 @@ body {
 /* ── Linke Navigation ── */
 .bt-nav { padding: 6px 6px 16px; }
 .bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
-.bt-nav-item:hover { background: var(--background-modifier-hover); }
-.bt-nav-item.is-active { background: var(--background-modifier-hover); font-weight: 600; }
+/* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
+   aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
+.bt-nav-item:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
+.bt-nav-item.is-active { background: color-mix(in srgb, var(--interactive-accent) 18%, transparent); font-weight: 600; }
 .bt-nav-ic { display: inline-flex; flex-shrink: 0; }
 .bt-nav-ic svg { width: 16px; height: 16px; }
 /* Seitenleisten-Icon-Farben: Boards einzeln, Labels/Bereiche/Projekte je gemeinsam.
    Eine per-Item-Frontmatter-Farbe (inline gesetzt) sticht die Gruppenfarbe. */
-/* „Aufgabe hinzufügen" ganz oben: prominent in Akzentfarbe (Todoist-Stil), Icon + Text fett. */
-/* „Aufgabe hinzufügen": Funkeln-Icon, schwarz & fett. --text-normal = Schwarz im hellen,
-   Weiß im dunklen Theme -> bleibt in beiden Modi lesbar (statt fix #000, das im Dark-Mode
-   verschwände). */
+/* „Aufgabe hinzufügen" ganz oben (Todoist-Stil): das Icon bt-add-task (siehe registerIcons in
+   main.ts) ist ein gefüllter Kreis mit ausgestanztem Plus. currentColor färbt den Kreis, also
+   reicht hier color. Text bleibt --text-normal (Schwarz im hellen, Weiß im dunklen Theme). */
 .bt-nav-add-task { color: var(--text-normal); font-weight: 700; }
-.bt-nav-add-task .bt-nav-ic { color: var(--text-normal); }
 .bt-nav-add-task:hover { color: var(--text-normal); }
-.bt-nav-add-task:hover .bt-nav-ic { color: var(--text-normal); }
+.bt-nav-add-task .bt-nav-ic { color: var(--interactive-accent); }
+.bt-nav-add-task .bt-nav-ic svg { display: block; width: 16px; height: 16px; }
 .bt-nav-search .bt-nav-ic { color: var(--bt-nav-search); }
 .bt-nav-inbox .bt-nav-ic { color: var(--bt-nav-inbox); }
 .bt-nav-heute .bt-nav-ic { color: var(--bt-nav-heute); }

@@ -9381,7 +9381,7 @@ function renderNavInto(c, plugin) {
   const redraw = () => renderNavInto(c, plugin);
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const navColor = (path, stored) => plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
-  navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
   if (eingang && !eingang.hidden) {
     const ib = eingang;
@@ -9400,7 +9400,7 @@ function renderNavInto(c, plugin) {
     });
   }
   for (const id of VIEW_IDS) {
-    const active = !plugin.currentProject && !plugin.currentLabel && !plugin.manageOpen && plugin.currentView === id;
+    const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;
     navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
   }
   const projItems = (items, cls, kind) => {
@@ -11555,6 +11555,12 @@ var WhatsNewModal = class extends import_obsidian26.Modal {
 };
 
 // src/main.ts
+function registerIcons() {
+  (0, import_obsidian27.addIcon)("bt-add-task", `<g transform="scale(4.1667)">
+    <circle cx="12" cy="12" r="10.5" fill="var(--text-on-accent)"/>
+    <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M12 23c6.075 0 11-4.925 11-11S18.075 1 12 1 1 5.925 1 12s4.925 11 11 11m-.711-16.5a.75.75 0 1 1 1.5 0v4.789H17.5a.75.75 0 0 1 0 1.5h-4.711V17.5a.75.75 0 0 1-1.5 0V12.79H6.5a.75.75 0 1 1 0-1.5h4.789z"/>
+  </g>`);
+}
 var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   constructor() {
     super(...arguments);
@@ -11589,6 +11595,7 @@ var BeautyTasksPlugin = class extends import_obsidian27.Plugin {
   }
   // Obergrenze des zuletzt geprüften Zeitfensters (Epoch-ms)
   async onload() {
+    registerIcons();
     await this.loadSettings();
     this.applyLocale();
     this.currentView = this.resolveStartView();

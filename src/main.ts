@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment, setIcon } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment, setIcon, addIcon } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
@@ -24,6 +24,19 @@ import { WhatsNewModal } from "./whatsNew";
 import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
 import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
 
+/** Eigene Icons. addIcon() erwartet Inhalt für ein viewBox="0 0 100 100"; die Pfade sind auf
+ *  einem 24er-Raster gezeichnet und werden deshalb um 100/24 skaliert.
+ *
+ *  bt-add-task: gefüllter Kreis in der Akzentfarbe (currentColor) mit ausgestanztem „+"
+ *  (fill-rule evenodd). Darunter liegt ein Kreis in --text-on-accent, damit das Plus weiß
+ *  erscheint statt den Hintergrund durchscheinen zu lassen. */
+function registerIcons(): void {
+  addIcon("bt-add-task", `<g transform="scale(4.1667)">
+    <circle cx="12" cy="12" r="10.5" fill="var(--text-on-accent)"/>
+    <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M12 23c6.075 0 11-4.925 11-11S18.075 1 12 1 1 5.925 1 12s4.925 11 11 11m-.711-16.5a.75.75 0 1 1 1.5 0v4.789H17.5a.75.75 0 0 1 0 1.5h-4.711V17.5a.75.75 0 0 1-1.5 0V12.79H6.5a.75.75 0 1 1 0-1.5h4.789z"/>
+  </g>`);
+}
+
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
   index!: TaskIndex;
@@ -47,6 +60,7 @@ export default class BeautyTasksPlugin extends Plugin {
   private reminderScan = 0;                              // Obergrenze des zuletzt geprüften Zeitfensters (Epoch-ms)
 
   async onload(): Promise<void> {
+    registerIcons();
     await this.loadSettings();
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen

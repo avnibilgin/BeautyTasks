@@ -951,7 +951,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
 
   // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
-  navItem(c, { cls: "bt-nav-add-task", icon: "sparkles", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
 
   // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
@@ -969,7 +969,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   }
 
   for (const id of VIEW_IDS) {
-    const active = !plugin.currentProject && !plugin.currentLabel && !plugin.manageOpen && plugin.currentView === id;
+    const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;
     // Klasse pro Board (bt-nav-heute …) für einzeln themebare Icon-Farben.
     navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
   }
