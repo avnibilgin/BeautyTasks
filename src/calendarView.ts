@@ -277,8 +277,8 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
     num.onclick = (e) => { e.stopPropagation(); addHere(); };
     cell.onclick = addHere;
 
-    // Aufgaben-Teil der Zelle in einem eigenen Container (display: contents – er verschwindet
-    // im Layout, lässt sich aber in einem Zug leeren). Nur DAS wird beim Patch neu gefüllt.
+    // Aufgaben-Teil der Zelle in einem eigenen Container, der sich in einem Zug leeren lässt.
+    // Nur DAS wird beim Patch neu gefüllt.
     const cellBody = cell.createDiv({ cls: "bt-calview-cell-body" });
     cells.push({ day, body: cellBody });
 

@@ -1648,9 +1648,11 @@ body {
 }
 .bt-calview-cell.is-today .bt-calview-daynum { background: var(--interactive-accent); color: var(--text-on-accent); }
 /* Aufgaben-Teil einer Monatszelle: eigener Container, damit er in einem Zug geleert werden kann
-   (inkrementelles Nachzeichnen). display: contents -> im Layout unsichtbar, Chips und „+N" bleiben
-   direkte Flex-Kinder der Zelle. */
-.bt-calview-cell-body { display: contents; }
+   (inkrementelles Nachzeichnen). Spalte mit demselben gap wie die Zelle, damit er sich im Layout
+   so verhält, als wären Chips und „+N" direkte Kinder der Zelle. */
+.bt-calview-cell-body {
+  display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden;
+}
 .bt-calview-chips { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
 .bt-calview-more { padding: 1px 5px; font-size: 0.72em; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 .bt-calview-more:hover { color: var(--text-normal); text-decoration: underline; }
