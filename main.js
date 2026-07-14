@@ -334,6 +334,7 @@ var STRINGS = {
     qa_open_full: "Open in full editor",
     nav_search: "Search",
     search_placeholder: "Search tasks \u2026",
+    search_exclude_archived: "Exclude archived",
     notice_count: "BeautyTasks: {0} tasks ({1} open)",
     notice_import_running: "BeautyTasks: importing \u2026",
     notice_imported: "BeautyTasks: {0} tasks imported.",
@@ -784,6 +785,7 @@ var STRINGS = {
     qa_open_full: "Im vollen Editor \xF6ffnen",
     nav_search: "Suchen",
     search_placeholder: "Aufgabe suchen \u2026",
+    search_exclude_archived: "Archiv ausschlie\xDFen",
     notice_count: "BeautyTasks: {0} Aufgaben ({1} offen)",
     notice_import_running: "BeautyTasks: Import l\xE4uft \u2026",
     notice_imported: "BeautyTasks: {0} Aufgaben importiert.",
@@ -1234,6 +1236,7 @@ var STRINGS = {
     qa_open_full: "Abrir en el editor completo",
     nav_search: "Buscar",
     search_placeholder: "Buscar tareas \u2026",
+    search_exclude_archived: "Excluir archivados",
     notice_count: "BeautyTasks: {0} tareas ({1} abiertas)",
     notice_import_running: "BeautyTasks: importando \u2026",
     notice_imported: "BeautyTasks: {0} tareas importadas.",
@@ -1684,6 +1687,7 @@ var STRINGS = {
     qa_open_full: "Abrir no editor completo",
     nav_search: "Buscar",
     search_placeholder: "Buscar tarefas \u2026",
+    search_exclude_archived: "Excluir arquivados",
     notice_count: "BeautyTasks: {0} tarefas ({1} abertas)",
     notice_import_running: "BeautyTasks: importando \u2026",
     notice_imported: "BeautyTasks: {0} tarefas importadas.",
@@ -2134,6 +2138,7 @@ var STRINGS = {
     qa_open_full: "Ouvrir dans l'\xE9diteur complet",
     nav_search: "Rechercher",
     search_placeholder: "Rechercher des t\xE2ches \u2026",
+    search_exclude_archived: "Exclure les archives",
     notice_count: "BeautyTasks : {0} t\xE2ches ({1} ouvertes)",
     notice_import_running: "BeautyTasks : importation \u2026",
     notice_imported: "BeautyTasks : {0} t\xE2ches import\xE9es.",
@@ -2584,6 +2589,7 @@ var STRINGS = {
     qa_open_full: "Tam d\xFCzenleyicide a\xE7",
     nav_search: "Ara",
     search_placeholder: "G\xF6rev ara \u2026",
+    search_exclude_archived: "Ar\u015Fivi hari\xE7 tut",
     notice_count: "BeautyTasks: {0} g\xF6rev ({1} a\xE7\u0131k)",
     notice_import_running: "BeautyTasks: i\xE7e aktar\u0131l\u0131yor \u2026",
     notice_imported: "BeautyTasks: {0} g\xF6rev i\xE7e aktar\u0131ld\u0131.",
@@ -3034,6 +3040,7 @@ var STRINGS = {
     qa_open_full: "\u5728\u5B8C\u6574\u7F16\u8F91\u5668\u4E2D\u6253\u5F00",
     nav_search: "\u641C\u7D22",
     search_placeholder: "\u641C\u7D22\u4EFB\u52A1 \u2026",
+    search_exclude_archived: "\u6392\u9664\u5DF2\u5F52\u6863",
     notice_count: "BeautyTasks\uFF1A{0} \u4E2A\u4EFB\u52A1\uFF08{1} \u4E2A\u672A\u5B8C\u6210\uFF09",
     notice_import_running: "BeautyTasks\uFF1A\u6B63\u5728\u5BFC\u5165 \u2026",
     notice_imported: "BeautyTasks\uFF1A\u5DF2\u5BFC\u5165 {0} \u4E2A\u4EFB\u52A1\u3002",
@@ -3484,6 +3491,7 @@ var STRINGS = {
     qa_open_full: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 \u043F\u043E\u043B\u043D\u043E\u043C \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440\u0435",
     nav_search: "\u041F\u043E\u0438\u0441\u043A",
     search_placeholder: "\u041F\u043E\u0438\u0441\u043A \u0437\u0430\u0434\u0430\u0447 \u2026",
+    search_exclude_archived: "\u0418\u0441\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0430\u0440\u0445\u0438\u0432",
     notice_count: "BeautyTasks: {0} \u0437\u0430\u0434\u0430\u0447 ({1} \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0445)",
     notice_import_running: "BeautyTasks: \u0438\u043C\u043F\u043E\u0440\u0442 \u2026",
     notice_imported: "BeautyTasks: \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0437\u0430\u0434\u0430\u0447: {0}.",
@@ -3934,6 +3942,7 @@ var STRINGS = {
     qa_open_full: "\u30D5\u30EB\u30A8\u30C7\u30A3\u30BF\u30FC\u3067\u958B\u304F",
     nav_search: "\u691C\u7D22",
     search_placeholder: "\u30BF\u30B9\u30AF\u3092\u691C\u7D22 \u2026",
+    search_exclude_archived: "\u30A2\u30FC\u30AB\u30A4\u30D6\u3092\u9664\u5916",
     notice_count: "BeautyTasks\uFF1A{0} \u4EF6\u306E\u30BF\u30B9\u30AF\uFF08{1} \u4EF6\u672A\u5B8C\u4E86\uFF09",
     notice_import_running: "BeautyTasks\uFF1A\u30A4\u30F3\u30DD\u30FC\u30C8\u4E2D \u2026",
     notice_imported: "BeautyTasks\uFF1A{0} \u4EF6\u306E\u30BF\u30B9\u30AF\u3092\u30A4\u30F3\u30DD\u30FC\u30C8\u3057\u307E\u3057\u305F\u3002",
@@ -4384,6 +4393,7 @@ var STRINGS = {
     qa_open_full: "Apri nell'editor completo",
     nav_search: "Cerca",
     search_placeholder: "Cerca attivit\xE0 \u2026",
+    search_exclude_archived: "Escludi archiviati",
     notice_count: "BeautyTasks: {0} attivit\xE0 ({1} aperte)",
     notice_import_running: "BeautyTasks: importazione \u2026",
     notice_imported: "BeautyTasks: {0} attivit\xE0 importate.",
@@ -5082,6 +5092,8 @@ var TaskIndex = class extends import_obsidian2.Component {
     if (f.extension !== "md") return;
     const t2 = this.parse(f);
     if (!t2) {
+      const type = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+      if (notify && (type === "project" || type === "area")) this.notify();
       this.remove(f.path, notify);
       return;
     }
@@ -6827,14 +6839,42 @@ var TaskSearchModal = class extends import_obsidian9.FuzzySuggestModal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
+    /** Archivierte Projekte bleiben standardmäßig außen vor – wie in Todoist, wo archivierte
+     *  Projekte gar nicht erst durchsucht werden. Der Schalter unter dem Suchfeld holt sie zurück;
+     *  er ist bewusst NICHT persistent: jede neue Suche beginnt wieder ohne Altlasten. */
+    this.excludeArchived = true;
     this.setPlaceholder(t("search_placeholder"));
+  }
+  onOpen() {
+    void super.onOpen();
+    const bar = this.modalEl.createDiv({ cls: "bt-search-bar" });
+    bar.createSpan({ cls: "bt-search-bar-lbl", text: t("search_exclude_archived") });
+    const sw = bar.createDiv({
+      cls: "bt-panel-switch" + (this.excludeArchived ? " is-on" : ""),
+      attr: { role: "switch", "aria-checked": String(this.excludeArchived), tabindex: "0" }
+    });
+    const toggle = () => {
+      this.excludeArchived = !this.excludeArchived;
+      sw.toggleClass("is-on", this.excludeArchived);
+      sw.setAttribute("aria-checked", String(this.excludeArchived));
+      this.inputEl.dispatchEvent(new Event("input"));
+      this.inputEl.focus();
+    };
+    sw.onclick = toggle;
+    sw.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    this.modalEl.querySelector(".prompt-input-container")?.insertAdjacentElement("afterend", bar);
   }
   getItems() {
     const mtime = (tk) => {
       const f = this.plugin.app.vault.getAbstractFileByPath(tk.path);
       return f instanceof import_obsidian9.TFile ? f.stat.mtime : 0;
     };
-    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status)).sort((a, b) => mtime(b) - mtime(a));
+    return this.plugin.index.all().filter((tk) => !isTrashed(tk.status)).filter((tk) => !this.excludeArchived || !this.plugin.index.isProjectArchived(tk.project)).sort((a, b) => mtime(b) - mtime(a));
   }
   getItemText(task) {
     return taskSearchText(task);
@@ -9397,6 +9437,7 @@ function renderTimeGrid(root, plugin, days, today, add) {
 }
 function renderUnscheduled(body, plugin, add) {
   const panel = body.createDiv({ cls: "bt-calview-panel" });
+  dropTarget(panel, plugin, () => "");
   const head = panel.createDiv({ cls: "bt-calview-panel-head" });
   head.createSpan({ cls: "bt-calview-panel-title", text: t("cal_unscheduled") });
   const count = head.createSpan({ cls: "bt-calview-panel-count" });
@@ -12823,6 +12864,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
   async activateManage(section2) {
     this.manageOpen = true;
     if (section2) this.manageSection = section2;
+    this.manageTab = "active";
     this.currentProject = null;
     this.currentLabel = null;
     this.currentFilter = null;

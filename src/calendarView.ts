@@ -428,6 +428,11 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
  *  Von hier per Drag ins Raster; der Drop setzt `due` – die Aufgabe verschwindet dann aus der Liste. */
 function renderUnscheduled(body: HTMLElement, plugin: BeautyTasksPlugin, add: CalendarAdd): (tasks: Task[]) => void {
   const panel = body.createDiv({ cls: "bt-calview-panel" });
+  // Rückweg: eine Aufgabe aus dem Raster HIERHIN ziehen entfernt ihr Datum (setTaskDate löscht das
+  // Frontmatter-Feld bei leerem Wert). Das Ziel ist der ganze Panel-Rahmen, nicht nur die Liste –
+  // sonst ginge der Drop ins Leere, solange nichts undatiert ist. Die Uhrzeit verschwindet mit dem
+  // Datum: beides liegt im selben Feld, und eine Uhrzeit ohne Tag ergibt keinen Sinn.
+  dropTarget(panel, plugin, () => "");
   const head = panel.createDiv({ cls: "bt-calview-panel-head" });
   head.createSpan({ cls: "bt-calview-panel-title", text: t("cal_unscheduled") });
   const count = head.createSpan({ cls: "bt-calview-panel-count" });

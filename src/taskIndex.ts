@@ -88,7 +88,17 @@ export class TaskIndex extends Component {
   private upsert(f: TFile, notify = true, skipBody = false): void {
     if (f.extension !== "md") return;
     const t = this.parse(f);
-    if (!t) { this.remove(f.path, notify); return; }   // type:task verloren -> raus
+    if (!t) {
+      // Keine Aufgabe – aber PROJEKT-/BEREICHS-Notizen beeinflussen den Index trotzdem: ihr
+      // `status: archived` steuert open(), die Zähler und die Suche. remove() steigt bei einer
+      // Nicht-Aufgabe sofort aus (der Pfad steht ja nicht im Index) und würde weder den Cache
+      // verwerfen noch melden – der Archiv-Zustand bliebe veraltet, bis zufällig etwas anderes
+      // eine Meldung auslöst. Deshalb hier gezielt anstoßen.
+      const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+      if (notify && (type === "project" || type === "area")) this.notify();
+      this.remove(f.path, notify);
+      return;
+    }
     const prev = this.byPath.get(f.path);
     if (prev && prev.id !== t.id) this.byId.delete(prev.id);
     this.byPath.set(f.path, t);

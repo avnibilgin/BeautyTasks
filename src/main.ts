@@ -231,7 +231,18 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels" | "filters"): Promise<void> { this.manageOpen = true; if (section) this.manageSection = section; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; await this.showMain(); }
+  async activateManage(section?: "projects" | "areas" | "labels" | "filters"): Promise<void> {
+    this.manageOpen = true;
+    if (section) this.manageSection = section;
+    // Immer mit „Aktiv" öffnen. Der Aktiv/Archiv-Umschalter ist eine Sicht INNERHALB der Übersicht,
+    // kein Zustand der Anwendung – wer sie neu aufruft, will die aktiven Projekte sehen, nicht das
+    // Archiv, in dem er vor zehn Minuten zufällig zuletzt war.
+    this.manageTab = "active";
+    this.currentProject = null;
+    this.currentLabel = null;
+    this.currentFilter = null;
+    await this.showMain();
+  }
 
   // ── Anzeige pro Seite (Layout/Sortieren/Gruppieren/Erledigte) ──
   /** Welche Seite ist gerade offen + ihre „Fernbedienungs-Größe". */

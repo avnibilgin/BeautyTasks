@@ -1409,10 +1409,14 @@ body {
 /* Sortieren · Gruppieren · Richtung als zusammengehöriger Block: engere Zeilen (6px wie die
    .setting-item-Zeilen im Filter-Modal, statt der 10px der einzelstehenden Panel-Zeilen). */
 .bt-view-panel .bt-panel-tight .bt-panel-row { padding: 6px 0; }
-.bt-view-panel .bt-panel-switch { position: relative; width: 34px; height: 19px; border-radius: 999px; background: var(--background-modifier-border); cursor: pointer; flex: 0 0 auto; transition: background 0.15s; }
-.bt-view-panel .bt-panel-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: left 0.15s; }
-.bt-view-panel .bt-panel-switch.is-on { background: var(--interactive-accent); }
-.bt-view-panel .bt-panel-switch.is-on::after { left: 17px; }
+.bt-view-panel .bt-panel-switch,
+.bt-search-bar .bt-panel-switch { position: relative; width: 34px; height: 19px; border-radius: 999px; background: var(--background-modifier-border); cursor: pointer; flex: 0 0 auto; transition: background 0.15s; }
+.bt-view-panel .bt-panel-switch::after,
+.bt-search-bar .bt-panel-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: left 0.15s; }
+.bt-view-panel .bt-panel-switch.is-on,
+.bt-search-bar .bt-panel-switch.is-on { background: var(--interactive-accent); }
+.bt-view-panel .bt-panel-switch.is-on::after,
+.bt-search-bar .bt-panel-switch.is-on::after { left: 17px; }
 .bt-view-panel .bt-panel-reset {
   /* volle Breite bis an die Panel-Ränder (Innenpadding via negative Ränder überziehen). */
   display: block; width: calc(100% + 24px); margin: 10px -12px 0; padding: 10px 12px 0;
@@ -1801,6 +1805,12 @@ body {
   border: 1px solid var(--background-modifier-border); border-radius: 8px;
   background: var(--background-primary); overflow: hidden;
 }
+/* Drop-Ziel: eine Aufgabe aus dem Kalender hierher ziehen entfernt ihr Datum. */
+.bt-calview-panel.is-drop {
+  border-color: var(--interactive-accent);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 6%, var(--background-primary));
+}
 .bt-calview-panel-head {
   display: flex; align-items: center; gap: 8px; padding: 9px 12px;
   border-bottom: 1px solid var(--background-modifier-border); background: var(--background-secondary);
@@ -1921,3 +1931,13 @@ body {
 /* Der Titel-Margin käme auf das padding-top obendrauf (14 + 6 = 20px) – die anderen Seiten stehen
    bei 14px. Genullt, damit alle Titel auf derselben Höhe sitzen. */
 .bt-view .bt-manage-header h1 { margin-top: 0; }
+
+/* Suche: Schalter „Archiv ausschließen" direkt unter dem Suchfeld (standardmäßig an – archivierte
+   Projekte werden dann gar nicht erst durchsucht, wie in Todoist). */
+.bt-search-bar {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small); color: var(--text-muted);
+}
+.bt-search-bar .bt-panel-switch { flex-shrink: 0; }
