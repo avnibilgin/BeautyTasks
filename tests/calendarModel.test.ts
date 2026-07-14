@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   addDays, addMonths, startOfWeek, monthGrid, weekDays,
   bucketByDue, minutesOf, layoutDay, allDayOf, DEFAULT_BLOCK_MIN, yearMonths, addYears,
+  chipsThatFit, shownChips,
 } from "../src/calendarModel";
 import { Task } from "../src/types";
 
@@ -159,5 +160,30 @@ describe("Jahr", () => {
     expect(addYears("2026-07-13", 1)).toBe("2027-07-13");
     expect(addYears("2026-07-13", -1)).toBe("2025-07-13");
     expect(addYears("2024-02-29", 1)).toBe("2025-02-28");   // 2025 ist kein Schaltjahr
+  });
+});
+
+describe("Chips je Monatszelle", () => {
+  // Maße wie im echten DOM (Chip 25px, „+N" 18px, gap 2px) -> eine Chip-Zeile kostet 27px.
+  const m = { chip: 25, more: 18, gap: 2 };
+
+  it("rechnet die Chip-Zahl aus der freien Höhe", () => {
+    expect(chipsThatFit(25, m)).toEqual({ all: 1, some: 1 });        // exakt ein Chip, kein Platz für „+N"
+    expect(chipsThatFit(52, m)).toEqual({ all: 2, some: 1 });        // zwei Chips – oder einer + „+N"
+    expect(chipsThatFit(106, m)).toEqual({ all: 4, some: 3 });
+    expect(chipsThatFit(133, m)).toEqual({ all: 5, some: 4 });
+  });
+
+  it("zeigt nie weniger als einen Chip, auch wenn nichts passt", () => {
+    expect(chipsThatFit(0, m)).toEqual({ all: 1, some: 1 });
+    expect(chipsThatFit(-40, m)).toEqual({ all: 1, some: 1 });
+  });
+
+  it("zeigt die letzte Aufgabe, statt „+1 weitere“ zu schreiben", () => {
+    const fit = chipsThatFit(106, m);                                 // all: 4, some: 3
+    expect(shownChips(3, fit)).toBe(3);                               // passt sowieso
+    expect(shownChips(4, fit)).toBe(4);                               // passt genau -> kein „+N"
+    expect(shownChips(5, fit)).toBe(3);                               // 3 Chips + „+2 weitere"
+    expect(shownChips(20, fit)).toBe(3);
   });
 });

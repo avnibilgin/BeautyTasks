@@ -1649,10 +1649,16 @@ body {
 .bt-calview-cell.is-today .bt-calview-daynum { background: var(--interactive-accent); color: var(--text-on-accent); }
 /* Aufgaben-Teil einer Monatszelle: eigener Container, damit er in einem Zug geleert werden kann
    (inkrementelles Nachzeichnen). Spalte mit demselben gap wie die Zelle, damit er sich im Layout
-   so verhält, als wären Chips und „+N" direkte Kinder der Zelle. */
+   so verhält, als wären Chips und „+N" direkte Kinder der Zelle.
+   flex: 1 (+ min-height: 0) -> er füllt die Zelle unter der Tagesnummer aus, seine clientHeight ist
+   damit der freie Platz. GENAU DEN misst calendarView.ts, um die Chip-Zahl zu bestimmen. */
 .bt-calview-cell-body {
-  display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; gap: 2px;
+  flex: 1 1 auto; min-height: 0; overflow: hidden;
 }
+/* Mess-Probe: ein echter Chip + eine „+N"-Zeile, kurz im Raster, aber aus dem Layout genommen
+   (position: absolute) und unsichtbar. Nur zum Höhe-Messen – s. measureChips(). */
+.bt-calview-probe { position: absolute; visibility: hidden; pointer-events: none; }
 .bt-calview-chips { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
 .bt-calview-more { padding: 1px 5px; font-size: 0.72em; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 .bt-calview-more:hover { color: var(--text-normal); text-decoration: underline; }

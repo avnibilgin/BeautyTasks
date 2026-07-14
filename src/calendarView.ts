@@ -10,6 +10,7 @@ import { openPopover } from "./popover";
 import {
   CalMode, CAL_MODES, monthGrid, weekDays, yearMonths, bucketByDue, layoutDay, allDayOf,
   addDays, addMonths, addYears, sameMonth, parseISO, DEFAULT_BLOCK_MIN,
+  ChipMetrics, ChipFit, chipsThatFit, shownChips,
 } from "./calendarModel";
 
 /**
@@ -27,7 +28,6 @@ import {
 
 const HOUR_PX = 60;              // Höhe einer Stunde im Zeitraster
 const SNAP_MIN = 15;             // Raster beim Ziehen/Resizen
-const MONTH_CHIPS = 3;           // Chips je Tageszelle, darüber „+N“
 const MIN_DUR = 15;
 const TWO_LINE_PX = 34;          // darunter passen Uhrzeit + Titel nicht untereinander -> eine Zeile
 const DAY_START_HOUR = 7;        // Startansicht der Wochenansicht (nicht Mitternacht)
@@ -256,6 +256,34 @@ const monthName = (isoDate: string): string =>
   new Intl.DateTimeFormat(getLocale(), { month: "long" }).format(parseISO(isoDate));
 
 // ── Monat ──────────────────────────────────────────────────────────────────────
+/** Notnagel-Höhen, bis einmal echt gemessen wurde (Theme/Schriftgröße können abweichen). */
+const CELL_GAP = 2;                 // muss zum gap von .bt-calview-cell-body passen (styles.css)
+const CHIP_PX = 25;
+const MORE_PX = 18;
+/** Solange die Zelle noch keine Höhe hat (View noch nicht sichtbar) – der ResizeObserver zieht nach. */
+const CHIPS_UNMEASURED: ChipFit = { all: 3, some: 3 };
+
+/** Chip- und „+N"-Höhe am echten DOM messen – Theme, Schriftgröße und Zoom gehen so von selbst ein.
+ *  Die Probe hängt kurz im Raster, ist aber per CSS aus dem Layout genommen (.bt-calview-probe). */
+function measureChips(grid: HTMLElement, plugin: BeautyTasksPlugin, sample: Task): ChipMetrics {
+  const probe = grid.createDiv({ cls: "bt-calview-probe" });
+  renderChip(probe, plugin, sample);
+  const chip = probe.firstElementChild as HTMLElement | null;
+  const more = probe.createDiv({ cls: "bt-calview-more", text: t("cal_more", 1) });
+  const m: ChipMetrics = {
+    chip: chip?.offsetHeight || CHIP_PX,
+    more: more.offsetHeight || MORE_PX,
+    gap: CELL_GAP,
+  };
+  probe.remove();
+  return m;
+}
+
+const firstTask = (buckets: Map<string, Task[]>): Task | null => {
+  for (const list of buckets.values()) if (list.length) return list[0];
+  return null;
+};
+
 function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
   anchor: string, today: string, add: CalendarAdd): (b: Map<string, Task[]>) => void {
   const wrap = root.createDiv({ cls: "bt-calview bt-calview-month" });
@@ -278,7 +306,8 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
     cell.onclick = addHere;
 
     // Aufgaben-Teil der Zelle in einem eigenen Container, der sich in einem Zug leeren lässt.
-    // Nur DAS wird beim Patch neu gefüllt.
+    // Nur DAS wird beim Patch neu gefüllt. Er füllt die Zelle unter der Tagesnummer aus (flex: 1),
+    // seine clientHeight IST damit der Platz, der für Chips übrig ist.
     const cellBody = cell.createDiv({ cls: "bt-calview-cell-body" });
     cells.push({ day, body: cellBody });
 
@@ -286,25 +315,56 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
     dropTarget(cell, plugin, (task) => combineDT(day, task.dueTime));
   }
 
-  return (buckets) => {
-    for (const { day, body } of cells) {
-      body.empty();
-      const items = sortDay(buckets.get(day) ?? []);
-      const list = body.createDiv({ cls: "bt-calview-chips" });
-      for (const tk of items.slice(0, MONTH_CHIPS)) renderChip(list, plugin, tk);
-      if (items.length > MONTH_CHIPS) {
-        const more = body.createDiv({ cls: "bt-calview-more", text: t("cal_more", items.length - MONTH_CHIPS) });
-        more.onclick = (e) => {
-          e.stopPropagation();
-          openPopover(more, (pop) => {                       // alle Aufgaben des Tages im Popover
-            pop.addClass("bt-calview-pop");
-            installCheckDelegation(pop, plugin);             // Popovers hängen am Body, nicht in der View
-            pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
-            for (const tk of items) renderChip(pop, plugin, tk);
-          });
-        };
-      }
+  const fillCell = (day: string, body: HTMLElement, items: Task[], fit: ChipFit): void => {
+    body.empty();
+    const shown = shownChips(items.length, fit);
+    const list = body.createDiv({ cls: "bt-calview-chips" });
+    for (const tk of items.slice(0, shown)) renderChip(list, plugin, tk);
+    if (items.length > shown) {
+      const more = body.createDiv({ cls: "bt-calview-more", text: t("cal_more", items.length - shown) });
+      more.onclick = (e) => {
+        e.stopPropagation();
+        openPopover(more, (pop) => {                       // alle Aufgaben des Tages im Popover
+          pop.addClass("bt-calview-pop");
+          installCheckDelegation(pop, plugin);             // Popovers hängen am Body, nicht in der View
+          pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
+          for (const tk of items) renderChip(pop, plugin, tk);
+        });
+      };
     }
+  };
+
+  let metrics: ChipMetrics | null = null;
+  let fit: ChipFit | null = null;
+  let last: Map<string, Task[]> = new Map();
+
+  /** Passende Chip-Zahl für die aktuelle Zellenhöhe. Ohne Höhe (View noch nicht sichtbar) oder ohne
+   *  Aufgabe zum Messen bleibt es beim Notnagel – der ResizeObserver zieht nach, sobald es liegt. */
+  const currentFit = (): ChipFit => {
+    const sample = firstTask(last);
+    if (sample && !metrics) metrics = measureChips(grid, plugin, sample);
+    const avail = cells[0]?.body.clientHeight ?? 0;   // Body füllt die Zelle -> das IST der freie Platz
+    if (!metrics || avail <= 0) return CHIPS_UNMEASURED;
+    return chipsThatFit(avail, metrics);
+  };
+
+  const draw = (): void => {
+    fit = currentFit();
+    for (const { day, body } of cells) fillCell(day, body, sortDay(last.get(day) ?? []), fit);
+  };
+
+  // Zellenhöhe ändert sich mit dem Fenster, der Sidebar und der Zoomstufe – ohne Datenänderung.
+  // Neu gezeichnet wird nur, wenn sich die Chip-Zahl dadurch wirklich ändert (Resize feuert je Frame).
+  const ro = new ResizeObserver(() => {
+    if (!grid.isConnected) { ro.disconnect(); return; }   // Raster weg (Neuaufbau/Pane zu) -> Schluss
+    const next = currentFit();
+    if (!fit || next.all !== fit.all || next.some !== fit.some) draw();
+  });
+  ro.observe(grid);
+
+  return (buckets) => {
+    last = buckets;
+    draw();
   };
 }
 
