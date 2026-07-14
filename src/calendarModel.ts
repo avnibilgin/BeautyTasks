@@ -13,8 +13,9 @@ import { dateOf, timeOf } from "./format";
  * das Datum je nach Zeitzone um einen Tag (dieselbe Falle wie in reminders.ts).
  */
 
-export type CalMode = "month" | "week";
-export const CAL_MODES: CalMode[] = ["month", "week"];
+export type CalMode = "year" | "month" | "week" | "day";
+/** Reihenfolge = Anzeige der Umschalter im Kalender-Kopf (grob → fein). */
+export const CAL_MODES: CalMode[] = ["year", "month", "week", "day"];
 
 const z = (n: number) => String(n).padStart(2, "0");
 export const iso = (d: Date): string => d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
@@ -48,6 +49,16 @@ export function monthGrid(anchor: string): string[] {
   const start = startOfWeek(first);
   return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 }
+/** Die zwölf Monatsersten des Jahres von `anchor` (Jahresansicht). */
+export function yearMonths(anchor: string): string[] {
+  const y = anchor.slice(0, 4);
+  return Array.from({ length: 12 }, (_, i) => `${y}-${z(i + 1)}-01`);
+}
+/** Jahressprung – klemmt den Tag (29. Feb im Schaltjahr -> 28. Feb). */
+export function addYears(isoDate: string, n: number): string {
+  return addMonths(isoDate, n * 12);
+}
+
 /** Wochenraster: Montag..Sonntag der Woche von `anchor`. */
 export function weekDays(anchor: string): string[] {
   const start = startOfWeek(anchor);

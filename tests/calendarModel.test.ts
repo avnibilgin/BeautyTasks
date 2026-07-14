@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   addDays, addMonths, startOfWeek, monthGrid, weekDays,
-  bucketByDue, minutesOf, layoutDay, allDayOf, DEFAULT_BLOCK_MIN,
+  bucketByDue, minutesOf, layoutDay, allDayOf, DEFAULT_BLOCK_MIN, yearMonths, addYears,
 } from "../src/calendarModel";
 import { Task } from "../src/types";
 
@@ -145,5 +145,19 @@ describe("layoutDay", () => {
   });
   it("Ganztägige gehören nicht ins Zeitraster", () => {
     expect(layoutDay([mk({ due: "2026-07-13" })])).toEqual([]);
+  });
+});
+
+describe("Jahr", () => {
+  it("yearMonths liefert die zwölf Monatsersten", () => {
+    const m = yearMonths("2026-07-13");
+    expect(m).toHaveLength(12);
+    expect(m[0]).toBe("2026-01-01");
+    expect(m[11]).toBe("2026-12-01");
+  });
+  it("addYears klemmt den 29. Februar", () => {
+    expect(addYears("2026-07-13", 1)).toBe("2027-07-13");
+    expect(addYears("2026-07-13", -1)).toBe("2025-07-13");
+    expect(addYears("2024-02-29", 1)).toBe("2025-02-28");   // 2025 ist kein Schaltjahr
   });
 });

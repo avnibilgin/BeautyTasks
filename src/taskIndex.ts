@@ -26,6 +26,23 @@ export class TaskIndex extends Component {
   private archivedDirty = true;                 // neu berechnen, sobald sich etwas geändert hat
   private archivedSet = new Set<string>();       // Basenamen (lowercase) archivierter Projekte
 
+  // ── Abfrage-Cache ────────────────────────────────────────────────────────────────────────
+  // open() filtert über ALLE Aufgaben und schlägt dabei je Aufgabe den Projekt-Basename nach
+  // (String-Split + toLowerCase). Eine einzige Nav-Zeichnung ruft open() rund 30-mal auf (je
+  // Projekt, Label, Filter und View-Zähler) – das sind Tausende identischer Durchläufe für Zahlen,
+  // die sich zwischendurch gar nicht ändern können. Der Cache wird bei JEDER Mutation verworfen;
+  // die Aufrufer mutieren die Ergebnisse nicht (sie filtern/sortieren stets in Kopien).
+  private openCache: Task[] | null = null;
+  private projectCache: Map<string, Task[]> | null = null;   // Projekt-Basename -> offene Aufgaben
+  private labelCache: Map<string, Task[]> | null = null;     // Label -> offene Aufgaben
+
+  /** Alle abgeleiteten Abfragen verwerfen. Aufrufen, wenn sich Aufgaben ODER Archiv-Status ändern. */
+  private invalidate(): void {
+    this.openCache = null;
+    this.projectCache = null;
+    this.labelCache = null;
+  }
+
   constructor(private app: App) { super(); }
 
   /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
@@ -38,7 +55,18 @@ export class TaskIndex extends Component {
   build(): void {
     this.byPath.clear();
     this.byId.clear();
-    for (const f of this.app.vault.getMarkdownFiles()) this.upsert(f, false);
+    this.invalidate();
+    const files = this.app.vault.getMarkdownFiles();
+    for (const f of files) this.upsert(f, false, true);   // Frontmatter sofort, Body separat (s. u.)
+    // Body-Metadaten (Beschreibung + Kommentarzahl) asynchron nachladen – und GENAU EINMAL melden.
+    // Würde jede Datei einzeln melden (readBodyMeta ruft sonst notify), lösen die Promises über
+    // mehrere hundert Millisekunden verteilt auf; der 50-ms-Debounce fasst sie nicht zusammen und
+    // die Views zeichnen beim Start mehrfach komplett neu (sichtbar als mehrfaches Ruckeln).
+    // NUR Aufgaben lesen (byPath), nicht jede Notiz des Vaults – der Body-Read ist Datei-I/O.
+    const tasks = files.filter((f) => this.byPath.has(f.path));
+    void Promise.all(tasks.map((f) => this.readBodyMeta(f, false))).then((changed) => {
+      if (changed.some(Boolean)) this.notify();
+    });
 
     const { metadataCache: mc, vault } = this.app;
     this.registerEvent(mc.on("changed", (f) => this.upsert(f)));
@@ -57,7 +85,7 @@ export class TaskIndex extends Component {
   }
 
   // ── Mutation (inkrementell, nie Vollscan im Betrieb) ──
-  private upsert(f: TFile, notify = true): void {
+  private upsert(f: TFile, notify = true, skipBody = false): void {
     if (f.extension !== "md") return;
     const t = this.parse(f);
     if (!t) { this.remove(f.path, notify); return; }   // type:task verloren -> raus
@@ -65,7 +93,9 @@ export class TaskIndex extends Component {
     if (prev && prev.id !== t.id) this.byId.delete(prev.id);
     this.byPath.set(f.path, t);
     this.byId.set(t.id, f.path);
-    void this.readBodyMeta(f);   // Kommentar-Anzahl + Beschreibung aus dem Body (async, eigenes notify)
+    this.invalidate();
+    // skipBody: nur beim initialen build – dort werden die Bodys gesammelt geladen (ein notify).
+    if (!skipBody) void this.readBodyMeta(f);   // Kommentar-Anzahl + Beschreibung (async, eigenes notify)
     if (notify) this.notify();
   }
 
@@ -76,6 +106,7 @@ export class TaskIndex extends Component {
     if (!t) return;
     this.byPath.delete(path);
     if (this.byId.get(t.id) === path) this.byId.delete(t.id);
+    this.invalidate();
     if (notify) this.notify();
   }
 
@@ -86,17 +117,21 @@ export class TaskIndex extends Component {
   descriptionOf(path: string): string { return this.descriptions.get(path) ?? ""; }
 
   /** Body EINMAL lesen: Kommentar-Anzahl + Beschreibung ableiten (cachedRead ist gecacht). */
-  private async readBodyMeta(f: TFile): Promise<void> {
+  /** Beschreibung + Kommentarzahl aus dem Notiztext. Gibt zurück, ob sich etwas geändert hat.
+   *  `notify = false` unterdrückt die Meldung (der Aufrufer meldet gesammelt, s. build). */
+  private async readBodyMeta(f: TFile, notify = true): Promise<boolean> {
     let content: string;
     try { content = await this.app.vault.cachedRead(f); }
-    catch { return; }
+    catch { return false; }
     const { description } = splitContent(content);
     const n = (content.match(/^>\s*\[!log\]/gim) ?? []).length;
     const prevN = this.commentCounts.get(f.path) ?? 0;
     const prevD = this.descriptions.get(f.path) ?? "";
     if (n) this.commentCounts.set(f.path, n); else this.commentCounts.delete(f.path);
     if (description) this.descriptions.set(f.path, description); else this.descriptions.delete(f.path);
-    if (n !== prevN || description !== prevD) this.notify();
+    const changed = n !== prevN || description !== prevD;
+    if (changed && notify) this.notify();
+    return changed;
   }
 
   /** Frontmatter -> Task (Defaults + Enum-Schutz). null = keine Aufgabe. */
@@ -143,6 +178,7 @@ export class TaskIndex extends Component {
   subscribe(cb: () => void): () => void { this.subs.add(cb); return () => this.subs.delete(cb); }
   private notify(): void {
     this.archivedDirty = true;   // Projekt-Notiz könnte (ent)archiviert worden sein
+    this.invalidate();
     if (this.timer) return;
     this.timer = window.setTimeout(() => { this.timer = null; this.subs.forEach((cb) => cb()); }, 50);
   }
@@ -154,9 +190,11 @@ export class TaskIndex extends Component {
   /** Offene Aufgaben (todo/doing) OHNE die aus archivierten Projekten – Basis aller
    *  Sammelansichten, damit archivierte Projekte nirgends mehr auftauchen. */
   open(): Task[] {
+    if (this.openCache) return this.openCache;
     const archived = this.archivedProjects();
-    return this.all().filter((t) => isOpen(t.status)
+    this.openCache = this.all().filter((t) => isOpen(t.status)
       && !(t.project && archived.has(baseName(t.project).toLowerCase())));
+    return this.openCache;
   }
   /** True, wenn das Projekt (Basename) archiviert ist – für Ansichten/Zähler, die all() nutzen. */
   isProjectArchived(project: string | null | undefined): boolean {
@@ -176,13 +214,38 @@ export class TaskIndex extends Component {
     return this.all().filter((t) => isTrashed(t.status))
       .sort((a, b) => (b.cancelled ?? "").localeCompare(a.cancelled ?? ""));
   }
-  byProject(path: string): Task[] {
-    // Nach Basename vergleichen (gleichnamige Notizen können verschiedene Pfade haben).
-    const base = (p: string) => p.split("/").pop()!.replace(/\.md$/, "");
-    const name = base(path);
-    return this.open().filter((t) => !!t.project && base(t.project) === name);
+  /** Offene Aufgaben je Projekt-Basename – EINMAL gruppiert statt je Projekt ein Vollscan.
+   *  (Basename, weil gleichnamige Notizen verschiedene Pfade haben können.) */
+  private byProjectMap(): Map<string, Task[]> {
+    if (this.projectCache) return this.projectCache;
+    const m = new Map<string, Task[]>();
+    for (const t of this.open()) {
+      if (!t.project) continue;
+      const name = baseName(t.project);
+      const arr = m.get(name);
+      if (arr) arr.push(t); else m.set(name, [t]);
+    }
+    this.projectCache = m;
+    return m;
   }
-  byLabel(label: string): Task[] { return this.open().filter((t) => t.labels.includes(label)); }
+  byProject(path: string): Task[] {
+    return this.byProjectMap().get(baseName(path)) ?? [];
+  }
+
+  /** Offene Aufgaben je Label – ebenfalls einmal gruppiert (eine Aufgabe kann mehrere haben). */
+  private byLabelMap(): Map<string, Task[]> {
+    if (this.labelCache) return this.labelCache;
+    const m = new Map<string, Task[]>();
+    for (const t of this.open()) {
+      for (const l of t.labels) {
+        const arr = m.get(l);
+        if (arr) arr.push(t); else m.set(l, [t]);
+      }
+    }
+    this.labelCache = m;
+    return m;
+  }
+  byLabel(label: string): Task[] { return this.byLabelMap().get(label) ?? []; }
   children(parentPath: string): Task[] { return this.all().filter((t) => t.parent === parentPath); }
   /** Alle Nachfahren (rekursiv, jeder Status) einer Aufgabe – z. B. für Kaskaden-Aktionen. */
   descendants(path: string): Task[] {
