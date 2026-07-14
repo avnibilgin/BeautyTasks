@@ -6127,6 +6127,14 @@ function layoutDay(tasks) {
   return blocks;
 }
 var allDayOf = (tasks) => tasks.filter((tk) => minutesOf(tk) === null);
+function chipsThatFit(availPx, m) {
+  const row = m.chip + m.gap;
+  return {
+    all: Math.max(1, Math.floor((availPx + m.gap) / row)),
+    some: Math.max(1, Math.floor((availPx - m.more) / row))
+  };
+}
+var shownChips = (count, fit) => count <= fit.all ? count : fit.some;
 
 // src/pageOptions.ts
 var oneOf = (v, allowed, fallback) => typeof v === "string" && allowed.includes(v) ? v : fallback;
@@ -9163,7 +9171,6 @@ function showStatusMenu(plugin, task, x, y) {
 // src/calendarView.ts
 var HOUR_PX = 60;
 var SNAP_MIN = 15;
-var MONTH_CHIPS = 3;
 var MIN_DUR = 15;
 var TWO_LINE_PX = 34;
 var DAY_START_HOUR = 7;
@@ -9304,6 +9311,27 @@ function renderYear(root, plugin, anchor, today, zoom) {
   };
 }
 var monthName = (isoDate2) => new Intl.DateTimeFormat(getLocale(), { month: "long" }).format(parseISO(isoDate2));
+var CELL_GAP = 2;
+var CHIP_PX = 25;
+var MORE_PX = 18;
+var CHIPS_UNMEASURED = { all: 3, some: 3 };
+function measureChips(grid, plugin, sample) {
+  const probe = grid.createDiv({ cls: "bt-calview-probe" });
+  renderChip(probe, plugin, sample);
+  const chip = probe.firstElementChild;
+  const more = probe.createDiv({ cls: "bt-calview-more", text: t("cal_more", 1) });
+  const m = {
+    chip: chip?.offsetHeight || CHIP_PX,
+    more: more.offsetHeight || MORE_PX,
+    gap: CELL_GAP
+  };
+  probe.remove();
+  return m;
+}
+var firstTask = (buckets) => {
+  for (const list of buckets.values()) if (list.length) return list[0];
+  return null;
+};
 function renderMonth(root, plugin, anchor, today, add) {
   const wrap = root.createDiv({ cls: "bt-calview bt-calview-month" });
   const wd = wrap.createDiv({ cls: "bt-calview-weekdays" });
@@ -9327,25 +9355,50 @@ function renderMonth(root, plugin, anchor, today, add) {
     cells.push({ day, body: cellBody });
     dropTarget(cell, plugin, (task) => combineDT(day, task.dueTime));
   }
-  return (buckets) => {
-    for (const { day, body } of cells) {
-      body.empty();
-      const items = sortDay(buckets.get(day) ?? []);
-      const list = body.createDiv({ cls: "bt-calview-chips" });
-      for (const tk of items.slice(0, MONTH_CHIPS)) renderChip(list, plugin, tk);
-      if (items.length > MONTH_CHIPS) {
-        const more = body.createDiv({ cls: "bt-calview-more", text: t("cal_more", items.length - MONTH_CHIPS) });
-        more.onclick = (e) => {
-          e.stopPropagation();
-          openPopover(more, (pop) => {
-            pop.addClass("bt-calview-pop");
-            installCheckDelegation(pop, plugin);
-            pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
-            for (const tk of items) renderChip(pop, plugin, tk);
-          });
-        };
-      }
+  const fillCell = (day, body, items, fit2) => {
+    body.empty();
+    const shown = shownChips(items.length, fit2);
+    const list = body.createDiv({ cls: "bt-calview-chips" });
+    for (const tk of items.slice(0, shown)) renderChip(list, plugin, tk);
+    if (items.length > shown) {
+      const more = body.createDiv({ cls: "bt-calview-more", text: t("cal_more", items.length - shown) });
+      more.onclick = (e) => {
+        e.stopPropagation();
+        openPopover(more, (pop) => {
+          pop.addClass("bt-calview-pop");
+          installCheckDelegation(pop, plugin);
+          pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
+          for (const tk of items) renderChip(pop, plugin, tk);
+        });
+      };
     }
+  };
+  let metrics = null;
+  let fit = null;
+  let last = /* @__PURE__ */ new Map();
+  const currentFit = () => {
+    const sample = firstTask(last);
+    if (sample && !metrics) metrics = measureChips(grid, plugin, sample);
+    const avail = cells[0]?.body.clientHeight ?? 0;
+    if (!metrics || avail <= 0) return CHIPS_UNMEASURED;
+    return chipsThatFit(avail, metrics);
+  };
+  const draw = () => {
+    fit = currentFit();
+    for (const { day, body } of cells) fillCell(day, body, sortDay(last.get(day) ?? []), fit);
+  };
+  const ro = new ResizeObserver(() => {
+    if (!grid.isConnected) {
+      ro.disconnect();
+      return;
+    }
+    const next = currentFit();
+    if (!fit || next.all !== fit.all || next.some !== fit.some) draw();
+  });
+  ro.observe(grid);
+  return (buckets) => {
+    last = buckets;
+    draw();
   };
 }
 var dayTitle = (day) => new Intl.DateTimeFormat(getLocale(), { weekday: "long", day: "numeric", month: "long" }).format(parseISO(day));
