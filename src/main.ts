@@ -21,6 +21,7 @@ import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
 import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
+import { calendarDayAnchor } from "./calendarView";
 import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
 import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
 
@@ -128,8 +129,10 @@ export default class BeautyTasksPlugin extends Plugin {
     for (const id of VIEW_IDS) {
       this.addCommand({ id: "open-" + id, name: t("cmd_open_view", viewTitle(id)), callback: () => void this.activateView(id) });
     }
-    this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTask() });
-    this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
+    // Beide Commands folgen dem Kontext der geöffneten Seite (Projekt/Label/Heute/Kalendertag) –
+    // sie tun dasselbe wie der „+ Aufgabe"-Knopf unter dem Seitentitel. Siehe addContext().
+    this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTaskHere() });
+    this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAddHere() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -896,6 +899,34 @@ export default class BeautyTasksPlugin extends Plugin {
     }).open();
   }
   openQuickAdd(project?: string): void { new QuickAddModal(this, project).open(); }
+
+  /**
+   * Kontext der aktuell geöffneten Seite für „Aufgabe hinzufügen" – spiegelt exakt das, was der
+   * „+ Aufgabe"-Knopf UNTER DEM SEITENTITEL tut. Das ist die ganze Regel: Der Command macht
+   * dasselbe wie der sichtbare Knopf. Seiten ohne Knopf (Wiederkehrend, Erledigt, Verwaltung,
+   * Filter) belegen nichts vor -> Eingang, wie bisher.
+   */
+  addContext(): { project?: string; label?: string; today: boolean; due: string | null } {
+    const page = this.currentPage();
+    // Kalender-Tagesansicht: der angezeigte Tag, nicht zwingend heute (wie „+ Aufgabe" dort).
+    const due = calendarDayAnchor(this, this.pageViewOptions());
+    if (page.kind === "project") return { project: projectName(page.key), today: false, due };
+    if (page.kind === "label") return { label: page.key, today: false, due };
+    if (page.kind === "view" && page.key === "heute") return { today: true, due };
+    return { today: false, due };
+  }
+
+  /** „Neue Aufgabe" (voller Editor) im Kontext der aktuellen Seite. */
+  openNewTaskHere(): void {
+    const c = this.addContext();
+    this.openNewTask(c.project, c.label, c.today, undefined, c.due);
+  }
+
+  /** „Aufgabe schnell erfassen" im Kontext der aktuellen Seite. */
+  openQuickAddHere(): void {
+    const c = this.addContext();
+    new QuickAddModal(this, c.project, { label: c.label, due: c.due, today: c.today }).open();
+  }
   openSearch(): void { new TaskSearchModal(this).open(); }
 
   // ── Erinnerungen (Stufe A) ──

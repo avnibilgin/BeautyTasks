@@ -10,6 +10,7 @@ import { Priority, TaskStatus } from "./types";
 import { parseQuickEntry } from "./quickEntry";
 import { createTaskNote, listProjectsAndAreas } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
+import { todayStr } from "./format";
 import { openPopover, popRow } from "./popover";
 import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings } from "./chips";
 import { firstOpenStatus } from "./statuses";
@@ -33,13 +34,18 @@ export class QuickAddModal extends Modal {
   private chipBar!: HTMLElement;
   private projektBtn!: HTMLButtonElement;
 
-  constructor(private plugin: BeautyTasksPlugin, project?: string) {
+  /** `opts` belegt die Schnellerfassung aus dem Kontext der aufrufenden Seite vor – genauso wie
+   *  der „+ Aufgabe"-Knopf unter dem Seitentitel (Label-Seite -> Label, Heute -> heute, …). */
+  constructor(private plugin: BeautyTasksPlugin, project?: string,
+              opts: { label?: string; due?: string | null; today?: boolean } = {}) {
     super(plugin.app);
     this.defaultProject = project ?? "Inbox";
     this.f = {
       title: "", project: this.defaultProject, status: firstOpenStatus(),
-      due: null, dueTime: null, duration: null, scheduled: null, scheduledTime: null,
-      priority: "normal", labels: [], recurrence: null, recurBasis: "due", reminders: [], parent: null,
+      due: opts.due ?? (opts.today ? todayStr() : null),
+      dueTime: null, duration: null, scheduled: null, scheduledTime: null,
+      priority: "normal", labels: opts.label ? [opts.label] : [],
+      recurrence: null, recurBasis: "due", reminders: [], parent: null,
     };
   }
 

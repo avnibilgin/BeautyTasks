@@ -1830,11 +1830,21 @@ body {
 .bt-calview-panel-add:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
 .bt-calview-panel-add-ic { display: inline-flex; }
 .bt-calview-panel-add-ic svg { width: 14px; height: 14px; }
-/* Umschalter im Kopf: Icon + Anzahl, sitzt im Segment rechts neben Jahr/Monat/Woche/Tag. */
-.bt-view .bt-calview-panel-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; }
+/* Umschalter im Kopf: Icon + Anzahl, sitzt im Segment rechts neben Jahr/Monat/Woche/Tag.
+   line-height: 1 macht die Zeilenbox exakt so hoch wie die Glyphen – nur dann liegen Icon und
+   Zahl bei align-items: center auf derselben Höhe wie der Text der Nachbar-Tabs (feste Pixel
+   gegen eine Schriftmetrik zu stellen, war der Versatz). */
+.bt-view .bt-calview-panel-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; line-height: 1;
+}
 .bt-calview-panel-ic { display: inline-flex; }
-.bt-calview-panel-ic svg { width: 15px; height: 15px; }
-.bt-calview-panel-n { font-size: 0.9em; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* GANZZAHLIGE Größe: Lucide zeichnet Striche auf einem 24er-Raster – bei krummen Größen (etwa 1em
+   = 13,x px) landen die Linien zwischen den Pixeln und wirken unscharf. 16px ist ein sauberer
+   Teiler. Die Ausrichtung übernimmt align-items: center am Knopf (line-height: 1). */
+.bt-calview-panel-ic svg { width: 14px; height: 14px; display: block; }
+/* Zahl in der normalen Schrift des Knopfes: KEIN tabular-nums (das sind Tabellenziffern – eine
+   andere Ziffernvariante) und keine abweichende Größe. */
+.bt-calview-panel-n { font-size: inherit; font-weight: 600; font-variant-numeric: normal; }
 
 /* Kompakte Checkbox für den Kalender: dieselbe .bt-check, nur kleiner – die Chips sind ~20 px hoch.
    Alles andere (Zustände, Prioritäts-Ring, Status-Icon, Klick/Rechtsklick) erbt sie unverändert. */

@@ -480,7 +480,7 @@ var STRINGS = {
     filter_range_next7: "Next 7 days",
     filter_range_nodate: "No date",
     filter_sort_smart: "Smart",
-    filter_sort_due: "Due date",
+    filter_sort_due: "Date",
     filter_sort_deadline: "Deadline",
     filter_sort_priority: "Priority",
     filter_sort_created: "Created",
@@ -930,7 +930,7 @@ var STRINGS = {
     filter_range_next7: "N\xE4chste 7 Tage",
     filter_range_nodate: "Ohne Datum",
     filter_sort_smart: "Smart",
-    filter_sort_due: "F\xE4lligkeit",
+    filter_sort_due: "Datum",
     filter_sort_deadline: "Deadline",
     filter_sort_priority: "Priorit\xE4t",
     filter_sort_created: "Erstellt",
@@ -1380,7 +1380,7 @@ var STRINGS = {
     filter_range_next7: "Pr\xF3ximos 7 d\xEDas",
     filter_range_nodate: "Sin fecha",
     filter_sort_smart: "Inteligente",
-    filter_sort_due: "Fecha de vencimiento",
+    filter_sort_due: "Fecha",
     filter_sort_deadline: "Fecha l\xEDmite",
     filter_sort_priority: "Prioridad",
     filter_sort_created: "Creaci\xF3n",
@@ -1830,7 +1830,7 @@ var STRINGS = {
     filter_range_next7: "Pr\xF3ximos 7 dias",
     filter_range_nodate: "Sem data",
     filter_sort_smart: "Inteligente",
-    filter_sort_due: "Data de vencimento",
+    filter_sort_due: "Data",
     filter_sort_deadline: "Prazo",
     filter_sort_priority: "Prioridade",
     filter_sort_created: "Cria\xE7\xE3o",
@@ -2280,7 +2280,7 @@ var STRINGS = {
     filter_range_next7: "7 prochains jours",
     filter_range_nodate: "Sans date",
     filter_sort_smart: "Intelligent",
-    filter_sort_due: "\xC9ch\xE9ance",
+    filter_sort_due: "Date",
     filter_sort_deadline: "Date limite",
     filter_sort_priority: "Priorit\xE9",
     filter_sort_created: "Cr\xE9ation",
@@ -2730,7 +2730,7 @@ var STRINGS = {
     filter_range_next7: "Sonraki 7 g\xFCn",
     filter_range_nodate: "Tarihsiz",
     filter_sort_smart: "Ak\u0131ll\u0131",
-    filter_sort_due: "Biti\u015F tarihi",
+    filter_sort_due: "Tarih",
     filter_sort_deadline: "Son tarih",
     filter_sort_priority: "\xD6ncelik",
     filter_sort_created: "Olu\u015Fturulma",
@@ -3180,7 +3180,7 @@ var STRINGS = {
     filter_range_next7: "\u672A\u6765 7 \u5929",
     filter_range_nodate: "\u65E0\u65E5\u671F",
     filter_sort_smart: "\u667A\u80FD",
-    filter_sort_due: "\u622A\u6B62\u65E5\u671F",
+    filter_sort_due: "\u65E5\u671F",
     filter_sort_deadline: "\u6700\u540E\u671F\u9650",
     filter_sort_priority: "\u4F18\u5148\u7EA7",
     filter_sort_created: "\u521B\u5EFA\u65F6\u95F4",
@@ -3630,7 +3630,7 @@ var STRINGS = {
     filter_range_next7: "\u0421\u043B\u0435\u0434\u0443\u044E\u0449\u0438\u0435 7 \u0434\u043D\u0435\u0439",
     filter_range_nodate: "\u0411\u0435\u0437 \u0434\u0430\u0442\u044B",
     filter_sort_smart: "\u0423\u043C\u043D\u0430\u044F",
-    filter_sort_due: "\u0421\u0440\u043E\u043A",
+    filter_sort_due: "\u0414\u0430\u0442\u0430",
     filter_sort_deadline: "\u041A\u0440\u0430\u0439\u043D\u0438\u0439 \u0441\u0440\u043E\u043A",
     filter_sort_priority: "\u041F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442",
     filter_sort_created: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F",
@@ -4080,7 +4080,7 @@ var STRINGS = {
     filter_range_next7: "\u4ECA\u5F8C 7 \u65E5\u9593",
     filter_range_nodate: "\u65E5\u4ED8\u306A\u3057",
     filter_sort_smart: "\u30B9\u30DE\u30FC\u30C8",
-    filter_sort_due: "\u671F\u9650",
+    filter_sort_due: "\u65E5\u4ED8",
     filter_sort_deadline: "\u7DE0\u3081\u5207\u308A",
     filter_sort_priority: "\u512A\u5148\u5EA6",
     filter_sort_created: "\u4F5C\u6210\u65E5",
@@ -4530,7 +4530,7 @@ var STRINGS = {
     filter_range_next7: "Prossimi 7 giorni",
     filter_range_nodate: "Senza data",
     filter_sort_smart: "Intelligente",
-    filter_sort_due: "Scadenza",
+    filter_sort_due: "Data",
     filter_sort_deadline: "Termine ultimo",
     filter_sort_priority: "Priorit\xE0",
     filter_sort_created: "Creazione",
@@ -9196,7 +9196,7 @@ function renderCalendar(root, plugin, source, today, opts, redraw, add = {}) {
       cls: "bt-tab bt-calview-panel-btn" + (opts.calPanel ? " is-active" : ""),
       attr: { "aria-label": t("cal_unscheduled"), "data-tooltip-position": "top" }
     });
-    (0, import_obsidian19.setIcon)(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "inbox");
+    (0, import_obsidian19.setIcon)(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "calendar-off");
     const n = tgl.createSpan({ cls: "bt-calview-panel-n" });
     setPanelCount = (count) => n.setText(count ? String(count) : "");
     tgl.onclick = () => void plugin.setPageViewOption({ calPanel: !opts.calPanel });
@@ -10426,7 +10426,7 @@ function renderNavInto(c, plugin) {
   navBadges = badges;
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const navColor = (path, stored) => plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
-  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
   if (eingang && !eingang.hidden) {
     const ib = eingang;
@@ -10662,7 +10662,9 @@ var NavView = class extends import_obsidian20.ItemView {
 // src/quickAddModal.ts
 var import_obsidian21 = require("obsidian");
 var QuickAddModal = class extends import_obsidian21.Modal {
-  constructor(plugin, project) {
+  /** `opts` belegt die Schnellerfassung aus dem Kontext der aufrufenden Seite vor – genauso wie
+   *  der „+ Aufgabe"-Knopf unter dem Seitentitel (Label-Seite -> Label, Heute -> heute, …). */
+  constructor(plugin, project, opts = {}) {
     super(plugin.app);
     this.plugin = plugin;
     this.cleanTitle = "";
@@ -10676,13 +10678,13 @@ var QuickAddModal = class extends import_obsidian21.Modal {
       title: "",
       project: this.defaultProject,
       status: firstOpenStatus(),
-      due: null,
+      due: opts.due ?? (opts.today ? todayStr() : null),
       dueTime: null,
       duration: null,
       scheduled: null,
       scheduledTime: null,
       priority: "normal",
-      labels: [],
+      labels: opts.label ? [opts.label] : [],
       recurrence: null,
       recurBasis: "due",
       reminders: [],
@@ -12696,8 +12698,8 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     for (const id of VIEW_IDS) {
       this.addCommand({ id: "open-" + id, name: t("cmd_open_view", viewTitle(id)), callback: () => void this.activateView(id) });
     }
-    this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTask() });
-    this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAdd() });
+    this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTaskHere() });
+    this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAddHere() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -13541,6 +13543,30 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
   }
   openQuickAdd(project) {
     new QuickAddModal(this, project).open();
+  }
+  /**
+   * Kontext der aktuell geöffneten Seite für „Aufgabe hinzufügen" – spiegelt exakt das, was der
+   * „+ Aufgabe"-Knopf UNTER DEM SEITENTITEL tut. Das ist die ganze Regel: Der Command macht
+   * dasselbe wie der sichtbare Knopf. Seiten ohne Knopf (Wiederkehrend, Erledigt, Verwaltung,
+   * Filter) belegen nichts vor -> Eingang, wie bisher.
+   */
+  addContext() {
+    const page = this.currentPage();
+    const due = calendarDayAnchor(this, this.pageViewOptions());
+    if (page.kind === "project") return { project: projectName(page.key), today: false, due };
+    if (page.kind === "label") return { label: page.key, today: false, due };
+    if (page.kind === "view" && page.key === "heute") return { today: true, due };
+    return { today: false, due };
+  }
+  /** „Neue Aufgabe" (voller Editor) im Kontext der aktuellen Seite. */
+  openNewTaskHere() {
+    const c = this.addContext();
+    this.openNewTask(c.project, c.label, c.today, void 0, c.due);
+  }
+  /** „Aufgabe schnell erfassen" im Kontext der aktuellen Seite. */
+  openQuickAddHere() {
+    const c = this.addContext();
+    new QuickAddModal(this, c.project, { label: c.label, due: c.due, today: c.today }).open();
   }
   openSearch() {
     new TaskSearchModal(this).open();

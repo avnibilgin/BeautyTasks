@@ -1024,7 +1024,8 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
 
   // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
-  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAdd() });
+  // Folgt dem Kontext der geöffneten Seite – wie der Command und der „+ Aufgabe"-Knopf (addContext).
+  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
 
   // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });

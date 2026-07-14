@@ -154,11 +154,13 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   const panelUseful = mode !== "year";
   let setPanelCount: (n: number) => void = () => { /* kein Panel-Knopf im Jahr */ };
   if (panelUseful) {
+    // Icon + Anzahl. „calendar-off" (durchgestrichener Kalender) statt „inbox": Letzteres behauptete
+    // „Eingang" (ein Projekt) statt „ohne Datum" (ein Zustand) – das falsche Bild.
     const tgl = seg.createEl("button", {
       cls: "bt-tab bt-calview-panel-btn" + (opts.calPanel ? " is-active" : ""),
       attr: { "aria-label": t("cal_unscheduled"), "data-tooltip-position": "top" },
     });
-    setIcon(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "inbox");
+    setIcon(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "calendar-off");
     const n = tgl.createSpan({ cls: "bt-calview-panel-n" });
     setPanelCount = (count: number) => n.setText(count ? String(count) : "");
     tgl.onclick = () => void plugin.setPageViewOption({ calPanel: !opts.calPanel });
