@@ -132,3 +132,36 @@ export function layoutDay(tasks: Task[]): TimedBlock[] {
 
 /** Aufgaben eines Tages ohne Uhrzeit (Ganztägig-Zeile der Wochenansicht). */
 export const allDayOf = (tasks: Task[]): Task[] => tasks.filter((tk) => minutesOf(tk) === null);
+
+// ── Chips je Monatszelle ───────────────────────────────────────────────────────
+/**
+ * Wie viele Chips passen in eine Tageszelle? KEINE Konstante: die Zeilen des Monatsrasters teilen
+ * sich die freie Höhe (`grid-auto-rows: minmax(96px, 1fr)`), die Zellenhöhe hängt also an
+ * Fensterhöhe, 5- oder 6-Wochen-Monat und Zoomstufe. Eine feste Zahl wäre für irgendeine
+ * Fenstergröße immer falsch – zu klein verschenkt eine Zeile, zu groß schneidet die Zelle
+ * (overflow: hidden) das „+N weitere" unten ab, und der Rest des Tages wird unsichtbar.
+ *
+ * calendarView.ts misst die freie Höhe der Zelle und die Höhe eines echten Chips; hier wird nur
+ * gerechnet. Die „+N"-Zeile ist so hoch wie sie ist, deshalb zwei Zahlen:
+ *   all  = Chips, wenn ALLE Aufgaben des Tages gezeigt werden (keine „+N"-Zeile nötig)
+ *   some = Chips, wenn die „+N"-Zeile ihren Platz mitbekommt (also immer ≤ all)
+ * Daraus folgt die Regel von oben: passt es bis auf EINE Aufgabe, zeig sie – „+1 weitere" bräuchte
+ * dieselbe Zeile und würde sie nur verstecken.
+ */
+export interface ChipMetrics {
+  chip: number;   // Höhe eines Chips in px
+  more: number;   // Höhe der „+N weitere"-Zeile in px
+  gap: number;    // Abstand zwischen den Zeilen (gap von .bt-calview-cell-body)
+}
+export interface ChipFit { all: number; some: number }
+
+export function chipsThatFit(availPx: number, m: ChipMetrics): ChipFit {
+  const row = m.chip + m.gap;                     // n Chips brauchen n*row − gap
+  return {
+    all: Math.max(1, Math.floor((availPx + m.gap) / row)),
+    some: Math.max(1, Math.floor((availPx - m.more) / row)),
+  };
+}
+
+/** Wie viele der `count` Aufgaben eines Tages als Chip gezeigt werden (Rest steckt im „+N"). */
+export const shownChips = (count: number, fit: ChipFit): number => (count <= fit.all ? count : fit.some);
