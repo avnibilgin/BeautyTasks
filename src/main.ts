@@ -66,7 +66,10 @@ export default class BeautyTasksPlugin extends Plugin {
 
     this.index = new TaskIndex(this.app);
     this.addChild(this.index);
-    this.index.subscribe(() => this.renderAll());
+    // KEIN globales Abo hier: MainView und NavView abonnieren den Index selbst (onOpen) und
+    // zeichnen sich bei jeder Meldung neu. Ein zusätzliches renderAll() hier hieße, dass jede
+    // Änderung BEIDE Views doppelt zeichnet – im Profil ~110 ms je Zeichnung, also glatt
+    // verdoppelte Freezes. renderAll() bleibt für explizite Anlässe (Layout-Wechsel, Settings).
     this.setupGCal();
     // Reminder-Scanfenster: bei echtem Vorwert Verpasstes nachfeuern (auf Grace begrenzt),
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
@@ -876,10 +879,22 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   // ── Aufgaben-Aktionen ──
-  openNewTask(project?: string, label?: string, today = false, status?: TaskStatus): void {
-    new TaskModal(this, undefined, project, { defaultLabel: label, defaultToday: today, defaultStatus: status }).open();
+  /** `due` (optional) schlägt `today`: der Kalender kann damit den angezeigten Tag vorgeben. */
+  openNewTask(project?: string, label?: string, today = false, status?: TaskStatus, due?: string | null): void {
+    new TaskModal(this, undefined, project, {
+      defaultLabel: label, defaultToday: today, defaultStatus: status,
+      seed: due ? { due } : undefined,
+    }).open();
   }
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
+  /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
+   *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */
+  openNewTaskOn(due: string, dueTime?: string | null, project?: string, label?: string): void {
+    new TaskModal(this, undefined, project, {
+      defaultLabel: label,
+      seed: { due, dueTime: dueTime ?? null },
+    }).open();
+  }
   openQuickAdd(project?: string): void { new QuickAddModal(this, project).open(); }
   openSearch(): void { new TaskSearchModal(this).open(); }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { Task } from "../src/types";
+import { Task, Priority } from "../src/types";
 import {
-  matchesTask, sortTasks, activeFacetCount, addDays, DEFAULT_CRITERIA, FilterCriteria,
+  matchesTask, sortTasks, activeFacetCount, addDays, hasSortDir, DEFAULT_CRITERIA, FilterCriteria,
 } from "../src/filterEngine";
 
 const TODAY = "2026-07-07";
@@ -143,5 +143,74 @@ describe("activeFacetCount", () => {
     expect(activeFacetCount(crit({ range: "today" }))).toBe(1);
     expect(activeFacetCount(crit({ range: "today", priorities: ["high"], search: "x" }))).toBe(3);
     expect(activeFacetCount(crit({ search: "   " }))).toBe(0);   // leerer Suchtext zählt nicht
+  });
+});
+
+describe("sortTasks: Richtung", () => {
+  const mkT = (title: string, due: string | null, created = "", prio: Priority = "normal"): Task => ({
+    id: title, path: title + ".md", title, status: "todo", priority: prio,
+    due, dueTime: null, scheduled: null, scheduledTime: null, duration: null,
+    start: null, project: null, area: null, parent: null, labels: [],
+    recurrence: null, recurBasis: "due", created, completed: null, cancelled: null,
+    externalId: null, reminders: [],
+  });
+
+  it("Fälligkeit aufsteigend: frühestes zuerst", () => {
+    const r = sortTasks([mkT("b", "2026-07-20"), mkT("a", "2026-07-10")], "due", "asc");
+    expect(r.map((t) => t.title)).toEqual(["a", "b"]);
+  });
+  it("Fälligkeit absteigend: spätestes zuerst", () => {
+    const r = sortTasks([mkT("a", "2026-07-10"), mkT("b", "2026-07-20")], "due", "desc");
+    expect(r.map((t) => t.title)).toEqual(["b", "a"]);
+  });
+  it("Undatierte bleiben in BEIDEN Richtungen am Ende", () => {
+    const list = [mkT("ohne", null), mkT("spät", "2026-07-20"), mkT("früh", "2026-07-10")];
+    expect(sortTasks(list, "due", "asc").map((t) => t.title)).toEqual(["früh", "spät", "ohne"]);
+    expect(sortTasks(list, "due", "desc").map((t) => t.title)).toEqual(["spät", "früh", "ohne"]);
+  });
+  it("Priorität: aufsteigend = wichtigste zuerst, absteigend umgekehrt", () => {
+    const list = [mkT("normal", null, "", "normal"), mkT("hoch", null, "", "highest")];
+    expect(sortTasks(list, "priority", "asc").map((t) => t.title)).toEqual(["hoch", "normal"]);
+    expect(sortTasks(list, "priority", "desc").map((t) => t.title)).toEqual(["normal", "hoch"]);
+  });
+  it("Erstellt: aufsteigend = ältestes zuerst", () => {
+    const list = [mkT("neu", null, "2026-07-10"), mkT("alt", null, "2026-01-01")];
+    expect(sortTasks(list, "created", "asc").map((t) => t.title)).toEqual(["alt", "neu"]);
+    expect(sortTasks(list, "created", "desc").map((t) => t.title)).toEqual(["neu", "alt"]);
+  });
+  it("smart ignoriert die Richtung (hat keine)", () => {
+    const list = [mkT("b", "2026-07-20"), mkT("a", "2026-07-10")];
+    expect(sortTasks(list, "smart", "desc").map((t) => t.title)).toEqual(["a", "b"]);
+    expect(hasSortDir("smart")).toBe(false);
+    expect(hasSortDir("due")).toBe(true);
+  });
+});
+
+describe("sortTasks: Uhrzeit am selben Tag", () => {
+  const mkD = (title: string, due: string | null, dueTime: string | null): Task => ({
+    id: title, path: title + ".md", title, status: "todo", priority: "normal",
+    due, dueTime, scheduled: null, scheduledTime: null, duration: null,
+    start: null, project: null, area: null, parent: null, labels: [],
+    recurrence: null, recurBasis: "due", created: "", completed: null, cancelled: null,
+    externalId: null, reminders: [],
+  });
+
+  it("gleicher Tag: nach Uhrzeit, nicht nach Titel", () => {
+    // „Zahnarzt" (09:00) muss vor „Auto" (17:00) stehen – alphabetisch wäre es umgekehrt.
+    const list = [mkD("Auto", "2026-07-14", "17:00"), mkD("Zahnarzt", "2026-07-14", "09:00")];
+    expect(sortTasks(list, "due", "asc").map((t) => t.title)).toEqual(["Zahnarzt", "Auto"]);
+    expect(sortTasks(list, "due", "desc").map((t) => t.title)).toEqual(["Auto", "Zahnarzt"]);
+  });
+  it("ohne Uhrzeit ans Tagesende (aufsteigend)", () => {
+    const list = [mkD("ganztags", "2026-07-14", null), mkD("früh", "2026-07-14", "09:00")];
+    expect(sortTasks(list, "due", "asc").map((t) => t.title)).toEqual(["früh", "ganztags"]);
+  });
+  it("smart berücksichtigt die Uhrzeit ebenfalls", () => {
+    const list = [mkD("spät", "2026-07-14", "17:00"), mkD("früh", "2026-07-14", "09:00")];
+    expect(sortTasks(list, "smart").map((t) => t.title)).toEqual(["früh", "spät"]);
+  });
+  it("Uhrzeit schlägt nicht über Tagesgrenzen hinweg", () => {
+    const list = [mkD("morgenFrüh", "2026-07-15", "08:00"), mkD("heuteSpät", "2026-07-14", "23:00")];
+    expect(sortTasks(list, "due", "asc").map((t) => t.title)).toEqual(["heuteSpät", "morgenFrüh"]);
   });
 });

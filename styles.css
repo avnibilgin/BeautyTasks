@@ -756,11 +756,25 @@ body {
 /* Runde Checkbox */
 .bt-check {
   width: 16px; height: 16px; flex-shrink: 0;
-  margin-top: 2px;
+  align-self: start;          /* an der ERSTEN Textzeile, auch wenn der Text umbricht */
+  margin-top: 2px;            /* Fallback, falls die lh-Einheit fehlt (s. @supports unten) */
   border: 1.5px solid var(--text-faint);
   border-radius: 50%;
   cursor: pointer;
   position: relative;
+}
+/* Vertikale Ausrichtung GERECHNET statt geschätzt: (Zeilenhöhe − Kreisdurchmesser) / 2.
+   1lh ist die Zeilenhöhe des Elements selbst – die Checkbox sitzt damit exakt auf der Mitte der
+   ersten Textzeile, unabhängig von Schriftgröße, Zeilenhöhe und Fallback-Schriften (die die
+   Zeilenbox vergrößern, z. B. bei typografischen Anführungszeichen im Titel).
+   Vorher standen hier vier verschiedene margin-top-Handwerte – jeder galt nur für genau einen Fall. */
+@supports (height: 1lh) {
+  /* Liste: .bt-title hat line-height 1.4, die Checkbox erbt sie NICHT -> hier explizit setzen,
+     sonst rechnet die Formel gegen die falsche Zeilenhöhe. */
+  .bt-task > .bt-check { line-height: 1.4; margin-top: calc((1lh - 16px) / 2); }
+  /* Kalender: Block und Panel-Karte vererben ihre Zeilenhöhe an die Checkbox -> 1lh stimmt bereits. */
+  .bt-calview-block .bt-check.bt-check-sm,
+  .bt-calview-panel-card .bt-check.bt-check-sm { margin-top: calc((1lh - 13px) / 2); }
 }
 .bt-check:hover { border-color: var(--text-muted); }
 /* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben ohne Status-Icon). */
@@ -1384,7 +1398,17 @@ body {
 .bt-view-panel .bt-panel-cap:not(:first-child) { margin: 0 -12px 6px; padding: 10px 12px 0; border-top: 1px solid var(--background-modifier-border); }
 .bt-view-panel .bt-panel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 13px; }
 .bt-view-panel .bt-panel-k { color: var(--text-normal); }
-.bt-view-panel .bt-panel-dd { font-size: 12.5px; }
+/* Die Dropdowns sind dieselben Trigger-Buttons wie im Filter-Modal (.bt-facet-dd) – kein <select>,
+   dessen aufgeklapptes Menü das Betriebssystem zeichnen würde. Hier nur die Panel-Maße. */
+/* box-shadow: none MUSS hier gescopet stehen: Obsidians button:not(.clickable-icon) hat (0,1,1)
+   und schlüge eine einfache .bt-facet-dd-Regel (0,1,0) – die Knöpfe bekämen einen Schatten.
+   (Das Filter-Modal macht es aus demselben Grund über .modal.bt-filter-modal .bt-facet-dd.) */
+.bt-view-panel .bt-panel-dd {
+  font-size: 12.5px; min-width: 132px; max-width: 168px; box-shadow: none;
+}
+/* Sortieren · Gruppieren · Richtung als zusammengehöriger Block: engere Zeilen (6px wie die
+   .setting-item-Zeilen im Filter-Modal, statt der 10px der einzelstehenden Panel-Zeilen). */
+.bt-view-panel .bt-panel-tight .bt-panel-row { padding: 6px 0; }
 .bt-view-panel .bt-panel-switch { position: relative; width: 34px; height: 19px; border-radius: 999px; background: var(--background-modifier-border); cursor: pointer; flex: 0 0 auto; transition: background 0.15s; }
 .bt-view-panel .bt-panel-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: left 0.15s; }
 .bt-view-panel .bt-panel-switch.is-on { background: var(--interactive-accent); }
@@ -1561,3 +1585,329 @@ body {
   background: var(--background-modifier-error-hover, rgba(224, 160, 48, 0.12));
   color: var(--text-normal); font-size: var(--font-ui-small);
 }
+
+/* ══ Kalender-Layout (drittes Layout neben Liste und Board) ═══════════════════════════════
+   Präfix bt-calview- (NICHT bt-cal-: das gehört dem Mini-Kalender im Datumswähler, .bt-pop). */
+/* Kopf in drei Zonen: Navigation links (‹ Heute ›), Titel mittig, Monat/Woche rechts.
+   Die drei gleich breiten Außenzonen halten den Titel exakt mittig, auch wenn die Buttons
+   unterschiedlich breit sind. */
+.bt-calview-head { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.bt-calview-nav { flex: 1 1 0; display: flex; align-items: center; gap: 4px; }
+.bt-calview-title { flex: 0 0 auto; text-align: center; }
+/* .bt-view .bt-tabs setzt margin: 10px 0 14px (höhere Spezifität) -> hier zurücknehmen,
+   sonst kann sich das Segment nicht nach rechts schieben. */
+.bt-view .bt-calview-head .bt-calview-seg { flex: 1 1 0; justify-content: flex-end; margin: 0; }
+/* Unter .bt-view gescopet (0,2,0): Obsidians button:not(.clickable-icon) { box-shadow: var(--input-shadow) }
+   hat (0,1,1) und würde eine einfache Klassenregel schlagen – die Knöpfe bekämen einen Schatten,
+   den die .bt-tab-Knöpfe (ebenfalls .bt-view-gescopet) nicht haben. */
+.bt-view .bt-calview-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  padding: 0; border-radius: 6px; background: transparent; box-shadow: none;
+  border: 1px solid var(--background-modifier-border); color: var(--text-muted); cursor: pointer;
+}
+.bt-view .bt-calview-nav-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-view .bt-calview-nav-btn svg { width: 16px; height: 16px; }
+.bt-view .bt-calview-today {
+  padding: 4px 14px; border-radius: 6px; font-size: var(--font-ui-small); font-weight: 600;
+  background: transparent; border: 1px solid var(--background-modifier-border); color: var(--text-muted);
+  box-shadow: none; cursor: pointer;
+}
+.bt-view .bt-calview-today:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-calview-title { font-size: 1.05em; font-weight: 650; color: var(--text-normal); white-space: nowrap; }
+
+/* ── Monat ── */
+.bt-calview-weekdays { flex: 0 0 auto; }
+.bt-calview-weekdays, .bt-calview-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.bt-calview-wd {
+  padding: 4px 6px; font-size: 0.72em; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-faint);
+}
+.bt-calview-grid {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  grid-auto-rows: minmax(96px, 1fr);          /* Zeilen teilen sich die freie Höhe */
+  border: 1px solid var(--background-modifier-border); border-radius: 8px;
+  background: var(--background-modifier-border);
+  gap: 1px;                                   /* die Lücke IST das Raster (Hintergrund scheint durch) */
+}
+.bt-calview-cell {
+  display: flex; flex-direction: column; gap: 2px; padding: 4px; overflow: hidden;
+  background: var(--background-primary); cursor: pointer;
+}
+.bt-calview-cell:hover { background: var(--background-modifier-hover); }
+.bt-calview-cell.is-weekend { background: var(--background-primary-alt); }
+.bt-calview-cell.is-other { opacity: 0.45; }
+.bt-calview-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
+.bt-calview-daynum {
+  align-self: flex-start; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.8em; font-weight: 600; color: var(--text-muted);
+}
+.bt-calview-cell.is-today .bt-calview-daynum { background: var(--interactive-accent); color: var(--text-on-accent); }
+/* Aufgaben-Teil einer Monatszelle: eigener Container, damit er in einem Zug geleert werden kann
+   (inkrementelles Nachzeichnen). display: contents -> im Layout unsichtbar, Chips und „+N" bleiben
+   direkte Flex-Kinder der Zelle. */
+.bt-calview-cell-body { display: contents; }
+.bt-calview-chips { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.bt-calview-more { padding: 1px 5px; font-size: 0.72em; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+.bt-calview-more:hover { color: var(--text-normal); text-decoration: underline; }
+
+/* ── Aufgaben-Chip (Monatszelle, Ganztägig-Zeile, „+N"-Popover) ── */
+.bt-calview-chip {
+  display: flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 4px;
+  font-size: 0.84em; line-height: 1.4; cursor: pointer; overflow: hidden;
+  background: color-mix(in srgb, var(--bt-cal-tint) 16%, transparent);
+  border-left: 2px solid var(--bt-cal-tint); color: var(--text-normal);
+}
+.bt-calview-chip:hover { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
+.bt-calview-chip.is-done { opacity: 0.55; }
+.bt-calview-chip.is-done .bt-calview-chip-title { text-decoration: line-through; }
+.bt-calview-chip.is-dragging { opacity: 0.4; }
+.bt-calview-chip-time { flex-shrink: 0; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-calview-chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-calview-pop { min-width: 240px; max-width: 320px; display: flex; flex-direction: column; gap: 2px; }
+
+/* ── Woche: Kopf, Ganztägig-Zeile, Zeitraster ── */
+.bt-calview-week {
+  border: 1px solid var(--background-modifier-border); border-radius: 8px;
+  overflow-y: auto; overflow-x: hidden;      /* EINE Scrollbar für den ganzen Block (s. calendarView.ts) */
+  display: block;                            /* kein Flex: sticky-Kinder brauchen normalen Fluss */
+}
+/* Kopf + Ganztägig bleiben beim Scrollen stehen und sind exakt so breit wie das Raster darunter. */
+.bt-calview-week-top { position: sticky; top: 0; z-index: 5; background: var(--background-primary); }
+.bt-calview-gutter {
+  flex: 0 0 58px; font-size: 0.76em; color: var(--text-faint); text-align: right;
+  padding-right: 6px; box-sizing: border-box;
+}
+.bt-calview-week-head { flex: 0 0 auto; display: flex; border-bottom: 1px solid var(--background-modifier-border); }
+/* Tageskopf: Wochentag über dem Datum, zentriert. „Heute" ist die hinterlegte Spalte
+   (kein Kreis-Badge) – der Kopf zeigt damit dieselbe Spur wie die Tagesspalte darunter. */
+.bt-calview-dayhead {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 8px 4px 10px; cursor: pointer;
+  border-left: 1px solid var(--background-modifier-border);
+}
+.bt-calview-dayhead:first-of-type { border-left: none; }
+.bt-calview-dayhead:hover { background: var(--background-modifier-hover); }
+.bt-calview-dayhead-wd { font-size: 0.82em; color: var(--text-muted); font-weight: 500; line-height: 1.2; }
+.bt-calview-dayhead-num { font-size: 1.3em; font-weight: 700; color: var(--text-normal); line-height: 1.2; }
+.bt-calview-dayhead.is-today { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
+.bt-calview-dayhead.is-today .bt-calview-dayhead-wd,
+.bt-calview-dayhead.is-today .bt-calview-dayhead-num { color: var(--text-accent, var(--interactive-accent)); }
+.bt-calview-allday { display: flex; border-bottom: 1px solid var(--background-modifier-border); min-height: 34px; }
+.bt-calview-allday .bt-calview-gutter { display: flex; align-items: center; justify-content: flex-end; }
+.bt-calview-allday-cell {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px;
+  border-left: 1px solid var(--background-modifier-border);
+}
+.bt-calview-allday-cell.is-today { background: color-mix(in srgb, var(--interactive-accent) 5%, transparent); }
+.bt-calview-allday-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
+
+/* Höhe: der Kalender füllt die Pane bis zum unteren Rand. Die Kette .bt-view -> .bt-sizer ->
+   .bt-calview -> Raster muss dafür durchgehend flex sein (jeweils min-height: 0, sonst wächst
+   ein Flex-Kind nie kleiner als sein Inhalt und der Deckel greift nicht). */
+.bt-view.bt-view-calendar { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 12px; }
+/* width: 100% ist Pflicht, nicht Kosmetik: .bt-sizer hat margin: 0 auto, und ein horizontales
+   auto-Margin schlägt in einem Flex-Container das stretch – ohne die feste Breite schrumpft die
+   Seite auf Inhaltsbreite (die Wochenansicht wurde dadurch schmal und zentriert). */
+.bt-view .bt-sizer.bt-calview-host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; }
+.bt-calview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.bt-calview-timegrid { display: flex; position: relative; }
+.bt-calview-hours { position: relative; }
+.bt-calview-hour { position: relative; }
+.bt-calview-hour span { position: absolute; top: -6px; right: 0; font-variant-numeric: tabular-nums; }
+.bt-calview-daycol {
+  flex: 1; min-width: 0; position: relative;
+  border-left: 1px solid var(--background-modifier-border);
+  /* Stundenraster als Gradient statt als 161 Divs (s. renderTimeGrid). --bt-hour setzt der
+     Zeichner; die Linie sitzt jeweils am UNTEREN Rand einer Stunde. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0, transparent calc(var(--bt-hour) - 1px),
+    var(--background-modifier-border) calc(var(--bt-hour) - 1px), var(--background-modifier-border) var(--bt-hour)
+  );
+  background-repeat: repeat-y;
+}
+.bt-calview-daycol.is-today { background-color: color-mix(in srgb, var(--interactive-accent) 4%, transparent); }
+.bt-calview-daycol.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
+.bt-calview-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--text-error); z-index: 3; }
+.bt-calview-now::before {
+  content: ""; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--text-error);
+}
+.bt-calview-block {
+  position: absolute; z-index: 2; display: flex; flex-direction: row; align-items: flex-start; gap: 5px;
+  overflow: hidden; padding: 3px 6px; border-radius: 4px; cursor: pointer; box-sizing: border-box;
+  background: color-mix(in srgb, var(--bt-cal-tint) 22%, var(--background-primary));
+  border-left: 3px solid var(--bt-cal-tint); font-size: 0.84em; line-height: 1.35;
+}
+.bt-calview-block:hover { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
+.bt-calview-block.is-done { opacity: 0.55; }
+.bt-calview-block.is-done .bt-calview-block-title { text-decoration: line-through; }
+.bt-calview-block.is-dragging { opacity: 0.4; }
+.bt-calview-block-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); font-weight: 500; }
+.bt-calview-block-time {
+  flex-shrink: 0; font-size: 0.88em; color: var(--text-muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.bt-calview-block-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+/* Flacher Block (Standarddauer 30 min): Uhrzeit + Titel nebeneinander statt untereinander –
+   sonst schiebt der Titel aus dem Block heraus und wird unsichtbar. */
+.bt-calview-block.is-compact { align-items: center; padding-top: 1px; }
+.bt-calview-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+.bt-calview-resize:hover { background: var(--bt-cal-tint); opacity: 0.6; }
+
+/* ── Jahr: zwölf Mini-Monate ── */
+.bt-calview-year {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px;
+  overflow-y: auto; align-content: start; padding-bottom: 4px;
+}
+.bt-calview-mini {
+  border: 1px solid var(--background-modifier-border); border-radius: 8px; overflow: hidden;
+  background: var(--background-primary);
+}
+.bt-calview-mini-title {
+  padding: 7px 8px; text-align: center; font-weight: 650; font-size: 0.92em; cursor: pointer;
+  background: var(--background-secondary); border-bottom: 1px solid var(--background-modifier-border);
+}
+.bt-calview-mini-title:hover { background: var(--background-modifier-hover); color: var(--text-accent, var(--interactive-accent)); }
+.bt-calview-mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; padding: 6px; }
+.bt-calview-mini-wd {
+  text-align: center; font-size: 0.66em; font-weight: 600; color: var(--text-faint);
+  padding-bottom: 3px;
+}
+.bt-calview-mini-day {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 1; border-radius: 5px; font-size: 0.72em; color: var(--text-normal);
+  cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.bt-calview-mini-day:hover { background: var(--background-modifier-hover); }
+.bt-calview-mini-day.is-other { color: var(--text-faint); opacity: 0.5; }
+.bt-calview-mini-day.is-today {
+  background: var(--interactive-accent); color: var(--text-on-accent); font-weight: 700;
+}
+/* Tage mit Aufgaben: Punkt unter der Zahl (nicht fett – das würde das Raster unruhig machen). */
+.bt-calview-mini-day.has-tasks::after {
+  content: ""; position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%);
+  width: 3px; height: 3px; border-radius: 50%; background: var(--interactive-accent);
+}
+.bt-calview-mini-day.is-today.has-tasks::after { background: var(--text-on-accent); }
+.bt-calview-mini-day.is-other.has-tasks::after { background: var(--text-faint); }
+
+/* ── Seitenleiste „Undatiert" (Quelle zum Einplanen per Drag) ── */
+.bt-calview-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 12px; }
+.bt-calview-body > .bt-calview { flex: 1 1 auto; min-width: 0; }   /* Kalender nimmt den Rest */
+.bt-calview-panel {
+  flex: 0 0 250px; display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid var(--background-modifier-border); border-radius: 8px;
+  background: var(--background-primary); overflow: hidden;
+}
+.bt-calview-panel-head {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  border-bottom: 1px solid var(--background-modifier-border); background: var(--background-secondary);
+}
+.bt-calview-panel-title { font-size: 0.86em; font-weight: 650; color: var(--text-normal); }
+.bt-calview-panel-count {
+  margin-left: auto; font-size: 0.76em; font-weight: 600; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.bt-calview-panel-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.bt-calview-panel-empty { padding: 14px 4px; text-align: center; font-size: 0.82em; color: var(--text-faint); }
+.bt-calview-panel-card {
+  display: flex; flex-direction: row; align-items: flex-start; gap: 7px; padding: 7px 9px; border-radius: 6px;
+  cursor: grab; font-size: 0.84em; line-height: 1.35;
+  background: color-mix(in srgb, var(--bt-cal-tint) 12%, var(--background-secondary));
+  border-left: 3px solid var(--bt-cal-tint); color: var(--text-normal);
+}
+.bt-calview-panel-card:hover { background: color-mix(in srgb, var(--bt-cal-tint) 22%, var(--background-secondary)); }
+.bt-calview-panel-card.is-dragging { opacity: 0.4; cursor: grabbing; }
+.bt-calview-panel-card-in { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.bt-calview-panel-card-title { overflow: hidden; text-overflow: ellipsis; }
+.bt-calview-panel-card-proj { font-size: 0.82em; color: var(--text-muted); }
+.bt-calview-panel-add {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px; cursor: pointer;
+  border-top: 1px solid var(--background-modifier-border); font-size: 0.84em; color: var(--text-muted);
+}
+.bt-calview-panel-add:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-calview-panel-add-ic { display: inline-flex; }
+.bt-calview-panel-add-ic svg { width: 14px; height: 14px; }
+/* Umschalter im Kopf: Icon + Anzahl, sitzt im Segment rechts neben Jahr/Monat/Woche/Tag. */
+.bt-view .bt-calview-panel-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; }
+.bt-calview-panel-ic { display: inline-flex; }
+.bt-calview-panel-ic svg { width: 15px; height: 15px; }
+.bt-calview-panel-n { font-size: 0.9em; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Kompakte Checkbox für den Kalender: dieselbe .bt-check, nur kleiner – die Chips sind ~20 px hoch.
+   Alles andere (Zustände, Prioritäts-Ring, Status-Icon, Klick/Rechtsklick) erbt sie unverändert. */
+.bt-check.bt-check-sm { width: 13px; height: 13px; border-width: 1.5px; }
+.bt-check.bt-check-sm.bt-check-status svg { width: 9px; height: 9px; }
+/* Das Häkchen sitzt über inset (nicht über eine Mitte-Verschiebung) – bei 13 px Kreis reicht ein
+   knapperer Rand, damit es nicht zu klein wirkt. KEIN transform: das schöbe es aus dem Kreis. */
+.bt-check.bt-check-sm.is-done::after { inset: 2px; }
+/* Einzeilige Container zentrieren ihren Inhalt bereits selbst (align-items: center) – dort darf
+   die Formel oben NICHT zusätzlich schieben. Steht bewusst nach dem @supports-Block. */
+.bt-calview-chip .bt-check.bt-check-sm,
+.bt-calview-block.is-compact .bt-check.bt-check-sm { align-self: center; margin-top: 0; }
+
+/* Einrast-Vorschau beim Ziehen: zeigt Position (15-Minuten-Raster), Dauer und Zielzeit,
+   bevor losgelassen wird. pointer-events: none – der Geist darf die Drop-Zone nicht abfangen. */
+.bt-calview-ghost {
+  position: absolute; left: 2px; right: 2px; top: 0; z-index: 4; pointer-events: none;
+  will-change: transform;      /* wird per translateY bewegt (s. attachGhost) – eigene Compositor-Ebene */
+  display: flex; align-items: flex-start; overflow: hidden;
+  padding: 2px 6px; border-radius: 4px; box-sizing: border-box;
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  border: 1px dashed var(--interactive-accent);
+  font-size: 0.84em; line-height: 1.3;
+}
+/* Einziger Inhalt: die Zielzeit. Kein Titel – siehe attachGhost() in calendarView.ts. */
+.bt-calview-ghost::before {
+  content: attr(data-time);
+  font-weight: 600; color: var(--text-accent, var(--interactive-accent));
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+
+/* ══ Kopf bleibt beim Scrollen stehen ══════════════════════════════════════════════════════════
+   Scroll-Container ist .bt-view. Nur der Kopfblock (Titel · Anzeige · „+ Aufgabe") bleibt stehen;
+   die Gruppen-Überschriften scrollen bewusst mit. */
+/* Der Scroll-Container darf oben KEIN Padding haben: ein sticky Element klebt an der CONTENT-Kante,
+   also unterhalb des Paddings – der Streifen darüber bliebe transparent und der Inhalt schiene
+   durch. (Gemessen: Obsidians .view-content bringt 20px mit, unsere 8px verloren den Spezifitäts-
+   Vergleich; der Kopf klebte 12px zu tief.) Doppelte Klasse -> schlägt .view-content sicher.
+   Den Abstand gibt der Kopf selbst als Padding zurück. */
+.view-content.bt-view { padding-top: 0; }
+/* Der Kalender hat ebenfalls einen Kopfblock – sein Abstand kommt von dort. Ein zusätzliches
+   padding-top am Container käme obendrauf (22 statt 14px) und der Titel stünde tiefer als in der Liste. */
+.bt-view.bt-view-calendar { padding-top: 0; }
+/* Seiten ohne Kopfblock (z. B. „Wiederkehrend": nur ein Titel) hätten sonst keinen Abstand nach
+   oben – bei ihnen ist der Sizer das erste Kind, nicht der sticky Kopf. Gleicher Wert wie dessen
+   padding-top, damit alle Titel auf derselben Höhe stehen. */
+.bt-view > .bt-sizer:first-child > h1:first-child { margin-top: 14px; }
+
+.bt-view .bt-page-top {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--background-primary);
+  margin-top: 0;
+  padding: 14px 0 6px;
+  /* Volle Pane-Breite: nur so kann die Aktionsgruppe („Anzeige") rechts an der Pane-Kante sitzen,
+     bündig mit Kalender und Board. Titel und „+ Aufgabe" bleiben im inneren Sizer auf Lesebreite. */
+}
+.bt-view .bt-page-top h1 { margin-top: 0; }
+/* Aktionsgruppe rechts an der Pane-Kante – NICHT am rechten Rand der Lesebreite. Absolut zum
+   sticky Kopf (der ist ein positionierter Vorfahre), damit sie beim Scrollen mit oben bleibt. */
+.bt-view .bt-page-top .bt-head-actions {
+  position: absolute; top: 14px; right: 24px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+@media (max-width: 700px) {
+  .bt-view .bt-page-top .bt-head-actions { right: 12px; }
+}
+/* Verwaltung/Erledigt: eigener Kopf (Titel + Tabs), kein „+ Aufgabe". */
+.bt-view .bt-manage-header {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--background-primary);
+  margin-top: 0; padding-top: 14px;
+}
+/* Der Titel-Margin käme auf das padding-top obendrauf (14 + 6 = 20px) – die anderen Seiten stehen
+   bei 14px. Genullt, damit alle Titel auf derselben Höhe sitzen. */
+.bt-view .bt-manage-header h1 { margin-top: 0; }

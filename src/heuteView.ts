@@ -5,7 +5,7 @@ import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, FilterGroup, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, FilterGroup, PageLayout, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -13,8 +13,10 @@ import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
+import { renderCalendar, calendarDayAnchor, tryPatchCalendar } from "./calendarView";
+import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { PRIOS } from "./taskModal";
-import { isOpen, isDone, isTrashed, allStatuses, boardStatuses, statusLabel, statusIcon, statusColor, statusTint, firstOpenStatus, StatusKind } from "./statuses";
+import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
 // Transienter Zustand während eines Kanban-Drags: Pfad der Karte + ID der Quell-Spalte
@@ -36,6 +38,42 @@ export const VIEW_ICON: Record<ViewId, string> = {
 const TITLE_KEY: Record<ViewId, string> = { heute: "view_today", demnaechst: "view_upcoming", wiederkehrend: "view_recurring", erledigt: "view_done" };
 export const viewTitle = (id: ViewId): string => t(TITLE_KEY[id]);
 
+/** Datum, auf das „+ Aufgabe hinzufügen" vorbelegt: in der Kalender-TAGESANSICHT der gerade
+ *  angezeigte Tag, sonst null (dann greift wie bisher „heute" bzw. gar kein Datum). Projekt/Label
+ *  kommen unverändert von der Seite – der Knopf verhält sich also wie in der Liste, nur mit dem
+ *  Tag, den man gerade ansieht. */
+function addDue(plugin: BeautyTasksPlugin): string | null {
+  return calendarDayAnchor(plugin, plugin.pageViewOptions());
+}
+
+/** Aufgabenmenge für das Kalender-Layout der System-Views (Heute/Demnächst).
+ *  Diese Views schneiden ihre Menge bewusst zeitlich zu (nur heute bzw. nur Zukunft) – im Kalender
+ *  wäre damit fast jede Zelle leer und Zurückblättern sinnlos. Der Kalender zeigt dort deshalb ALLE
+ *  datierten Aufgaben; das Datum ist ja bereits seine Achse. Projekt-/Label-/Filterseiten behalten
+ *  dagegen ihre Menge (dort ist die Einschränkung die Aussage der Seite). */
+function calendarTasks(plugin: BeautyTasksPlugin, opts: ViewOptions): Task[] {
+  const open = plugin.index.open();
+  return opts.showDone ? [...open, ...plugin.index.done()] : open;
+}
+
+/**
+ * Kopf-Block einer Seite (Titel + „Anzeige" + „+ Aufgabe"). Bleibt beim Scrollen oben stehen (CSS).
+ * Die Gruppen-Überschriften scrollen bewusst mit – deshalb braucht hier auch niemand die Kopfhöhe
+ * zu kennen (kein ResizeObserver, keine CSS-Variable).
+ *
+ * (Das Ruckeln, das mich diesen Block einmal wieder ausbauen ließ, kam nachweislich woanders her:
+ * aus dem dreifachen Neuzeichnen pro Änderung – siehe tryPatchCalendar/tryPatchNav.)
+ */
+function pageTop(c: HTMLElement, layout: PageLayout): HTMLElement {
+  // Der Block spannt die VOLLE Pane-Breite (nur so kann „Anzeige" rechts an der Pane-Kante andocken).
+  // Der innere Sizer folgt dem Layout des Bodys darunter: Liste = Lesebreite, Board/Kalender =
+  // volle Breite. Sonst stünde der Titel im Kalender zentriert, während sein Raster links beginnt.
+  const bar = c.createDiv({ cls: "bt-page-top" });
+  c.prepend(bar);   // IMMER als erstes Element – der Listen-Sizer ist teils schon erzeugt
+  const wide = layout !== "list";
+  return bar.createDiv({ cls: "bt-sizer bt-page-top-in" + (wide ? " bt-sizer-board" : "") });
+}
+
 /** Rendert eine Dashboard-Ansicht in ein angehängtes DOM-Element (Deferred-sicher). */
 export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: ViewId): void {
   const today = todayStr();
@@ -45,13 +83,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const root = c.createDiv({ cls: "bt-sizer" });
   // Heute/Demnächst: Kopf mit „Anzeige"-Knopf (leichtes Panel). Wiederkehrend: nur Titel.
   if (view === "heute" || view === "demnaechst") {
-    const head = root.createDiv({ cls: "bt-board-head" });
+    const top = pageTop(c, plugin.pageViewOptions().layout);
+    const head = top.createDiv({ cls: "bt-board-head" });
     head.createEl("h1", { text: viewTitle(view) });
-    anzeigeButton(head, plugin);
-    const add = root.createDiv({ cls: "bt-add" });
+    anzeigeButton(head.createDiv({ cls: "bt-head-actions" }), plugin);   // rechts an der Pane-Kante
+    const add = top.createDiv({ cls: "bt-add" });
     add.createSpan({ cls: "bt-add-icon" });
     add.createSpan({ text: t("btn_add_task") });
-    add.onclick = () => plugin.openNewTask(undefined, undefined, view === "heute");
+    add.onclick = () => plugin.openNewTask(undefined, undefined, view === "heute", undefined, addDue(plugin));
   } else if (view !== "erledigt") {
     root.createEl("h1", { text: viewTitle(view) });   // „Erledigt" bekommt einen Kopf mit Tabs (unten)
   }
@@ -64,6 +103,8 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const open = [...overdue, ...dueToday];
     if (!open.length && !(opts.showDone && doneToday.length)) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
+    } else if (opts.layout === "calendar") {
+      renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
       // Board folgt der Gruppierung (Status/Label/Priorität/Projekt) – wie die vollen Seiten.
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
@@ -71,11 +112,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const present = renderedPaths(plugin, opts.showDone ? [...open, ...doneToday] : open);
       if (opts.group === "none") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
-        section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort), today, false, false, present);
-        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort), today, false, false, present);
+        section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
+        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present);
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split (Todoist-Stil).
-        for (const g of filterGroups(plugin, sortTasks(open, opts.sort), opts.group, today))
+        for (const g of filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today))
           if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
       }
       if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
@@ -86,7 +127,9 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
     if (!groups.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
-    else if (opts.layout === "board") {
+    else if (opts.layout === "calendar") {
+      renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
+    } else if (opts.layout === "board") {
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
       const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
@@ -203,19 +246,21 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
   const meta = isInbox ? null
     : (() => { const a = listProjectsAndAreas(plugin.app); return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null; })();
-  pageHeader(root, plugin, root.createEl("h1", { text: projectDisplayName(name) }),
+  const top = pageTop(c, plugin.pageViewOptions().layout);
+  pageHeader(top, plugin, top.createEl("h1", { text: projectDisplayName(name) }),
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {});
-  addBar(root, plugin, () => plugin.openNewTask(name));
+  addBar(top, plugin, () => plugin.openNewTask(name, undefined, false, undefined, addDue(plugin)));
 
   // Nach Namen vergleichen: gleichnamige Notizen hätten sonst verschiedene Pfade.
-  const tasks = plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
+  const source = (): Task[] => plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
+  const tasks = source();
   if (!tasks.length) {
     if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
     else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, { project: name });
+  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { project: name });
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -225,23 +270,33 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  pageHeader(root, plugin, root.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
+  const top = pageTop(c, plugin.pageViewOptions().layout);
+  pageHeader(top, plugin, top.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
     { menu: { sec: "labels", key: label, name: label, hidden: !plugin.isLabelVisible(label), color: plugin.getLabelColor(label) } });
-  addBar(root, plugin, () => plugin.openNewTask(undefined, label));
+  addBar(top, plugin, () => plugin.openNewTask(undefined, label, false, undefined, addDue(plugin)));
 
-  const tasks = plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
+  const source = (): Task[] =>
+    plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
+  const tasks = source();
   if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
-  renderPageBody(root, plugin, tasks, plugin.pageViewOptions(), today, { label });
+  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { label });
 }
 
-/** Aufgaben eines Filter-Boards in Abschnitte gruppieren (Reihenfolge innerhalb bleibt die
- *  bereits von applyFilter gesetzte Sortierung). „none" = ein Abschnitt. */
+/**
+ * Aufgaben eines Filter-Boards in Abschnitte gruppieren. Die Reihenfolge INNERHALB einer Gruppe
+ * bringt bereits sortTasks() mit (inkl. Richtung).
+ *
+ * Die Reihenfolge der GRUPPEN ist dagegen fest und richtungsunabhängig: „Überfällig → Heute →
+ * Demnächst → Kein Datum" ist eine Semantik (dringend zuerst), keine Skala – umgedreht ergäbe sie
+ * keinen Sinn. Ebenso Priorität (P1→P4) und Label/Projekt (alphabetisch). Die Sortierrichtung
+ * betrifft nur die Aufgaben unter den Überschriften. (So macht es auch Todoist.)
+ */
 function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup, today: string): { title: string; tasks: Task[] }[] {
   if (group === "none") return [{ title: t("sec_tasks"), tasks }];
-  const buckets = new Map<string, { title: string; tasks: Task[]; order: number }>();
+  const buckets = new Map<string, { key: string; title: string; tasks: Task[]; order: number }>();
   const push = (key: string, title: string, order: number, tk: Task): void => {
     let b = buckets.get(key);
-    if (!b) { b = { title, tasks: [], order }; buckets.set(key, b); }
+    if (!b) { b = { key, title, tasks: [], order }; buckets.set(key, b); }
     b.tasks.push(tk);
   };
   const prioKey = (p: string): string => p === "highest" ? "prio_1" : p === "high" ? "prio_2" : p === "medium" ? "prio_3" : "prio_4";
@@ -264,20 +319,38 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
       else push("noproject", t("no_project"), 0, tk);
     }
   }
-  return [...buckets.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+  // „Kein Datum" / „Kein Label" / „Kein Projekt" immer ans Ende – kein Wert auf der Skala,
+  // sondern dessen Abwesenheit (wie undatierte Aufgaben in sortTasks()).
+  const isRest = (k: string): number => (k === "nodate" || k === "nolabel" || k === "noproject" ? 1 : 0);
+  return [...buckets.values()].sort((a, b) =>
+    isRest(a.key) - isRest(b.key) || a.order - b.order || a.title.localeCompare(b.title));
 }
 
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
- *  Offene Aufgaben werden gruppiert; Erledigte kommen (auf Wunsch) als einklappbare Sektion ans Ende. */
-function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], opts: ViewOptions, today: string,
+ *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
+ *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
+function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: () => Task[], opts: ViewOptions, today: string,
   add: BoardAdd): void {
+  const tasks = source();
   const open = tasks.filter((t) => isOpen(t.status));
   const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (opts.layout === "board") {
     renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, add);
     return;
   }
-  const sorted = sortTasks(open, opts.sort);
+  if (opts.layout === "calendar") {
+    // Der Kalender bekommt die QUELLE (nicht die Liste): so kann er bei einer reinen Datenänderung
+    // nur seine Aufgaben-Elemente nachziehen, statt die Seite neu aufzubauen (s. tryPatchCalendar).
+    const calSource = (): Task[] => {
+      const all = source();
+      const o = all.filter((t) => isOpen(t.status));
+      return opts.showDone ? [...o, ...all.filter((t) => isDone(t.status))] : o;
+    };
+    // Der Redraw hier ist für die Navigation nötig (Blättern ändert nur den transienten Anker).
+    renderCalendar(root, plugin, calSource, today, opts, () => plugin.renderMain(), add);
+    return;
+  }
+  const sorted = sortTasks(open, opts.sort, opts.sortDir);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
   for (const g of filterGroups(plugin, sorted, opts.group, today)) {
     if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
@@ -297,15 +370,16 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   if (!filter) { emptyState(root, "tag", "empty_no_filter"); return; }
 
   // Kopf: Titel + [Stift Kriterien-Editor] [Link „Filter"] [Anzeige].
-  pageHeader(root, plugin, root.createEl("h1", { text: filter.name }), {
+  const top = pageTop(c, filter.options.layout);
+  pageHeader(top, plugin, top.createEl("h1", { text: filter.name }), {
     menu: { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color },
   });
-  addBar(root, plugin, () => plugin.openNewTask());
+  addBar(top, plugin, () => plugin.openNewTask(undefined, undefined, false, undefined, addDue(plugin)));
 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
   const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
   if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
-  renderPageBody(root, plugin, tasks, filter.options, today, {});
+  renderPageBody(root, plugin, () => applyFilter(plugin.index, filter.criteria, filter.options, today), filter.options, today, {});
 }
 
 // ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
@@ -695,28 +769,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     row.addEventListener("dragend", () => { dragPath = null; dragFromCol = null; row.removeClass("is-dragging"); });
   }
 
-  const check = row.createDiv({ cls: "bt-check" });
-  if (trash) { check.addClass("bt-check-x"); setIcon(check, "x"); }   // Papierkorb: × im Kreis (wie das x-circle-Status-Icon)
-  else if (isDone(task.status)) {
-    check.addClass("is-done");
-    const c = statusColor(task.status);
-    if (c) { check.style.backgroundColor = c; check.style.borderColor = c; }   // eigene Farbe, sonst Default-Grau
-  }
-  else {
-    // Jede offene Phase außer der ersten (To-Do = leerer Kreis) zeigt ihr Icon in ihrer Farbe.
-    if (task.status !== firstOpenStatus()) {
-      check.addClass("bt-check-status");
-      setIcon(check, statusIcon(task.status));
-      check.style.setProperty("--bt-status-col", statusTint(task.status));
-    } else {
-      const c = statusColor(task.status);
-      if (c) check.style.borderColor = c;   // To-Do: Ring nur tönen, wenn eine eigene Farbe gesetzt ist
-    }
-    // Priorität als farbiger Checkbox-Ring (wie altes BeautyTasks): höchste=rot, hoch=orange,
-    // mittel=blau; normal/niedrig neutral. Ring + Status-Icon überlagern sich sauber.
-    if (task.priority === "highest" || task.priority === "high" || task.priority === "medium") check.dataset.prio = task.priority;
-  }
-  if (!trash) attachCheckActions(check, plugin, task);
+  renderCheck(row, plugin, task, { trash });
 
   const body = row.createDiv({ cls: "bt-body" });
   renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
@@ -781,55 +834,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
 }
 
-/** Checkbox-Interaktion: Links-Klick erledigt (⇄ offen); Rechtsklick/Long-Press öffnet das
- *  Status-Menü. Der Long-Press deckt Mobile ab (dort gibt es keinen Rechtsklick). */
-function attachCheckActions(check: HTMLElement, plugin: BeautyTasksPlugin, task: Task): void {
-  let longFired = false;
-  check.onclick = (e) => {
-    e.stopPropagation();
-    if (longFired) { longFired = false; return; }   // Long-Press hat das Menü schon geöffnet
-    void plugin.toggleDone(task);
-  };
-  check.addEventListener("contextmenu", (e) => {
-    e.preventDefault(); e.stopPropagation();
-    showStatusMenu(plugin, task, e.clientX, e.clientY);
-  });
-  // Touch: Long-Press (~500 ms) öffnet dasselbe Menü.
-  let timer: number | null = null;
-  const clear = () => { if (timer !== null) { window.clearTimeout(timer); timer = null; } };
-  check.addEventListener("touchstart", (e) => {
-    const p = e.touches[0];
-    const x = p.clientX, y = p.clientY;
-    longFired = false;
-    timer = window.setTimeout(() => { timer = null; longFired = true; showStatusMenu(plugin, task, x, y); }, 500);
-  }, { passive: true });
-  check.addEventListener("touchend", clear);
-  check.addEventListener("touchmove", clear);
-  check.addEventListener("touchcancel", clear);
-}
-
-/** Status-Kontextmenü der Checkbox: To-Do · In Arbeit · Erledigt · (Abbrechen → Papierkorb).
- *  Setzt den Status live (setTaskStatus kümmert sich um Zeitstempel/Wiederholung). */
-function showStatusMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: number): void {
-  const menu = new Menu();
-  for (const s of allStatuses()) {
-    if (s.kind === "cancelled") menu.addSeparator();   // Abbrechen von den Arbeits-Status trennen
-    menu.addItem((it) => {
-      it.setTitle(s.kind === "cancelled" ? t("menu_cancel_task") : statusLabel(s.id));
-      it.setIcon(statusIcon(s.id));
-      it.setChecked(task.status === s.id);
-      it.onClick(() => {
-        if (s.kind === "cancelled") void plugin.cancelTask(task);
-        else void plugin.setTaskStatus(task, s.id);
-      });
-    });
-  }
-  menu.showAtPosition({ x, y });
-}
-
-
 // ── Linke Navigation ─────────────────────────────────────────────
-interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; }
+interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; countKey?: string; active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; }
 
 /** Div klick- UND tastaturbedienbar machen (role=button/tabindex kommen vom Aufrufer):
  *  Klick + Enter/Space lösen dieselbe Aktion aus. So bleibt die Optik 1:1 wie zuvor. */
@@ -843,7 +849,12 @@ function navItem(c: HTMLElement, o: NavItemOpts): void {
   const item = c.createDiv({ cls: "bt-nav-item" + (o.active ? " is-active" : "") + (o.cls ? " " + o.cls : ""), attr: { role: "button", tabindex: "0" } });
   const ic = item.createSpan({ cls: "bt-nav-ic" }); setIcon(ic, o.icon); if (o.iconColor) ic.setCssStyles({ color: o.iconColor });
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
-  if (o.count) item.createSpan({ cls: "bt-nav-count", text: String(o.count) });
+  // Zähler-Span IMMER anlegen (auch bei 0 – dann leer): nur so kann ihn der Badge-Füller später
+  // beschreiben, ohne die Seitenleiste neu zu bauen. o.countKey registriert ihn dafür.
+  if (o.countKey || o.count) {
+    const badge = item.createSpan({ cls: "bt-nav-count", text: o.count ? String(o.count) : "" });
+    if (o.countKey) navBadges?.set(o.countKey, badge);
+  }
   activate(item, o.onClick);
   if (o.onContext) item.oncontextmenu = (e) => { e.preventDefault(); o.onContext!(e); };   // Rechtsklick = Kontextmenü
 }
@@ -940,10 +951,72 @@ function renderReorderList(c: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSe
   }
 }
 
+/**
+ * ── Seitenleiste: Struktur vs. Zahlen ────────────────────────────────────────────────────────
+ * Bei jeder Änderung wurde die komplette Navigation weggeworfen und neu gebaut – 29 Einträge mit
+ * Icons, Farben und Handlern, nur weil sich eine Zahl geändert hat.
+ *
+ * Jetzt getrennt:
+ *  • Die ZAHLEN werden bei jeder Meldung neu geschrieben (kein Skip, keine Signatur) – sie können
+ *    also nicht veralten. Es wird nur Text ersetzt, kein DOM erzeugt.
+ *  • Die STRUKTUR (welche Einträge, Namen, Farben, aktiver Eintrag, eingeklappte Abschnitte) wird
+ *    per Signatur geprüft. Ändert sie sich, läuft der vollständige Neuaufbau wie bisher.
+ */
+interface NavMount { sig: string; badges: Map<string, HTMLElement> }
+const navMounts = new WeakMap<HTMLElement, NavMount>();
+let navBadges: Map<string, HTMLElement> | null = null;   // aktive Sammlung während renderNavInto
+
+/** Alle Zähler der Seitenleiste – dieselben Werte, die renderNavInto einsetzt. */
+function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
+  const m = new Map<string, number>();
+  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  if (eingang) m.set("p:" + eingang.path, plugin.index.byProject(eingang.path).length);
+  for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
+  for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
+  const today = todayStr();
+  for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, applyFilter(plugin.index, fl.criteria, fl.options, today).length);
+  for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
+  return m;
+}
+
+/** Struktur-Signatur OHNE Zahlen: gleich = dieselben Einträge in derselben Form. */
+function navSignature(plugin: BeautyTasksPlugin): string {
+  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const proj = (p: { path: string; name: string; icon: string; color: string | null; hidden: boolean }): string =>
+    [p.path, p.name, p.icon, p.color, p.hidden].join("~");
+  return JSON.stringify({
+    eingang: eingang ? proj(eingang) : null,
+    areas: plugin.sortProjItems("areas", bereiche).map(proj),
+    projects: plugin.sortProjItems("projects", projekte).map(proj),
+    filters: plugin.sortFilters(listFilters(plugin.app)).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
+    labels: plugin.getVisibleLabels().map((n) => n + "~" + plugin.getLabelColor(n)),
+    labelsTotal: plugin.getLabels().length,                       // steuert die „+ Label erstellen"-Zeile
+    active: [plugin.currentProject, plugin.currentLabel, plugin.currentFilter, plugin.currentView, plugin.manageOpen].join("~"),
+    collapsed: ["filters", "labels", "areas", "projects"].map((id) => plugin.isNavCollapsed(id)),
+    reorder: plugin.reorderSec,
+    preview: plugin.colorPreview,
+    locale: getLocale(),
+  });
+}
+
+/** Versucht, nur die Zähler der Seitenleiste nachzuziehen. true = erledigt (kein Neuaufbau nötig). */
+export function tryPatchNav(c: HTMLElement, plugin: BeautyTasksPlugin): boolean {
+  const m = navMounts.get(c);
+  if (!m || m.sig !== navSignature(plugin)) return false;
+  const counts = navCounts(plugin);
+  for (const [key, el] of m.badges) {
+    const n = counts.get(key) ?? 0;
+    el.setText(n ? String(n) : "");
+  }
+  return true;
+}
+
 export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   c.empty();
   c.addClass("bt-nav");
   const redraw = () => renderNavInto(c, plugin);
+  const badges = new Map<string, HTMLElement>();
+  navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
 
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
   // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
@@ -962,7 +1035,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     const ib = eingang;
     navItem(c, {
       cls: "bt-nav-inbox", icon: ib.icon, iconColor: navColor(ib.path, ib.color), label: projectDisplayName(ib.name),
-      count: plugin.index.byProject(ib.path).length, active: plugin.currentProject === ib.path,
+      count: plugin.index.byProject(ib.path).length, countKey: "p:" + ib.path, active: plugin.currentProject === ib.path,
       onClick: () => void plugin.activateProject(ib.path),
       onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e); },
     });
@@ -971,7 +1044,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   for (const id of VIEW_IDS) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;
     // Klasse pro Board (bt-nav-heute …) für einzeln themebare Icon-Farben.
-    navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), active, onClick: () => void plugin.activateView(id) });
+    navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id, active, onClick: () => void plugin.activateView(id) });
   }
 
   // cls = Kategorie-Klasse (bt-nav-area / bt-nav-project) für eine gemeinsame Icon-Farbe je Gruppe.
@@ -985,7 +1058,8 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     }
     for (const p of visible) {
       navItem(c, {
-        cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name, count: plugin.index.byProject(p.path).length,
+        cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name,
+        count: plugin.index.byProject(p.path).length, countKey: "p:" + p.path,
         active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec, key: p.path, name: p.name, hidden: p.hidden, color: p.color, type: kind }); m.showAtMouseEvent(e); },
       });
@@ -1006,7 +1080,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
       navItem(c, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
-        count: applyFilter(plugin.index, fl.criteria, fl.options, today).length,
+        count: applyFilter(plugin.index, fl.criteria, fl.options, today).length, countKey: "f:" + fl.path,
         active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });
@@ -1023,7 +1097,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     for (const name of plugin.getVisibleLabels()) {
       const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
       navItem(c, {
-        cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count,
+        cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
         active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
       });
@@ -1041,6 +1115,8 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     async () => undefined, () => new NewItemModal(plugin, "project").open());
   if (!projCollapsed || plugin.reorderSec === "projects") projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
 
+  navBadges = null;
+  navMounts.set(c, { sig: navSignature(plugin), badges });
 }
 
 function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
@@ -1063,17 +1139,25 @@ export class MainView extends ItemView {
   getDisplayText(): string { return "BeautyTasks"; }   // statischer Header (Tab + Pane) = Programmname
   getIcon(): string { return VIEW_ICON.erledigt; }   // statisch = „Erledigt"-Icon (check-circle)
   async onOpen(): Promise<void> {
+    // Checkbox-Aktionen EINMAL delegiert (nicht je Zeichnung je Checkbox – s. taskCheck.ts).
+    installCheckDelegation(this.contentEl, this.plugin);
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();
   }
   async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; this.plugin.titleRenderComp = null; }
   draw(): void {
     if (!this.contentEl) return;
+    // Kalender: Ist der Rahmen unverändert (gleiche Seite, gleicher Modus, gleicher Zeitraum), reicht
+    // es, die Aufgaben-Elemente nachzuziehen – ein Dutzend statt ~1800 Elemente. Der komplette
+    // Neuaufbau unten kostete gemessen ~80 ms Style + Layout + Paint bei JEDER Änderung.
+    // tryPatchCalendar lehnt bei der kleinsten Abweichung ab; dann läuft der normale Pfad.
+    if (!this.plugin.manageOpen && tryPatchCalendar(this.contentEl, this.plugin)) return;
     // Frische Render-Component pro Zeichnung: Markdown-Titel (Links) sauber auf-/abbauen,
     // damit sich Hover-/Embed-Kindkomponenten nicht über Redraws hinweg ansammeln.
     if (this.renderComp) this.removeChild(this.renderComp);
     this.renderComp = this.addChild(new Component());
     this.plugin.titleRenderComp = this.renderComp;
+    this.contentEl.removeClass("bt-view-calendar");   // setzt renderCalendar bei Bedarf wieder
     if (this.plugin.manageOpen) renderManageInto(this.contentEl, this.plugin);
     else if (this.plugin.currentFilter) renderFilterBoardInto(this.contentEl, this.plugin, this.plugin.currentFilter);
     else if (this.plugin.currentLabel) renderLabelBoardInto(this.contentEl, this.plugin, this.plugin.currentLabel);
@@ -1102,5 +1186,10 @@ export class NavView extends ItemView {
     this.draw();
   }
   async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; }
-  draw(): void { if (this.contentEl) renderNavInto(this.contentEl, this.plugin); }
+  draw(): void {
+    if (!this.contentEl) return;
+    // Nur die Zahlen haben sich geändert? Dann bleibt die Seitenleiste stehen (s. tryPatchNav).
+    if (tryPatchNav(this.contentEl, this.plugin)) return;
+    renderNavInto(this.contentEl, this.plugin);
+  }
 }

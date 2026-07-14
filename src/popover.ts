@@ -38,6 +38,11 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   const onDoc = (e: MouseEvent) => {
     const t = e.target as Node;
     if (pop.contains(t) || t === anchor || anchor.contains(t)) return;
+    // Verschachtelung: Aus einem Popover heraus kann ein zweites geöffnet werden (z. B. die
+    // Dropdowns im Anzeige-Panel). Dessen Elemente liegen NICHT in diesem Popover – ohne diese
+    // Ausnahme würde jeder Klick darin das äußere Panel als „Klick außerhalb" schließen.
+    const inOtherPop = (t as HTMLElement).closest?.(".bt-pop");
+    if (inOtherPop && inOtherPop !== pop) return;
     close();
     // Klick außerhalb der Modal-Box würde sonst das ganze Modal schließen (und Änderungen
     // verwerfen) -> diesen einen Klick verschlucken, das Modal bleibt offen.
