@@ -9610,6 +9610,7 @@ function startResize(e, el, task, startMin, plugin) {
   e.stopPropagation();
   const col = el.parentElement;
   const doc = el.ownerDocument;
+  el.addClass("is-resizing");
   let minutes = Math.max(MIN_DUR, task.duration ?? 30);
   const onMove = (ev) => {
     minutes = Math.max(MIN_DUR, snap(yToMin(ev.clientY, col)) - startMin);
@@ -9618,6 +9619,7 @@ function startResize(e, el, task, startMin, plugin) {
     el.toggleClass("is-compact", h < TWO_LINE_PX);
   };
   const onUp = () => {
+    el.removeClass("is-resizing");
     doc.removeEventListener("mousemove", onMove);
     doc.removeEventListener("mouseup", onUp);
     doc.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });

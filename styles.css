@@ -1768,6 +1768,10 @@ body {
 .bt-calview-block.is-compact { align-items: center; padding-top: 1px; }
 .bt-calview-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
 .bt-calview-resize:hover { background: var(--bt-cal-tint); opacity: 0.6; }
+/* Während aktivem Größe-Ziehen: Optik am Zustand festmachen, nicht am Cursor-Hover – sonst flackern
+   Hintergrund und Griff-Balken, weil die Kachelhöhe in 15-Min-Stufen springt, der Cursor aber stetig. */
+.bt-calview-block.is-resizing { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
+.bt-calview-block.is-resizing .bt-calview-resize:hover { background: none; opacity: 0; }
 
 /* ── Jahr: zwölf Mini-Monate ── */
 .bt-calview-year {

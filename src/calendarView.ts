@@ -543,6 +543,7 @@ function startResize(e: MouseEvent, el: HTMLElement, task: Task, startMin: numbe
   e.preventDefault(); e.stopPropagation();
   const col = el.parentElement!;
   const doc = el.ownerDocument;
+  el.addClass("is-resizing");   // Hover-Optik einfrieren, damit Hintergrund/Griff beim Ziehen nicht flackern
   let minutes = Math.max(MIN_DUR, (task.duration ?? 30));
   const onMove = (ev: MouseEvent): void => {
     minutes = Math.max(MIN_DUR, snap(yToMin(ev.clientY, col)) - startMin);
@@ -551,6 +552,7 @@ function startResize(e: MouseEvent, el: HTMLElement, task: Task, startMin: numbe
     el.toggleClass("is-compact", h < TWO_LINE_PX);   // beim Aufziehen sofort zweizeilig werden
   };
   const onUp = (): void => {
+    el.removeClass("is-resizing");
     doc.removeEventListener("mousemove", onMove);
     doc.removeEventListener("mouseup", onUp);
     // Den auf mouseup folgenden synthetischen Klick schlucken: sein Ziel ist der gemeinsame Vorfahr
