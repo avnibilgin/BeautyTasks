@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody } from "../src/detailLog";
+import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody, LOG_HEADING } from "../src/detailLog";
 import { setLocale } from "../src/i18n";
 
 beforeEach(() => setLocale("en"));
@@ -97,6 +97,24 @@ describe("splitContent / composeContent (Beschreibung ↔ Log)", () => {
     const r = splitContent(neu);
     expect(r.description).toBe("neue Beschreibung");
     expect(r.log).toBe("> [!log] x\n> K");
+  });
+
+  it("composeContent setzt die Log-Überschrift vor den Log", () => {
+    const out = composeContent(FM, "# Titel", "Inhalt", "> [!log] x\n> K");
+    expect(out).toContain(LOG_HEADING + "\n\n> [!log] x");
+  });
+
+  it("splitContent trennt eine vorhandene Log-Überschrift wieder ab (nicht in Beschreibung/Log)", () => {
+    const content = FM + "\n# Titel\n\nInhalt\n\n" + LOG_HEADING + "\n\n> [!log] x\n> K\n";
+    const r = splitContent(content);
+    expect(r.description).toBe("Inhalt");           // Überschrift NICHT in der Beschreibung
+    expect(r.log).toBe("> [!log] x\n> K");          // Überschrift NICHT im zurückgegebenen Log
+    expect(r.log).not.toContain("BeautyTasks");
+  });
+
+  it("ohne Log keine Log-Überschrift", () => {
+    const out = composeContent(FM, "# Titel", "Nur Inhalt", "");
+    expect(out).not.toContain(LOG_HEADING);
   });
 });
 

@@ -78,30 +78,37 @@ export function formatLogTime(ts: string, now?: Date): string {
 }
 
 // ── Body-Zugriff: Frontmatter, „# Titel", Beschreibung und Log-Region abtrennen ──
-// Body-Layout:  # Titel  →  Beschreibung (freier Markdown)  →  [!log]-Callouts.
-// Die Beschreibung ist alles zwischen der Titel-Überschrift und dem ersten [!log].
+// Body-Layout:  # Titel  →  Beschreibung/Inhalt  →  ###### Log-Überschrift  →  [!log]-Callouts.
+// Die (einklappbare) Log-Überschrift gruppiert die Kommentare, damit sie in umgewandelten
+// Inhaltsnotizen nicht stören. Sie ist ein fester Marker (nicht lokalisiert), damit splitContent
+// die Log-Region zuverlässig erkennt und die Überschrift beim Lesen wieder wegtrennt.
+export const LOG_HEADING = "###### BeautyTasks Details-Logbuch";
+const isLogHead = (l: string): boolean => /^#{1,6}\s+BeautyTasks Details-Logbuch\s*$/.test(l);
 
 export function splitContent(content: string): { fm: string; title: string; description: string; log: string } {
   const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
   const fm = fmMatch ? fmMatch[1] : "";
   const body = content.slice(fm.length);
   const lines = body.split("\n");
-  const idx = lines.findIndex((l) => /^#\s+/.test(l));           // Titel-Überschrift
+  const idx = lines.findIndex((l) => /^#\s+/.test(l));           // Titel-Überschrift (nur H1)
   const title = idx === -1 ? "" : lines[idx];
   const rest = idx === -1 ? lines : lines.slice(idx + 1);
-  const li = rest.findIndex((l) => /^>\s*\[!log\]/i.test(l));    // erster Log-Callout
+  // Log-Region beginnt bei der Log-Überschrift ODER (falls keine da) beim ersten [!log].
+  const li = rest.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
   const trim = (s: string): string => s.replace(/^\n+|\n+$/g, "");
   const description = trim((li === -1 ? rest : rest.slice(0, li)).join("\n"));
-  const log = li === -1 ? "" : trim(rest.slice(li).join("\n"));
+  let logLines = li === -1 ? [] : rest.slice(li);
+  if (logLines.length && isLogHead(logLines[0])) logLines = logLines.slice(1);   // Überschrift abtrennen
+  const log = trim(logLines.join("\n"));
   return { fm, title, description, log };
 }
 
-/** Body neu zusammensetzen: Frontmatter, Titel, Beschreibung, Log – in dieser Reihenfolge. */
+/** Body neu zusammensetzen: Frontmatter, Titel, Beschreibung/Inhalt, Log-Überschrift, Log. */
 export function composeContent(fm: string, title: string, description: string, log: string): string {
   let out = fm + "\n" + title + "\n";
   const desc = description.replace(/^\n+|\n+$/g, "");
   if (desc) out += "\n" + desc + "\n";
-  if (log) out += "\n" + log + "\n";
+  if (log) out += "\n" + LOG_HEADING + "\n\n" + log + "\n";
   return out;
 }
 
@@ -112,13 +119,19 @@ export async function readLog(app: App, file: TFile): Promise<LogEntry[]> {
   return parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
 }
 
-/** Log-Einträge in den Body schreiben (Frontmatter, Titel, Beschreibung bleiben erhalten).
- *  Atomare Hintergrund-Änderung via vault.process. */
+/** Log-Einträge in den Body schreiben. Verlustfrei: ALLES vor der Log-Region (Frontmatter, Titel,
+ *  Inhalt – auch Text vor der ersten Überschrift, den splitContent/composeContent sonst verwerfen)
+ *  bleibt unverändert; nur die Log-Region (Überschrift + Callouts) wird neu gesetzt. */
 export async function writeLog(app: App, file: TFile, entries: LogEntry[]): Promise<void> {
   await app.vault.process(file, (content) => {
-    const { fm, title, description } = splitContent(content);
-    const head = title || "# " + file.basename;
-    return composeContent(fm, head, description, serializeDetailLog(entries));
+    const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
+    const fm = fmMatch ? fmMatch[1] : "";
+    const body = content.slice(fm.length);
+    const lines = body.split("\n");
+    const li = lines.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
+    const before = (li === -1 ? lines : lines.slice(0, li)).join("\n").replace(/\n+$/, "");
+    const logMd = serializeDetailLog(entries);
+    return fm + before + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
   });
 }
 
@@ -142,15 +155,16 @@ export function isDocumentBody(s: string): boolean {
     || (t.match(/\n\s*\n/g)?.length ?? 0) >= 2;  // mehrere Absätze
 }
 
-/** Idempotent EINEN „Notiz öffnen"-Kommentar (Selbst-Wikilink) als [!log]-Callout ans DATEIENDE
- *  anhängen. Bewusst ein roher Append (NICHT composeContent): so bleibt beliebiger Body-Inhalt –
- *  auch Text VOR der ersten „# Überschrift", den splitContent sonst verwirft – vollständig erhalten.
- *  Existiert der Selbst-Link schon irgendwo, passiert nichts. Gibt zurück, ob etwas ergänzt wurde. */
+/** Idempotent EINEN „Notiz öffnen"-Kommentar (Selbst-Wikilink) an den Log anhängen. Nutzt das
+ *  verlustfreie writeLog (Body-Inhalt bleibt vollständig erhalten). Existiert der Selbst-Link schon
+ *  irgendwo, passiert nichts. Gibt zurück, ob etwas ergänzt wurde. */
 export async function ensureNoteLinkLog(app: App, file: TFile, label: string): Promise<boolean> {
   const content = await app.vault.cachedRead(file);
   const link = "[[" + file.basename + "]]";
   if (content.includes(link)) return false;   // schon vorhanden (Selbst-Link ist sonst untypisch)
-  const block = serializeDetailLog([{ ts: nowLogTs(), body: label + " " + link }]);
-  await app.vault.process(file, (c) => c.replace(/\s+$/, "") + "\n\n" + block + "\n");
+  const { log } = splitContent(content);
+  const entries = parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
+  entries.push({ ts: nowLogTs(), body: label + " " + link });
+  await writeLog(app, file, entries);
   return true;
 }

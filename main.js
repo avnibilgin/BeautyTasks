@@ -273,7 +273,7 @@ var STRINGS = {
     notice_made_task: "Note is now a task.",
     notice_desc_migrated: "Descriptions migrated: {0} moved to frontmatter, {1} kept as notes.",
     desc_note_content_hint: "Contains its own note content.",
-    log_open_note: "\u{1F4C4} Open note",
+    log_open_note: "Open note",
     cmd_export_json: "Export tasks (JSON)",
     cmd_import_json: "Import tasks (JSON)",
     cmd_import_tasknotes: "Import from TaskNotes",
@@ -734,7 +734,7 @@ var STRINGS = {
     notice_made_task: "Notiz ist jetzt eine Aufgabe.",
     notice_desc_migrated: "Beschreibungen migriert: {0} ins Frontmatter, {1} als Notiz behalten.",
     desc_note_content_hint: "Enth\xE4lt eigene Notizinhalte.",
-    log_open_note: "\u{1F4C4} Notiz \xF6ffnen",
+    log_open_note: "Notiz \xF6ffnen",
     cmd_export_json: "Aufgaben exportieren (JSON)",
     cmd_import_json: "Aufgaben importieren (JSON)",
     cmd_import_tasknotes: "Aus TaskNotes importieren",
@@ -6469,6 +6469,8 @@ function formatLogTime(ts, now) {
   }
   return datePart + " \xB7 " + hm;
 }
+var LOG_HEADING = "###### BeautyTasks Details-Logbuch";
+var isLogHead = (l) => /^#{1,6}\s+BeautyTasks Details-Logbuch\s*$/.test(l);
 function splitContent(content) {
   const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
   const fm = fmMatch ? fmMatch[1] : "";
@@ -6477,17 +6479,19 @@ function splitContent(content) {
   const idx = lines.findIndex((l) => /^#\s+/.test(l));
   const title = idx === -1 ? "" : lines[idx];
   const rest = idx === -1 ? lines : lines.slice(idx + 1);
-  const li = rest.findIndex((l) => /^>\s*\[!log\]/i.test(l));
+  const li = rest.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
   const trim = (s) => s.replace(/^\n+|\n+$/g, "");
   const description = trim((li === -1 ? rest : rest.slice(0, li)).join("\n"));
-  const log = li === -1 ? "" : trim(rest.slice(li).join("\n"));
+  let logLines = li === -1 ? [] : rest.slice(li);
+  if (logLines.length && isLogHead(logLines[0])) logLines = logLines.slice(1);
+  const log = trim(logLines.join("\n"));
   return { fm, title, description, log };
 }
 function composeContent(fm, title, description, log) {
   let out = fm + "\n" + title + "\n";
   const desc = description.replace(/^\n+|\n+$/g, "");
   if (desc) out += "\n" + desc + "\n";
-  if (log) out += "\n" + log + "\n";
+  if (log) out += "\n" + LOG_HEADING + "\n\n" + log + "\n";
   return out;
 }
 async function readLog(app, file) {
@@ -6497,9 +6501,14 @@ async function readLog(app, file) {
 }
 async function writeLog(app, file, entries) {
   await app.vault.process(file, (content) => {
-    const { fm, title, description } = splitContent(content);
-    const head = title || "# " + file.basename;
-    return composeContent(fm, head, description, serializeDetailLog(entries));
+    const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
+    const fm = fmMatch ? fmMatch[1] : "";
+    const body = content.slice(fm.length);
+    const lines = body.split("\n");
+    const li = lines.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
+    const before = (li === -1 ? lines : lines.slice(0, li)).join("\n").replace(/\n+$/, "");
+    const logMd = serializeDetailLog(entries);
+    return fm + before + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
   });
 }
 async function writeDescription(app, file, description) {
@@ -6518,8 +6527,10 @@ async function ensureNoteLinkLog(app, file, label) {
   const content = await app.vault.cachedRead(file);
   const link = "[[" + file.basename + "]]";
   if (content.includes(link)) return false;
-  const block = serializeDetailLog([{ ts: nowLogTs(), body: label + " " + link }]);
-  await app.vault.process(file, (c) => c.replace(/\s+$/, "") + "\n\n" + block + "\n");
+  const { log } = splitContent(content);
+  const entries = parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
+  entries.push({ ts: nowLogTs(), body: label + " " + link });
+  await writeLog(app, file, entries);
   return true;
 }
 
@@ -13753,9 +13764,27 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
       const r = await this.reconcileTaskDescription(f);
       if (r === "moved") moved++;
       else if (r === "document") docs++;
+      await this.normalizeLog(f);
     }
     window.setTimeout(() => this.index.build(), 400);
     new import_obsidian29.Notice(t("notice_desc_migrated", moved, docs));
+  }
+  /** Bestehenden Log einer Notiz auf den aktuellen Stand bringen (verlustfrei): führendes „📄 " aus
+   *  „Notiz öffnen"-Einträgen entfernen und die einklappbare Log-Überschrift ergänzen, falls sie fehlt. */
+  async normalizeLog(f) {
+    const content = await this.app.vault.cachedRead(f);
+    const { log } = splitContent(content);
+    if (!log) return;
+    const entries = parseDetailLog(log, nowLogTs(new Date(f.stat.mtime)));
+    let changed = false;
+    for (const e of entries) {
+      const s = e.body.replace(/^📄\s*/, "");
+      if (s !== e.body) {
+        e.body = s;
+        changed = true;
+      }
+    }
+    if (changed || !content.includes(LOG_HEADING)) await writeLog(this.app, f, entries);
   }
   /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
    *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */

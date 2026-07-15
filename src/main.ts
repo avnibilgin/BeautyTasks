@@ -10,7 +10,7 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ensureCanonicalFm, ProjItem } from "./taskService";
-import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription } from "./detailLog";
+import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
@@ -972,9 +972,22 @@ export default class BeautyTasksPlugin extends Plugin {
       if (!(f instanceof TFile)) continue;
       const r = await this.reconcileTaskDescription(f);
       if (r === "moved") moved++; else if (r === "document") docs++;
+      await this.normalizeLog(f);   // bestehende Logs: altes 📄 entfernen + Log-Überschrift ergänzen
     }
     window.setTimeout(() => this.index.build(), 400);
     new Notice(t("notice_desc_migrated", moved, docs));
+  }
+
+  /** Bestehenden Log einer Notiz auf den aktuellen Stand bringen (verlustfrei): führendes „📄 " aus
+   *  „Notiz öffnen"-Einträgen entfernen und die einklappbare Log-Überschrift ergänzen, falls sie fehlt. */
+  private async normalizeLog(f: TFile): Promise<void> {
+    const content = await this.app.vault.cachedRead(f);
+    const { log } = splitContent(content);
+    if (!log) return;
+    const entries = parseDetailLog(log, nowLogTs(new Date(f.stat.mtime)));
+    let changed = false;
+    for (const e of entries) { const s = e.body.replace(/^📄\s*/, ""); if (s !== e.body) { e.body = s; changed = true; } }
+    if (changed || !content.includes(LOG_HEADING)) await writeLog(this.app, f, entries);
   }
   /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
    *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */
