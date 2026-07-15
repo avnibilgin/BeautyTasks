@@ -11817,40 +11817,47 @@ var GCalSync = class {
     const tasks = this.host.allTasks();
     const eligible = /* @__PURE__ */ new Map();
     for (const t2 of tasks) if (this.isEligible(t2)) eligible.set(t2.id, t2);
+    let pushError = null;
     for (const [id, task] of eligible) {
       if (skip.has(id)) continue;
-      const link = s.lastSynced[id];
-      const eventId = link?.eventId ?? this.frontmatterEventId(task);
-      const sig = signature(task, cal);
-      const stamp = (evId) => ({ eventId: evId, calendarId: cal, sig, due: task.due, dueTime: task.dueTime });
-      if (!eventId) {
-        if (!s.syncOnCreate) continue;
-        const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
-        const newId3 = ev?.id;
-        if (newId3) {
-          s.lastSynced[id] = stamp(newId3);
-          await this.writeBack(task, newId3, cal);
-        }
-      } else if (!link || link.sig !== sig || link.calendarId !== cal) {
-        if (!s.syncOnUpdate) continue;
-        try {
-          if (link && link.calendarId !== cal) {
-            await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
-          }
-          await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
-          s.lastSynced[id] = stamp(eventId);
-          await this.writeBack(task, eventId, cal);
-        } catch (e) {
-          if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
+      try {
+        const link = s.lastSynced[id];
+        const eventId = link?.eventId ?? this.frontmatterEventId(task);
+        const sig = signature(task, cal);
+        const stamp = (evId) => ({ eventId: evId, calendarId: cal, sig, due: task.due, dueTime: task.dueTime });
+        if (!eventId) {
+          if (!s.syncOnCreate) continue;
           const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
           const newId3 = ev?.id;
           if (newId3) {
             s.lastSynced[id] = stamp(newId3);
             await this.writeBack(task, newId3, cal);
           }
+        } else if (!link || link.sig !== sig || link.calendarId !== cal) {
+          if (!s.syncOnUpdate) continue;
+          try {
+            if (link && link.calendarId !== cal) {
+              await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+            }
+            await api(this.auth, "PUT", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+            s.lastSynced[id] = stamp(eventId);
+            await this.writeBack(task, eventId, cal);
+          } catch (e) {
+            if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
+            const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
+            const newId3 = ev?.id;
+            if (newId3) {
+              s.lastSynced[id] = stamp(newId3);
+              await this.writeBack(task, newId3, cal);
+            }
+          }
         }
+      } catch (e) {
+        console.error("BeautyTasks: GCal-Push fehlgeschlagen", task.title, e);
+        pushError ?? (pushError = e instanceof Error ? e.message : String(e));
       }
     }
+    if (pushError) throw new Error(pushError);
     for (const id of Object.keys(s.lastSynced)) {
       if (eligible.has(id)) continue;
       if (!s.syncOnDelete) continue;

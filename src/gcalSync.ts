@@ -385,9 +385,12 @@ export class GCalSync {
     const eligible = new Map<string, Task>();
     for (const t of tasks) if (this.isEligible(t)) eligible.set(t.id, t);
 
-    // 1) Anlegen / Aktualisieren
+    // 1) Anlegen / Aktualisieren. Ein einzelner fehlerhafter Push darf den Rest NICHT abbrechen
+    //    (früher stoppte z. B. „Invalid start time" den ganzen Lauf) – Fehler sammeln, danach melden.
+    let pushError: string | null = null;
     for (const [id, task] of eligible) {
       if (skip.has(id)) continue;
+      try {
       const link = s.lastSynced[id];
       const eventId = link?.eventId ?? this.frontmatterEventId(task);
       const sig = signature(task, cal);
@@ -404,7 +407,9 @@ export class GCalSync {
             // Kalenderwechsel: Google kann Events verschieben (move)
             await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
           }
-          await api(this.auth, "PATCH", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+          // PUT (events.update = ganzes Event ersetzen), NICHT PATCH: sonst verschmilzt Google beim
+          // Ganztag→Uhrzeit-Wechsel das neue dateTime in ein start, das noch date hat → „Invalid start time".
+          await api(this.auth, "PUT", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
           s.lastSynced[id] = stamp(eventId);
           await this.writeBack(task, eventId, cal);
         } catch (e) {
@@ -415,7 +420,12 @@ export class GCalSync {
           if (newId) { s.lastSynced[id] = stamp(newId); await this.writeBack(task, newId, cal); }
         }
       }
+      } catch (e) {
+        console.error("BeautyTasks: GCal-Push fehlgeschlagen", task.title, e);
+        pushError ??= e instanceof Error ? e.message : String(e);   // Fehler merken, mit nächster Aufgabe weiter
+      }
     }
+    if (pushError) throw new Error(pushError);   // nach dem Durchlauf einmal melden; erfolgreiche Aufgaben sind gesynct
 
     // 2) Löschen: früher gesynct, jetzt nicht mehr berechtigt/vorhanden
     for (const id of Object.keys(s.lastSynced)) {
