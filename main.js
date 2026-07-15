@@ -4822,7 +4822,7 @@ async function createTaskNote(app, settings, f) {
 }
 var byName = (a, b) => a.name.localeCompare(b.name, "de");
 var isInbox = (p) => p.name.toLowerCase() === "inbox" || p.name.toLowerCase() === "eingang";
-var INBOX_KEY = "\0inbox";
+var INBOX_KEY = "bt:inbox";
 function inboxNotePath(app) {
   return allProjItems(app).find(isInbox)?.path ?? null;
 }
