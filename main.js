@@ -6499,17 +6499,27 @@ async function readLog(app, file) {
   const { log } = splitContent(content);
   return parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
 }
+function rebuildWithLog(content, entries) {
+  const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
+  const fm = fmMatch ? fmMatch[1] : "";
+  const body = content.slice(fm.length);
+  const lines = body.split("\n");
+  const li = lines.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
+  const logMd = serializeDetailLog(entries);
+  if (li === -1) {
+    const before2 = body.replace(/\n+$/, "");
+    return fm + before2 + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
+  }
+  let lastLog = li;
+  for (let i = li; i < lines.length; i++) if (isLogHead(lines[i]) || /^>/.test(lines[i])) lastLog = i;
+  const before = lines.slice(0, li).join("\n").replace(/\n+$/, "");
+  const after = lines.slice(lastLog + 1).join("\n").replace(/^\n+|\n+$/g, "");
+  let out = fm + before + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
+  if (after) out += "\n" + after + "\n";
+  return out;
+}
 async function writeLog(app, file, entries) {
-  await app.vault.process(file, (content) => {
-    const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
-    const fm = fmMatch ? fmMatch[1] : "";
-    const body = content.slice(fm.length);
-    const lines = body.split("\n");
-    const li = lines.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
-    const before = (li === -1 ? lines : lines.slice(0, li)).join("\n").replace(/\n+$/, "");
-    const logMd = serializeDetailLog(entries);
-    return fm + before + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
-  });
+  await app.vault.process(file, (content) => rebuildWithLog(content, entries));
 }
 async function writeDescription(app, file, description) {
   await app.vault.process(file, (content) => {

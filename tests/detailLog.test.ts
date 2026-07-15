@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody, LOG_HEADING } from "../src/detailLog";
+import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody, LOG_HEADING, rebuildWithLog } from "../src/detailLog";
 import { setLocale } from "../src/i18n";
 
 beforeEach(() => setLocale("en"));
@@ -115,6 +115,41 @@ describe("splitContent / composeContent (Beschreibung ↔ Log)", () => {
   it("ohne Log keine Log-Überschrift", () => {
     const out = composeContent(FM, "# Titel", "Nur Inhalt", "");
     expect(out).not.toContain(LOG_HEADING);
+  });
+});
+
+describe("rebuildWithLog (verlustfrei Log setzen)", () => {
+  const FM = "---\ntype: task\nid: t1\n---\n";
+
+  it("erhält Nutzer-Text NACH dem Log", () => {
+    const content = FM + "\n# Titel\n\nInhalt\n\n" + LOG_HEADING + "\n\n> [!log] alt\n> K\n\nManueller Text unter dem Log\n";
+    const out = rebuildWithLog(content, [{ ts: "alt", body: "K" }, { ts: "neu", body: "neuer Kommentar" }]);
+    expect(out).toContain("Manueller Text unter dem Log");   // NICHT überschrieben
+    expect(out).toContain("> [!log] neu\n> neuer Kommentar");
+    expect(out).toContain("Inhalt");
+  });
+
+  it("erhält Inhalt VOR der ersten Überschrift", () => {
+    const content = FM + "Vorspann-Zeile\n\n# Titel\n\n> [!log] x\n> K\n";
+    const out = rebuildWithLog(content, [{ ts: "x", body: "K" }]);
+    expect(out).toContain("Vorspann-Zeile");
+  });
+
+  it("hängt an, wenn noch kein Log existiert", () => {
+    const content = FM + "# Titel\n\nNur Inhalt\n";
+    const out = rebuildWithLog(content, [{ ts: "neu", body: "erster Kommentar" }]);
+    expect(out).toContain("Nur Inhalt");
+    expect(out).toContain(LOG_HEADING);
+    expect(out).toContain("> [!log] neu\n> erster Kommentar");
+  });
+
+  it("leere Einträge entfernen Log-Region und Überschrift, Inhalt bleibt", () => {
+    const content = FM + "# Titel\n\nInhalt\n\n" + LOG_HEADING + "\n\n> [!log] x\n> K\n\nText danach\n";
+    const out = rebuildWithLog(content, []);
+    expect(out).toContain("Inhalt");
+    expect(out).toContain("Text danach");
+    expect(out).not.toContain(LOG_HEADING);
+    expect(out).not.toContain("[!log]");
   });
 });
 

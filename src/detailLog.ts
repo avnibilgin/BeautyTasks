@@ -119,20 +119,34 @@ export async function readLog(app: App, file: TFile): Promise<LogEntry[]> {
   return parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
 }
 
-/** Log-Einträge in den Body schreiben. Verlustfrei: ALLES vor der Log-Region (Frontmatter, Titel,
- *  Inhalt – auch Text vor der ersten Überschrift, den splitContent/composeContent sonst verwerfen)
- *  bleibt unverändert; nur die Log-Region (Überschrift + Callouts) wird neu gesetzt. */
-export async function writeLog(app: App, file: TFile, entries: LogEntry[]): Promise<void> {
-  await app.vault.process(file, (content) => {
-    const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
-    const fm = fmMatch ? fmMatch[1] : "";
-    const body = content.slice(fm.length);
-    const lines = body.split("\n");
-    const li = lines.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
-    const before = (li === -1 ? lines : lines.slice(0, li)).join("\n").replace(/\n+$/, "");
-    const logMd = serializeDetailLog(entries);
+/** Datei-Inhalt mit neu gesetzter Log-Region zurückgeben. VERLUSTFREI: Inhalt VOR der Log-Region
+ *  (Frontmatter, Titel, Inhalt – auch Text vor der ersten Überschrift) UND Inhalt NACH dem letzten
+ *  Log-Eintrag (manuell darunter geschriebener Text) bleiben erhalten; nur die Log-Callouts +
+ *  Überschrift dazwischen werden ersetzt. Rein (String→String), damit testbar. */
+export function rebuildWithLog(content: string, entries: LogEntry[]): string {
+  const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
+  const fm = fmMatch ? fmMatch[1] : "";
+  const body = content.slice(fm.length);
+  const lines = body.split("\n");
+  const li = lines.findIndex((l) => isLogHead(l) || /^>\s*\[!log\]/i.test(l));
+  const logMd = serializeDetailLog(entries);
+  if (li === -1) {   // noch kein Log: an bestehenden Body anhängen (nichts überschreiben)
+    const before = body.replace(/\n+$/, "");
     return fm + before + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
-  });
+  }
+  // Log-Region endet an der LETZTEN Überschrift-/Callout-Zeile (`>`); alles danach ist Nutzer-Inhalt.
+  let lastLog = li;
+  for (let i = li; i < lines.length; i++) if (isLogHead(lines[i]) || /^>/.test(lines[i])) lastLog = i;
+  const before = lines.slice(0, li).join("\n").replace(/\n+$/, "");
+  const after = lines.slice(lastLog + 1).join("\n").replace(/^\n+|\n+$/g, "");
+  let out = fm + before + (logMd ? "\n\n" + LOG_HEADING + "\n\n" + logMd + "\n" : "\n");
+  if (after) out += "\n" + after + "\n";
+  return out;
+}
+
+/** Log-Einträge in den Body schreiben (verlustfrei, s. rebuildWithLog). */
+export async function writeLog(app: App, file: TFile, entries: LogEntry[]): Promise<void> {
+  await app.vault.process(file, (content) => rebuildWithLog(content, entries));
 }
 
 /** Beschreibung in den Body schreiben (Frontmatter, Titel, Log bleiben erhalten). */
