@@ -273,6 +273,7 @@ var STRINGS = {
     cmd_gcal_sync_now: "Sync with Google Calendar now",
     notice_made_task: "Note is now a task.",
     notice_inbox_removed: "Inbox note moved to trash; {0} tasks unfiled.",
+    notice_auto_migrated: "BeautyTasks: your tasks were updated to the new format.",
     notice_desc_migrated: "Descriptions migrated: {0} moved to frontmatter, {1} kept as notes.",
     desc_note_content_hint: "Contains its own note content.",
     log_open_note: "Open note",
@@ -736,6 +737,7 @@ var STRINGS = {
     cmd_gcal_sync_now: "Jetzt mit Google Kalender synchronisieren",
     notice_made_task: "Notiz ist jetzt eine Aufgabe.",
     notice_inbox_removed: "Inbox-Notiz in den Papierkorb verschoben; {0} Aufgaben in den Eingang gel\xF6st.",
+    notice_auto_migrated: "BeautyTasks: Deine Aufgaben wurden aufs neue Format aktualisiert.",
     notice_desc_migrated: "Beschreibungen migriert: {0} ins Frontmatter, {1} als Notiz behalten.",
     desc_note_content_hint: "Enth\xE4lt eigene Notizinhalte.",
     log_open_note: "Notiz \xF6ffnen",
@@ -12857,6 +12859,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
       }
       this.index.build();
       this.renderAll();
+      await this.runPendingMigrations();
       this.scanReminders();
       this.gcalSync.start();
       void this.gcalSync.syncNow();
@@ -13771,7 +13774,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
   }
   /** Einmalige Migration: bestehende Body-Beschreibungen ins Frontmatter überführen bzw. Dokumente
    *  mit „Notiz öffnen"-Kommentar versehen. Idempotent – mehrfaches Ausführen ist gefahrlos. */
-  async migrateDescriptions() {
+  async migrateDescriptions(opts = {}) {
     const tasks = this.index.all();
     let moved = 0, docs = 0;
     for (const tk of tasks) {
@@ -13782,20 +13785,24 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
       else if (r === "document") docs++;
       await this.normalizeLog(f);
     }
-    window.setTimeout(() => this.index.build(), 400);
-    new import_obsidian29.Notice(t("notice_desc_migrated", moved, docs));
+    this.settings.didDescriptionMigration = true;
+    await this.saveSettings();
+    if (!opts.silent) {
+      window.setTimeout(() => this.index.build(), 400);
+      new import_obsidian29.Notice(t("notice_desc_migrated", moved, docs));
+    }
   }
   /** Einmalige Migration „Inbox-Notiz entfernen": übernimmt View-Optionen + GCal-Ausschluss der
    *  alten Inbox-Notiz in die Settings, löst `[[Inbox]]`-Verweise auf (kein Projekt) und verschiebt
    *  die Notiz in Obsidians Papierkorb. Idempotent (setzt `didInboxRemoval`); auch manuell aufrufbar. */
-  async migrateInboxRemoval() {
+  async migrateInboxRemoval(opts = {}) {
     const path = inboxNotePath(this.app);
     const noteFile = path ? this.app.vault.getAbstractFileByPath(path) : null;
     if (noteFile instanceof import_obsidian29.TFile) {
       const fm = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
       if (fm?.gcal_sync === false && this.settings.gcal) this.settings.gcal.excludeInbox = true;
-      const opts = readNoteViewOptions(this.app, noteFile.path);
-      this.settings.pageViewOptions = { ...this.settings.pageViewOptions ?? {}, inbox: opts };
+      const opts2 = readNoteViewOptions(this.app, noteFile.path);
+      this.settings.pageViewOptions = { ...this.settings.pageViewOptions ?? {}, inbox: opts2 };
     }
     let unlinked = 0;
     for (const tk of this.index.all()) {
@@ -13811,8 +13818,23 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     if (noteFile instanceof import_obsidian29.TFile) await this.app.fileManager.trashFile(noteFile);
     this.settings.didInboxRemoval = true;
     await this.saveSettings();
-    window.setTimeout(() => this.index.build(), 400);
-    new import_obsidian29.Notice(t("notice_inbox_removed", unlinked));
+    if (!opts.silent) {
+      window.setTimeout(() => this.index.build(), 400);
+      new import_obsidian29.Notice(t("notice_inbox_removed", unlinked));
+    }
+  }
+  /** Beim ERSTEN Start nach einem Update die ausstehenden Einmal-Migrationen automatisch ausführen
+   *  (per Flag abgesichert, nie doppelt). Für neue Vaults sind beide No-Ops (keine Alt-Daten). */
+  async runPendingMigrations() {
+    if (this.settings.didDescriptionMigration && this.settings.didInboxRemoval) return;
+    const hasData = this.index.all().length > 0 || inboxNotePath(this.app) !== null;
+    if (!this.settings.didDescriptionMigration) await this.migrateDescriptions({ silent: true });
+    if (!this.settings.didInboxRemoval) await this.migrateInboxRemoval({ silent: true });
+    if (hasData) {
+      this.index.build();
+      this.renderAll();
+      new import_obsidian29.Notice(t("notice_auto_migrated"));
+    }
   }
   /** Bestehenden Log einer Notiz auf den aktuellen Stand bringen (verlustfrei): führendes „📄 " aus
    *  „Notiz öffnen"-Einträgen entfernen und die einklappbare Log-Überschrift ergänzen, falls sie fehlt. */

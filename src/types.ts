@@ -90,6 +90,7 @@ export interface BeautyTasksSettings {
   navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
   didInitialSetup: boolean;        // intern: Erst-Setup-Marker (bestehender Nutzer?)
+  didDescriptionMigration?: boolean;  // intern: Migration „Beschreibung ins Frontmatter" einmalig gelaufen
   didInboxRemoval?: boolean;       // intern: Migration „Inbox-Notiz entfernt" einmalig gelaufen
   lastSeenVersion?: string;        // intern: zuletzt im „Neu"-Modal gezeigte Plugin-Version
   gcal?: import("./gcalSync").GCalSyncSettings;   // Google-Kalender-Sync (undefined = nie eingerichtet)

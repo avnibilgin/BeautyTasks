@@ -92,6 +92,7 @@ export default class BeautyTasksPlugin extends Plugin {
       }
       this.index.build();
       this.renderAll();
+      await this.runPendingMigrations();   // Einmal-Migrationen beim ersten Start nach dem Update
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
       this.gcalSync.start();  // Auto-Push verdrahten + einmal initial abgleichen
       void this.gcalSync.syncNow();
@@ -966,7 +967,7 @@ export default class BeautyTasksPlugin extends Plugin {
 
   /** Einmalige Migration: bestehende Body-Beschreibungen ins Frontmatter überführen bzw. Dokumente
    *  mit „Notiz öffnen"-Kommentar versehen. Idempotent – mehrfaches Ausführen ist gefahrlos. */
-  async migrateDescriptions(): Promise<void> {
+  async migrateDescriptions(opts: { silent?: boolean } = {}): Promise<void> {
     const tasks = this.index.all();
     let moved = 0, docs = 0;
     for (const tk of tasks) {
@@ -976,14 +977,15 @@ export default class BeautyTasksPlugin extends Plugin {
       if (r === "moved") moved++; else if (r === "document") docs++;
       await this.normalizeLog(f);   // bestehende Logs: altes 📄 entfernen + Log-Überschrift ergänzen
     }
-    window.setTimeout(() => this.index.build(), 400);
-    new Notice(t("notice_desc_migrated", moved, docs));
+    this.settings.didDescriptionMigration = true;
+    await this.saveSettings();
+    if (!opts.silent) { window.setTimeout(() => this.index.build(), 400); new Notice(t("notice_desc_migrated", moved, docs)); }
   }
 
   /** Einmalige Migration „Inbox-Notiz entfernen": übernimmt View-Optionen + GCal-Ausschluss der
    *  alten Inbox-Notiz in die Settings, löst `[[Inbox]]`-Verweise auf (kein Projekt) und verschiebt
    *  die Notiz in Obsidians Papierkorb. Idempotent (setzt `didInboxRemoval`); auch manuell aufrufbar. */
-  async migrateInboxRemoval(): Promise<void> {
+  async migrateInboxRemoval(opts: { silent?: boolean } = {}): Promise<void> {
     const path = inboxNotePath(this.app);
     const noteFile = path ? this.app.vault.getAbstractFileByPath(path) : null;
     if (noteFile instanceof TFile) {
@@ -1003,8 +1005,18 @@ export default class BeautyTasksPlugin extends Plugin {
     if (noteFile instanceof TFile) await this.app.fileManager.trashFile(noteFile);
     this.settings.didInboxRemoval = true;
     await this.saveSettings();
-    window.setTimeout(() => this.index.build(), 400);
-    new Notice(t("notice_inbox_removed", unlinked));
+    if (!opts.silent) { window.setTimeout(() => this.index.build(), 400); new Notice(t("notice_inbox_removed", unlinked)); }
+  }
+
+  /** Beim ERSTEN Start nach einem Update die ausstehenden Einmal-Migrationen automatisch ausführen
+   *  (per Flag abgesichert, nie doppelt). Für neue Vaults sind beide No-Ops (keine Alt-Daten). */
+  private async runPendingMigrations(): Promise<void> {
+    if (this.settings.didDescriptionMigration && this.settings.didInboxRemoval) return;   // nichts offen
+    // Frischer Vault ohne Alt-Daten? -> Flags still setzen, aber keine Notice/kein Neuaufbau.
+    const hasData = this.index.all().length > 0 || inboxNotePath(this.app) !== null;
+    if (!this.settings.didDescriptionMigration) await this.migrateDescriptions({ silent: true });
+    if (!this.settings.didInboxRemoval) await this.migrateInboxRemoval({ silent: true });
+    if (hasData) { this.index.build(); this.renderAll(); new Notice(t("notice_auto_migrated")); }
   }
 
   /** Bestehenden Log einer Notiz auf den aktuellen Stand bringen (verlustfrei): führendes „📄 " aus
