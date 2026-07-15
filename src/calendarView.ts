@@ -2,7 +2,8 @@ import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { ViewOptions } from "./filterEngine";
-import { t, getLocale } from "./i18n";
+import { t, getLocale, projectDisplayName } from "./i18n";
+import { isInboxLink } from "./taskService";
 import { combineDT, todayStr } from "./format";
 import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
@@ -517,8 +518,9 @@ function renderUnscheduled(body: HTMLElement, plugin: BeautyTasksPlugin, add: Ca
       renderCheck(card, plugin, tk, { compact: true });
       const inner = card.createDiv({ cls: "bt-calview-panel-card-in" });
       inner.createSpan({ cls: "bt-calview-panel-card-title", text: tk.title });
-      const proj = tk.project ? projectBase(tk.project) : null;
-      if (proj) inner.createSpan({ cls: "bt-calview-panel-card-proj", text: "@" + proj });
+      // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) -> @Eingang, sonst @Projekt.
+      const proj = isInboxLink(tk.project) ? t("nav_inbox") : projectDisplayName(projectBase(tk.project!));
+      inner.createSpan({ cls: "bt-calview-panel-card-proj", text: "@" + proj });
       dragSource(card, tk);
     }
   };

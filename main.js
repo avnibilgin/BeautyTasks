@@ -6908,7 +6908,8 @@ function renderTaskSuggestion(match, el) {
   el.addClass("bt-search-item");
   el.createDiv({ cls: "bt-search-title" + (done ? " is-done" : ""), text: task.title });
   const meta = el.createDiv({ cls: "bt-search-meta" });
-  if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "@" + projectBase(task.project) });
+  const proj = isInboxLink(task.project) ? t("nav_inbox") : projectDisplayName(projectBase(task.project));
+  meta.createSpan({ cls: "bt-search-tag", text: "@" + proj });
   if (task.due) {
     const today = todayStr();
     const cls = done ? "" : task.due < today ? " is-overdue" : task.due === today ? " is-today" : "";
@@ -9579,8 +9580,8 @@ function renderUnscheduled(body, plugin, add) {
       renderCheck(card, plugin, tk, { compact: true });
       const inner = card.createDiv({ cls: "bt-calview-panel-card-in" });
       inner.createSpan({ cls: "bt-calview-panel-card-title", text: tk.title });
-      const proj = tk.project ? projectBase2(tk.project) : null;
-      if (proj) inner.createSpan({ cls: "bt-calview-panel-card-proj", text: "@" + proj });
+      const proj = isInboxLink(tk.project) ? t("nav_inbox") : projectDisplayName(projectBase2(tk.project));
+      inner.createSpan({ cls: "bt-calview-panel-card-proj", text: "@" + proj });
       dragSource(card, tk);
     }
   };

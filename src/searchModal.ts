@@ -3,7 +3,8 @@ import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { formatDate, todayStr } from "./format";
 import { isDone, isTrashed } from "./statuses";
-import { t } from "./i18n";
+import { t, projectDisplayName } from "./i18n";
+import { isInboxLink } from "./taskService";
 
 const projectBase = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
@@ -21,8 +22,9 @@ function renderTaskSuggestion(match: FuzzyMatch<Task>, el: HTMLElement): void {
   // Erledigt = durchgestrichener, gedimmter Titel (wie in der Liste) statt „Erledigt"-Wort.
   el.createDiv({ cls: "bt-search-title" + (done ? " is-done" : ""), text: task.title });
   const meta = el.createDiv({ cls: "bt-search-meta" });
-  // Projekt mit @ (Konvention: @ = Projekt/Bereich, # = Label).
-  if (task.project) meta.createSpan({ cls: "bt-search-tag", text: "@" + projectBase(task.project) });
+  // Projekt mit @ (Konvention: @ = Projekt/Bereich, # = Label). „Nicht einsortiert" -> @Eingang.
+  const proj = isInboxLink(task.project) ? t("nav_inbox") : projectDisplayName(projectBase(task.project!));
+  meta.createSpan({ cls: "bt-search-tag", text: "@" + proj });
   if (task.due) {   // Datum farbcodiert wie in der Liste (offene Aufgaben): überfällig / heute.
     const today = todayStr();
     const cls = done ? "" : task.due < today ? " is-overdue" : task.due === today ? " is-today" : "";
