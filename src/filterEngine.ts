@@ -1,5 +1,6 @@
 import { Task, Priority } from "./types";
 import { TaskIndex } from "./taskIndex";
+import { isInboxLink, isInboxName } from "./taskService";
 
 // ── Kriterien & Optionen ────────────────────────────────────────────
 // Ein flaches Kriterien-Objekt (Vorschlag 3 „Smart Lists"): verschiedene Facetten sind
@@ -106,10 +107,13 @@ export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean 
   if (c.labels.length && !c.labels.some((l) => t.labels.includes(l))) return false;
   if (!c.labelsAll.every((l) => t.labels.includes(l))) return false;
   if (c.labelsNot.some((l) => t.labels.includes(l))) return false;
-  // Projekte (einwertig, Basename): ✓ irgendeines / − keines
-  const pb = t.project ? baseName(t.project) : null;
-  if (c.projects.length && !(pb !== null && c.projects.includes(pb))) return false;
-  if (pb !== null && c.projectsNot.includes(pb)) return false;
+  // Projekte (einwertig, Basename): ✓ irgendeines / − keines. „Eingang" = nicht einsortiert
+  // (kein Projekt ODER Inbox-Verweis) und matcht einen Inbox-Eintrag der Filterliste.
+  const inbox = isInboxLink(t.project);
+  const pb = inbox ? null : baseName(t.project!);
+  const inList = (list: string[]): boolean => inbox ? list.some(isInboxName) : (pb !== null && list.includes(pb));
+  if (c.projects.length && !inList(c.projects)) return false;
+  if (inList(c.projectsNot)) return false;
   // Suche
   const q = c.search.trim().toLowerCase();
   if (q && !t.title.toLowerCase().includes(q)) return false;

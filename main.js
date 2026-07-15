@@ -5923,9 +5923,11 @@ function matchesTask(t2, c, today) {
   if (c.labels.length && !c.labels.some((l) => t2.labels.includes(l))) return false;
   if (!c.labelsAll.every((l) => t2.labels.includes(l))) return false;
   if (c.labelsNot.some((l) => t2.labels.includes(l))) return false;
-  const pb = t2.project ? baseName2(t2.project) : null;
-  if (c.projects.length && !(pb !== null && c.projects.includes(pb))) return false;
-  if (pb !== null && c.projectsNot.includes(pb)) return false;
+  const inbox = isInboxLink(t2.project);
+  const pb = inbox ? null : baseName2(t2.project);
+  const inList = (list) => inbox ? list.some(isInboxName) : pb !== null && list.includes(pb);
+  if (c.projects.length && !inList(c.projects)) return false;
+  if (inList(c.projectsNot)) return false;
   const q = c.search.trim().toLowerCase();
   if (q && !t2.title.toLowerCase().includes(q)) return false;
   return true;

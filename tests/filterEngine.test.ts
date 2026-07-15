@@ -68,6 +68,18 @@ describe("matchesTask – Facetten (UND zwischen, ODER innerhalb)", () => {
     expect(matchesTask(mk({ project: "BeautyTasks/Projects/Reisen.md" }), c, TODAY)).toBe(false);
     expect(matchesTask(mk({ project: null }), c, TODAY)).toBe(false);
   });
+  it("Projekt Eingang: matcht kein Projekt UND Inbox-Verweis", () => {
+    const c = crit({ projects: ["Inbox"] });   // Filter-Key des Eingangs ist der Basename Inbox
+    expect(matchesTask(mk({ project: null }), c, TODAY)).toBe(true);                          // neue Eingang-Aufgabe
+    expect(matchesTask(mk({ project: "BeautyTasks/Projects/Inbox.md" }), c, TODAY)).toBe(true); // alte Inbox-Aufgabe
+    expect(matchesTask(mk({ project: "BeautyTasks/Projects/Reisen.md" }), c, TODAY)).toBe(false);
+  });
+  it("Projekt Eingang ausschliessen: entfernt nicht einsortierte", () => {
+    const c = crit({ projectsNot: ["Eingang"] });
+    expect(matchesTask(mk({ project: null }), c, TODAY)).toBe(false);
+    expect(matchesTask(mk({ project: "BeautyTasks/Projects/Inbox.md" }), c, TODAY)).toBe(false);
+    expect(matchesTask(mk({ project: "P/Kueche.md" }), c, TODAY)).toBe(true);
+  });
   it("Suche: Teilstring im Titel, case-insensitiv", () => {
     const c = crit({ search: "steuer" });
     expect(matchesTask(mk({ title: "Steuererklärung abgeben" }), c, TODAY)).toBe(true);
