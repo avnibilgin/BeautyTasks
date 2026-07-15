@@ -1421,7 +1421,7 @@ body {
 .bt-view-panel .bt-panel-reset {
   /* volle Breite bis an die Panel-Ränder (Innenpadding via negative Ränder überziehen). */
   display: block; width: calc(100% + 24px); margin: 10px -12px 0; padding: 10px 12px 0;
-  border: none; border-top: 1px solid var(--background-modifier-border);
+  border: none; border-top: 1px solid var(--background-modifier-border-hover);
   background: transparent; color: var(--interactive-accent); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; box-shadow: none; text-align: center;
 }
 @media (prefers-reduced-motion: reduce) { .bt-view-panel .bt-panel-switch, .bt-view-panel .bt-panel-switch::after { transition: none; } }
