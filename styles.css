@@ -1314,9 +1314,9 @@ body {
    Randbündig (kein Seitenrand, kein Track-Hintergrund), Zellen ohne eigenen Rand. */
 .bt-mode-lead { padding: 4px 8px 5px; font-size: var(--font-smallest); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: var(--font-semibold); }
 /* Segment als eine Box (Track), drei Buttons darin; aktiv = Akzentfarbe + heller Text. */
-.bt-mode-seg { display: flex; margin: 0 4px 6px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); background: var(--background-modifier-form-field); overflow: hidden; }
+.bt-mode-seg { display: flex; margin: 0 4px 6px; border: 1px solid var(--background-modifier-border-hover); border-radius: var(--radius-s); background: var(--background-modifier-form-field); overflow: hidden; }
 .bt-mode-opt { flex: 1; text-align: center; padding: 6px 4px; font-size: var(--font-ui-smaller); color: var(--text-muted); cursor: pointer; }
-.bt-mode-opt + .bt-mode-opt { border-left: 1px solid var(--background-modifier-border); }   /* Trennlinie zwischen den Buttons */
+.bt-mode-opt + .bt-mode-opt { border-left: 1px solid var(--background-modifier-border-hover); }   /* Trennlinie zwischen den Buttons */
 .bt-mode-opt:hover { background: var(--background-modifier-hover); }
 .bt-mode-opt.is-on { background: var(--interactive-accent); color: var(--text-on-accent); font-weight: var(--font-semibold); }
 /* Mitlaufender Klartext-Satz – direkt unter dem Segment. */
@@ -1391,7 +1391,7 @@ body {
 .bt-view-panel .bt-tabs { display: flex; gap: 6px; margin: 2px 0 0; }
 .bt-view-panel .bt-tab {
   flex: 1; text-align: center; cursor: pointer; padding: 5px 10px; border-radius: 6px; box-shadow: none;
-  font-size: var(--font-ui-small); border: 1px solid var(--background-modifier-border); background: transparent; color: var(--text-muted);
+  font-size: var(--font-ui-small); border: 1px solid var(--background-modifier-border-hover); background: transparent; color: var(--text-muted);
 }
 .bt-view-panel .bt-tab:hover { color: var(--text-normal); }
 .bt-view-panel .bt-tab.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); font-weight: 600; }
