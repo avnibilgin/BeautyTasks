@@ -4818,6 +4818,8 @@ async function createTaskNote(app, settings, f) {
 }
 var byName = (a, b) => a.name.localeCompare(b.name, "de");
 var isInbox = (p) => p.name.toLowerCase() === "inbox" || p.name.toLowerCase() === "eingang";
+var isInboxName = (name) => !!name && /^(inbox|eingang)$/i.test(name);
+var isInboxLink = (project) => !project || isInboxName(project.split("/").pop().replace(/\.md$/, ""));
 function allProjItems(app) {
   return app.vault.getMarkdownFiles().flatMap((f) => {
     const fm = app.metadataCache.getFileCache(f)?.frontmatter;
@@ -7491,7 +7493,8 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       recurBasis: seed?.recurBasis ?? "due",
       parent: seed?.parent ?? null,
       description: seed?.description,
-      project: defaultProject ?? "Inbox"
+      project: defaultProject ?? null
+      // kein Default-Projekt -> Eingang (= kein Projekt)
     };
   }
   onOpen() {
@@ -7833,13 +7836,13 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
   }
   renderProjekt() {
     this.projektBtn.empty();
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-    const all = [eingang, ...bereiche, ...projekte].filter(Boolean);
-    const sel = all.find((p) => p.name === this.f.project);
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const inbox = isInboxLink(this.f.project);
+    const sel = inbox ? null : [...bereiche, ...projekte].find((p) => p.name === this.f.project);
     const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
-    (0, import_obsidian11.setIcon)(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
+    (0, import_obsidian11.setIcon)(ic, inbox ? "inbox" : sel?.icon ?? "folder");
     if (sel?.color) ic.setCssStyles({ color: sel.color });
-    this.projektBtn.createSpan({ text: this.f.project ? projectDisplayName(this.f.project) : t("no_project") });
+    this.projektBtn.createSpan({ text: inbox ? t("nav_inbox") : projectDisplayName(this.f.project) });
     const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" });
     (0, import_obsidian11.setIcon)(car, "chevron-down");
   }
@@ -7848,13 +7851,13 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       pop.addClass("bt-picker");
       popRow(pop, "plus", t("pick_new_project"), () => this.startNewProject(pop, close, false)).addClass("bt-row-action");
       popRow(pop, "plus", t("pick_new_area"), () => this.startNewProject(pop, close, true)).addClass("bt-row-action");
-      const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
+      const { bereiche, projekte } = listProjectsAndAreas(this.app);
       const pick = (name) => {
         this.f.project = name;
         this.renderProjekt();
         close();
       };
-      if (eingang) popRow(pop, eingang.icon, projectDisplayName(eingang.name), () => pick(eingang.name), this.f.project === eingang.name, eingang.color ?? void 0);
+      popRow(pop, "inbox", t("nav_inbox"), () => pick(null), isInboxLink(this.f.project));
       const group = (title, items) => {
         if (!items.length) return;
         pop.createDiv({ cls: "bt-pop-head", text: title });
@@ -9898,7 +9901,7 @@ function renderProjectBoardInto(c, plugin, projectPath) {
     top.createEl("h1", { text: projectDisplayName(name) }),
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {}
   );
-  addBar(top, plugin, () => plugin.openNewTask(name, void 0, false, void 0, addDue(plugin)));
+  addBar(top, plugin, () => plugin.openNewTask(isInbox2 ? void 0 : name, void 0, false, void 0, addDue(plugin)));
   const source = () => isInbox2 ? plugin.index.inboxAll(name) : plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
   const tasks = source();
   if (!tasks.length) {
@@ -9907,7 +9910,7 @@ function renderProjectBoardInto(c, plugin, projectPath) {
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { project: name });
+  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, isInbox2 ? {} : { project: name });
 }
 function renderLabelBoardInto(c, plugin, label) {
   const today = todayStr();
@@ -9958,10 +9961,10 @@ function filterGroups(plugin, tasks, group, today) {
       if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, tk);
       else push("nolabel", t("no_label"), 0, tk);
     } else {
-      if (tk.project) {
+      if (tk.project && !isInboxLink(tk.project)) {
         const nm = projectName(tk.project);
         push("p:" + nm, "@" + projectDisplayName(nm), 1, tk);
-      } else push("noproject", t("no_project"), 0, tk);
+      } else push("noproject", t("nav_inbox"), 0, tk);
     }
   }
   const isRest = (k) => k === "nodate" || k === "nolabel" || k === "noproject" ? 1 : 0;
@@ -10090,11 +10093,10 @@ function priorityColumns(plugin, add) {
   }));
 }
 function projectColumns(plugin, tasks, add) {
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  const colorOf = new Map([eingang, ...bereiche, ...projekte].filter(Boolean).map((p) => [p.name, p.color]));
-  const present = new Set(tasks.filter((t2) => t2.project).map((t2) => projectName(t2.project)));
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const colorOf = new Map([...bereiche, ...projekte].map((p) => [p.name, p.color]));
+  const present = new Set(tasks.filter((t2) => t2.project && !isInboxLink(t2.project)).map((t2) => projectName(t2.project)));
   const ordered = [
-    ...eingang && present.has(eingang.name) ? [eingang] : [],
     ...plugin.sortProjItems("areas", bereiche.filter((p) => present.has(p.name))),
     ...plugin.sortProjItems("projects", projekte.filter((p) => present.has(p.name)))
   ];
@@ -10111,16 +10113,17 @@ function projectColumns(plugin, tasks, add) {
     },
     onAdd: () => plugin.openNewTask(name, add.label, add.today ?? false)
   }));
-  if (tasks.some((t2) => !t2.project)) {
+  if (tasks.some((t2) => isInboxLink(t2.project))) {
     cols.push({
       id: NO_PROJECT,
-      title: t("no_project"),
+      title: t("nav_inbox"),
       tint: "var(--text-muted)",
       kind: "open",
-      has: (tk) => !tk.project,
+      has: (tk) => isInboxLink(tk.project),
       onDrop: (tk) => {
-        if (tk.project) void plugin.setTaskProject(tk, null);
+        if (!isInboxLink(tk.project)) void plugin.setTaskProject(tk, null);
       },
+      // in den Eingang = Projekt leeren
       onAdd: () => plugin.openNewTask(void 0, add.label, add.today ?? false)
     });
   }
@@ -10408,14 +10411,23 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
       t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll())
     );
-  } else if (task.project && !plugin.currentProject && depth === 0) {
+  } else if (!plugin.currentProject && depth === 0) {
     const extras = row.createDiv({ cls: "bt-extras" });
-    const name = task.project.split("/").pop().replace(/\.md$/, "");
-    const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
-    bl.onclick = (e) => {
-      e.stopPropagation();
-      void plugin.activateProject(task.project);
-    };
+    if (isInboxLink(task.project)) {
+      const eingang = listProjectsAndAreas(plugin.app).eingang;
+      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
+      bl.onclick = (e) => {
+        e.stopPropagation();
+        if (eingang) void plugin.activateProject(eingang.path);
+      };
+    } else {
+      const name = projectName(task.project);
+      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
+      bl.onclick = (e) => {
+        e.stopPropagation();
+        void plugin.activateProject(task.project);
+      };
+    }
   }
   row.onclick = () => plugin.openEditTask(task);
   if (!trash && !opts.flat) for (const kid of plugin.index.children(task.path)) {
@@ -10831,7 +10843,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
     this.parsedLabels = [];
     // aus dem Titel erkannte Labels (zum Trennen von manuellen)
     this.parsedProject = null;
-    this.defaultProject = project ?? "Inbox";
+    this.defaultProject = project ?? null;
     this.f = {
       title: "",
       project: this.defaultProject,
@@ -10996,27 +11008,27 @@ var QuickAddModal = class extends import_obsidian21.Modal {
   // ── Projekt ──
   renderProjekt() {
     this.projektBtn.empty();
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-    const all = [eingang, ...bereiche, ...projekte].filter(Boolean);
-    const sel = all.find((p) => p.name === this.f.project);
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const inbox = isInboxLink(this.f.project);
+    const sel = inbox ? null : [...bereiche, ...projekte].find((p) => p.name === this.f.project);
     const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
-    (0, import_obsidian21.setIcon)(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
+    (0, import_obsidian21.setIcon)(ic, inbox ? "inbox" : sel?.icon ?? "folder");
     if (sel?.color) ic.setCssStyles({ color: sel.color });
-    this.projektBtn.createSpan({ text: this.f.project ? projectDisplayName(this.f.project) : t("no_project") });
+    this.projektBtn.createSpan({ text: inbox ? t("nav_inbox") : projectDisplayName(this.f.project) });
     const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" });
     (0, import_obsidian21.setIcon)(car, "chevron-down");
   }
   openProject(anchor) {
     openPopover(anchor, (pop, close) => {
       pop.addClass("bt-picker");
-      const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
+      const { bereiche, projekte } = listProjectsAndAreas(this.app);
       const pick = (name) => {
         this.f.project = name;
         this.parsedProject = null;
         this.renderProjekt();
         close();
       };
-      if (eingang) popRow(pop, eingang.icon, projectDisplayName(eingang.name), () => pick(eingang.name), this.f.project === eingang.name, eingang.color ?? void 0);
+      popRow(pop, "inbox", t("nav_inbox"), () => pick(null), isInboxLink(this.f.project));
       const group = (title, items) => {
         if (!items.length) return;
         pop.createDiv({ cls: "bt-pop-head", text: title });
@@ -11856,7 +11868,11 @@ var GCalSync = class {
     return this.host.app.metadataCache.getFileCache(f)?.frontmatter ?? null;
   }
   projectExcluded(t2) {
-    return t2.project ? this.frontmatterOf(t2.project)?.gcal_sync === false : false;
+    if (isInboxLink(t2.project)) {
+      const eingang = listProjectsAndAreas(this.host.app).eingang;
+      return eingang ? this.frontmatterOf(eingang.path)?.gcal_sync === false : false;
+    }
+    return this.frontmatterOf(t2.project)?.gcal_sync === false;
   }
   frontmatterEventId(t2) {
     const id = this.frontmatterOf(t2.path)?.gcal_event_id;

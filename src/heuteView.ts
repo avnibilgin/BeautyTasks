@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, isAreaPath } from "./taskService";
+import { listProjectsAndAreas, isAreaPath, isInboxLink } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
 import { applyFilter, sortTasks, FilterGroup, PageLayout, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -249,10 +249,10 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const top = pageTop(c, plugin.pageViewOptions().layout);
   pageHeader(top, plugin, top.createEl("h1", { text: projectDisplayName(name) }),
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {});
-  addBar(top, plugin, () => plugin.openNewTask(name, undefined, false, undefined, addDue(plugin)));
+  // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
+  addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
 
-  // Nach Namen vergleichen: gleichnamige Notizen hätten sonst verschiedene Pfade.
-  // Eingang = explizit `project: [[Inbox]]` UND (optional) projektlose Aufgaben (auch handgeschriebene).
+  // Eingang = alle „nicht einsortierten" Aufgaben (kein Projekt ODER Verweis auf Inbox).
   const source = (): Task[] => isInbox
     ? plugin.index.inboxAll(name)
     : plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
@@ -263,7 +263,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { project: name });
+  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, isInbox ? {} : { project: name });
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -317,9 +317,9 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
     } else if (group === "label") {
       if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, tk);
       else push("nolabel", t("no_label"), 0, tk);
-    } else {   // project
-      if (tk.project) { const nm = projectName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, tk); }
-      else push("noproject", t("no_project"), 0, tk);
+    } else {   // project – „nicht einsortiert" (kein Projekt ODER Inbox-Verweis) in EINEN Eingang-Bucket
+      if (tk.project && !isInboxLink(tk.project)) { const nm = projectName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, tk); }
+      else push("noproject", t("nav_inbox"), 0, tk);
     }
   }
   // „Kein Datum" / „Kein Label" / „Kein Projekt" immer ans Ende – kein Wert auf der Skala,
@@ -479,13 +479,12 @@ function priorityColumns(plugin: BeautyTasksPlugin, add: BoardAdd): BoardColumn[
 /** Projekt-Spalten (Gruppierung = Projekt): eine Spalte je vorkommendem Projekt/Bereich (+ „Kein
  *  Projekt"); Ziehen verschiebt die Aufgabe (Label/Status bleiben). */
 function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd): BoardColumn[] {
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  const colorOf = new Map(([eingang, ...bereiche, ...projekte].filter(Boolean) as { name: string; color: string | null }[]).map((p) => [p.name, p.color] as const));
-  // Standard = Sidebar-Reihenfolge: Eingang, dann Bereiche (navSort.areas), dann Projekte (navSort.projects)
-  // – jeweils nur die in dieser Ansicht vorkommenden. (Manuelles Board-Umsortieren überschreibt das später.)
-  const present = new Set(tasks.filter((t) => t.project).map((t) => projectName(t.project!)));
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const colorOf = new Map(([...bereiche, ...projekte]).map((p) => [p.name, p.color] as const));
+  // Nur ECHTE Projekte werden Spalten – „nicht einsortierte" (kein Projekt ODER Inbox-Verweis)
+  // landen alle im einen Eingang-Bucket (unten), nie in einer eigenen Inbox-Spalte.
+  const present = new Set(tasks.filter((t) => t.project && !isInboxLink(t.project)).map((t) => projectName(t.project!)));
   const ordered = [
-    ...(eingang && present.has(eingang.name) ? [eingang] : []),
     ...plugin.sortProjItems("areas", bereiche.filter((p) => present.has(p.name))),
     ...plugin.sortProjItems("projects", projekte.filter((p) => present.has(p.name))),
   ];
@@ -497,11 +496,11 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
     onDrop: (tk: Task) => { if (!tk.project || projectName(tk.project) !== name) void plugin.setTaskProject(tk, name); },
     onAdd: () => plugin.openNewTask(name, add.label, add.today ?? false),
   }));
-  if (tasks.some((t) => !t.project)) {
+  if (tasks.some((t) => isInboxLink(t.project))) {
     cols.push({
-      id: NO_PROJECT, title: t("no_project"), tint: "var(--text-muted)", kind: "open",
-      has: (tk: Task) => !tk.project,
-      onDrop: (tk: Task) => { if (tk.project) void plugin.setTaskProject(tk, null); },
+      id: NO_PROJECT, title: t("nav_inbox"), tint: "var(--text-muted)", kind: "open",
+      has: (tk: Task) => isInboxLink(tk.project),
+      onDrop: (tk: Task) => { if (!isInboxLink(tk.project)) void plugin.setTaskProject(tk, null); },   // in den Eingang = Projekt leeren
       onAdd: () => plugin.openNewTask(undefined, add.label, add.today ?? false),
     });
   }
@@ -821,14 +820,20 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (task.project && !plugin.currentProject && depth === 0) {
-    // In einem Projekt-/Inbox-Board ist der Projektname redundant -> ausblenden; sonst sichtbar.
-    // Ebenso bei verschachtelten Unteraufgaben (depth > 0): der Parent darüber zeigt dasselbe
-    // Projekt bereits – nur auf Ebene 0 (Hauptaufgabe ODER promotete Unteraufgabe) anzeigen.
+  } else if (!plugin.currentProject && depth === 0) {
+    // In einem Projekt-/Inbox-Board ist die Zuordnung redundant -> ausblenden (currentProject gesetzt);
+    // sonst sichtbar. Bei verschachtelten Unteraufgaben (depth > 0) zeigt der Parent sie schon.
+    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) wird als @Eingang gezeigt.
     const extras = row.createDiv({ cls: "bt-extras" });
-    const name = task.project.split("/").pop()!.replace(/\.md$/, "");
-    const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
-    bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board (nicht zur Notiz)
+    if (isInboxLink(task.project)) {
+      const eingang = listProjectsAndAreas(plugin.app).eingang;
+      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
+      bl.onclick = (e) => { e.stopPropagation(); if (eingang) void plugin.activateProject(eingang.path); };
+    } else {
+      const name = projectName(task.project!);
+      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
+      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+    }
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
   row.onclick = () => plugin.openEditTask(task);

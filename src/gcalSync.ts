@@ -1,6 +1,7 @@
 import { App, TFile, requestUrl, Notice } from "obsidian";
 import { Task } from "./types";
 import { isTrashed, isDone } from "./statuses";
+import { isInboxLink, listProjectsAndAreas } from "./taskService";
 import { resolveReminders } from "./reminders";
 import { combineDT } from "./format";
 import { t } from "./i18n";
@@ -442,7 +443,12 @@ export class GCalSync {
   }
 
   private projectExcluded(t: Task): boolean {
-    return t.project ? this.frontmatterOf(t.project)?.gcal_sync === false : false;
+    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) folgt dem Ausschluss der Eingang-Notiz.
+    if (isInboxLink(t.project)) {
+      const eingang = listProjectsAndAreas(this.host.app).eingang;
+      return eingang ? this.frontmatterOf(eingang.path)?.gcal_sync === false : false;
+    }
+    return this.frontmatterOf(t.project!)?.gcal_sync === false;
   }
 
   private frontmatterEventId(t: Task): string | undefined {

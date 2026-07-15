@@ -8,7 +8,7 @@ import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus } from "./types";
 import { parseQuickEntry } from "./quickEntry";
-import { createTaskNote, listProjectsAndAreas } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, isInboxLink } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { todayStr } from "./format";
 import { openPopover, popRow } from "./popover";
@@ -29,7 +29,7 @@ export class QuickAddModal extends Modal {
   private duePinned = false;        // Datum manuell gesetzt/geleert -> Parser überschreibt nicht mehr
   private parsedLabels: string[] = []; // aus dem Titel erkannte Labels (zum Trennen von manuellen)
   private parsedProject: string | null = null; // aus dem Titel erkanntes @Projekt (zum Zurücksetzen)
-  private readonly defaultProject: string;      // Projekt-Fallback, wenn @Projekt wieder entfernt wird
+  private readonly defaultProject: string | null;   // Projekt-Fallback, wenn @Projekt wieder entfernt wird (null = Eingang)
   private input!: HTMLInputElement;
   private chipBar!: HTMLElement;
   private projektBtn!: HTMLButtonElement;
@@ -39,7 +39,7 @@ export class QuickAddModal extends Modal {
   constructor(private plugin: BeautyTasksPlugin, project?: string,
               opts: { label?: string; due?: string | null; today?: boolean } = {}) {
     super(plugin.app);
-    this.defaultProject = project ?? "Inbox";
+    this.defaultProject = project ?? null;   // kein Default-Projekt -> Eingang
     this.f = {
       title: "", project: this.defaultProject, status: firstOpenStatus(),
       due: opts.due ?? (opts.today ? todayStr() : null),
@@ -165,22 +165,23 @@ export class QuickAddModal extends Modal {
   // ── Projekt ──
   private renderProjekt(): void {
     this.projektBtn.empty();
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-    const all = [eingang, ...bereiche, ...projekte].filter(Boolean) as { name: string; icon: string; color: string | null }[];
-    const sel = all.find((p) => p.name === this.f.project);
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const inbox = isInboxLink(this.f.project);   // kein Projekt ODER Verweis auf Inbox -> Eingang
+    const sel = inbox ? null : [...bereiche, ...projekte].find((p) => p.name === this.f.project);
     const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
-    setIcon(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
+    setIcon(ic, inbox ? "inbox" : (sel?.icon ?? "folder"));
     if (sel?.color) ic.setCssStyles({ color: sel.color });
-    this.projektBtn.createSpan({ text: this.f.project ? projectDisplayName(this.f.project) : t("no_project") });
+    this.projektBtn.createSpan({ text: inbox ? t("nav_inbox") : projectDisplayName(this.f.project) });
     const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" }); setIcon(car, "chevron-down");
   }
 
   private openProject(anchor: HTMLElement): void {
     openPopover(anchor, (pop, close) => {
       pop.addClass("bt-picker");
-      const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-      const pick = (name: string) => { this.f.project = name; this.parsedProject = null; this.renderProjekt(); close(); };
-      if (eingang) popRow(pop, eingang.icon, projectDisplayName(eingang.name), () => pick(eingang.name), this.f.project === eingang.name, eingang.color ?? undefined);
+      const { bereiche, projekte } = listProjectsAndAreas(this.app);
+      const pick = (name: string | null) => { this.f.project = name; this.parsedProject = null; this.renderProjekt(); close(); };
+      // Eingang = kein Projekt (Auswahl leert das Projekt-Feld).
+      popRow(pop, "inbox", t("nav_inbox"), () => pick(null), isInboxLink(this.f.project));
       const group = (title: string, items: { name: string; icon: string; color: string | null }[]) => {
         if (!items.length) return;
         pop.createDiv({ cls: "bt-pop-head", text: title });

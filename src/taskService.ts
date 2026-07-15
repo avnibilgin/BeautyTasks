@@ -110,6 +110,14 @@ export interface ProjItem {
 const byName = (a: ProjItem, b: ProjItem) => a.name.localeCompare(b.name, "de");
 const isInbox = (p: ProjItem) => p.name.toLowerCase() === "inbox" || p.name.toLowerCase() === "eingang";
 
+/** Ist dieser Projekt-NAME der reservierte Eingang? („Inbox"/„Eingang"). */
+export const isInboxName = (name: string | null | undefined): boolean => !!name && /^(inbox|eingang)$/i.test(name);
+
+/** „Nicht einsortiert" = im Eingang: kein Projekt ODER Verweis auf die reservierte Inbox-Notiz.
+ *  `project` ist ein aufgelöster Pfad (Task.project) ODER ein Basisname (Editor-Feld). */
+export const isInboxLink = (project: string | null | undefined): boolean =>
+  !project || isInboxName(project.split("/").pop()!.replace(/\.md$/, ""));
+
 /** Alle Projekt-/Bereich-Notizen mit Meta (Typ, Icon, Farbe, Sichtbarkeit, Archiv). */
 function allProjItems(app: App): ProjItem[] {
   return app.vault.getMarkdownFiles().flatMap((f) => {

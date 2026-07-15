@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, TaskFields } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, TaskFields } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { parseQuickEntry } from "./quickEntry";
@@ -65,7 +65,7 @@ export class TaskModal extends Modal {
           scheduled: seed?.scheduled ?? null, scheduledTime: seed?.scheduledTime ?? null,
           recurrence: seed?.recurrence ?? null, recurBasis: seed?.recurBasis ?? "due",
           parent: seed?.parent ?? null, description: seed?.description,
-          project: defaultProject ?? "Inbox",
+          project: defaultProject ?? null,   // kein Default-Projekt -> Eingang (= kein Projekt)
         };
   }
 
@@ -381,13 +381,13 @@ export class TaskModal extends Modal {
 
   private renderProjekt(): void {
     this.projektBtn.empty();
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-    const all = [eingang, ...bereiche, ...projekte].filter(Boolean) as { name: string; icon: string; color: string | null }[];
-    const sel = all.find((p) => p.name === this.f.project);
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const inbox = isInboxLink(this.f.project);   // kein Projekt ODER Verweis auf Inbox -> Eingang
+    const sel = inbox ? null : [...bereiche, ...projekte].find((p) => p.name === this.f.project);
     const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
-    setIcon(ic, sel?.icon ?? (this.f.project ? "folder" : "inbox"));
+    setIcon(ic, inbox ? "inbox" : (sel?.icon ?? "folder"));
     if (sel?.color) ic.setCssStyles({ color: sel.color });
-    this.projektBtn.createSpan({ text: this.f.project ? projectDisplayName(this.f.project) : t("no_project") });
+    this.projektBtn.createSpan({ text: inbox ? t("nav_inbox") : projectDisplayName(this.f.project) });
     const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" }); setIcon(car, "chevron-down");
   }
 
@@ -398,9 +398,10 @@ export class TaskModal extends Modal {
       popRow(pop, "plus", t("pick_new_project"), () => this.startNewProject(pop, close, false)).addClass("bt-row-action");
       popRow(pop, "plus", t("pick_new_area"), () => this.startNewProject(pop, close, true)).addClass("bt-row-action");
 
-      const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-      const pick = (name: string) => { this.f.project = name; this.renderProjekt(); close(); };
-      if (eingang) popRow(pop, eingang.icon, projectDisplayName(eingang.name), () => pick(eingang.name), this.f.project === eingang.name, eingang.color ?? undefined);
+      const { bereiche, projekte } = listProjectsAndAreas(this.app);
+      const pick = (name: string | null) => { this.f.project = name; this.renderProjekt(); close(); };
+      // Eingang = kein Projekt (Auswahl leert das Projekt-Feld).
+      popRow(pop, "inbox", t("nav_inbox"), () => pick(null), isInboxLink(this.f.project));
       const group = (title: string, items: { name: string; icon: string; color: string | null }[]) => {
         if (!items.length) return;
         pop.createDiv({ cls: "bt-pop-head", text: title });
