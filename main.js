@@ -106,6 +106,12 @@ var STRINGS = {
     whatsnew_ok: "Got it",
     wn_cal_t: "Calendar view",
     wn_cal_d: "Year, month, week and day \u2013 drag tasks to reschedule them.",
+    wn_vault_t: "Tasks from anywhere in your vault",
+    wn_vault_d: "Add `type: task` to any note and it shows up in the inbox \u2013 or turn the current note into a task with one command.",
+    wn_inbox_t: "The inbox, rethought",
+    wn_inbox_d: "The inbox is now built in: every task without a project lands there automatically \u2013 one consistent home instead of \u201CNo project\u201D.",
+    wn_notes_t: "Turn notes into tasks",
+    wn_notes_d: "Whole content notes become tasks without losing their text \u2013 with an \u201COpen note\u201D link and the description kept in the frontmatter.",
     wn_unsched_t: "Unscheduled sidebar",
     wn_unsched_d: "Tasks without a date, ready to drag into the grid.",
     wn_dir_t: "Sort direction",
@@ -570,6 +576,12 @@ var STRINGS = {
     whatsnew_ok: "Verstanden",
     wn_cal_t: "Kalender-Ansicht",
     wn_cal_d: "Jahr, Monat, Woche und Tag \u2013 Aufgaben per Drag & Drop umplanen.",
+    wn_vault_t: "Aufgaben aus dem ganzen Vault",
+    wn_vault_d: "Schreib `type: task` in eine beliebige Notiz \u2013 sie erscheint im Eingang. Oder mach die aktuelle Notiz per Befehl zur Aufgabe.",
+    wn_inbox_t: "Der Eingang, neu gedacht",
+    wn_inbox_d: "Der Eingang ist jetzt eingebaut: jede Aufgabe ohne Projekt landet automatisch dort \u2013 ein einheitliches Zuhause statt \u201EKein Projekt\u201C.",
+    wn_notes_t: "Notizen werden zu Aufgaben",
+    wn_notes_d: "Ganze Inhaltsnotizen werden zur Aufgabe, ohne ihren Text zu verlieren \u2013 mit \u201ENotiz \xF6ffnen\u201C und Beschreibung im Frontmatter.",
     wn_unsched_t: "Seitenleiste \u201EUndatiert\u201C",
     wn_unsched_d: "Aufgaben ohne Datum, bereit zum Ziehen ins Raster.",
     wn_dir_t: "Sortierrichtung",
@@ -12779,9 +12791,9 @@ var WhatsNewModal = class extends import_obsidian28.Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
     const items = [
-      { icon: "calendar-days", title: t("wn_cal_t"), desc: t("wn_cal_d") },
-      { icon: "inbox", title: t("wn_unsched_t"), desc: t("wn_unsched_d") },
-      { icon: "arrow-up-down", title: t("wn_dir_t"), desc: t("wn_dir_d") }
+      { icon: "list-checks", title: t("wn_vault_t"), desc: t("wn_vault_d") },
+      { icon: "inbox", title: t("wn_inbox_t"), desc: t("wn_inbox_d") },
+      { icon: "file-text", title: t("wn_notes_t"), desc: t("wn_notes_d") }
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
