@@ -264,6 +264,7 @@ var STRINGS = {
     cmd_quick_add: "Quick add task",
     cmd_make_task: "Turn current note into a task",
     cmd_migrate_desc: "Migrate descriptions to frontmatter",
+    cmd_remove_inbox: "Remove the old Inbox note (Inbox is now built-in)",
     cmd_open_view: "Open {0}",
     cmd_count_tasks: "Count tasks",
     cmd_import: "Import from Tasks/Lists",
@@ -271,6 +272,7 @@ var STRINGS = {
     cmd_whatsnew: "Show what's new",
     cmd_gcal_sync_now: "Sync with Google Calendar now",
     notice_made_task: "Note is now a task.",
+    notice_inbox_removed: "Inbox note moved to trash; {0} tasks unfiled.",
     notice_desc_migrated: "Descriptions migrated: {0} moved to frontmatter, {1} kept as notes.",
     desc_note_content_hint: "Contains its own note content.",
     log_open_note: "Open note",
@@ -725,6 +727,7 @@ var STRINGS = {
     cmd_quick_add: "Aufgabe schnell erfassen",
     cmd_make_task: "Aktuelle Notiz zur Aufgabe machen",
     cmd_migrate_desc: "Beschreibungen ins Frontmatter migrieren",
+    cmd_remove_inbox: "Alte Inbox-Notiz entfernen (Eingang ist jetzt eingebaut)",
     cmd_open_view: "{0} \xF6ffnen",
     cmd_count_tasks: "Aufgaben z\xE4hlen",
     cmd_import: "Aus Tasks/Lists importieren",
@@ -732,6 +735,7 @@ var STRINGS = {
     cmd_whatsnew: "Neuigkeiten anzeigen",
     cmd_gcal_sync_now: "Jetzt mit Google Kalender synchronisieren",
     notice_made_task: "Notiz ist jetzt eine Aufgabe.",
+    notice_inbox_removed: "Inbox-Notiz in den Papierkorb verschoben; {0} Aufgaben in den Eingang gel\xF6st.",
     notice_desc_migrated: "Beschreibungen migriert: {0} ins Frontmatter, {1} als Notiz behalten.",
     desc_note_content_hint: "Enth\xE4lt eigene Notizinhalte.",
     log_open_note: "Notiz \xF6ffnen",
@@ -4818,6 +4822,10 @@ async function createTaskNote(app, settings, f) {
 }
 var byName = (a, b) => a.name.localeCompare(b.name, "de");
 var isInbox = (p) => p.name.toLowerCase() === "inbox" || p.name.toLowerCase() === "eingang";
+var INBOX_KEY = "\0inbox";
+function inboxNotePath(app) {
+  return allProjItems(app).find(isInbox)?.path ?? null;
+}
 var isInboxName = (name) => !!name && /^(inbox|eingang)$/i.test(name);
 var isInboxLink = (project) => !project || isInboxName(project.split("/").pop().replace(/\.md$/, ""));
 function allProjItems(app) {
@@ -4844,11 +4852,8 @@ function archivedProjectNames(app) {
 function listProjectsAndAreas(app) {
   const all = allProjItems(app).filter((p) => !p.archived);
   const bereiche = all.filter((p) => p.type === "area").sort(byName);
-  const projekteAll = all.filter((p) => p.type === "project");
-  const eingang = projekteAll.find(isInbox) ?? null;
-  if (eingang) eingang.icon = "inbox";
-  const projekte = projekteAll.filter((p) => p !== eingang).sort(byName);
-  return { eingang, bereiche, projekte };
+  const projekte = all.filter((p) => p.type === "project" && !isInbox(p)).sort(byName);
+  return { bereiche, projekte };
 }
 function listManaged(app) {
   const all = allProjItems(app).filter((p) => !isInbox(p));
@@ -4870,14 +4875,6 @@ async function createProjectNote(app, settings, name, asArea = false, color = nu
   const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? void 0, nav_hidden: hidden ? true : void 0, created: todayIso() });
   await app.vault.create(dest, fm + "\n# " + name + "\n");
   return base;
-}
-async function ensureInbox(app, settings) {
-  if (allProjItems(app).some(isInbox)) return;
-  await ensureFolder(app, settings.projectsFolder);
-  const dest = (0, import_obsidian.normalizePath)(settings.projectsFolder + "/Inbox.md");
-  if (app.vault.getAbstractFileByPath(dest)) return;
-  const fm = buildFrontmatter({ type: "project", id: newId("p"), status: "active", icon: "inbox", created: todayIso() });
-  await app.vault.create(dest, fm + "\n# Inbox\n");
 }
 async function setProjectType(app, path, toArea) {
   const file = app.vault.getAbstractFileByPath(path);
@@ -5183,18 +5180,16 @@ var TaskIndex = class extends import_obsidian2.Component {
   byProject(path) {
     return this.byProjectMap().get(baseName(path)) ?? [];
   }
-  /** Eingang, ALLE Status (fürs Board): explizit `project: [[Inbox]]` ODER (optional) projektlos.
-   *  Projektlose im Papierkorb bleiben außen vor – die zeigt der globale Papierkorb. Die beiden
-   *  Teilmengen sind disjunkt (mit Projekt vs. ohne), daher einfach aneinandergehängt. */
-  inboxAll(inboxName) {
-    const filed = this.all().filter((t2) => t2.project != null && baseName(t2.project) === inboxName);
-    const showUnfiled = this.getSettings().showUnfiledInInbox;
-    const unfiled = showUnfiled ? this.all().filter((t2) => !t2.project && !isTrashed(t2.status)) : [];
+  /** Eingang, ALLE Status (fürs Board): „nicht einsortiert" = alter `[[Inbox]]`-Verweis ODER
+   *  (optional, per Einstellung) gar kein Projekt. Papierkorb bleibt außen vor (globaler Papierkorb). */
+  inbox() {
+    const filed = this.all().filter((t2) => t2.project != null && isInboxName(baseName(t2.project)) && !isTrashed(t2.status));
+    const unfiled = this.getSettings().showUnfiledInInbox ? this.all().filter((t2) => !t2.project && !isTrashed(t2.status)) : [];
     return [...filed, ...unfiled];
   }
-  /** Offene Eingangs-Aufgaben – für den Sidebar-Zähler (analog byProject bei normalen Projekten). */
-  inboxOpen(inboxName) {
-    return this.inboxAll(inboxName).filter((t2) => isOpen(t2.status));
+  /** Offene Eingangs-Aufgaben – für den Sidebar-Zähler. */
+  inboxOpen() {
+    return this.inbox().filter((t2) => isOpen(t2.status));
   }
   /** Offene Aufgaben je Label – ebenfalls einmal gruppiert (eine Aufgabe kann mehrere haben). */
   byLabelMap() {
@@ -8168,8 +8163,11 @@ var FilterModal = class extends import_obsidian14.Modal {
       },
       pens: ["any", "all", "none"]
     });
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
-    const projOpts = [...eingang ? [eingang] : [], ...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) }));
+    const { bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
+    const projOpts = [
+      { key: "Inbox", label: t("nav_inbox") },
+      ...[...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) }))
+    ];
     if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
       modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
       toggle: (k, pen) => {
@@ -9890,9 +9888,9 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  const name = projectName(projectPath);
-  const isArea = isAreaPath(plugin.app, projectPath);
-  const isInbox2 = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+  const isInbox2 = projectPath === INBOX_KEY;
+  const name = isInbox2 ? "" : projectName(projectPath);
+  const isArea = !isInbox2 && isAreaPath(plugin.app, projectPath);
   const meta = isInbox2 ? null : (() => {
     const a = listProjectsAndAreas(plugin.app);
     return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null;
@@ -9901,11 +9899,11 @@ function renderProjectBoardInto(c, plugin, projectPath) {
   pageHeader(
     top,
     plugin,
-    top.createEl("h1", { text: projectDisplayName(name) }),
+    top.createEl("h1", { text: isInbox2 ? t("nav_inbox") : projectDisplayName(name) }),
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {}
   );
   addBar(top, plugin, () => plugin.openNewTask(isInbox2 ? void 0 : name, void 0, false, void 0, addDue(plugin)));
-  const source = () => isInbox2 ? plugin.index.inboxAll(name) : plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
+  const source = () => isInbox2 ? plugin.index.inbox() : plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
   const tasks = source();
   if (!tasks.length) {
     if (isInbox2) emptyState(root, "inbox", "empty_no_inbox_tasks");
@@ -10417,11 +10415,10 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   } else if (!plugin.currentProject && depth === 0) {
     const extras = row.createDiv({ cls: "bt-extras" });
     if (isInboxLink(task.project)) {
-      const eingang = listProjectsAndAreas(plugin.app).eingang;
       const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
       bl.onclick = (e) => {
         e.stopPropagation();
-        if (eingang) void plugin.activateProject(eingang.path);
+        void plugin.activateProject(INBOX_KEY);
       };
     } else {
       const name = projectName(task.project);
@@ -10554,8 +10551,8 @@ var navMounts = /* @__PURE__ */ new WeakMap();
 var navBadges = null;
 function navCounts(plugin) {
   const m = /* @__PURE__ */ new Map();
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  if (eingang) m.set("p:" + eingang.path, plugin.index.inboxOpen(eingang.name).length);
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  m.set("p:" + INBOX_KEY, plugin.index.inboxOpen().length);
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
@@ -10564,10 +10561,9 @@ function navCounts(plugin) {
   return m;
 }
 function navSignature(plugin) {
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const proj = (p) => [p.path, p.name, p.icon, p.color, p.hidden].join("~");
   return JSON.stringify({
-    eingang: eingang ? proj(eingang) : null,
     areas: plugin.sortProjItems("areas", bereiche).map(proj),
     projects: plugin.sortProjItems("projects", projekte).map(proj),
     filters: plugin.sortFilters(listFilters(plugin.app)).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
@@ -10597,27 +10593,23 @@ function renderNavInto(c, plugin) {
   const redraw = () => renderNavInto(c, plugin);
   const badges = /* @__PURE__ */ new Map();
   navBadges = badges;
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const navColor = (path, stored) => plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
   navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
-  if (eingang && !eingang.hidden) {
-    const ib = eingang;
-    navItem(c, {
-      cls: "bt-nav-inbox",
-      icon: ib.icon,
-      iconColor: navColor(ib.path, ib.color),
-      label: projectDisplayName(ib.name),
-      count: plugin.index.inboxOpen(ib.name).length,
-      countKey: "p:" + ib.path,
-      active: plugin.currentProject === ib.path,
-      onClick: () => void plugin.activateProject(ib.path),
-      onContext: (e) => {
-        const m = new import_obsidian20.Menu();
-        if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e);
-      }
-    });
-  }
+  navItem(c, {
+    cls: "bt-nav-inbox",
+    icon: "inbox",
+    label: t("nav_inbox"),
+    count: plugin.index.inboxOpen().length,
+    countKey: "p:" + INBOX_KEY,
+    active: plugin.currentProject === INBOX_KEY,
+    onClick: () => void plugin.activateProject(INBOX_KEY),
+    onContext: (e) => {
+      const m = new import_obsidian20.Menu();
+      if (addGcalSyncItem(m, plugin, INBOX_KEY)) m.showAtMouseEvent(e);
+    }
+  });
   for (const id of VIEW_IDS) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;
     navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id, active, onClick: () => void plugin.activateView(id) });
@@ -10910,8 +10902,8 @@ var QuickAddModal = class extends import_obsidian21.Modal {
       this.cleanTitle = this.f.title;
       return;
     }
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-    const projNames = [eingang, ...bereiche, ...projekte].filter(Boolean).map((p2) => p2.name);
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const projNames = [...bereiche, ...projekte].map((p2) => p2.name);
     const p = parseQuickEntry(this.f.title, projNames);
     this.cleanTitle = p.title;
     if (!this.duePinned && p.faellig) this.f.due = p.faellig;
@@ -11529,6 +11521,7 @@ var DEFAULT_GCAL_SETTINGS = {
   syncOnUpdate: true,
   syncOnDelete: true,
   removeEventOnComplete: false,
+  excludeInbox: false,
   notifyConflicts: false,
   showStatusBar: true,
   account: null,
@@ -11871,10 +11864,7 @@ var GCalSync = class {
     return this.host.app.metadataCache.getFileCache(f)?.frontmatter ?? null;
   }
   projectExcluded(t2) {
-    if (isInboxLink(t2.project)) {
-      const eingang = listProjectsAndAreas(this.host.app).eingang;
-      return eingang ? this.frontmatterOf(eingang.path)?.gcal_sync === false : false;
-    }
+    if (isInboxLink(t2.project)) return this.host.settings.excludeInbox;
     return this.frontmatterOf(t2.project)?.gcal_sync === false;
   }
   frontmatterEventId(t2) {
@@ -12862,11 +12852,6 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
       });
       if (!this.settings.didInitialSetup) {
-        try {
-          await ensureInbox(this.app, this.settings);
-        } catch (e) {
-          console.error("BeautyTasks inbox setup", e);
-        }
         this.settings.didInitialSetup = true;
         await this.saveSettings();
       }
@@ -12919,6 +12904,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
     this.addCommand({ id: "import-tasknotes", name: t("cmd_import_tasknotes"), callback: () => this.importFromTaskNotes() });
     this.addCommand({ id: "migrate-descriptions", name: t("cmd_migrate_desc"), callback: () => void this.migrateDescriptions() });
+    this.addCommand({ id: "remove-inbox-note", name: t("cmd_remove_inbox"), callback: () => void this.migrateInboxRemoval() });
     this.addCommand({
       id: "import-from-lists",
       name: t("cmd_import"),
@@ -13043,6 +13029,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     if (this.manageOpen) return { key: "manage", tier: "none", kind: "view" };
     if (this.currentFilter) return { key: this.currentFilter, tier: "full", kind: "filter" };
     if (this.currentLabel) return { key: this.currentLabel, tier: "full", kind: "label" };
+    if (this.currentProject === INBOX_KEY) return { key: "inbox", tier: "full", kind: "view" };
     if (this.currentProject) return { key: this.currentProject, tier: "full", kind: "project" };
     const v = this.currentView;
     return { key: v, tier: v === "heute" || v === "demnaechst" ? "light" : "none", kind: "view" };
@@ -13798,6 +13785,35 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     window.setTimeout(() => this.index.build(), 400);
     new import_obsidian29.Notice(t("notice_desc_migrated", moved, docs));
   }
+  /** Einmalige Migration „Inbox-Notiz entfernen": übernimmt View-Optionen + GCal-Ausschluss der
+   *  alten Inbox-Notiz in die Settings, löst `[[Inbox]]`-Verweise auf (kein Projekt) und verschiebt
+   *  die Notiz in Obsidians Papierkorb. Idempotent (setzt `didInboxRemoval`); auch manuell aufrufbar. */
+  async migrateInboxRemoval() {
+    const path = inboxNotePath(this.app);
+    const noteFile = path ? this.app.vault.getAbstractFileByPath(path) : null;
+    if (noteFile instanceof import_obsidian29.TFile) {
+      const fm = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
+      if (fm?.gcal_sync === false && this.settings.gcal) this.settings.gcal.excludeInbox = true;
+      const opts = readNoteViewOptions(this.app, noteFile.path);
+      this.settings.pageViewOptions = { ...this.settings.pageViewOptions ?? {}, inbox: opts };
+    }
+    let unlinked = 0;
+    for (const tk of this.index.all()) {
+      if (!tk.project || !isInboxName(tk.project.split("/").pop().replace(/\.md$/, ""))) continue;
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (f instanceof import_obsidian29.TFile) {
+        await this.app.fileManager.processFrontMatter(f, (m) => {
+          delete m.project;
+        });
+        unlinked++;
+      }
+    }
+    if (noteFile instanceof import_obsidian29.TFile) await this.app.fileManager.trashFile(noteFile);
+    this.settings.didInboxRemoval = true;
+    await this.saveSettings();
+    window.setTimeout(() => this.index.build(), 400);
+    new import_obsidian29.Notice(t("notice_inbox_removed", unlinked));
+  }
   /** Bestehenden Log einer Notiz auf den aktuellen Stand bringen (verlustfrei): führendes „📄 " aus
    *  „Notiz öffnen"-Einträgen entfernen und die einklappbare Log-Überschrift ergänzen, falls sie fehlt. */
   async normalizeLog(f) {
@@ -14128,15 +14144,24 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
   refreshGCalStatusBar() {
     this.renderStatusBar(this.gcalSync.getStatus());
   }
-  /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
+  /** Ist diese Liste vom Kalender-Sync ausgeschlossen? Eingang -> Setting, sonst gcal_sync:false der Notiz. */
   isListGcalExcluded(path) {
+    if (path === INBOX_KEY) return this.settings.gcal?.excludeInbox ?? false;
     const f = this.app.vault.getAbstractFileByPath(path);
     if (!(f instanceof import_obsidian29.TFile)) return false;
     const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
     return fm?.gcal_sync === false;
   }
-  /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
+  /** Liste ein-/ausschließen, danach syncen. Eingang -> Setting, sonst gcal_sync-Flag der Notiz. */
   async setListGcalExcluded(path, excluded) {
+    if (path === INBOX_KEY) {
+      if (this.settings.gcal) {
+        this.settings.gcal.excludeInbox = excluded;
+        await this.saveSettings();
+      }
+      void this.gcalSync.syncNow();
+      return;
+    }
     const f = this.app.vault.getAbstractFileByPath(path);
     if (!(f instanceof import_obsidian29.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {

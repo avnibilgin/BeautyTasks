@@ -9,7 +9,7 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ensureCanonicalFm, ProjItem } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem } from "./taskService";
 import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
@@ -84,10 +84,9 @@ export default class BeautyTasksPlugin extends Plugin {
       this.app.workspace.iterateAllLeaves((leaf) => {
         if (OLD_VIEW_TYPES.includes(leaf.getViewState().type)) leaf.detach();
       });
-      // Erst-Setup (einmalig): Inbox-Notiz anlegen, falls keine existiert. Danach
-      // Flag setzen, damit ein absichtliches Löschen der Inbox respektiert wird.
+      // Erst-Setup-Marker (für die „bestehender Nutzer?"-Erkennung des Neu-Modals). Der Eingang
+      // ist eine eingebaute Ansicht – es wird KEINE Inbox-Notiz mehr angelegt.
       if (!this.settings.didInitialSetup) {
-        try { await ensureInbox(this.app, this.settings); } catch (e) { console.error("BeautyTasks inbox setup", e); }
         this.settings.didInitialSetup = true;
         await this.saveSettings();
       }
@@ -160,6 +159,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
     this.addCommand({ id: "import-tasknotes", name: t("cmd_import_tasknotes"), callback: () => this.importFromTaskNotes() });
     this.addCommand({ id: "migrate-descriptions", name: t("cmd_migrate_desc"), callback: () => void this.migrateDescriptions() });
+    this.addCommand({ id: "remove-inbox-note", name: t("cmd_remove_inbox"), callback: () => void this.migrateInboxRemoval() });
     this.addCommand({
       id: "import-from-lists", name: t("cmd_import"),
       callback: async () => {
@@ -267,6 +267,8 @@ export default class BeautyTasksPlugin extends Plugin {
     if (this.manageOpen) return { key: "manage", tier: "none", kind: "view" };
     if (this.currentFilter) return { key: this.currentFilter, tier: "full", kind: "filter" };
     if (this.currentLabel) return { key: this.currentLabel, tier: "full", kind: "label" };
+    // Eingang: eingebaute Ansicht ohne Notiz -> Anzeige-Optionen in den Settings (wie Heute/Demnächst).
+    if (this.currentProject === INBOX_KEY) return { key: "inbox", tier: "full", kind: "view" };
     if (this.currentProject) return { key: this.currentProject, tier: "full", kind: "project" };
     const v = this.currentView;
     return { key: v, tier: (v === "heute" || v === "demnaechst") ? "light" : "none", kind: "view" };
@@ -978,6 +980,33 @@ export default class BeautyTasksPlugin extends Plugin {
     new Notice(t("notice_desc_migrated", moved, docs));
   }
 
+  /** Einmalige Migration „Inbox-Notiz entfernen": übernimmt View-Optionen + GCal-Ausschluss der
+   *  alten Inbox-Notiz in die Settings, löst `[[Inbox]]`-Verweise auf (kein Projekt) und verschiebt
+   *  die Notiz in Obsidians Papierkorb. Idempotent (setzt `didInboxRemoval`); auch manuell aufrufbar. */
+  async migrateInboxRemoval(): Promise<void> {
+    const path = inboxNotePath(this.app);
+    const noteFile = path ? this.app.vault.getAbstractFileByPath(path) : null;
+    if (noteFile instanceof TFile) {
+      const fm = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
+      if (fm?.gcal_sync === false && this.settings.gcal) this.settings.gcal.excludeInbox = true;   // Ausschluss übernehmen
+      const opts = readNoteViewOptions(this.app, noteFile.path);                                    // Anzeige-Optionen übernehmen
+      this.settings.pageViewOptions = { ...(this.settings.pageViewOptions ?? {}), inbox: opts };
+    }
+    // Alle `[[Inbox]]`-Verweise auflösen -> kein Projekt (verhindert kaputte Wikilinks nach dem Löschen).
+    let unlinked = 0;
+    for (const tk of this.index.all()) {
+      if (!tk.project || !isInboxName(tk.project.split("/").pop()!.replace(/\.md$/, ""))) continue;
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (f instanceof TFile) { await this.app.fileManager.processFrontMatter(f, (m: Record<string, unknown>) => { delete m.project; }); unlinked++; }
+    }
+    // Notiz in den Papierkorb (wiederherstellbar), nicht hart löschen.
+    if (noteFile instanceof TFile) await this.app.fileManager.trashFile(noteFile);
+    this.settings.didInboxRemoval = true;
+    await this.saveSettings();
+    window.setTimeout(() => this.index.build(), 400);
+    new Notice(t("notice_inbox_removed", unlinked));
+  }
+
   /** Bestehenden Log einer Notiz auf den aktuellen Stand bringen (verlustfrei): führendes „📄 " aus
    *  „Notiz öffnen"-Einträgen entfernen und die einklappbare Log-Überschrift ergänzen, falls sie fehlt. */
   private async normalizeLog(f: TFile): Promise<void> {
@@ -1295,16 +1324,22 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Statusleiste neu zeichnen (nach Verbinden/Abmelden oder Toggle showStatusBar). */
   refreshGCalStatusBar(): void { this.renderStatusBar(this.gcalSync.getStatus()); }
 
-  /** Ist diese Liste (Projekt/Bereich, Pfad) vom Kalender-Sync ausgeschlossen (gcal_sync:false)? */
+  /** Ist diese Liste vom Kalender-Sync ausgeschlossen? Eingang -> Setting, sonst gcal_sync:false der Notiz. */
   isListGcalExcluded(path: string): boolean {
+    if (path === INBOX_KEY) return this.settings.gcal?.excludeInbox ?? false;
     const f = this.app.vault.getAbstractFileByPath(path);
     if (!(f instanceof TFile)) return false;
     const fm: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(f)?.frontmatter;
     return fm?.gcal_sync === false;
   }
 
-  /** Liste ein-/ausschließen: gcal_sync-Flag setzen/entfernen, danach syncen (Events an/abräumen). */
+  /** Liste ein-/ausschließen, danach syncen. Eingang -> Setting, sonst gcal_sync-Flag der Notiz. */
   async setListGcalExcluded(path: string, excluded: boolean): Promise<void> {
+    if (path === INBOX_KEY) {
+      if (this.settings.gcal) { this.settings.gcal.excludeInbox = excluded; await this.saveSettings(); }
+      void this.gcalSync.syncNow();
+      return;
+    }
     const f = this.app.vault.getAbstractFileByPath(path);
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {

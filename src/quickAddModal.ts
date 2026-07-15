@@ -89,8 +89,8 @@ export class QuickAddModal extends Modal {
    *  Chip) gesetzte Werte bleiben erhalten. Spiegelt die Logik von TaskModal.applyParse. */
   private parse(): void {
     if (!this.plugin.settings.parseNaturalLanguage) { this.cleanTitle = this.f.title; return; }
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.app);
-    const projNames = [eingang, ...bereiche, ...projekte].filter(Boolean).map((p) => (p as { name: string }).name);
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const projNames = [...bereiche, ...projekte].map((p) => p.name);
     const p = parseQuickEntry(this.f.title, projNames);
     this.cleanTitle = p.title;
     if (!this.duePinned && p.faellig) this.f.due = p.faellig;

@@ -1,6 +1,6 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { archivedProjectNames } from "./taskService";
+import { archivedProjectNames, isInboxName } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
@@ -245,19 +245,17 @@ export class TaskIndex extends Component {
     return this.byProjectMap().get(baseName(path)) ?? [];
   }
 
-  /** Eingang, ALLE Status (fürs Board): explizit `project: [[Inbox]]` ODER (optional) projektlos.
-   *  Projektlose im Papierkorb bleiben außen vor – die zeigt der globale Papierkorb. Die beiden
-   *  Teilmengen sind disjunkt (mit Projekt vs. ohne), daher einfach aneinandergehängt. */
-  inboxAll(inboxName: string): Task[] {
-    const filed = this.all().filter((t) => t.project != null && baseName(t.project) === inboxName);
-    const showUnfiled = this.getSettings().showUnfiledInInbox;
-    const unfiled = showUnfiled ? this.all().filter((t) => !t.project && !isTrashed(t.status)) : [];
+  /** Eingang, ALLE Status (fürs Board): „nicht einsortiert" = alter `[[Inbox]]`-Verweis ODER
+   *  (optional, per Einstellung) gar kein Projekt. Papierkorb bleibt außen vor (globaler Papierkorb). */
+  inbox(): Task[] {
+    const filed = this.all().filter((t) => t.project != null && isInboxName(baseName(t.project)) && !isTrashed(t.status));
+    const unfiled = this.getSettings().showUnfiledInInbox ? this.all().filter((t) => !t.project && !isTrashed(t.status)) : [];
     return [...filed, ...unfiled];
   }
 
-  /** Offene Eingangs-Aufgaben – für den Sidebar-Zähler (analog byProject bei normalen Projekten). */
-  inboxOpen(inboxName: string): Task[] {
-    return this.inboxAll(inboxName).filter((t) => isOpen(t.status));
+  /** Offene Eingangs-Aufgaben – für den Sidebar-Zähler. */
+  inboxOpen(): Task[] {
+    return this.inbox().filter((t) => isOpen(t.status));
   }
 
   /** Offene Aufgaben je Label – ebenfalls einmal gruppiert (eine Aufgabe kann mehrere haben). */

@@ -105,9 +105,10 @@ export class FilterModal extends Modal {
       pens: ["any", "all", "none"],
     });
 
-    const { eingang, bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
-    const projOpts = [...(eingang ? [eingang] : []), ...bereiche, ...projekte]
-      .map((p) => ({ key: p.name, label: projectDisplayName(p.name) }));
+    const { bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
+    // Eingang = eingebaute Option (Key „Inbox"; die Engine matcht ihn via isInboxName).
+    const projOpts = [{ key: "Inbox", label: t("nav_inbox") },
+      ...[...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) }))];
     if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
       modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
       toggle: (k, pen) => {

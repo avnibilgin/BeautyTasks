@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, isAreaPath, isInboxLink } from "./taskService";
+import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
 import { applyFilter, sortTasks, FilterGroup, PageLayout, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -240,21 +240,21 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   c.addClass("bt-view");
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  const name = projectName(projectPath);
-  // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist ein Systemordner → kein Menü.
-  const isArea = isAreaPath(plugin.app, projectPath);
-  const isInbox = name.toLowerCase() === "inbox" || name.toLowerCase() === "eingang";
+  const isInbox = projectPath === INBOX_KEY;   // eingebaute Eingang-Ansicht (keine Notiz)
+  const name = isInbox ? "" : projectName(projectPath);
+  // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist eine Systemansicht → kein Menü.
+  const isArea = !isInbox && isAreaPath(plugin.app, projectPath);
   const meta = isInbox ? null
     : (() => { const a = listProjectsAndAreas(plugin.app); return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null; })();
   const top = pageTop(c, plugin.pageViewOptions().layout);
-  pageHeader(top, plugin, top.createEl("h1", { text: projectDisplayName(name) }),
+  pageHeader(top, plugin, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {});
   // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
   addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
 
   // Eingang = alle „nicht einsortierten" Aufgaben (kein Projekt ODER Verweis auf Inbox).
   const source = (): Task[] => isInbox
-    ? plugin.index.inboxAll(name)
+    ? plugin.index.inbox()
     : plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
   const tasks = source();
   if (!tasks.length) {
@@ -826,9 +826,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) wird als @Eingang gezeigt.
     const extras = row.createDiv({ cls: "bt-extras" });
     if (isInboxLink(task.project)) {
-      const eingang = listProjectsAndAreas(plugin.app).eingang;
       const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-      bl.onclick = (e) => { e.stopPropagation(); if (eingang) void plugin.activateProject(eingang.path); };
+      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
     } else {
       const name = projectName(task.project!);
       const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
@@ -980,8 +979,8 @@ let navBadges: Map<string, HTMLElement> | null = null;   // aktive Sammlung wäh
 /** Alle Zähler der Seitenleiste – dieselben Werte, die renderNavInto einsetzt. */
 function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   const m = new Map<string, number>();
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  if (eingang) m.set("p:" + eingang.path, plugin.index.inboxOpen(eingang.name).length);
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  m.set("p:" + INBOX_KEY, plugin.index.inboxOpen().length);   // eingebauter Eingang
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
@@ -992,11 +991,10 @@ function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
 
 /** Struktur-Signatur OHNE Zahlen: gleich = dieselben Einträge in derselben Form. */
 function navSignature(plugin: BeautyTasksPlugin): string {
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const proj = (p: { path: string; name: string; icon: string; color: string | null; hidden: boolean }): string =>
     [p.path, p.name, p.icon, p.color, p.hidden].join("~");
   return JSON.stringify({
-    eingang: eingang ? proj(eingang) : null,
     areas: plugin.sortProjItems("areas", bereiche).map(proj),
     projects: plugin.sortProjItems("projects", projekte).map(proj),
     filters: plugin.sortFilters(listFilters(plugin.app)).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
@@ -1029,7 +1027,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const badges = new Map<string, HTMLElement>();
   navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
 
-  const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
   const navColor = (path: string, stored: string | null): string | null =>
     plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
@@ -1041,17 +1039,14 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
   navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
 
-  // Inbox ganz oben, OHNE Abschnittsüberschrift (über den Ansichten). Als Systemordner KEIN
-  // volles Menü – nur der Kalender-Sync-Ein/Ausschalter (und nur wenn mit Google verbunden).
-  if (eingang && !eingang.hidden) {
-    const ib = eingang;
-    navItem(c, {
-      cls: "bt-nav-inbox", icon: ib.icon, iconColor: navColor(ib.path, ib.color), label: projectDisplayName(ib.name),
-      count: plugin.index.inboxOpen(ib.name).length, countKey: "p:" + ib.path, active: plugin.currentProject === ib.path,
-      onClick: () => void plugin.activateProject(ib.path),
-      onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e); },
-    });
-  }
+  // Eingang ganz oben, OHNE Abschnittsüberschrift (über den Ansichten). Eingebaute Systemansicht
+  // (keine Notiz) – KEIN volles Menü, nur der Kalender-Sync-Ein/Ausschalter (falls mit Google verbunden).
+  navItem(c, {
+    cls: "bt-nav-inbox", icon: "inbox", label: t("nav_inbox"),
+    count: plugin.index.inboxOpen().length, countKey: "p:" + INBOX_KEY, active: plugin.currentProject === INBOX_KEY,
+    onClick: () => void plugin.activateProject(INBOX_KEY),
+    onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, INBOX_KEY)) m.showAtMouseEvent(e); },
+  });
 
   for (const id of VIEW_IDS) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;

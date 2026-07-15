@@ -1,7 +1,7 @@
 import { App, TFile, requestUrl, Notice } from "obsidian";
 import { Task } from "./types";
 import { isTrashed, isDone } from "./statuses";
-import { isInboxLink, listProjectsAndAreas } from "./taskService";
+import { isInboxLink } from "./taskService";
 import { resolveReminders } from "./reminders";
 import { combineDT } from "./format";
 import { t } from "./i18n";
@@ -59,6 +59,7 @@ export interface GCalSyncSettings {
   syncOnUpdate: boolean;           // Änderungen (Datum/Titel/…) an bestehende Events übertragen
   syncOnDelete: boolean;           // Event entfernen, wenn Aufgabe gelöscht/undatiert wird
   removeEventOnComplete: boolean;  // erledigte Aufgaben: Event löschen statt behalten
+  excludeInbox: boolean;           // den Eingang (Aufgaben ohne Projekt) vom Sync ausschließen
   notifyConflicts: boolean;        // (Stufe B) bei Konflikten benachrichtigen
   showStatusBar: boolean;
   account: string | null;          // Anzeige-E-Mail
@@ -79,6 +80,7 @@ export const DEFAULT_GCAL_SETTINGS: GCalSyncSettings = {
   syncOnUpdate: true,
   syncOnDelete: true,
   removeEventOnComplete: false,
+  excludeInbox: false,
   notifyConflicts: false,
   showStatusBar: true,
   account: null,
@@ -443,11 +445,8 @@ export class GCalSync {
   }
 
   private projectExcluded(t: Task): boolean {
-    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) folgt dem Ausschluss der Eingang-Notiz.
-    if (isInboxLink(t.project)) {
-      const eingang = listProjectsAndAreas(this.host.app).eingang;
-      return eingang ? this.frontmatterOf(eingang.path)?.gcal_sync === false : false;
-    }
+    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) folgt dem Eingang-Ausschluss (Settings).
+    if (isInboxLink(t.project)) return this.host.settings.excludeInbox;
     return this.frontmatterOf(t.project!)?.gcal_sync === false;
   }
 
