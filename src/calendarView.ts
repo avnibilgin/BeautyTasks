@@ -553,6 +553,9 @@ function startResize(e: MouseEvent, el: HTMLElement, task: Task, startMin: numbe
   const onUp = (): void => {
     doc.removeEventListener("mousemove", onMove);
     doc.removeEventListener("mouseup", onUp);
+    // Den auf mouseup folgenden synthetischen Klick schlucken: sein Ziel ist der gemeinsame Vorfahr
+    // (die Spalte), sonst löst deren „Klick auf freien Slot → neue Aufgabe" aus (Geister-Modal).
+    doc.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });
     if (minutes !== task.duration) void plugin.setTaskDuration(task, minutes);   // Index zeichnet neu (s. dropTarget)
   };
   doc.addEventListener("mousemove", onMove);

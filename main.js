@@ -9620,6 +9620,7 @@ function startResize(e, el, task, startMin, plugin) {
   const onUp = () => {
     doc.removeEventListener("mousemove", onMove);
     doc.removeEventListener("mouseup", onUp);
+    doc.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });
     if (minutes !== task.duration) void plugin.setTaskDuration(task, minutes);
   };
   doc.addEventListener("mousemove", onMove);
