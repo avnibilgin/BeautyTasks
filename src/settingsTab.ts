@@ -92,6 +92,21 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => (p.settings.projectsFolder = v));
     folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => (p.settings.attachmentsFolder = v));
 
+    // Ausschluss-Ordner: Notizen darin gelten NIE als Aufgabe (Schutz vor fremden type:task-Notizen).
+    // Ein Ordner pro Zeile. Änderung erfordert einen Index-Neuaufbau (parse-Ergebnis ändert sich).
+    new Setting(containerEl).setName(t("set_exclude_folders")).setDesc(t("set_exclude_folders_desc"))
+      .addTextArea((ta) => {
+        ta.setValue(p.settings.excludeFolders.join("\n"));
+        ta.inputEl.rows = 3;
+        // Tippen speichert nur den Wert (billig). Der teure Index-Neuaufbau (Vollscan) läuft
+        // erst beim Verlassen des Feldes – nicht bei jedem Tastendruck.
+        ta.onChange(async (v) => {
+          p.settings.excludeFolders = v.split("\n").map((s) => normalizePath(s.trim())).filter((s) => s && s !== ".");
+          await p.saveSettings();
+        });
+        ta.inputEl.addEventListener("blur", () => { p.index.build(); p.renderAll(); });
+      });
+
     // ── Verhalten ──
     new Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
 
@@ -121,6 +136,13 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) =>
       tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => { p.settings.parseNaturalLanguage = v; await p.saveSettings(); }));
+
+    new Setting(containerEl).setName(t("set_show_unfiled")).setDesc(t("set_show_unfiled_desc")).addToggle((tg) =>
+      tg.setValue(p.settings.showUnfiledInInbox).onChange(async (v) => {
+        p.settings.showUnfiledInInbox = v;
+        await p.saveSettings();
+        p.renderAll();   // Eingang + Zähler neu zeichnen
+      }));
 
     new Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) =>
       tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {

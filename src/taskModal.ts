@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, TaskFields } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, TaskFields } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { parseQuickEntry } from "./quickEntry";
@@ -476,6 +476,7 @@ export class TaskModal extends Modal {
       const file = this.app.vault.getAbstractFileByPath(this.existing.path);
       if (file instanceof TFile) {
         await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+          ensureCanonicalFm(fm);   // handgeschriebene Notiz beim ersten Editieren kanonisieren
           const set = (k: string, v: unknown) => {
             if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) delete fm[k]; else fm[k] = v;
           };

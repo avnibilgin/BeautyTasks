@@ -21,6 +21,14 @@ export const todayIso = (): string => {
   return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
 };
 
+/** Fehlende Kanon-Felder (`id`, `created`) einer Aufgaben-Notiz nachtragen – idempotent.
+ *  Für handgeschriebene `type: task`-Notizen, sobald sie erstmals über die App bearbeitet werden:
+ *  hält die Identität über Umbenennen und GCal-Sync stabil. `status`/`project` bleiben unberührt. */
+export function ensureCanonicalFm(fm: Record<string, unknown>): void {
+  if (fm.id == null || fm.id === "") fm.id = newId("t");
+  if (typeof fm.created !== "string" || !fm.created) fm.created = todayIso();
+}
+
 /** Frontmatter-Block – nur gesetzte Felder. */
 export function buildFrontmatter(obj: Record<string, unknown>): string {
   const clean: Record<string, unknown> = {};

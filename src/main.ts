@@ -9,7 +9,7 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ProjItem } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ensureCanonicalFm, ProjItem } from "./taskService";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
@@ -65,7 +65,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
-    this.index = new TaskIndex(this.app);
+    this.index = new TaskIndex(this.app, () => this.settings);
     this.addChild(this.index);
     // KEIN globales Abo hier: MainView und NavView abonnieren den Index selbst (onOpen) und
     // zeichnen sich bei jeder Meldung neu. Ein zusätzliches renderAll() hier hieße, dass jede
@@ -133,6 +133,21 @@ export default class BeautyTasksPlugin extends Plugin {
     // sie tun dasselbe wie der „+ Aufgabe"-Knopf unter dem Seitentitel. Siehe addContext().
     this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTaskHere() });
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAddHere() });
+    // Aktuelle Notiz zur Aufgabe machen: setzt `type: task` (+ id/created) – ohne YAML von Hand.
+    // Nur sichtbar, wenn eine Markdown-Notiz offen ist, die noch keine Aufgabe ist.
+    this.addCommand({
+      id: "make-task", name: t("cmd_make_task"),
+      checkCallback: (checking: boolean) => {
+        const f = this.app.workspace.getActiveFile();
+        if (!f || f.extension !== "md") return false;
+        // Nur „normale" Notizen: bereits eine Aufgabe ODER eine BeautyTasks-Entität
+        // (Projekt/Bereich/Filter) NICHT anbieten – sonst würde der Typ überschrieben.
+        const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+        if (type === "task" || type === "project" || type === "area" || type === "filter") return false;
+        if (!checking) void this.convertActiveNoteToTask(f);
+        return true;
+      },
+    });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -901,6 +916,16 @@ export default class BeautyTasksPlugin extends Plugin {
     }).open();
   }
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
+  /** Bestehende Notiz zur Aufgabe machen: `type: task` + Kanon-Felder setzen. Ohne Projekt –
+   *  landet damit (Variante A) automatisch im Eingang, bis der Nutzer sie zuordnet. */
+  async convertActiveNoteToTask(f: TFile): Promise<void> {
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      fm.type = "task";
+      ensureCanonicalFm(fm);
+      if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
+    });
+    new Notice(t("notice_made_task"));
+  }
   /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
    *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */
   openNewTaskOn(due: string, dueTime?: string | null, project?: string, label?: string): void {
@@ -981,13 +1006,13 @@ export default class BeautyTasksPlugin extends Plugin {
   async setTaskDate(task: Task, field: "due" | "scheduled", isoVal: string): Promise<void> {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
-    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { if (isoVal) fm[field] = isoVal; else delete fm[field]; });
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); if (isoVal) fm[field] = isoVal; else delete fm[field]; });
   }
 
   async setTaskDuration(task: Task, minutes: number | null): Promise<void> {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
-    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { if (minutes) fm.duration = minutes; else delete fm.duration; });
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); if (minutes) fm.duration = minutes; else delete fm.duration; });
   }
 
   /** Checkbox-Umschalten: erledigt ⇄ offen. Delegiert an setTaskStatus, damit die
@@ -1003,11 +1028,18 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Ein Label an einer Aufgabe tauschen (Kanban „nach Label", Drag zwischen Label-Spalten):
    *  entfernt `remove` (falls gesetzt) und fügt `add` hinzu (falls gesetzt) – andere Labels bleiben.
    *  Der metadataCache-Listener zeichnet danach neu (wie bei setTaskStatus). */
+  /** Fehlende Kanon-Felder einer handgeschriebenen `type: task`-Notiz nachtragen – idempotent,
+   *  lazy: läuft nur, wenn der Nutzer die Aufgabe erstmals ÜBER DIE APP anfasst (Status/Projekt/
+   *  Label/Datum ändern, abschließen …). So bleibt `id` über Umbenennen und GCal-Sync stabil,
+   *  ohne dass beim Laden fremde Notizen umgeschrieben werden. `status`/`project` bleiben unberührt
+   *  (fehlendes `project` ist bedeutungstragend = Eingang). */
+  private ensureCanonical(fm: Record<string, unknown>): void { ensureCanonicalFm(fm); }
   async swapTaskLabel(task: Task, remove: string | null, add: string | null): Promise<void> {
     if (remove === add) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      this.ensureCanonical(fm);
       let arr = Array.isArray(fm.labels) ? (fm.labels as unknown[]).map(String) : [];
       if (remove) arr = arr.filter((x) => x !== remove);
       if (add && !arr.includes(add)) arr.push(add);
@@ -1019,6 +1051,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      this.ensureCanonical(fm);
       fm.priority = priority !== "normal" ? priority : null;
     });
   }
@@ -1028,6 +1061,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      this.ensureCanonical(fm);
       fm.project = project ? "[[" + project + "]]" : null;
     });
   }
@@ -1038,6 +1072,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      this.ensureCanonical(fm);
       fm.status = status;
       if (nowDone && !wasDone) fm.completed = localStamp();   // mit Uhrzeit: am selben Tag nach Zeit sortierbar
       else if (wasDone && !nowDone) fm.completed = null;      // von „erledigt" zurück ins Offene -> Stempel weg
@@ -1076,7 +1111,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((t) => !isTrashed(t.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = cancelId; fm.cancelled = stamp; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = cancelId; fm.cancelled = stamp; });
     }
   }
 
@@ -1087,7 +1122,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = firstOpenStatus(); delete fm.cancelled; });
     }
     new Notice(t("msg_restored", task.title));
   }
@@ -1104,7 +1139,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!items.length) { new Notice(t("report_trash_empty_restore")); return; }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = firstOpenStatus(); delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = firstOpenStatus(); delete fm.cancelled; });
     }
     new Notice(t("report_tasks_restored", items.length));
   }

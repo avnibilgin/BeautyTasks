@@ -1,5 +1,5 @@
 import { App, Component, TFile } from "obsidian";
-import { Task, Priority } from "./types";
+import { Task, Priority, BeautyTasksSettings } from "./types";
 import { splitContent } from "./detailLog";
 import { archivedProjectNames } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
@@ -43,7 +43,17 @@ export class TaskIndex extends Component {
     this.labelCache = null;
   }
 
-  constructor(private app: App) { super(); }
+  constructor(private app: App, private getSettings: () => BeautyTasksSettings) { super(); }
+
+  /** Liegt der Pfad in einem der Ausschluss-Ordner? Dann gilt die Notiz NIE als Aufgabe –
+   *  Schutz vor fremden `type: task`-Notizen (z. B. anderer Plugins) im Vault-weiten Scan. */
+  private isExcluded(path: string): boolean {
+    for (const raw of this.getSettings().excludeFolders) {
+      const dir = raw.replace(/\/+$/, "").trim();
+      if (dir && (path === dir || path.startsWith(dir + "/"))) return true;
+    }
+    return false;
+  }
 
   /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
   private archivedProjects(): Set<string> {
@@ -146,6 +156,7 @@ export class TaskIndex extends Component {
 
   /** Frontmatter -> Task (Defaults + Enum-Schutz). null = keine Aufgabe. */
   private parse(f: TFile): Task | null {
+    if (this.isExcluded(f.path)) return null;   // Notizen in Ausschluss-Ordnern sind keine Aufgaben
     const cache = this.app.metadataCache.getFileCache(f);
     const fm = cache?.frontmatter;
     if (!fm || fm.type !== "task") return null;
@@ -240,6 +251,21 @@ export class TaskIndex extends Component {
   }
   byProject(path: string): Task[] {
     return this.byProjectMap().get(baseName(path)) ?? [];
+  }
+
+  /** Eingang, ALLE Status (fürs Board): explizit `project: [[Inbox]]` ODER (optional) projektlos.
+   *  Projektlose im Papierkorb bleiben außen vor – die zeigt der globale Papierkorb. Die beiden
+   *  Teilmengen sind disjunkt (mit Projekt vs. ohne), daher einfach aneinandergehängt. */
+  inboxAll(inboxName: string): Task[] {
+    const filed = this.all().filter((t) => t.project != null && baseName(t.project) === inboxName);
+    const showUnfiled = this.getSettings().showUnfiledInInbox;
+    const unfiled = showUnfiled ? this.all().filter((t) => !t.project && !isTrashed(t.status)) : [];
+    return [...filed, ...unfiled];
+  }
+
+  /** Offene Eingangs-Aufgaben – für den Sidebar-Zähler (analog byProject bei normalen Projekten). */
+  inboxOpen(inboxName: string): Task[] {
+    return this.inboxAll(inboxName).filter((t) => isOpen(t.status));
   }
 
   /** Offene Aufgaben je Label – ebenfalls einmal gruppiert (eine Aufgabe kann mehrere haben). */

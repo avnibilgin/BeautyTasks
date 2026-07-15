@@ -40,6 +40,8 @@ var DEFAULT_SETTINGS = {
   startView: "heute",
   lastView: "heute",
   parseNaturalLanguage: true,
+  showUnfiledInInbox: true,
+  excludeFolders: [],
   chipsIconsOnly: false,
   boardLayout: "list",
   reminderLastScan: 0,
@@ -260,12 +262,14 @@ var STRINGS = {
     err_parent_not_found: "Parent task not found.",
     cmd_new_task: "New task",
     cmd_quick_add: "Quick add task",
+    cmd_make_task: "Turn current note into a task",
     cmd_open_view: "Open {0}",
     cmd_count_tasks: "Count tasks",
     cmd_import: "Import from Tasks/Lists",
     cmd_search: "Search tasks",
     cmd_whatsnew: "Show what's new",
     cmd_gcal_sync_now: "Sync with Google Calendar now",
+    notice_made_task: "Note is now a task.",
     cmd_export_json: "Export tasks (JSON)",
     cmd_import_json: "Import tasks (JSON)",
     cmd_import_tasknotes: "Import from TaskNotes",
@@ -396,6 +400,10 @@ var STRINGS = {
     set_start_view_last: "Last used",
     set_nl: "Detect date and #labels in title",
     set_nl_desc: "Parse due dates and #labels automatically while typing the task title.",
+    set_show_unfiled: "Show unfiled tasks in inbox",
+    set_show_unfiled_desc: "List open tasks that have no project \u2013 including notes you create by hand with `type: task` \u2013 in the inbox. Turn off to keep the inbox to tasks you filed there explicitly.",
+    set_exclude_folders: "Excluded folders",
+    set_exclude_folders_desc: "Notes in these folders are never treated as tasks, even with `type: task`. One folder per line.",
     nav_trash: "Trash",
     empty_trash: "Trash is empty.",
     trash_restore_all: "Restore all",
@@ -711,12 +719,14 @@ var STRINGS = {
     err_parent_not_found: "\xDCbergeordnete Aufgabe nicht gefunden.",
     cmd_new_task: "Neue Aufgabe",
     cmd_quick_add: "Aufgabe schnell erfassen",
+    cmd_make_task: "Aktuelle Notiz zur Aufgabe machen",
     cmd_open_view: "{0} \xF6ffnen",
     cmd_count_tasks: "Aufgaben z\xE4hlen",
     cmd_import: "Aus Tasks/Lists importieren",
     cmd_search: "Aufgaben suchen",
     cmd_whatsnew: "Neuigkeiten anzeigen",
     cmd_gcal_sync_now: "Jetzt mit Google Kalender synchronisieren",
+    notice_made_task: "Notiz ist jetzt eine Aufgabe.",
     cmd_export_json: "Aufgaben exportieren (JSON)",
     cmd_import_json: "Aufgaben importieren (JSON)",
     cmd_import_tasknotes: "Aus TaskNotes importieren",
@@ -847,6 +857,10 @@ var STRINGS = {
     set_start_view_last: "Zuletzt benutzte",
     set_nl: "Datum und #Labels im Titel erkennen",
     set_nl_desc: "F\xE4lligkeitsdatum und #Labels automatisch beim Tippen aus dem Titel \xFCbernehmen.",
+    set_show_unfiled: "Nicht zugeordnete Aufgaben im Eingang zeigen",
+    set_show_unfiled_desc: "Offene Aufgaben ohne Projekt \u2013 auch von Hand mit `type: task` erstellte Notizen \u2013 im Eingang auflisten. Ausschalten, um im Eingang nur explizit dort abgelegte Aufgaben zu zeigen.",
+    set_exclude_folders: "Ausgeschlossene Ordner",
+    set_exclude_folders_desc: "Notizen in diesen Ordnern gelten nie als Aufgabe, auch mit `type: task`. Ein Ordner pro Zeile.",
     nav_trash: "Papierkorb",
     empty_trash: "Papierkorb ist leer.",
     trash_restore_all: "Alle wiederherstellen",
@@ -4846,6 +4860,10 @@ var todayIso = () => {
   const z6 = (n) => String(n).padStart(2, "0");
   return d.getFullYear() + "-" + z6(d.getMonth() + 1) + "-" + z6(d.getDate());
 };
+function ensureCanonicalFm(fm) {
+  if (fm.id == null || fm.id === "") fm.id = newId("t");
+  if (typeof fm.created !== "string" || !fm.created) fm.created = todayIso();
+}
 function buildFrontmatter(obj) {
   const clean = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -5019,9 +5037,10 @@ var asTime = (v) => {
 };
 var asNum = (v) => typeof v === "number" && isFinite(v) ? v : null;
 var TaskIndex = class extends import_obsidian2.Component {
-  constructor(app) {
+  constructor(app, getSettings) {
     super();
     this.app = app;
+    this.getSettings = getSettings;
     this.byPath = /* @__PURE__ */ new Map();
     this.byId = /* @__PURE__ */ new Map();
     // id -> path (überlebt Umbenennen, für Sync)
@@ -5052,6 +5071,15 @@ var TaskIndex = class extends import_obsidian2.Component {
     this.openCache = null;
     this.projectCache = null;
     this.labelCache = null;
+  }
+  /** Liegt der Pfad in einem der Ausschluss-Ordner? Dann gilt die Notiz NIE als Aufgabe –
+   *  Schutz vor fremden `type: task`-Notizen (z. B. anderer Plugins) im Vault-weiten Scan. */
+  isExcluded(path) {
+    for (const raw of this.getSettings().excludeFolders) {
+      const dir = raw.replace(/\/+$/, "").trim();
+      if (dir && (path === dir || path.startsWith(dir + "/"))) return true;
+    }
+    return false;
   }
   /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
   archivedProjects() {
@@ -5147,6 +5175,7 @@ var TaskIndex = class extends import_obsidian2.Component {
   }
   /** Frontmatter -> Task (Defaults + Enum-Schutz). null = keine Aufgabe. */
   parse(f) {
+    if (this.isExcluded(f.path)) return null;
     const cache = this.app.metadataCache.getFileCache(f);
     const fm = cache?.frontmatter;
     if (!fm || fm.type !== "task") return null;
@@ -5255,6 +5284,19 @@ var TaskIndex = class extends import_obsidian2.Component {
   }
   byProject(path) {
     return this.byProjectMap().get(baseName(path)) ?? [];
+  }
+  /** Eingang, ALLE Status (fürs Board): explizit `project: [[Inbox]]` ODER (optional) projektlos.
+   *  Projektlose im Papierkorb bleiben außen vor – die zeigt der globale Papierkorb. Die beiden
+   *  Teilmengen sind disjunkt (mit Projekt vs. ohne), daher einfach aneinandergehängt. */
+  inboxAll(inboxName) {
+    const filed = this.all().filter((t2) => t2.project != null && baseName(t2.project) === inboxName);
+    const showUnfiled = this.getSettings().showUnfiledInInbox;
+    const unfiled = showUnfiled ? this.all().filter((t2) => !t2.project && !isTrashed(t2.status)) : [];
+    return [...filed, ...unfiled];
+  }
+  /** Offene Eingangs-Aufgaben – für den Sidebar-Zähler (analog byProject bei normalen Projekten). */
+  inboxOpen(inboxName) {
+    return this.inboxAll(inboxName).filter((t2) => isOpen(t2.status));
   }
   /** Offene Aufgaben je Label – ebenfalls einmal gruppiert (eine Aufgabe kann mehrere haben). */
   byLabelMap() {
@@ -7862,6 +7904,7 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       const file = this.app.vault.getAbstractFileByPath(this.existing.path);
       if (file instanceof import_obsidian11.TFile) {
         await this.app.fileManager.processFrontMatter(file, (fm) => {
+          ensureCanonicalFm(fm);
           const set = (k, v) => {
             if (v === null || v === void 0 || v === "" || Array.isArray(v) && v.length === 0) delete fm[k];
             else fm[k] = v;
@@ -9835,7 +9878,7 @@ function renderProjectBoardInto(c, plugin, projectPath) {
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {}
   );
   addBar(top, plugin, () => plugin.openNewTask(name, void 0, false, void 0, addDue(plugin)));
-  const source = () => plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
+  const source = () => isInbox2 ? plugin.index.inboxAll(name) : plugin.index.all().filter((t2) => t2.project != null && projectName(t2.project) === name);
   const tasks = source();
   if (!tasks.length) {
     if (isInbox2) emptyState(root, "inbox", "empty_no_inbox_tasks");
@@ -10476,7 +10519,7 @@ var navBadges = null;
 function navCounts(plugin) {
   const m = /* @__PURE__ */ new Map();
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  if (eingang) m.set("p:" + eingang.path, plugin.index.byProject(eingang.path).length);
+  if (eingang) m.set("p:" + eingang.path, plugin.index.inboxOpen(eingang.name).length);
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
@@ -10529,7 +10572,7 @@ function renderNavInto(c, plugin) {
       icon: ib.icon,
       iconColor: navColor(ib.path, ib.color),
       label: projectDisplayName(ib.name),
-      count: plugin.index.byProject(ib.path).length,
+      count: plugin.index.inboxOpen(ib.name).length,
       countKey: "p:" + ib.path,
       active: plugin.currentProject === ib.path,
       onClick: () => void plugin.activateProject(ib.path),
@@ -11950,6 +11993,18 @@ var BeautyTasksSettingTab = class extends import_obsidian25.PluginSettingTab {
     folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => p.settings.itemsFolder = v);
     folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => p.settings.projectsFolder = v);
     folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => p.settings.attachmentsFolder = v);
+    new import_obsidian25.Setting(containerEl).setName(t("set_exclude_folders")).setDesc(t("set_exclude_folders_desc")).addTextArea((ta) => {
+      ta.setValue(p.settings.excludeFolders.join("\n"));
+      ta.inputEl.rows = 3;
+      ta.onChange(async (v) => {
+        p.settings.excludeFolders = v.split("\n").map((s) => (0, import_obsidian25.normalizePath)(s.trim())).filter((s) => s && s !== ".");
+        await p.saveSettings();
+      });
+      ta.inputEl.addEventListener("blur", () => {
+        p.index.build();
+        p.renderAll();
+      });
+    });
     new import_obsidian25.Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
     new import_obsidian25.Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
       dd.addOption("auto", t("set_language_auto"));
@@ -11983,6 +12038,11 @@ var BeautyTasksSettingTab = class extends import_obsidian25.PluginSettingTab {
     new import_obsidian25.Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) => tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => {
       p.settings.parseNaturalLanguage = v;
       await p.saveSettings();
+    }));
+    new import_obsidian25.Setting(containerEl).setName(t("set_show_unfiled")).setDesc(t("set_show_unfiled_desc")).addToggle((tg) => tg.setValue(p.settings.showUnfiledInInbox).onChange(async (v) => {
+      p.settings.showUnfiledInInbox = v;
+      await p.saveSettings();
+      p.renderAll();
     }));
     new import_obsidian25.Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) => tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
       p.settings.showDescriptionInList = v;
@@ -12750,7 +12810,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     await this.loadSettings();
     this.applyLocale();
     this.currentView = this.resolveStartView();
-    this.index = new TaskIndex(this.app);
+    this.index = new TaskIndex(this.app, () => this.settings);
     this.addChild(this.index);
     this.setupGCal();
     this.reminderScan = this.settings.reminderLastScan || Date.now();
@@ -12794,6 +12854,18 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     }
     this.addCommand({ id: "new-task", name: t("cmd_new_task"), callback: () => this.openNewTaskHere() });
     this.addCommand({ id: "quick-add", name: t("cmd_quick_add"), callback: () => this.openQuickAddHere() });
+    this.addCommand({
+      id: "make-task",
+      name: t("cmd_make_task"),
+      checkCallback: (checking) => {
+        const f = this.app.workspace.getActiveFile();
+        if (!f || f.extension !== "md") return false;
+        const type = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+        if (type === "task" || type === "project" || type === "area" || type === "filter") return false;
+        if (!checking) void this.convertActiveNoteToTask(f);
+        return true;
+      }
+    });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -13628,6 +13700,16 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
   openEditTask(task) {
     new TaskModal(this, task).open();
   }
+  /** Bestehende Notiz zur Aufgabe machen: `type: task` + Kanon-Felder setzen. Ohne Projekt –
+   *  landet damit (Variante A) automatisch im Eingang, bis der Nutzer sie zuordnet. */
+  async convertActiveNoteToTask(f) {
+    await this.app.fileManager.processFrontMatter(f, (fm) => {
+      fm.type = "task";
+      ensureCanonicalFm(fm);
+      if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
+    });
+    new import_obsidian29.Notice(t("notice_made_task"));
+  }
   /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
    *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */
   openNewTaskOn(due, dueTime, project, label) {
@@ -13711,6 +13793,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof import_obsidian29.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
+      this.ensureCanonical(fm);
       if (isoVal) fm[field] = isoVal;
       else delete fm[field];
     });
@@ -13719,6 +13802,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof import_obsidian29.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
+      this.ensureCanonical(fm);
       if (minutes) fm.duration = minutes;
       else delete fm.duration;
     });
@@ -13735,11 +13819,20 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
   /** Ein Label an einer Aufgabe tauschen (Kanban „nach Label", Drag zwischen Label-Spalten):
    *  entfernt `remove` (falls gesetzt) und fügt `add` hinzu (falls gesetzt) – andere Labels bleiben.
    *  Der metadataCache-Listener zeichnet danach neu (wie bei setTaskStatus). */
+  /** Fehlende Kanon-Felder einer handgeschriebenen `type: task`-Notiz nachtragen – idempotent,
+   *  lazy: läuft nur, wenn der Nutzer die Aufgabe erstmals ÜBER DIE APP anfasst (Status/Projekt/
+   *  Label/Datum ändern, abschließen …). So bleibt `id` über Umbenennen und GCal-Sync stabil,
+   *  ohne dass beim Laden fremde Notizen umgeschrieben werden. `status`/`project` bleiben unberührt
+   *  (fehlendes `project` ist bedeutungstragend = Eingang). */
+  ensureCanonical(fm) {
+    ensureCanonicalFm(fm);
+  }
   async swapTaskLabel(task, remove, add) {
     if (remove === add) return;
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof import_obsidian29.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
+      this.ensureCanonical(fm);
       let arr = Array.isArray(fm.labels) ? fm.labels.map(String) : [];
       if (remove) arr = arr.filter((x) => x !== remove);
       if (add && !arr.includes(add)) arr.push(add);
@@ -13751,6 +13844,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof import_obsidian29.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
+      this.ensureCanonical(fm);
       fm.priority = priority !== "normal" ? priority : null;
     });
   }
@@ -13760,6 +13854,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof import_obsidian29.TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
+      this.ensureCanonical(fm);
       fm.project = project ? "[[" + project + "]]" : null;
     });
   }
@@ -13770,6 +13865,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
     await this.app.fileManager.processFrontMatter(f, (fm) => {
+      this.ensureCanonical(fm);
       fm.status = status;
       if (nowDone && !wasDone) fm.completed = localStamp();
       else if (wasDone && !nowDone) fm.completed = null;
@@ -13805,6 +13901,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof import_obsidian29.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+        this.ensureCanonical(fm);
         fm.status = cancelId;
         fm.cancelled = stamp;
       });
@@ -13816,6 +13913,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof import_obsidian29.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+        this.ensureCanonical(fm);
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });
@@ -13837,6 +13935,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
       if (f instanceof import_obsidian29.TFile) await this.app.fileManager.processFrontMatter(f, (fm) => {
+        this.ensureCanonical(fm);
         fm.status = firstOpenStatus();
         delete fm.cancelled;
       });

@@ -252,7 +252,10 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   addBar(top, plugin, () => plugin.openNewTask(name, undefined, false, undefined, addDue(plugin)));
 
   // Nach Namen vergleichen: gleichnamige Notizen hätten sonst verschiedene Pfade.
-  const source = (): Task[] => plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
+  // Eingang = explizit `project: [[Inbox]]` UND (optional) projektlose Aufgaben (auch handgeschriebene).
+  const source = (): Task[] => isInbox
+    ? plugin.index.inboxAll(name)
+    : plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
   const tasks = source();
   if (!tasks.length) {
     if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
@@ -970,7 +973,7 @@ let navBadges: Map<string, HTMLElement> | null = null;   // aktive Sammlung wäh
 function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   const m = new Map<string, number>();
   const { eingang, bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  if (eingang) m.set("p:" + eingang.path, plugin.index.byProject(eingang.path).length);
+  if (eingang) m.set("p:" + eingang.path, plugin.index.inboxOpen(eingang.name).length);
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
@@ -1036,7 +1039,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
     const ib = eingang;
     navItem(c, {
       cls: "bt-nav-inbox", icon: ib.icon, iconColor: navColor(ib.path, ib.color), label: projectDisplayName(ib.name),
-      count: plugin.index.byProject(ib.path).length, countKey: "p:" + ib.path, active: plugin.currentProject === ib.path,
+      count: plugin.index.inboxOpen(ib.name).length, countKey: "p:" + ib.path, active: plugin.currentProject === ib.path,
       onClick: () => void plugin.activateProject(ib.path),
       onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, ib.path)) m.showAtMouseEvent(e); },
     });
