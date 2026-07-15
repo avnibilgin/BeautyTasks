@@ -5,7 +5,7 @@ import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensu
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { parseQuickEntry } from "./quickEntry";
-import { readLog, readDescription, writeDescription } from "./detailLog";
+import { readLog } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
 import { firstOpenStatus } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
@@ -24,7 +24,6 @@ export class TaskModal extends Modal {
   private f: TaskFields & { scheduled?: string | null; recurrence?: string | null; reminders: string[] };
   private chipBar!: HTMLElement;
   private descInput: HTMLTextAreaElement | null = null;
-  private descDirty = false;          // true sobald Nutzer die Beschreibung getippt hat
   private projektBtn!: HTMLButtonElement;
   private detailsWrap!: HTMLElement;
   private logWrap!: HTMLElement;
@@ -51,6 +50,7 @@ export class TaskModal extends Modal {
           parent: existing.parent ? baseName(existing.parent) : null,
           labels: [...existing.labels],
           reminders: [...(existing.reminders ?? [])],
+          description: existing.description,   // aus dem Frontmatter (kein Body-Read mehr nötig)
         }
       // Neu: Basis + optionaler Seed (z. B. aus der Schnelleingabe, ⤢ „Voller Editor" – übernimmt
       // alle bereits gesetzten Chips). Explizit, damit reminders sicher string[] bleibt.
@@ -85,7 +85,7 @@ export class TaskModal extends Modal {
     // Beschreibung: freier Markdown-Text, im Body zwischen Titel und Kommentar-Log.
     const desc = contentEl.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "1" } });
     desc.value = this.f.description ?? "";
-    desc.oninput = () => { this.descDirty = true; this.f.description = desc.value; this.growDesc(); };
+    desc.oninput = () => { this.f.description = desc.value; this.growDesc(); };
     this.descInput = desc;
     window.setTimeout(() => this.growDesc(), 0);
 
@@ -109,14 +109,10 @@ export class TaskModal extends Modal {
     this.log.mount(this.logWrap);
     this.syncDetails();
     // Bestehende Aufgabe: Log aus dem Notiz-Body laden, bei Inhalt direkt aufgeklappt.
+    // (Die Beschreibung kommt bereits aus dem Frontmatter über this.f.description.)
     if (this.existing) {
       const file = this.app.vault.getAbstractFileByPath(this.existing.path);
       if (file instanceof TFile) {
-        void readDescription(this.app, file).then((d) => {
-          if (this.descDirty) return;   // Nutzer hat schon getippt -> nicht überschreiben
-          this.f.description = d;
-          if (this.descInput) { this.descInput.value = d; this.growDesc(); }
-        });
         void readLog(this.app, file).then((entries) => {
           this.log.setEntries(entries);
           if (entries.length) this.logWrap.removeClass("bt-hidden");
@@ -490,15 +486,15 @@ export class TaskModal extends Modal {
           set("parent", this.f.parent ? "[[" + this.f.parent + "]]" : null);
           set("labels", this.f.labels);
           set("reminders", this.f.reminders);
+          set("description", (this.f.description ?? "").trim() || null);   // leer => Feld entfernen
         });
         if (title !== this.existing.title) {
           // Titel steckt in der „# Überschrift" (ungekürzt); Dateiname bleibt der Slug
           // -> kein Umbenennen (bricht sonst Eltern-Links) und keine Längenbegrenzung.
           await this.app.vault.process(file, (c) => c.replace(/^#\s+.*$/m, () => "# " + title));
         }
-        // Beschreibung nur schreiben, wenn geladen oder getippt (undefined = Read noch
-        // offen und nichts eingegeben -> Body nicht überschreiben).
-        if (this.f.description !== undefined) await writeDescription(this.app, file, this.f.description ?? "");
+        // Beschreibung steht im Frontmatter (siehe set("description") oben) – der Notiz-Body
+        // (eigener Inhalt einer umgewandelten Notiz) bleibt hier bewusst unangetastet.
       }
     } else {
       const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null });

@@ -54,6 +54,7 @@ export interface Task {
   project: string | null;  // aufgelöster Pfad der zugeordneten Liste (Projekt ODER Bereich; Typ lebt an der Liste)
   parent: string | null;   // aufgelöster Pfad der Eltern-Aufgabe
   labels: string[];
+  description: string;          // kurzer Zusatztext, im Frontmatter (`description`); NICHT der Notiz-Body
   recurrence: string | null;
   recurBasis: "due" | "done";   // Wiederholung ab Fälligkeit (due) oder Erledigung (done)
   reminders: string[];          // rohe Erinnerungs-Strings, siehe reminders.ts ("-30m" | ISO)

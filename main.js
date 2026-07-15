@@ -263,6 +263,7 @@ var STRINGS = {
     cmd_new_task: "New task",
     cmd_quick_add: "Quick add task",
     cmd_make_task: "Turn current note into a task",
+    cmd_migrate_desc: "Migrate descriptions to frontmatter",
     cmd_open_view: "Open {0}",
     cmd_count_tasks: "Count tasks",
     cmd_import: "Import from Tasks/Lists",
@@ -270,6 +271,9 @@ var STRINGS = {
     cmd_whatsnew: "Show what's new",
     cmd_gcal_sync_now: "Sync with Google Calendar now",
     notice_made_task: "Note is now a task.",
+    notice_desc_migrated: "Descriptions migrated: {0} moved to frontmatter, {1} kept as notes.",
+    desc_note_content_hint: "Contains its own note content.",
+    log_open_note: "\u{1F4C4} Open note",
     cmd_export_json: "Export tasks (JSON)",
     cmd_import_json: "Import tasks (JSON)",
     cmd_import_tasknotes: "Import from TaskNotes",
@@ -720,6 +724,7 @@ var STRINGS = {
     cmd_new_task: "Neue Aufgabe",
     cmd_quick_add: "Aufgabe schnell erfassen",
     cmd_make_task: "Aktuelle Notiz zur Aufgabe machen",
+    cmd_migrate_desc: "Beschreibungen ins Frontmatter migrieren",
     cmd_open_view: "{0} \xF6ffnen",
     cmd_count_tasks: "Aufgaben z\xE4hlen",
     cmd_import: "Aus Tasks/Lists importieren",
@@ -727,6 +732,9 @@ var STRINGS = {
     cmd_whatsnew: "Neuigkeiten anzeigen",
     cmd_gcal_sync_now: "Jetzt mit Google Kalender synchronisieren",
     notice_made_task: "Notiz ist jetzt eine Aufgabe.",
+    notice_desc_migrated: "Beschreibungen migriert: {0} ins Frontmatter, {1} als Notiz behalten.",
+    desc_note_content_hint: "Enth\xE4lt eigene Notizinhalte.",
+    log_open_note: "\u{1F4C4} Notiz \xF6ffnen",
     cmd_export_json: "Aufgaben exportieren (JSON)",
     cmd_import_json: "Aufgaben importieren (JSON)",
     cmd_import_tasknotes: "Aus TaskNotes importieren",
@@ -4747,109 +4755,6 @@ function resolveReminders(task) {
 // src/taskIndex.ts
 var import_obsidian2 = require("obsidian");
 
-// src/detailLog.ts
-function parseDetailLog(body, fallbackTs = "") {
-  const src = String(body || "");
-  const entries = [];
-  let cur = null;
-  for (const line of src.split("\n")) {
-    const head = line.match(/^>\s*\[!log\][-+]?\s*(.*?)\s*$/i);
-    if (head) {
-      if (cur) entries.push(cur);
-      cur = { ts: (head[1] || "").trim(), body: [] };
-    } else if (cur && /^>/.test(line)) {
-      cur.body.push(line.replace(/^>\s?/, ""));
-    } else if (cur) {
-      entries.push(cur);
-      cur = null;
-    }
-  }
-  if (cur) entries.push(cur);
-  const out = entries.map((e) => ({ ts: e.ts, body: e.body.join("\n").replace(/^\n+|\n+$/g, "") }));
-  if (out.length === 0) {
-    const tt = src.replace(/\n{3,}/g, "\n\n").trim();
-    return tt ? [{ ts: (fallbackTs || "").trim(), body: tt, legacy: true }] : [];
-  }
-  return out.filter((e) => (e.body || "").trim() !== "");
-}
-function serializeDetailLog(entries) {
-  return (entries || []).filter((e) => (e.body || "").trim() !== "").map((e) => {
-    const ts = (e.ts || "").trim();
-    const body = String(e.body || "").split("\n").map((l) => "> " + l).join("\n");
-    return "> [!log]" + (ts ? " " + ts : "") + "\n" + body;
-  }).join("\n\n");
-}
-function nowLogTs(d) {
-  d = d || /* @__PURE__ */ new Date();
-  const z6 = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + z6(d.getMonth() + 1) + "-" + z6(d.getDate()) + " " + z6(d.getHours()) + ":" + z6(d.getMinutes()) + ":" + z6(d.getSeconds());
-}
-function formatLogTime(ts, now) {
-  const m = String(ts || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-  if (!m) return (ts || "").trim();
-  const de = getLocale() !== "en";
-  const base = now || /* @__PURE__ */ new Date();
-  const today = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  const day = new Date(+m[1], +m[2] - 1, +m[3]);
-  const diff = Math.round((day.getTime() - today.getTime()) / 864e5);
-  const hm = m[4] + ":" + m[5];
-  const mon = de ? ["Jan", "Feb", "M\xE4r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"] : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  let datePart;
-  if (diff === 0) datePart = de ? "Heute" : "Today";
-  else if (diff === -1) datePart = de ? "Gestern" : "Yesterday";
-  else if (diff === 1) datePart = de ? "Morgen" : "Tomorrow";
-  else {
-    const d = +m[3], moo = mon[+m[2] - 1];
-    datePart = de ? d + ". " + moo : moo + " " + d;
-    if (+m[1] !== today.getFullYear()) datePart += " " + m[1];
-  }
-  return datePart + " \xB7 " + hm;
-}
-function splitContent(content) {
-  const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
-  const fm = fmMatch ? fmMatch[1] : "";
-  const body = content.slice(fm.length);
-  const lines = body.split("\n");
-  const idx = lines.findIndex((l) => /^#\s+/.test(l));
-  const title = idx === -1 ? "" : lines[idx];
-  const rest = idx === -1 ? lines : lines.slice(idx + 1);
-  const li = rest.findIndex((l) => /^>\s*\[!log\]/i.test(l));
-  const trim = (s) => s.replace(/^\n+|\n+$/g, "");
-  const description = trim((li === -1 ? rest : rest.slice(0, li)).join("\n"));
-  const log = li === -1 ? "" : trim(rest.slice(li).join("\n"));
-  return { fm, title, description, log };
-}
-function composeContent(fm, title, description, log) {
-  let out = fm + "\n" + title + "\n";
-  const desc = description.replace(/^\n+|\n+$/g, "");
-  if (desc) out += "\n" + desc + "\n";
-  if (log) out += "\n" + log + "\n";
-  return out;
-}
-async function readLog(app, file) {
-  const content = await app.vault.cachedRead(file);
-  const { log } = splitContent(content);
-  return parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
-}
-async function readDescription(app, file) {
-  const content = await app.vault.cachedRead(file);
-  return splitContent(content).description;
-}
-async function writeLog(app, file, entries) {
-  await app.vault.process(file, (content) => {
-    const { fm, title, description } = splitContent(content);
-    const head = title || "# " + file.basename;
-    return composeContent(fm, head, description, serializeDetailLog(entries));
-  });
-}
-async function writeDescription(app, file, description) {
-  await app.vault.process(file, (content) => {
-    const { fm, title, log } = splitContent(content);
-    const head = title || "# " + file.basename;
-    return composeContent(fm, head, description, log);
-  });
-}
-
 // src/taskService.ts
 var import_obsidian = require("obsidian");
 var slugify = (s) => s.replace(/[\\/:*?"<>|#^[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "Task";
@@ -4905,10 +4810,11 @@ async function createTaskNote(app, settings, f) {
     recurrence: f.recurrence ?? null,
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
     reminders: f.reminders ?? [],
-    created: todayIso()
+    created: todayIso(),
+    description: (f.description ?? "").trim() || null
+    // Beschreibung im Frontmatter, nicht im Body
   });
-  const desc = (f.description ?? "").trim();
-  return app.vault.create(dest, fm + "\n# " + f.title + "\n" + (desc ? "\n" + desc + "\n" : ""));
+  return app.vault.create(dest, fm + "\n# " + f.title + "\n");
 }
 var byName = (a, b) => a.name.localeCompare(b.name, "de");
 var isInbox = (p) => p.name.toLowerCase() === "inbox" || p.name.toLowerCase() === "eingang";
@@ -5046,8 +4952,6 @@ var TaskIndex = class extends import_obsidian2.Component {
     // id -> path (überlebt Umbenennen, für Sync)
     this.commentCounts = /* @__PURE__ */ new Map();
     // path -> Anzahl [!log]-Einträge (Kommentare/Anhänge)
-    this.descriptions = /* @__PURE__ */ new Map();
-    // path -> Beschreibung (Body zwischen Titel und Log)
     this.subs = /* @__PURE__ */ new Set();
     this.timer = null;
     this.archivedDirty = true;
@@ -5136,7 +5040,6 @@ var TaskIndex = class extends import_obsidian2.Component {
   remove(path, notify = true) {
     const t2 = this.byPath.get(path);
     this.commentCounts.delete(path);
-    this.descriptions.delete(path);
     if (!t2) return;
     this.byPath.delete(path);
     if (this.byId.get(t2.id) === path) this.byId.delete(t2.id);
@@ -5147,13 +5050,9 @@ var TaskIndex = class extends import_obsidian2.Component {
   commentsOf(path) {
     return this.commentCounts.get(path) ?? 0;
   }
-  /** Beschreibung einer Aufgabe (Body zwischen Titel und Log) – für die Listen-Vorschau. */
-  descriptionOf(path) {
-    return this.descriptions.get(path) ?? "";
-  }
-  /** Body EINMAL lesen: Kommentar-Anzahl + Beschreibung ableiten (cachedRead ist gecacht). */
-  /** Beschreibung + Kommentarzahl aus dem Notiztext. Gibt zurück, ob sich etwas geändert hat.
-   *  `notify = false` unterdrückt die Meldung (der Aufrufer meldet gesammelt, s. build). */
+  /** Body EINMAL lesen: Kommentar-Anzahl ableiten (cachedRead ist gecacht). Die Beschreibung
+   *  lebt im Frontmatter (`description`) und kommt aus parse() – hier wird sie nicht mehr gelesen.
+   *  Gibt zurück, ob sich die Zahl geändert hat. `notify = false` unterdrückt die Meldung. */
   async readBodyMeta(f, notify = true) {
     let content;
     try {
@@ -5161,15 +5060,11 @@ var TaskIndex = class extends import_obsidian2.Component {
     } catch {
       return false;
     }
-    const { description } = splitContent(content);
     const n = (content.match(/^>\s*\[!log\]/gim) ?? []).length;
     const prevN = this.commentCounts.get(f.path) ?? 0;
-    const prevD = this.descriptions.get(f.path) ?? "";
     if (n) this.commentCounts.set(f.path, n);
     else this.commentCounts.delete(f.path);
-    if (description) this.descriptions.set(f.path, description);
-    else this.descriptions.delete(f.path);
-    const changed = n !== prevN || description !== prevD;
+    const changed = n !== prevN;
     if (changed && notify) this.notify();
     return changed;
   }
@@ -5203,6 +5098,7 @@ var TaskIndex = class extends import_obsidian2.Component {
       project: link(fm.project),
       parent: link(fm.parent),
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
+      description: typeof fm.description === "string" ? fm.description : "",
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,
       recurBasis: fm.recur_basis === "done" ? "done" : "due",
       reminders: Array.isArray(fm.reminders) ? fm.reminders.map(String) : [],
@@ -6515,6 +6411,118 @@ function parseQuickEntry(raw, projects = []) {
   return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority, project };
 }
 
+// src/detailLog.ts
+function parseDetailLog(body, fallbackTs = "") {
+  const src = String(body || "");
+  const entries = [];
+  let cur = null;
+  for (const line of src.split("\n")) {
+    const head = line.match(/^>\s*\[!log\][-+]?\s*(.*?)\s*$/i);
+    if (head) {
+      if (cur) entries.push(cur);
+      cur = { ts: (head[1] || "").trim(), body: [] };
+    } else if (cur && /^>/.test(line)) {
+      cur.body.push(line.replace(/^>\s?/, ""));
+    } else if (cur) {
+      entries.push(cur);
+      cur = null;
+    }
+  }
+  if (cur) entries.push(cur);
+  const out = entries.map((e) => ({ ts: e.ts, body: e.body.join("\n").replace(/^\n+|\n+$/g, "") }));
+  if (out.length === 0) {
+    const tt = src.replace(/\n{3,}/g, "\n\n").trim();
+    return tt ? [{ ts: (fallbackTs || "").trim(), body: tt, legacy: true }] : [];
+  }
+  return out.filter((e) => (e.body || "").trim() !== "");
+}
+function serializeDetailLog(entries) {
+  return (entries || []).filter((e) => (e.body || "").trim() !== "").map((e) => {
+    const ts = (e.ts || "").trim();
+    const body = String(e.body || "").split("\n").map((l) => "> " + l).join("\n");
+    return "> [!log]" + (ts ? " " + ts : "") + "\n" + body;
+  }).join("\n\n");
+}
+function nowLogTs(d) {
+  d = d || /* @__PURE__ */ new Date();
+  const z6 = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z6(d.getMonth() + 1) + "-" + z6(d.getDate()) + " " + z6(d.getHours()) + ":" + z6(d.getMinutes()) + ":" + z6(d.getSeconds());
+}
+function formatLogTime(ts, now) {
+  const m = String(ts || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return (ts || "").trim();
+  const de = getLocale() !== "en";
+  const base = now || /* @__PURE__ */ new Date();
+  const today = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  const day = new Date(+m[1], +m[2] - 1, +m[3]);
+  const diff = Math.round((day.getTime() - today.getTime()) / 864e5);
+  const hm = m[4] + ":" + m[5];
+  const mon = de ? ["Jan", "Feb", "M\xE4r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"] : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  let datePart;
+  if (diff === 0) datePart = de ? "Heute" : "Today";
+  else if (diff === -1) datePart = de ? "Gestern" : "Yesterday";
+  else if (diff === 1) datePart = de ? "Morgen" : "Tomorrow";
+  else {
+    const d = +m[3], moo = mon[+m[2] - 1];
+    datePart = de ? d + ". " + moo : moo + " " + d;
+    if (+m[1] !== today.getFullYear()) datePart += " " + m[1];
+  }
+  return datePart + " \xB7 " + hm;
+}
+function splitContent(content) {
+  const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)/);
+  const fm = fmMatch ? fmMatch[1] : "";
+  const body = content.slice(fm.length);
+  const lines = body.split("\n");
+  const idx = lines.findIndex((l) => /^#\s+/.test(l));
+  const title = idx === -1 ? "" : lines[idx];
+  const rest = idx === -1 ? lines : lines.slice(idx + 1);
+  const li = rest.findIndex((l) => /^>\s*\[!log\]/i.test(l));
+  const trim = (s) => s.replace(/^\n+|\n+$/g, "");
+  const description = trim((li === -1 ? rest : rest.slice(0, li)).join("\n"));
+  const log = li === -1 ? "" : trim(rest.slice(li).join("\n"));
+  return { fm, title, description, log };
+}
+function composeContent(fm, title, description, log) {
+  let out = fm + "\n" + title + "\n";
+  const desc = description.replace(/^\n+|\n+$/g, "");
+  if (desc) out += "\n" + desc + "\n";
+  if (log) out += "\n" + log + "\n";
+  return out;
+}
+async function readLog(app, file) {
+  const content = await app.vault.cachedRead(file);
+  const { log } = splitContent(content);
+  return parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
+}
+async function writeLog(app, file, entries) {
+  await app.vault.process(file, (content) => {
+    const { fm, title, description } = splitContent(content);
+    const head = title || "# " + file.basename;
+    return composeContent(fm, head, description, serializeDetailLog(entries));
+  });
+}
+async function writeDescription(app, file, description) {
+  await app.vault.process(file, (content) => {
+    const { fm, title, log } = splitContent(content);
+    const head = title || "# " + file.basename;
+    return composeContent(fm, head, description, log);
+  });
+}
+function isDocumentBody(s) {
+  const t2 = (s || "").trim();
+  if (!t2) return false;
+  return /!\[/.test(t2) || /^\s{0,3}#{1,6}\s/m.test(t2) || t2.length > 300 || (t2.match(/\n\s*\n/g)?.length ?? 0) >= 2;
+}
+async function ensureNoteLinkLog(app, file, label) {
+  const content = await app.vault.cachedRead(file);
+  const link = "[[" + file.basename + "]]";
+  if (content.includes(link)) return false;
+  const block = serializeDetailLog([{ ts: nowLogTs(), body: label + " " + link }]);
+  await app.vault.process(file, (c) => c.replace(/\s+$/, "") + "\n\n" + block + "\n");
+  return true;
+}
+
 // src/detailLogView.ts
 var import_obsidian8 = require("obsidian");
 var DetailLogView = class {
@@ -7419,7 +7427,6 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     this.existing = existing;
     this.opts = opts;
     this.descInput = null;
-    this.descDirty = false;
     // Kommentar-Log (gemeinsame Komponente)
     this.duePinned = false;
     // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
@@ -7445,7 +7452,9 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       project: existing.project ? baseName4(existing.project) : null,
       parent: existing.parent ? baseName4(existing.parent) : null,
       labels: [...existing.labels],
-      reminders: [...existing.reminders ?? []]
+      reminders: [...existing.reminders ?? []],
+      description: existing.description
+      // aus dem Frontmatter (kein Body-Read mehr nötig)
     } : {
       title: opts.defaultTitle ?? "",
       status: seed?.status ?? opts.defaultStatus,
@@ -7487,7 +7496,6 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     const desc = contentEl.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "1" } });
     desc.value = this.f.description ?? "";
     desc.oninput = () => {
-      this.descDirty = true;
       this.f.description = desc.value;
       this.growDesc();
     };
@@ -7512,14 +7520,6 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     if (this.existing) {
       const file = this.app.vault.getAbstractFileByPath(this.existing.path);
       if (file instanceof import_obsidian11.TFile) {
-        void readDescription(this.app, file).then((d) => {
-          if (this.descDirty) return;
-          this.f.description = d;
-          if (this.descInput) {
-            this.descInput.value = d;
-            this.growDesc();
-          }
-        });
         void readLog(this.app, file).then((entries) => {
           this.log.setEntries(entries);
           if (entries.length) this.logWrap.removeClass("bt-hidden");
@@ -7919,11 +7919,11 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
           set("parent", this.f.parent ? "[[" + this.f.parent + "]]" : null);
           set("labels", this.f.labels);
           set("reminders", this.f.reminders);
+          set("description", (this.f.description ?? "").trim() || null);
         });
         if (title !== this.existing.title) {
           await this.app.vault.process(file, (c) => c.replace(/^#\s+.*$/m, () => "# " + title));
         }
-        if (this.f.description !== void 0) await writeDescription(this.app, file, this.f.description ?? "");
       }
     } else {
       const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null });
@@ -10341,7 +10341,7 @@ function renderTask(list, plugin, task, today, depth, trash = false, opts = {}) 
   const body = row.createDiv({ cls: "bt-body" });
   renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
   if (plugin.settings.showDescriptionInList) {
-    const desc = plugin.index.descriptionOf(task.path).replace(/\s+/g, " ").trim();
+    const desc = task.description.replace(/!\[\[[^\]]*\]\]/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
     if (desc) renderLinkedText(body.createDiv({ cls: "bt-desc" }), plugin, desc, task.path);
   }
   const meta = body.createDiv({ cls: "bt-meta" });
@@ -12302,7 +12302,7 @@ function buildExportData(plugin) {
     created: tk.created,
     completed: tk.completed,
     cancelled: tk.cancelled,
-    description: plugin.index.descriptionOf(tk.path)
+    description: tk.description
   }));
   const { active, archived } = listManaged(plugin.app);
   const lists = [...active, ...archived].map((p) => ({
@@ -12380,10 +12380,11 @@ async function writeImportedTask(app, settings, et) {
     created: et.created || todayIso(),
     completed: et.completed ?? null,
     cancelled: et.cancelled ?? null,
-    external_id: et.externalId ?? null
+    external_id: et.externalId ?? null,
+    description: (et.description ?? "").trim() || null
+    // Beschreibung im Frontmatter, nicht im Body
   });
-  const desc = (et.description ?? "").trim();
-  await app.vault.create(dest, fm + "\n# " + et.title + "\n" + (desc ? "\n" + desc + "\n" : ""));
+  await app.vault.create(dest, fm + "\n# " + et.title + "\n");
 }
 async function writeImportedList(app, settings, list) {
   const folder = settings.projectsFolder;
@@ -12877,6 +12878,7 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
     this.addCommand({ id: "import-tasknotes", name: t("cmd_import_tasknotes"), callback: () => this.importFromTaskNotes() });
+    this.addCommand({ id: "migrate-descriptions", name: t("cmd_migrate_desc"), callback: () => void this.migrateDescriptions() });
     this.addCommand({
       id: "import-from-lists",
       name: t("cmd_import"),
@@ -13708,7 +13710,52 @@ var BeautyTasksPlugin = class extends import_obsidian29.Plugin {
       ensureCanonicalFm(fm);
       if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
     });
+    await this.reconcileTaskDescription(f);
     new import_obsidian29.Notice(t("notice_made_task"));
+  }
+  /** Beschreibungs-Modell für EINE Aufgaben-Notiz herstellen (idempotent):
+   *  - hat sie schon eine Frontmatter-`description`, bleibt alles wie es ist;
+   *  - ist der Body ein Dokument (eigener Inhalt), bleibt er stehen und bekommt einen Hinweis
+   *    (`description`) plus einen „Notiz öffnen"-Kommentar mit Selbst-Wikilink;
+   *  - ist der Body eine kurze Beschreibung, wandert sie ins Frontmatter und wird aus dem Body entfernt.
+   *  Gibt zurück, was passiert ist (für die Migrations-Statistik). */
+  async reconcileTaskDescription(f) {
+    const fmNow = this.app.metadataCache.getFileCache(f)?.frontmatter?.description;
+    if (typeof fmNow === "string" && fmNow.trim()) return "none";
+    const content = await this.app.vault.cachedRead(f);
+    const afterFm = content.replace(/^---\n[\s\S]*?\n---\n/, "");
+    const h1 = afterFm.search(/^#\s+/m);
+    const preH1 = (h1 > 0 ? afterFm.slice(0, h1) : "").trim();
+    const bodyDesc = splitContent(content).description;
+    const combined = (preH1 + "\n" + bodyDesc).trim();
+    if (!combined) return "none";
+    if (preH1 || isDocumentBody(combined)) {
+      await this.app.fileManager.processFrontMatter(f, (fm) => {
+        if (typeof fm.description !== "string" || !fm.description) fm.description = t("desc_note_content_hint");
+      });
+      await ensureNoteLinkLog(this.app, f, t("log_open_note"));
+      return "document";
+    }
+    await this.app.fileManager.processFrontMatter(f, (fm) => {
+      fm.description = bodyDesc;
+    });
+    await writeDescription(this.app, f, "");
+    return "moved";
+  }
+  /** Einmalige Migration: bestehende Body-Beschreibungen ins Frontmatter überführen bzw. Dokumente
+   *  mit „Notiz öffnen"-Kommentar versehen. Idempotent – mehrfaches Ausführen ist gefahrlos. */
+  async migrateDescriptions() {
+    const tasks = this.index.all();
+    let moved = 0, docs = 0;
+    for (const tk of tasks) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (!(f instanceof import_obsidian29.TFile)) continue;
+      const r = await this.reconcileTaskDescription(f);
+      if (r === "moved") moved++;
+      else if (r === "document") docs++;
+    }
+    window.setTimeout(() => this.index.build(), 400);
+    new import_obsidian29.Notice(t("notice_desc_migrated", moved, docs));
   }
   /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
    *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */

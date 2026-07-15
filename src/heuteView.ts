@@ -777,9 +777,12 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const body = row.createDiv({ cls: "bt-body" });
   renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
 
-  // Beschreibungs-Vorschau (einzeilig, gekürzt) – optional per Einstellung.
+  // Beschreibungs-Vorschau (einzeilig, gekürzt) – aus dem Frontmatter (`description`), optional
+  // per Einstellung. Bild-/Embed-Syntax wird entfernt, damit die Zeile nie zu einem Block aufgeht.
   if (plugin.settings.showDescriptionInList) {
-    const desc = plugin.index.descriptionOf(task.path).replace(/\s+/g, " ").trim();
+    const desc = task.description
+      .replace(/!\[\[[^\]]*\]\]/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "")   // Embeds/Bilder raus
+      .replace(/\s+/g, " ").trim();
     if (desc) renderLinkedText(body.createDiv({ cls: "bt-desc" }), plugin, desc, task.path);
   }
 

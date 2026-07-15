@@ -112,12 +112,6 @@ export async function readLog(app: App, file: TFile): Promise<LogEntry[]> {
   return parseDetailLog(log, nowLogTs(new Date(file.stat.mtime)));
 }
 
-/** Beschreibung (freier Markdown zwischen Titel und Log) einer Aufgaben-Notiz lesen. */
-export async function readDescription(app: App, file: TFile): Promise<string> {
-  const content = await app.vault.cachedRead(file);
-  return splitContent(content).description;
-}
-
 /** Log-Einträge in den Body schreiben (Frontmatter, Titel, Beschreibung bleiben erhalten).
  *  Atomare Hintergrund-Änderung via vault.process. */
 export async function writeLog(app: App, file: TFile, entries: LogEntry[]): Promise<void> {
@@ -135,4 +129,28 @@ export async function writeDescription(app: App, file: TFile, description: strin
     const head = title || "# " + file.basename;
     return composeContent(fm, head, description, log);
   });
+}
+
+/** Heuristik: Ist dieser Body-Text ein „Dokument" (eigener Inhalt) statt einer kurzen Beschreibung?
+ *  Bilder/Embeds, Überschriften, größere Länge oder mehrere Absätze sprechen für ein Dokument. */
+export function isDocumentBody(s: string): boolean {
+  const t = (s || "").trim();
+  if (!t) return false;
+  return /!\[/.test(t)                          // Bild/Embed
+    || /^\s{0,3}#{1,6}\s/m.test(t)              // Überschrift
+    || t.length > 300                            // längerer Text
+    || (t.match(/\n\s*\n/g)?.length ?? 0) >= 2;  // mehrere Absätze
+}
+
+/** Idempotent EINEN „Notiz öffnen"-Kommentar (Selbst-Wikilink) als [!log]-Callout ans DATEIENDE
+ *  anhängen. Bewusst ein roher Append (NICHT composeContent): so bleibt beliebiger Body-Inhalt –
+ *  auch Text VOR der ersten „# Überschrift", den splitContent sonst verwirft – vollständig erhalten.
+ *  Existiert der Selbst-Link schon irgendwo, passiert nichts. Gibt zurück, ob etwas ergänzt wurde. */
+export async function ensureNoteLinkLog(app: App, file: TFile, label: string): Promise<boolean> {
+  const content = await app.vault.cachedRead(file);
+  const link = "[[" + file.basename + "]]";
+  if (content.includes(link)) return false;   // schon vorhanden (Selbst-Link ist sonst untypisch)
+  const block = serializeDetailLog([{ ts: nowLogTs(), body: label + " " + link }]);
+  await app.vault.process(file, (c) => c.replace(/\s+$/, "") + "\n\n" + block + "\n");
+  return true;
 }

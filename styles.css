@@ -813,6 +813,7 @@ body {
 .bt-desc {
   font-size: 0.85em; color: var(--text-muted); line-height: 1.3; margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-height: 1.3em;   /* Sicherung: selbst gerenderter Blockinhalt kann die Zeile nie sprengen */
 }
 .bt-task.is-done .bt-desc { text-decoration: line-through; }
 /* Unteraufgaben im Board: eingerückt nach Tiefe + etwas kleinerer Text zur

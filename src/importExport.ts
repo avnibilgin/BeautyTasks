@@ -86,7 +86,7 @@ function buildExportData(plugin: BeautyTasksPlugin): ExportData {
     created: tk.created,
     completed: tk.completed,
     cancelled: tk.cancelled,
-    description: plugin.index.descriptionOf(tk.path),
+    description: tk.description,
   }));
   // Listen mit Typ mitexportieren (aktive + archivierte, ohne Inbox – listManaged filtert sie).
   const { active, archived } = listManaged(plugin.app);
@@ -152,9 +152,9 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
     completed: et.completed ?? null,
     cancelled: et.cancelled ?? null,
     external_id: et.externalId ?? null,
+    description: (et.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
-  const desc = (et.description ?? "").trim();
-  await app.vault.create(dest, fm + "\n# " + et.title + "\n" + (desc ? "\n" + desc + "\n" : ""));
+  await app.vault.create(dest, fm + "\n# " + et.title + "\n");
 }
 
 /** Eine importierte Liste mit KORREKTEM Typ (Projekt/Bereich) + Farbe/Archiv-Status anlegen. */

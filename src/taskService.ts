@@ -89,9 +89,9 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
     reminders: f.reminders ?? [],
     created: todayIso(),
+    description: (f.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
-  const desc = (f.description ?? "").trim();
-  return app.vault.create(dest, fm + "\n# " + f.title + "\n" + (desc ? "\n" + desc + "\n" : ""));
+  return app.vault.create(dest, fm + "\n# " + f.title + "\n");
 }
 
 /** Vorhandene Projekte (Basename, alphabetisch) für den Picker. */

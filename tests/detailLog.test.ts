@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime } from "../src/detailLog";
+import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody } from "../src/detailLog";
 import { setLocale } from "../src/i18n";
 
 beforeEach(() => setLocale("en"));
@@ -33,6 +33,28 @@ describe("parseDetailLog / serializeDetailLog", () => {
 
   it("serialize überspringt leere Einträge", () => {
     expect(serializeDetailLog([{ ts: "x", body: "  " }])).toBe("");
+  });
+});
+
+describe("isDocumentBody (Dokument vs. kurze Beschreibung)", () => {
+  it("kurzer einzeiliger Text ist KEIN Dokument", () => {
+    expect(isDocumentBody("Belege liegen im Ordner X")).toBe(false);
+  });
+  it("leer ist kein Dokument", () => {
+    expect(isDocumentBody("   \n  ")).toBe(false);
+  });
+  it("Bild/Embed macht es zum Dokument", () => {
+    expect(isDocumentBody("Text\n![[Pasted image.png]]")).toBe(true);
+    expect(isDocumentBody("![alt](https://x/y.png)")).toBe(true);
+  });
+  it("Überschrift macht es zum Dokument", () => {
+    expect(isDocumentBody("## Abschnitt\nInhalt")).toBe(true);
+  });
+  it("mehrere Absätze machen es zum Dokument", () => {
+    expect(isDocumentBody("Erster Absatz\n\nZweiter\n\nDritter")).toBe(true);
+  });
+  it("langer Text (>300) ist ein Dokument", () => {
+    expect(isDocumentBody("a".repeat(301))).toBe(true);
   });
 });
 

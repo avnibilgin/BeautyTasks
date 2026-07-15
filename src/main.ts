@@ -10,6 +10,7 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, ensureInbox, listManaged, ensureCanonicalFm, ProjItem } from "./taskService";
+import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
@@ -158,6 +159,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addCommand({ id: "export-json", name: t("cmd_export_json"), callback: () => void this.exportTasksJson() });
     this.addCommand({ id: "import-json", name: t("cmd_import_json"), callback: () => this.importTasksFromVault() });
     this.addCommand({ id: "import-tasknotes", name: t("cmd_import_tasknotes"), callback: () => this.importFromTaskNotes() });
+    this.addCommand({ id: "migrate-descriptions", name: t("cmd_migrate_desc"), callback: () => void this.migrateDescriptions() });
     this.addCommand({
       id: "import-from-lists", name: t("cmd_import"),
       callback: async () => {
@@ -924,7 +926,55 @@ export default class BeautyTasksPlugin extends Plugin {
       ensureCanonicalFm(fm);
       if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
     });
+    await this.reconcileTaskDescription(f);   // Body → Beschreibung/Dokument einsortieren
     new Notice(t("notice_made_task"));
+  }
+
+  /** Beschreibungs-Modell für EINE Aufgaben-Notiz herstellen (idempotent):
+   *  - hat sie schon eine Frontmatter-`description`, bleibt alles wie es ist;
+   *  - ist der Body ein Dokument (eigener Inhalt), bleibt er stehen und bekommt einen Hinweis
+   *    (`description`) plus einen „Notiz öffnen"-Kommentar mit Selbst-Wikilink;
+   *  - ist der Body eine kurze Beschreibung, wandert sie ins Frontmatter und wird aus dem Body entfernt.
+   *  Gibt zurück, was passiert ist (für die Migrations-Statistik). */
+  private async reconcileTaskDescription(f: TFile): Promise<"none" | "moved" | "document"> {
+    const fmNow: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.description;
+    if (typeof fmNow === "string" && fmNow.trim()) return "none";   // schon migriert
+    const content = await this.app.vault.cachedRead(f);
+    // Inhalt VOR der ersten „# Überschrift" getrennt betrachten: splitContent verwirft ihn, also
+    // darf er NIE über den (rewritenden) „moved"-Zweig laufen – sonst ginge er verloren.
+    const afterFm = content.replace(/^---\n[\s\S]*?\n---\n/, "");
+    const h1 = afterFm.search(/^#\s+/m);
+    const preH1 = (h1 > 0 ? afterFm.slice(0, h1) : "").trim();
+    const bodyDesc = splitContent(content).description;         // zwischen H1 und Log
+    const combined = (preH1 + "\n" + bodyDesc).trim();
+    if (!combined) return "none";
+    // Dokument: eigener Inhalt bleibt im Body, Hinweis + „Notiz öffnen"-Kommentar (rein additiv).
+    if (preH1 || isDocumentBody(combined)) {
+      await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        if (typeof fm.description !== "string" || !fm.description) fm.description = t("desc_note_content_hint");
+      });
+      await ensureNoteLinkLog(this.app, f, t("log_open_note"));
+      return "document";
+    }
+    // Kurze Beschreibung (kein Pre-H1-Inhalt): ins Frontmatter verschieben und aus dem Body entfernen.
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.description = bodyDesc; });
+    await writeDescription(this.app, f, "");
+    return "moved";
+  }
+
+  /** Einmalige Migration: bestehende Body-Beschreibungen ins Frontmatter überführen bzw. Dokumente
+   *  mit „Notiz öffnen"-Kommentar versehen. Idempotent – mehrfaches Ausführen ist gefahrlos. */
+  async migrateDescriptions(): Promise<void> {
+    const tasks = this.index.all();
+    let moved = 0, docs = 0;
+    for (const tk of tasks) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (!(f instanceof TFile)) continue;
+      const r = await this.reconcileTaskDescription(f);
+      if (r === "moved") moved++; else if (r === "document") docs++;
+    }
+    window.setTimeout(() => this.index.build(), 400);
+    new Notice(t("notice_desc_migrated", moved, docs));
   }
   /** Neue Aufgabe mit vorbelegter Fälligkeit – Klick auf einen Kalendertag bzw. Zeit-Slot.
    *  Projekt/Label erbt sie von der Seite, auf der der Kalender steht (wie „+ Aufgabe" der Liste). */

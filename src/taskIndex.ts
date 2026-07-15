@@ -1,6 +1,5 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { splitContent } from "./detailLog";
 import { archivedProjectNames } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 
@@ -20,7 +19,6 @@ export class TaskIndex extends Component {
   private byPath = new Map<string, Task>();
   private byId = new Map<string, string>();        // id -> path (überlebt Umbenennen, für Sync)
   private commentCounts = new Map<string, number>(); // path -> Anzahl [!log]-Einträge (Kommentare/Anhänge)
-  private descriptions = new Map<string, string>();  // path -> Beschreibung (Body zwischen Titel und Log)
   private subs = new Set<() => void>();
   private timer: number | null = null;
   private archivedDirty = true;                 // neu berechnen, sobald sich etwas geändert hat
@@ -122,7 +120,6 @@ export class TaskIndex extends Component {
   private remove(path: string, notify = true): void {
     const t = this.byPath.get(path);
     this.commentCounts.delete(path);
-    this.descriptions.delete(path);
     if (!t) return;
     this.byPath.delete(path);
     if (this.byId.get(t.id) === path) this.byId.delete(t.id);
@@ -133,23 +130,17 @@ export class TaskIndex extends Component {
   /** Anzahl der [!log]-Einträge (Kommentare/Anhänge) einer Aufgabe – für das Chip. */
   commentsOf(path: string): number { return this.commentCounts.get(path) ?? 0; }
 
-  /** Beschreibung einer Aufgabe (Body zwischen Titel und Log) – für die Listen-Vorschau. */
-  descriptionOf(path: string): string { return this.descriptions.get(path) ?? ""; }
-
-  /** Body EINMAL lesen: Kommentar-Anzahl + Beschreibung ableiten (cachedRead ist gecacht). */
-  /** Beschreibung + Kommentarzahl aus dem Notiztext. Gibt zurück, ob sich etwas geändert hat.
-   *  `notify = false` unterdrückt die Meldung (der Aufrufer meldet gesammelt, s. build). */
+  /** Body EINMAL lesen: Kommentar-Anzahl ableiten (cachedRead ist gecacht). Die Beschreibung
+   *  lebt im Frontmatter (`description`) und kommt aus parse() – hier wird sie nicht mehr gelesen.
+   *  Gibt zurück, ob sich die Zahl geändert hat. `notify = false` unterdrückt die Meldung. */
   private async readBodyMeta(f: TFile, notify = true): Promise<boolean> {
     let content: string;
     try { content = await this.app.vault.cachedRead(f); }
     catch { return false; }
-    const { description } = splitContent(content);
     const n = (content.match(/^>\s*\[!log\]/gim) ?? []).length;
     const prevN = this.commentCounts.get(f.path) ?? 0;
-    const prevD = this.descriptions.get(f.path) ?? "";
     if (n) this.commentCounts.set(f.path, n); else this.commentCounts.delete(f.path);
-    if (description) this.descriptions.set(f.path, description); else this.descriptions.delete(f.path);
-    const changed = n !== prevN || description !== prevD;
+    const changed = n !== prevN;
     if (changed && notify) this.notify();
     return changed;
   }
@@ -185,6 +176,7 @@ export class TaskIndex extends Component {
       project: link(fm.project),
       parent: link(fm.parent),
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
+      description: typeof fm.description === "string" ? fm.description : "",
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,
       recurBasis: fm.recur_basis === "done" ? "done" : "due",
       reminders: Array.isArray(fm.reminders) ? fm.reminders.map(String) : [],
