@@ -58,6 +58,63 @@ describe("applyQuickEntry – Determinismus", () => {
   });
 });
 
+describe("applyQuickEntry – der Titel besitzt, was er gesetzt hat", () => {
+  /** Tippt den Text Zeichen fuer Zeichen – so, wie das Modal bei jedem Tastendruck parst. */
+  const tippen = (raw: string) => {
+    let f = fields(), s = emptyQuickEntryState(), title = "";
+    for (let i = 1; i <= raw.length; i++) {
+      const r = applyQuickEntry(raw.slice(0, i), f, s, opts());
+      f = r.fields; s = r.state; title = r.title;
+    }
+    return { fields: f, state: s, title };
+  };
+
+  // Regression: Beim Tippen laeuft man zwangslaeufig durch Zwischenstaende. „Termin um 25" kommt
+  // an „um 2" vorbei (= 02:00 + Anker heute); der fertige Text ergibt keine Uhrzeit mehr (25 Uhr
+  // gibt es nicht) – der Wert klebte trotzdem fest, und der Chip zeigte „Heute · 02:00".
+  it("nimmt einen Zwischenstand zurueck, der im fertigen Text nicht mehr steht", () => {
+    const r = tippen("Termin um 25");
+    expect(r.fields.dueTime).toBeNull();
+    expect(r.fields.due).toBeNull();
+    expect(r.title).toBe("Termin um 25");
+  });
+
+  it("raeumt Datum und Uhrzeit ab, wenn der Ausloeser wieder geloescht wird", () => {
+    const first = applyQuickEntry("Zahnarzt morgen um 20:00", fields(), emptyQuickEntryState(), opts());
+    expect(first.fields.due).not.toBeNull();
+    const second = applyQuickEntry("Zahnarzt", first.fields, first.state, opts());
+    expect(second.fields.due).toBeNull();
+    expect(second.fields.dueTime).toBeNull();
+  });
+
+  it("raeumt eine Wiederholung ab, wenn sie aus dem Titel verschwindet", () => {
+    const first = applyQuickEntry("jeden tag sport", fields(), emptyQuickEntryState(), opts());
+    expect(first.fields.recurrence).toBe("every day");
+    const second = applyQuickEntry("sport", first.fields, first.state, opts());
+    expect(second.fields.recurrence).toBeNull();
+    expect(second.fields.due).toBeNull();      // der Anker geht mit
+  });
+
+  // Der Gegenpol: Voreingestelltes kam nie aus dem Titel und darf nicht verschwinden.
+  it("laesst ein voreingestelltes Datum in Ruhe (\"+ Aufgabe\" auf der Heute-Seite)", () => {
+    const preset = fields({ due: "2026-12-24" });
+    const r = applyQuickEntry("Zahnarzt", preset, emptyQuickEntryState(), opts());
+    expect(r.fields.due).toBe("2026-12-24");
+    const weiter = applyQuickEntry("Zahnarzt anrufen", r.fields, r.state, opts());
+    expect(weiter.fields.due).toBe("2026-12-24");
+  });
+
+  it("laesst ein voreingestelltes Datum auch neben einer getippten Uhrzeit stehen", () => {
+    const r = applyQuickEntry("Zahnarzt um 20:00", fields({ due: "2026-12-24" }), emptyQuickEntryState(), opts());
+    expect(r.fields.due).toBe("2026-12-24");
+    expect(r.fields.dueTime).toBe("20:00");
+    // Uhrzeit wieder raus -> nur sie geht, das voreingestellte Datum bleibt.
+    const ohne = applyQuickEntry("Zahnarzt", r.fields, r.state, opts());
+    expect(ohne.fields.due).toBe("2026-12-24");
+    expect(ohne.fields.dueTime).toBeNull();
+  });
+});
+
 describe("applyQuickEntry – bestehende Aufgabe (frozen)", () => {
   // Regression: Öffnen einer bestehenden Aufgabe parste den gespeicherten Titel erneut, setzte
   // ein Datum und löschte das Wort aus dem Titel – das Auto-Speichern schrieb beides fest.

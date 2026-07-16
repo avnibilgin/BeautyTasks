@@ -217,8 +217,12 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
  *  `dueSrc`/`timeSrc` = der Text, der Datum bzw. Uhrzeit ausgelöst hat („morgen", „um 20:00"); leer,
  *  sobald der Wert nicht (mehr) aus dem Titel stammt. Damit weiß das ✕ am Chip, ob es den Auslöser
  *  im Titel escapen soll (Wort bleibt Text) statt das Feld nur zu leeren. */
-export interface QuickEntryState { labels: string[]; project: string | null; dueSrc: string; timeSrc: string; recurSrc: string; }
-export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null, dueSrc: "", timeSrc: "", recurSrc: "" });
+export interface QuickEntryState {
+  labels: string[]; project: string | null;
+  dueSrc: string; timeSrc: string; recurSrc: string;
+  dueFromTitle: boolean;   // f.due stammt aus dem Titel (Datumswort ODER Anker) -> darf zurueck
+}
+export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null, dueSrc: "", timeSrc: "", recurSrc: "", dueFromTitle: false });
 
 /** Setzt vor jedes Wort der Auslöser einen Backslash – das ✕ am Datums-Chip tippt ihn also für den
  *  Nutzer. Pro Wort statt Anführungszeichen ums Ganze: die blieben sonst im Titel stehen.
@@ -264,22 +268,38 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   const p = parseQuickEntry(raw, opts.projects ?? [], new Date(y, mo - 1, d));
   const f: QuickEntryFields = { ...fields };
 
-  let dueSrc = "", timeSrc = "";
-  if (!opts.duePinned && p.faellig) { f.due = p.faellig; dueSrc = p.faelligSrc; }
+  // Was der letzte Lauf AUS DEM TITEL gesetzt hat, gehört dem Titel: verschwindet der Auslöser,
+  // verschwindet der Wert. Ohne das klebt beim Tippen von „um 2015" der Zwischenstand „um 20"
+  // (= 20:00 + Anker heute) fest, obwohl der fertige Text gar keine Uhrzeit mehr ergibt.
+  // Nur Selbstgesetztes wird zurückgenommen – ein voreingestelltes Datum („+ Aufgabe" auf der
+  // Heute-Seite) kam nie aus dem Titel und bleibt unberührt.
+  if (!opts.duePinned) {
+    if (state.dueFromTitle) f.due = null;
+    if (state.timeSrc) f.dueTime = null;
+  }
+  if (state.recurSrc) f.recurrence = null;
+
+  let dueSrc = "", timeSrc = "", recurSrc = "", dueFromTitle = false;
+  if (!opts.duePinned && p.faellig) { f.due = p.faellig; dueSrc = p.faelligSrc; dueFromTitle = true; }
   // Eine Uhrzeit impliziert einen Tag: ohne Datum wäre sie unsichtbar (der Datums-Chip prüft
   // `!!due`) und ginge beim Speichern verloren (nur mit Datum wird kombiniert). Default heute –
   // wie Todoist/TickTick. Betrifft auch „Zahnarzt um 20:00" ganz ohne Escape.
-  if (!opts.duePinned && p.time) { f.dueTime = p.time; f.due ??= opts.today; timeSrc = p.timeSrc; }
+  if (!opts.duePinned && p.time) {
+    f.dueTime = p.time; timeSrc = p.timeSrc;
+    if (f.due == null) { f.due = opts.today; dueFromTitle = true; }
+  }
   if (p.priority) f.priority = p.priority;
   // Wiederholung folgt dem Muster der Priorität (kein „pin"): steht sie im Text, gewinnt der Text.
   // Zurückgenommen wird sie über das ✕ am Chip, das den Auslöser escapt.
   // Wie die Uhrzeit braucht sie einen Anker: ohne Datum liefert recurrence.ts keine nächste
   // Instanz (nextInstance: ohne due UND scheduled -> null). Der Chip zeigte dann „Täglich" an,
   // ohne dass je etwas wiederkehrt. Ohne Datum also heute – „ab morgen" gewinnt, weil das Datum
-  // oben bereits gesetzt wurde.
-  let recurSrc = "";
-  // duePinned schlägt den Anker: ein bewusst geleertes Datum holt „jeden Tag" nicht zurück.
-  if (p.recurrence) { f.recurrence = p.recurrence; recurSrc = p.recurSrc; if (!opts.duePinned) f.due ??= opts.today; }
+  // oben bereits gesetzt wurde. duePinned schlägt den Anker: ein bewusst geleertes Datum holt
+  // „jeden Tag" nicht zurück.
+  if (p.recurrence) {
+    f.recurrence = p.recurrence; recurSrc = p.recurSrc;
+    if (!opts.duePinned && f.due == null) { f.due = opts.today; dueFromTitle = true; }
+  }
 
   // @Projekt: erkannt -> setzen; wieder aus dem Titel gelöscht -> zurück auf den Default.
   let project = state.project;
@@ -292,5 +312,5 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
   f.labels = [...manual, ...parsed];
 
-  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc, recurSrc } };
+  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc, recurSrc, dueFromTitle } };
 }

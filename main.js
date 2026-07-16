@@ -6489,7 +6489,7 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
   }
   return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, recurrence, faelligSrc, timeSrc, recurSrc };
 }
-var emptyQuickEntryState = () => ({ labels: [], project: null, dueSrc: "", timeSrc: "", recurSrc: "" });
+var emptyQuickEntryState = () => ({ labels: [], project: null, dueSrc: "", timeSrc: "", recurSrc: "", dueFromTitle: false });
 function escapeTriggers(raw, triggers) {
   let out = raw;
   for (const trg of triggers) {
@@ -6505,22 +6505,33 @@ function applyQuickEntry(raw, fields, state, opts) {
   const [y, mo, d] = opts.today.split("-").map(Number);
   const p = parseQuickEntry(raw, opts.projects ?? [], new Date(y, mo - 1, d));
   const f = { ...fields };
-  let dueSrc = "", timeSrc = "";
+  if (!opts.duePinned) {
+    if (state.dueFromTitle) f.due = null;
+    if (state.timeSrc) f.dueTime = null;
+  }
+  if (state.recurSrc) f.recurrence = null;
+  let dueSrc = "", timeSrc = "", recurSrc = "", dueFromTitle = false;
   if (!opts.duePinned && p.faellig) {
     f.due = p.faellig;
     dueSrc = p.faelligSrc;
+    dueFromTitle = true;
   }
   if (!opts.duePinned && p.time) {
     f.dueTime = p.time;
-    f.due ?? (f.due = opts.today);
     timeSrc = p.timeSrc;
+    if (f.due == null) {
+      f.due = opts.today;
+      dueFromTitle = true;
+    }
   }
   if (p.priority) f.priority = p.priority;
-  let recurSrc = "";
   if (p.recurrence) {
     f.recurrence = p.recurrence;
     recurSrc = p.recurSrc;
-    if (!opts.duePinned) f.due ?? (f.due = opts.today);
+    if (!opts.duePinned && f.due == null) {
+      f.due = opts.today;
+      dueFromTitle = true;
+    }
   }
   let project = state.project;
   if (p.project) {
@@ -6533,7 +6544,7 @@ function applyQuickEntry(raw, fields, state, opts) {
   const manual = fields.labels.filter((l) => !state.labels.includes(l));
   const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
   f.labels = [...manual, ...parsed];
-  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc, recurSrc } };
+  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc, recurSrc, dueFromTitle } };
 }
 
 // src/detailLog.ts
