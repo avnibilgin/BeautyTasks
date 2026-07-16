@@ -6328,7 +6328,7 @@ var L = "[A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF]";
 var re = (body) => new RegExp("(?:^|[^A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF\\uE000-\\uF8FF])" + body + "(?!" + L + ")", "i");
 var MASK = /(^|\s)\\(\S+)|(["„“”])([^"„“”]+)(["„“”])/g;
 var PUA = /[\uE000-\uF8FF]/g;
-function parseQuickEntry(raw, projects = []) {
+function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
   let text = " " + (raw || "") + " ";
   const lits = [];
   const lit = (s) => lits.length >= 6400 ? s : String.fromCharCode(57344 + lits.push(s) - 1);
@@ -6349,7 +6349,7 @@ function parseQuickEntry(raw, projects = []) {
       text = text.replace(m[0], " ");
     }
   }
-  const today = /* @__PURE__ */ new Date();
+  const today = now;
   let faellig = "";
   const grab = (rx, fn) => {
     if (faellig) return;
@@ -6428,6 +6428,31 @@ function parseQuickEntry(raw, projects = []) {
     text = text.replace(pm[0], " ");
   }
   return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project };
+}
+var emptyQuickEntryState = () => ({ labels: [], project: null });
+function applyQuickEntry(raw, fields, state, opts) {
+  if (!opts.enabled || opts.frozen) return { title: raw, fields, state };
+  const [y, mo, d] = opts.today.split("-").map(Number);
+  const p = parseQuickEntry(raw, opts.projects ?? [], new Date(y, mo - 1, d));
+  const f = { ...fields };
+  if (!opts.duePinned && p.faellig) f.due = p.faellig;
+  if (!opts.duePinned && p.time) {
+    f.dueTime = p.time;
+    f.due ?? (f.due = opts.today);
+  }
+  if (p.priority) f.priority = p.priority;
+  let project = state.project;
+  if (p.project) {
+    f.project = p.project;
+    project = p.project;
+  } else if (project && f.project === project) {
+    f.project = opts.defaultProject ?? null;
+    project = null;
+  }
+  const manual = fields.labels.filter((l) => !state.labels.includes(l));
+  const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
+  f.labels = [...manual, ...parsed];
+  return { title: p.title, fields: f, state: { labels: parsed, project } };
 }
 
 // src/detailLog.ts
@@ -7473,8 +7498,8 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
     this.cleanTitle = "";
     // Titel ohne erkannte Datum-/Label-Token
-    this.parsedLabels = [];
-    // aktuell aus dem Titel geparste #Labels (wird bei jedem Parse ersetzt)
+    this.nl = emptyQuickEntryState();
+    // aus dem Titel Erkanntes (trennt es von Manuellem)
     this.discarding = false;
     // true = bewusst verwerfen („Cancel") -> kein Auto-Speichern
     this.persisted = false;
@@ -7514,6 +7539,7 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       project: defaultProject ?? null
       // kein Default-Projekt -> Eingang (= kein Projekt)
     };
+    if (opts.duePinned) this.duePinned = true;
   }
   onOpen() {
     const { contentEl, modalEl } = this;
@@ -7607,18 +7633,26 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
   /** Natural-Language: Datum + #Labels aus dem Titel erkennen und übernehmen.
    *  Datum nur, solange nicht manuell gesetzt; Labels werden ergänzt. */
   applyParse() {
-    if (!this.plugin.settings.parseNaturalLanguage) {
-      this.cleanTitle = this.f.title;
-      return;
-    }
-    const p = parseQuickEntry(this.f.title);
-    this.cleanTitle = p.title;
-    if (!this.duePinned && p.faellig) this.f.due = p.faellig;
-    if (!this.duePinned && p.time) this.f.dueTime = p.time;
-    if (p.priority) this.f.priority = p.priority;
-    const manual = this.f.labels.filter((l) => !this.parsedLabels.includes(l));
-    this.parsedLabels = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
-    this.f.labels = [...manual, ...this.parsedLabels];
+    const r = applyQuickEntry(this.f.title, {
+      due: this.f.due ?? null,
+      dueTime: this.f.dueTime ?? null,
+      priority: this.f.priority ?? "normal",
+      labels: this.f.labels ?? [],
+      project: this.f.project ?? null
+    }, this.nl, {
+      enabled: this.plugin.settings.parseNaturalLanguage,
+      // Bestehende Aufgabe: der gespeicherte Titel ist Text, kein Befehl. Er wurde bei der Erfassung
+      // bereits geparst – ein zweiter Lauf läse „heute" erneut als Datum und löschte das Wort aus
+      // dem Titel (beim Schließen wird automatisch gespeichert). Betrifft jeden Titel mit
+      // Auslöserwort: per `\heute` geschützt, importiert oder von Hand geschrieben.
+      frozen: !!this.existing,
+      duePinned: this.duePinned,
+      today: todayIso()
+      // Kein @Projekt im vollen Editor: dafür gibt es hier den eigenen Projekt-Wähler.
+    });
+    this.cleanTitle = r.title;
+    Object.assign(this.f, r.fields);
+    this.nl = r.state;
   }
   // ── Chips ──
   /** Brücke Modal ⇄ Chip-Registry: Feldzustand + host-spezifische Callbacks. */
@@ -10858,9 +10892,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
     this.cleanTitle = "";
     this.duePinned = false;
     // Datum manuell gesetzt/geleert -> Parser überschreibt nicht mehr
-    this.parsedLabels = [];
-    // aus dem Titel erkannte Labels (zum Trennen von manuellen)
-    this.parsedProject = null;
+    this.nl = emptyQuickEntryState();
     this.defaultProject = project ?? null;
     this.f = {
       title: "",
@@ -10921,27 +10953,19 @@ var QuickAddModal = class extends import_obsidian21.Modal {
   /** Natural-Language aus dem Titel: Datum, Uhrzeit, Priorität, #Labels, @Projekt. Manuell (per
    *  Chip) gesetzte Werte bleiben erhalten. Spiegelt die Logik von TaskModal.applyParse. */
   parse() {
-    if (!this.plugin.settings.parseNaturalLanguage) {
-      this.cleanTitle = this.f.title;
-      return;
-    }
     const { bereiche, projekte } = listProjectsAndAreas(this.app);
-    const projNames = [...bereiche, ...projekte].map((p2) => p2.name);
-    const p = parseQuickEntry(this.f.title, projNames);
-    this.cleanTitle = p.title;
-    if (!this.duePinned && p.faellig) this.f.due = p.faellig;
-    if (!this.duePinned && p.time) this.f.dueTime = p.time;
-    if (p.priority) this.f.priority = p.priority;
-    if (p.project) {
-      this.f.project = p.project;
-      this.parsedProject = p.project;
-    } else if (this.parsedProject && this.f.project === this.parsedProject) {
-      this.f.project = this.defaultProject;
-      this.parsedProject = null;
-    }
-    const manual = this.f.labels.filter((l) => !this.parsedLabels.includes(l));
-    this.parsedLabels = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
-    this.f.labels = [...manual, ...this.parsedLabels];
+    const r = applyQuickEntry(this.f.title, this.f, this.nl, {
+      enabled: this.plugin.settings.parseNaturalLanguage,
+      frozen: false,
+      // Schnelleingabe legt immer neu an
+      duePinned: this.duePinned,
+      today: todayStr(),
+      projects: [...bereiche, ...projekte].map((p) => p.name),
+      defaultProject: this.defaultProject
+    });
+    this.cleanTitle = r.title;
+    Object.assign(this.f, r.fields);
+    this.nl = r.state;
   }
   // ── Chips (gemeinsame Registry) ──
   /** Brücke Modal ⇄ Chip-Registry. Kein existing (Neu-Anlage): Status nur lokal, keine Ausschlüsse. */
@@ -10964,12 +10988,12 @@ var QuickAddModal = class extends import_obsidian21.Modal {
         this.duePinned = true;
       },
       resetParsedLabels: () => {
-        this.parsedLabels = [];
+        this.nl.labels = [];
       },
       onParentPicked: (proj) => {
         if (proj) {
           this.f.project = proj;
-          this.parsedProject = null;
+          this.nl.project = null;
           this.renderProjekt();
         }
       },
@@ -11042,7 +11066,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
       const { bereiche, projekte } = listProjectsAndAreas(this.app);
       const pick = (name) => {
         this.f.project = name;
-        this.parsedProject = null;
+        this.nl.project = null;
         this.renderProjekt();
         close();
       };
@@ -11104,8 +11128,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
     };
     this.cleanTitle = "";
     this.duePinned = false;
-    this.parsedLabels = [];
-    this.parsedProject = null;
+    this.nl = emptyQuickEntryState();
     this.input.value = "";
     this.renderChips();
     this.input.focus();
@@ -11114,7 +11137,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
    *  (NL-Token bereits ausgewertet) + alle gesetzten Chips als Seed. openDetails = Detailbereich
    *  (Beschreibung/Kommentare) direkt aufgeklappt (vom Details-Chip ausgelöst). */
   openInFull(openDetails = false) {
-    const title = this.titleValue();
+    const title = this.f.title.trim();
     const project = this.f.project ?? void 0;
     const seed = {
       status: this.f.status,
@@ -11131,7 +11154,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
       parent: this.f.parent
     };
     this.close();
-    new TaskModal(this.plugin, void 0, project, { defaultTitle: title, seed, openDetails }).open();
+    new TaskModal(this.plugin, void 0, project, { defaultTitle: title, seed, openDetails, duePinned: this.duePinned }).open();
   }
 };
 

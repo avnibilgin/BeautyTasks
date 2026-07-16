@@ -57,7 +57,9 @@ export interface QuickEntry { title: string; faellig: string; time: string; tags
 
 // `projects` = bekannte Projekt-/Bereichsnamen. Nur damit wird @Projekt erkannt (Zuordnung nur
 // zu Bestehenden – Projekte sind Dateien, kein Anlegen bei Tippfehler). Labels dagegen sind frei.
-export function parseQuickEntry(raw: string, projects: string[] = []): QuickEntry {
+// `now` = Bezugspunkt für relative Phrasen („heute", „morgen", „nächsten Montag"). Hereingereicht
+// statt aus der Systemuhr gelesen -> deterministisch testbar; Default bleibt die echte Zeit.
+export function parseQuickEntry(raw: string, projects: string[] = [], now: Date = new Date()): QuickEntry {
   let text = " " + (raw || "") + " ";
 
   // Wörtlichen Text ausblenden – muss VOR jeder Regel laufen (auch vor den Labels, damit
@@ -88,7 +90,7 @@ export function parseQuickEntry(raw: string, projects: string[] = []): QuickEntr
     }
   }
 
-  const today = new Date();
+  const today = now;
   let faellig = "";
   const grab = (rx: RegExp, fn: (m: RegExpMatchArray) => Date | null) => {
     if (faellig) return;
@@ -154,4 +156,59 @@ export function parseQuickEntry(raw: string, projects: string[] = []): QuickEntr
 
   // Rücktausch NACH dem Kollabieren der Leerzeichen: eigene Formatierung im geschützten Text bleibt.
   return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project };
+}
+
+// ── Parse-Ergebnis auf die Eingabefelder anwenden ──
+// Gemeinsam von Schnelleingabe und vollem Editor genutzt: beide werteten das Ergebnis früher je
+// selbst aus – dieselbe Logik doppelt, jeder Fehler doppelt zu fixen und mangels DOM ungetestet.
+// Hier bewusst als reine Funktion (Systemzeit als `today` hereingereicht), damit sie testbar ist.
+
+/** Was ein Modal zwischen zwei Tastendrücken behalten muss, um Erkanntes von Manuellem zu trennen. */
+export interface QuickEntryState { labels: string[]; project: string | null; }
+export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null });
+
+/** Die Felder, die aus dem Titel befüllt werden können (Teilmenge der Modal-Felder). */
+export interface QuickEntryFields {
+  due: string | null; dueTime: string | null; priority: Priority; labels: string[]; project: string | null;
+}
+
+export interface QuickEntryOptions {
+  enabled: boolean;                 // Einstellung „Natural Language" – aus: Titel bleibt wie getippt
+  frozen: boolean;                  // bestehende Aufgabe: gespeicherter Titel ist Text, kein Befehl
+  duePinned: boolean;               // Datum manuell gesetzt -> Text überschreibt es nicht mehr
+  today: string;                    // YYYY-MM-DD, hereingereicht statt aus der Systemzeit gelesen.
+                                    // Bezugspunkt für ALLES: auch „morgen" im Text rechnet dagegen.
+  projects?: string[];              // bekannte Projekt-/Bereichsnamen ([] = kein @Projekt-Erkennen)
+  defaultProject?: string | null;   // Fallback, wenn ein erkanntes @Projekt wieder entfernt wird
+}
+
+/** `raw` -> bereinigter Titel + neue Feldwerte + neuer Zustand. Mutiert nichts. */
+export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: QuickEntryState,
+                                opts: QuickEntryOptions): { title: string; fields: QuickEntryFields; state: QuickEntryState } {
+  if (!opts.enabled || opts.frozen) return { title: raw, fields, state };
+  // Ein Bezugspunkt für den ganzen Aufruf: „morgen" im Text und der Uhrzeit-Default unten rechnen
+  // gegen dasselbe Datum. Lokale Mitternacht (nicht Date.parse) – wie iso() im Parser.
+  const [y, mo, d] = opts.today.split("-").map(Number);
+  const p = parseQuickEntry(raw, opts.projects ?? [], new Date(y, mo - 1, d));
+  const f: QuickEntryFields = { ...fields };
+
+  if (!opts.duePinned && p.faellig) f.due = p.faellig;
+  // Eine Uhrzeit impliziert einen Tag: ohne Datum wäre sie unsichtbar (der Datums-Chip prüft
+  // `!!due`) und ginge beim Speichern verloren (nur mit Datum wird kombiniert). Default heute –
+  // wie Todoist/TickTick. Betrifft auch „Zahnarzt um 20:00" ganz ohne Escape.
+  if (!opts.duePinned && p.time) { f.dueTime = p.time; f.due ??= opts.today; }
+  if (p.priority) f.priority = p.priority;
+
+  // @Projekt: erkannt -> setzen; wieder aus dem Titel gelöscht -> zurück auf den Default.
+  let project = state.project;
+  if (p.project) { f.project = p.project; project = p.project; }
+  else if (project && f.project === project) { f.project = opts.defaultProject ?? null; project = null; }
+
+  // Inline-#Labels bei JEDEM Tastendruck ersetzen statt anhäufen – sonst entstehen beim Tippen von
+  // „#wichtig" die Teil-Labels #w, #wi, #wich, … Manuell gesetzte Labels bleiben unberührt.
+  const manual = fields.labels.filter((l) => !state.labels.includes(l));
+  const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
+  f.labels = [...manual, ...parsed];
+
+  return { title: p.title, fields: f, state: { labels: parsed, project } };
 }

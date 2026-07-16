@@ -7,7 +7,7 @@
 import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus } from "./types";
-import { parseQuickEntry } from "./quickEntry";
+import { applyQuickEntry, emptyQuickEntryState, QuickEntryState } from "./quickEntry";
 import { createTaskNote, listProjectsAndAreas, isInboxLink } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { todayStr } from "./format";
@@ -27,8 +27,7 @@ export class QuickAddModal extends Modal {
   };
   private cleanTitle = "";
   private duePinned = false;        // Datum manuell gesetzt/geleert -> Parser überschreibt nicht mehr
-  private parsedLabels: string[] = []; // aus dem Titel erkannte Labels (zum Trennen von manuellen)
-  private parsedProject: string | null = null; // aus dem Titel erkanntes @Projekt (zum Zurücksetzen)
+  private nl: QuickEntryState = emptyQuickEntryState();  // aus dem Titel Erkanntes (trennt es von Manuellem)
   private readonly defaultProject: string | null;   // Projekt-Fallback, wenn @Projekt wieder entfernt wird (null = Eingang)
   private input!: HTMLInputElement;
   private chipBar!: HTMLElement;
@@ -88,19 +87,18 @@ export class QuickAddModal extends Modal {
   /** Natural-Language aus dem Titel: Datum, Uhrzeit, Priorität, #Labels, @Projekt. Manuell (per
    *  Chip) gesetzte Werte bleiben erhalten. Spiegelt die Logik von TaskModal.applyParse. */
   private parse(): void {
-    if (!this.plugin.settings.parseNaturalLanguage) { this.cleanTitle = this.f.title; return; }
     const { bereiche, projekte } = listProjectsAndAreas(this.app);
-    const projNames = [...bereiche, ...projekte].map((p) => p.name);
-    const p = parseQuickEntry(this.f.title, projNames);
-    this.cleanTitle = p.title;
-    if (!this.duePinned && p.faellig) this.f.due = p.faellig;
-    if (!this.duePinned && p.time) this.f.dueTime = p.time;
-    if (p.priority) this.f.priority = p.priority;
-    if (p.project) { this.f.project = p.project; this.parsedProject = p.project; }
-    else if (this.parsedProject && this.f.project === this.parsedProject) { this.f.project = this.defaultProject; this.parsedProject = null; }
-    const manual = this.f.labels.filter((l) => !this.parsedLabels.includes(l));
-    this.parsedLabels = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
-    this.f.labels = [...manual, ...this.parsedLabels];
+    const r = applyQuickEntry(this.f.title, this.f, this.nl, {
+      enabled: this.plugin.settings.parseNaturalLanguage,
+      frozen: false,                 // Schnelleingabe legt immer neu an
+      duePinned: this.duePinned,
+      today: todayStr(),
+      projects: [...bereiche, ...projekte].map((p) => p.name),
+      defaultProject: this.defaultProject,
+    });
+    this.cleanTitle = r.title;
+    Object.assign(this.f, r.fields);
+    this.nl = r.state;
   }
 
   // ── Chips (gemeinsame Registry) ──
@@ -116,8 +114,8 @@ export class QuickAddModal extends Modal {
       iconsOnly: true,         // leere Chips stets nur Icon
       applyStatus: (s) => { this.f.status = s; this.renderChips(); },
       pinDue: () => { this.duePinned = true; },
-      resetParsedLabels: () => { this.parsedLabels = []; },
-      onParentPicked: (proj) => { if (proj) { this.f.project = proj; this.parsedProject = null; this.renderProjekt(); } },
+      resetParsedLabels: () => { this.nl.labels = []; },
+      onParentPicked: (proj) => { if (proj) { this.f.project = proj; this.nl.project = null; this.renderProjekt(); } },
       // Details in der Schnelleingabe hat keinen Inline-Log -> öffnet den vollen Editor mit
       // aufgeklapptem Detailbereich (Schnelleingabe bleibt eine reine Ein-Zeilen-Erfassung).
       toggleDetails: () => this.openInFull(true),
@@ -179,7 +177,7 @@ export class QuickAddModal extends Modal {
     openPopover(anchor, (pop, close) => {
       pop.addClass("bt-picker");
       const { bereiche, projekte } = listProjectsAndAreas(this.app);
-      const pick = (name: string | null) => { this.f.project = name; this.parsedProject = null; this.renderProjekt(); close(); };
+      const pick = (name: string | null) => { this.f.project = name; this.nl.project = null; this.renderProjekt(); close(); };
       // Eingang = kein Projekt (Auswahl leert das Projekt-Feld).
       popRow(pop, "inbox", t("nav_inbox"), () => pick(null), isInboxLink(this.f.project));
       const group = (title: string, items: { name: string; icon: string; color: string | null }[]) => {
@@ -217,7 +215,7 @@ export class QuickAddModal extends Modal {
       due: null, dueTime: null, duration: null, scheduled: null, scheduledTime: null,
       priority: "normal", labels: [], recurrence: null, recurBasis: "due", reminders: [], parent: null,
     };
-    this.cleanTitle = ""; this.duePinned = false; this.parsedLabels = []; this.parsedProject = null;
+    this.cleanTitle = ""; this.duePinned = false; this.nl = emptyQuickEntryState();
     this.input.value = "";
     this.renderChips();
     this.input.focus();
@@ -227,7 +225,11 @@ export class QuickAddModal extends Modal {
    *  (NL-Token bereits ausgewertet) + alle gesetzten Chips als Seed. openDetails = Detailbereich
    *  (Beschreibung/Kommentare) direkt aufgeklappt (vom Details-Chip ausgelöst). */
   private openInFull(openDetails = false): void {
-    const title = this.titleValue();
+    // ROHER Titel (inkl. `\wort`/"phrase"-Marker), nicht der bereinigte: der volle Editor parst ihn
+    // als Neu-Anlage selbst. Mit dem bereinigten Titel läse er die Auslöserwörter ein zweites Mal –
+    // `\heute` wäre dort wieder ein Datum. duePinned reist mit, damit ein per Chip gesetztes Datum
+    // nicht doch noch vom Text überschrieben wird.
+    const title = this.f.title.trim();
     const project = this.f.project ?? undefined;
     const seed = {
       status: this.f.status, due: this.f.due, dueTime: this.f.dueTime, duration: this.f.duration,
@@ -236,6 +238,6 @@ export class QuickAddModal extends Modal {
       reminders: [...this.f.reminders], parent: this.f.parent,
     };
     this.close();
-    new TaskModal(this.plugin, undefined, project, { defaultTitle: title, seed, openDetails }).open();
+    new TaskModal(this.plugin, undefined, project, { defaultTitle: title, seed, openDetails, duePinned: this.duePinned }).open();
   }
 }

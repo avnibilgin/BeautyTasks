@@ -4,7 +4,7 @@ import { Task, TaskStatus } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, TaskFields } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
-import { parseQuickEntry } from "./quickEntry";
+import { applyQuickEntry, emptyQuickEntryState, QuickEntryState } from "./quickEntry";
 import { readLog } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
 import { firstOpenStatus } from "./statuses";
@@ -31,14 +31,14 @@ export class TaskModal extends Modal {
   private log!: DetailLogView;         // Kommentar-Log (gemeinsame Komponente)
   private duePinned = false;          // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
   private cleanTitle = "";            // Titel ohne erkannte Datum-/Label-Token
-  private parsedLabels: string[] = []; // aktuell aus dem Titel geparste #Labels (wird bei jedem Parse ersetzt)
+  private nl: QuickEntryState = emptyQuickEntryState();  // aus dem Titel Erkanntes (trennt es von Manuellem)
   private discarding = false;          // true = bewusst verwerfen („Cancel") -> kein Auto-Speichern
   private persisted = false;           // true sobald geschrieben -> kein Doppel-Speichern
 
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean } = {}) {
     super(plugin.app);
     const seed = opts.seed;
     this.f = existing
@@ -67,6 +67,7 @@ export class TaskModal extends Modal {
           parent: seed?.parent ?? null, description: seed?.description,
           project: defaultProject ?? null,   // kein Default-Projekt -> Eingang (= kein Projekt)
         };
+    if (opts.duePinned) this.duePinned = true;   // aus der Schnelleingabe übernommen (⤢)
   }
 
   onOpen(): void {
@@ -164,18 +165,23 @@ export class TaskModal extends Modal {
   /** Natural-Language: Datum + #Labels aus dem Titel erkennen und übernehmen.
    *  Datum nur, solange nicht manuell gesetzt; Labels werden ergänzt. */
   private applyParse(): void {
-    if (!this.plugin.settings.parseNaturalLanguage) { this.cleanTitle = this.f.title; return; }
-    const p = parseQuickEntry(this.f.title);
-    this.cleanTitle = p.title;
-    if (!this.duePinned && p.faellig) this.f.due = p.faellig;
-    if (!this.duePinned && p.time) this.f.dueTime = p.time;   // Uhrzeit („um 07:30") übernehmen
-    if (p.priority) this.f.priority = p.priority;             // Priorität („p1") übernehmen
-    // Inline-#Labels aus dem Titel bei JEDEM Tastendruck ersetzen (nicht anhäufen) – sonst
-    // entstehen beim Tippen von „#wichtig" die Teil-Labels #w, #wi, #wich, … Manuell (Picker/
-    // Default) gesetzte Labels bleiben erhalten.
-    const manual = this.f.labels!.filter((l) => !this.parsedLabels.includes(l));
-    this.parsedLabels = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
-    this.f.labels = [...manual, ...this.parsedLabels];
+    const r = applyQuickEntry(this.f.title, {
+      due: this.f.due ?? null, dueTime: this.f.dueTime ?? null, priority: this.f.priority ?? "normal",
+      labels: this.f.labels ?? [], project: this.f.project ?? null,
+    }, this.nl, {
+      enabled: this.plugin.settings.parseNaturalLanguage,
+      // Bestehende Aufgabe: der gespeicherte Titel ist Text, kein Befehl. Er wurde bei der Erfassung
+      // bereits geparst – ein zweiter Lauf läse „heute" erneut als Datum und löschte das Wort aus
+      // dem Titel (beim Schließen wird automatisch gespeichert). Betrifft jeden Titel mit
+      // Auslöserwort: per `\heute` geschützt, importiert oder von Hand geschrieben.
+      frozen: !!this.existing,
+      duePinned: this.duePinned,
+      today: todayIso(),
+      // Kein @Projekt im vollen Editor: dafür gibt es hier den eigenen Projekt-Wähler.
+    });
+    this.cleanTitle = r.title;
+    Object.assign(this.f, r.fields);
+    this.nl = r.state;
   }
 
   // ── Chips ──
