@@ -6329,6 +6329,45 @@ var re = (body) => new RegExp("(?:^|[^A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF\\uE000-
 var MASK = /(^|\s)\\(\S+)|(["„“”])([^"„“”]+)(["„“”])/g;
 var PUA = /[\uE000-\uF8FF]/g;
 var rxEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+var RECUR_UNITS = {
+  tag: "day",
+  tage: "day",
+  tagen: "day",
+  day: "day",
+  days: "day",
+  woche: "week",
+  wochen: "week",
+  week: "week",
+  weeks: "week",
+  monat: "month",
+  monate: "month",
+  monaten: "month",
+  month: "month",
+  months: "month",
+  jahr: "year",
+  jahre: "year",
+  jahren: "year",
+  year: "year",
+  years: "year"
+};
+var RECUR_ADV = {
+  t\u00E4glich: "every day",
+  taeglich: "every day",
+  daily: "every day",
+  w\u00F6chentlich: "every week",
+  woechentlich: "every week",
+  weekly: "every week",
+  monatlich: "every month",
+  monthly: "every month",
+  j\u00E4hrlich: "every year",
+  jaehrlich: "every year",
+  yearly: "every year",
+  annually: "every year"
+};
+var longestFirst = (o) => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
+var RUNITS = longestFirst(RECUR_UNITS);
+var RADV = longestFirst(RECUR_ADV);
+var recurRule = (n, unit) => n === 1 ? "every " + unit : "every " + n + " " + unit + "s";
 function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
   let text = " " + (raw || "") + " ";
   const lits = [];
@@ -6352,6 +6391,23 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
   const today = now;
   const trigger = (hit) => hit.replace(/^[^\p{L}\p{N}]/u, "");
   let faelligSrc = "", timeSrc = "";
+  let recurrence = null, recurSrc = "";
+  const grabRecur = (rx, fn) => {
+    if (recurrence) return;
+    const m = text.match(rx);
+    if (!m) return;
+    const r = fn(m);
+    if (r) {
+      recurrence = r;
+      recurSrc = trigger(m[0]);
+      text = text.replace(m[0], " ");
+    }
+  };
+  grabRecur(
+    re("(?:jeden|jede[nsr]?|alle|every)\\s+(?:(\\d+)\\s+)?(" + RUNITS + ")"),
+    (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()])
+  );
+  grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
   let faellig = "";
   const grab = (rx, fn) => {
     if (faellig) return;
@@ -6431,9 +6487,9 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     priority = ["highest", "high", "medium", "normal"][+pm[1] - 1];
     text = text.replace(pm[0], " ");
   }
-  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, faelligSrc, timeSrc };
+  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, recurrence, faelligSrc, timeSrc, recurSrc };
 }
-var emptyQuickEntryState = () => ({ labels: [], project: null, dueSrc: "", timeSrc: "" });
+var emptyQuickEntryState = () => ({ labels: [], project: null, dueSrc: "", timeSrc: "", recurSrc: "" });
 function escapeTriggers(raw, triggers) {
   let out = raw;
   for (const trg of triggers) {
@@ -6460,6 +6516,12 @@ function applyQuickEntry(raw, fields, state, opts) {
     timeSrc = p.timeSrc;
   }
   if (p.priority) f.priority = p.priority;
+  let recurSrc = "";
+  if (p.recurrence) {
+    f.recurrence = p.recurrence;
+    recurSrc = p.recurSrc;
+    if (!opts.duePinned) f.due ?? (f.due = opts.today);
+  }
   let project = state.project;
   if (p.project) {
     f.project = p.project;
@@ -6471,7 +6533,7 @@ function applyQuickEntry(raw, fields, state, opts) {
   const manual = fields.labels.filter((l) => !state.labels.includes(l));
   const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
   f.labels = [...manual, ...parsed];
-  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc } };
+  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc, recurSrc } };
 }
 
 // src/detailLog.ts
@@ -7340,7 +7402,9 @@ var CHIPS = {
     isSet: (f) => !!f.recurrence,
     valueLabel: (f) => recurLabel(f.recurrence, f.recurBasis),
     open: (host, a) => openRecur(host, a),
+    // Aus dem Titel erkannt -> dort escapen (das Wort bleibt im Titel); sonst wie bisher leeren.
     clear: (host) => {
+      if (host.unparseRecur?.()) return;
       host.f.recurrence = null;
     }
   },
@@ -7662,7 +7726,8 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       dueTime: this.f.dueTime ?? null,
       priority: this.f.priority ?? "normal",
       labels: this.f.labels ?? [],
-      project: this.f.project ?? null
+      project: this.f.project ?? null,
+      recurrence: this.f.recurrence ?? null
     }, this.nl, {
       enabled: this.plugin.settings.parseNaturalLanguage,
       // Bestehende Aufgabe: der gespeicherte Titel ist Text, kein Befehl. Er wurde bei der Erfassung
@@ -7681,6 +7746,16 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
   /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit
    *  das Wort Text bleibt. false = nichts zu escapen (manuell gesetzt, bestehende Aufgabe oder
    *  Auslöser nicht auffindbar), dann leert der Chip wie bisher. */
+  /** ✕ am Wiederholungs-Chip: erkannten Ausloeser im Titel escapen. Siehe unparseDue(). */
+  unparseRecur() {
+    const next = escapeTriggers(this.f.title, [this.nl.recurSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.titleInput.value = next;
+    this.f.recurrence = null;
+    this.applyParse();
+    return true;
+  }
   unparseDue() {
     const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
     if (next === this.f.title) return false;
@@ -7711,6 +7786,7 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
         this.nl.timeSrc = "";
       },
       unparseDue: () => this.unparseDue(),
+      unparseRecur: () => this.unparseRecur(),
       existingPath: this.existing?.path,
       onParentPicked: (proj) => {
         if (proj) this.f.project = proj;
@@ -11012,6 +11088,16 @@ var QuickAddModal = class extends import_obsidian21.Modal {
   /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit das
    *  Wort Text bleibt. false = nichts zu escapen (manuell gesetzt oder Auslöser nicht auffindbar),
    *  dann leert der Chip wie bisher. */
+  /** ✕ am Wiederholungs-Chip: erkannten Ausloeser im Titel escapen. Siehe unparseDue(). */
+  unparseRecur() {
+    const next = escapeTriggers(this.f.title, [this.nl.recurSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.input.value = next;
+    this.f.recurrence = null;
+    this.parse();
+    return true;
+  }
   unparseDue() {
     const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
     if (next === this.f.title) return false;
@@ -11047,6 +11133,7 @@ var QuickAddModal = class extends import_obsidian21.Modal {
         this.nl.timeSrc = "";
       },
       unparseDue: () => this.unparseDue(),
+      unparseRecur: () => this.unparseRecur(),
       resetParsedLabels: () => {
         this.nl.labels = [];
       },

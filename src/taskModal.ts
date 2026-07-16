@@ -170,6 +170,7 @@ export class TaskModal extends Modal {
     const r = applyQuickEntry(this.f.title, {
       due: this.f.due ?? null, dueTime: this.f.dueTime ?? null, priority: this.f.priority ?? "normal",
       labels: this.f.labels ?? [], project: this.f.project ?? null,
+      recurrence: this.f.recurrence ?? null,
     }, this.nl, {
       enabled: this.plugin.settings.parseNaturalLanguage,
       // Bestehende Aufgabe: der gespeicherte Titel ist Text, kein Befehl. Er wurde bei der Erfassung
@@ -189,6 +190,17 @@ export class TaskModal extends Modal {
   /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit
    *  das Wort Text bleibt. false = nichts zu escapen (manuell gesetzt, bestehende Aufgabe oder
    *  Auslöser nicht auffindbar), dann leert der Chip wie bisher. */
+  /** ✕ am Wiederholungs-Chip: erkannten Ausloeser im Titel escapen. Siehe unparseDue(). */
+  private unparseRecur(): boolean {
+    const next = escapeTriggers(this.f.title, [this.nl.recurSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.titleInput.value = next;
+    this.f.recurrence = null;
+    this.applyParse();
+    return true;
+  }
+
   private unparseDue(): boolean {
     const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
     if (next === this.f.title) return false;
@@ -217,6 +229,7 @@ export class TaskModal extends Modal {
       // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
       pinDue: () => { this.duePinned = true; this.nl.dueSrc = ""; this.nl.timeSrc = ""; },
       unparseDue: () => this.unparseDue(),
+      unparseRecur: () => this.unparseRecur(),
       existingPath: this.existing?.path,
       onParentPicked: (proj) => { if (proj) this.f.project = proj; if (!this.opts.hideProjekt) this.renderProjekt(); },
       toggleDetails: () => this.toggleDetails(),

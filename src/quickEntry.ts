@@ -55,7 +55,34 @@ const PUA = /[\uE000-\uF8FF]/g;
 /** Regex-Sonderzeichen entschaerfen (Projektnamen, Ausloeser-Woerter). */
 const rxEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null; faelligSrc: string; timeSrc: string; }
+// ── Wiederholung ──
+// Ergebnis ist stets das kanonische „every N unit" – das Format, das recurrence.ts versteht und der
+// Chip schreibt (RECUR in chips.ts). „jeden Tag" ist also nur Eingabe, nie Speicherwert.
+const RECUR_UNITS: Record<string, string> = {
+  tag: "day", tage: "day", tagen: "day", day: "day", days: "day",
+  woche: "week", wochen: "week", week: "week", weeks: "week",
+  monat: "month", monate: "month", monaten: "month", month: "month", months: "month",
+  jahr: "year", jahre: "year", jahren: "year", year: "year", years: "year",
+};
+// Adverbien ohne Zahl. Umlautlose Schreibweisen mit, weil sie real getippt werden.
+const RECUR_ADV: Record<string, string> = {
+  täglich: "every day", taeglich: "every day", daily: "every day",
+  wöchentlich: "every week", woechentlich: "every week", weekly: "every week",
+  monatlich: "every month", monthly: "every month",
+  jährlich: "every year", jaehrlich: "every year", yearly: "every year", annually: "every year",
+};
+// Längste zuerst – sonst träfe „tag" vor „tagen" und ließe ein „en" im Titel stehen.
+const longestFirst = (o: Record<string, string>): string => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
+const RUNITS = longestFirst(RECUR_UNITS);
+const RADV = longestFirst(RECUR_ADV);
+/** { n, unit } -> „every day" / „every 3 months" (trifft die Chip-Presets exakt). */
+const recurRule = (n: number, unit: string): string => (n === 1 ? "every " + unit : "every " + n + " " + unit + "s");
+
+export interface QuickEntry {
+  title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null;
+  recurrence: string | null;
+  faelligSrc: string; timeSrc: string; recurSrc: string;
+}
 
 // `projects` = bekannte Projekt-/Bereichsnamen. Nur damit wird @Projekt erkannt (Zuordnung nur
 // zu Bestehenden – Projekte sind Dateien, kein Anlegen bei Tippfehler). Labels dagegen sind frei.
@@ -97,6 +124,23 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   // Regeln mit (kein Lookbehind wegen iOS) – deshalb abschneiden, falls kein Buchstabe/Ziffer.
   const trigger = (hit: string): string => hit.replace(/^[^\p{L}\p{N}]/u, "");
   let faelligSrc = "", timeSrc = "";
+
+  // Wiederholung VOR den Datumsregeln: „alle 3 tage" darf seinen Text zuerst greifen, damit in
+  // „alle 3 tage ab morgen" hinterher noch „morgen" als Datum übrig bleibt.
+  let recurrence: string | null = null, recurSrc = "";
+  const grabRecur = (rx: RegExp, fn: (m: RegExpMatchArray) => string | null) => {
+    if (recurrence) return;
+    const m = text.match(rx);
+    if (!m) return;
+    const r = fn(m);
+    if (r) { recurrence = r; recurSrc = trigger(m[0]); text = text.replace(m[0], " "); }
+  };
+  // „jeden tag", „jede 2 wochen", „alle 3 tage", „every 2 days". Ohne Zahl = jede Einheit.
+  // „alle"/„every" ohne Einheit dahinter trifft NICHT – „alle Rechnungen zahlen" bleibt Text.
+  grabRecur(re("(?:jeden|jede[nsr]?|alle|every)\\s+(?:(\\d+)\\s+)?(" + RUNITS + ")"),
+    (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()]));
+  grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
+
   let faellig = "";
   const grab = (rx: RegExp, fn: (m: RegExpMatchArray) => Date | null) => {
     if (faellig) return;
@@ -161,7 +205,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
 
   // Rücktausch NACH dem Kollabieren der Leerzeichen: eigene Formatierung im geschützten Text bleibt.
-  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, faelligSrc, timeSrc };
+  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, recurrence, faelligSrc, timeSrc, recurSrc };
 }
 
 // ── Parse-Ergebnis auf die Eingabefelder anwenden ──
@@ -173,8 +217,8 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
  *  `dueSrc`/`timeSrc` = der Text, der Datum bzw. Uhrzeit ausgelöst hat („morgen", „um 20:00"); leer,
  *  sobald der Wert nicht (mehr) aus dem Titel stammt. Damit weiß das ✕ am Chip, ob es den Auslöser
  *  im Titel escapen soll (Wort bleibt Text) statt das Feld nur zu leeren. */
-export interface QuickEntryState { labels: string[]; project: string | null; dueSrc: string; timeSrc: string; }
-export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null, dueSrc: "", timeSrc: "" });
+export interface QuickEntryState { labels: string[]; project: string | null; dueSrc: string; timeSrc: string; recurSrc: string; }
+export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null, dueSrc: "", timeSrc: "", recurSrc: "" });
 
 /** Setzt vor jedes Wort der Auslöser einen Backslash – das ✕ am Datums-Chip tippt ihn also für den
  *  Nutzer. Pro Wort statt Anführungszeichen ums Ganze: die blieben sonst im Titel stehen.
@@ -197,6 +241,7 @@ export function escapeTriggers(raw: string, triggers: string[]): string {
 /** Die Felder, die aus dem Titel befüllt werden können (Teilmenge der Modal-Felder). */
 export interface QuickEntryFields {
   due: string | null; dueTime: string | null; priority: Priority; labels: string[]; project: string | null;
+  recurrence: string | null;
 }
 
 export interface QuickEntryOptions {
@@ -226,6 +271,15 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   // wie Todoist/TickTick. Betrifft auch „Zahnarzt um 20:00" ganz ohne Escape.
   if (!opts.duePinned && p.time) { f.dueTime = p.time; f.due ??= opts.today; timeSrc = p.timeSrc; }
   if (p.priority) f.priority = p.priority;
+  // Wiederholung folgt dem Muster der Priorität (kein „pin"): steht sie im Text, gewinnt der Text.
+  // Zurückgenommen wird sie über das ✕ am Chip, das den Auslöser escapt.
+  // Wie die Uhrzeit braucht sie einen Anker: ohne Datum liefert recurrence.ts keine nächste
+  // Instanz (nextInstance: ohne due UND scheduled -> null). Der Chip zeigte dann „Täglich" an,
+  // ohne dass je etwas wiederkehrt. Ohne Datum also heute – „ab morgen" gewinnt, weil das Datum
+  // oben bereits gesetzt wurde.
+  let recurSrc = "";
+  // duePinned schlägt den Anker: ein bewusst geleertes Datum holt „jeden Tag" nicht zurück.
+  if (p.recurrence) { f.recurrence = p.recurrence; recurSrc = p.recurSrc; if (!opts.duePinned) f.due ??= opts.today; }
 
   // @Projekt: erkannt -> setzen; wieder aus dem Titel gelöscht -> zurück auf den Default.
   let project = state.project;
@@ -238,5 +292,5 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
   f.labels = [...manual, ...parsed];
 
-  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc } };
+  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc, recurSrc } };
 }

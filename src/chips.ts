@@ -72,6 +72,8 @@ export interface ChipHost {
   /** ✕ am Datums-Chip: Kam der Wert aus dem Titel („morgen"), dort den Auslöser escapen, statt nur
    *  das Feld zu leeren – sonst bliebe das Wort aus dem Titel gestrippt. true = übernommen. */
   unparseDue?(): boolean;
+  /** Dasselbe fuer den Wiederholungs-Chip („jeden tag" -> „\jeden \tag"). */
+  unparseRecur?(): boolean;
   resetParsedLabels?(): void;             // Schnelleingabe: manuelle Label-Änderung entkoppelt vom Parser
   existingPath?: string;                  // vorhandene Aufgabe -> Selbst/Nachfahren im Parent-Picker ausschließen
   onParentPicked?(projectBase: string | null): void;  // Parent gewählt -> ggf. Projekt erben + neu zeichnen
@@ -301,7 +303,8 @@ export const CHIPS: Record<ChipId, ChipDef> = {
     isSet: (f) => !!f.recurrence,
     valueLabel: (f) => recurLabel(f.recurrence!, f.recurBasis),
     open: (host, a) => openRecur(host, a),
-    clear: (host) => { host.f.recurrence = null; },
+    // Aus dem Titel erkannt -> dort escapen (das Wort bleibt im Titel); sonst wie bisher leeren.
+    clear: (host) => { if (host.unparseRecur?.()) return; host.f.recurrence = null; },
   },
   deadline: {
     id: "deadline", icon: "clock", nameKey: "chip_deadline", kind: "value",

@@ -104,6 +104,17 @@ export class QuickAddModal extends Modal {
   /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit das
    *  Wort Text bleibt. false = nichts zu escapen (manuell gesetzt oder Auslöser nicht auffindbar),
    *  dann leert der Chip wie bisher. */
+  /** ✕ am Wiederholungs-Chip: erkannten Ausloeser im Titel escapen. Siehe unparseDue(). */
+  private unparseRecur(): boolean {
+    const next = escapeTriggers(this.f.title, [this.nl.recurSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.input.value = next;
+    this.f.recurrence = null;
+    this.parse();
+    return true;
+  }
+
   private unparseDue(): boolean {
     const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
     if (next === this.f.title) return false;
@@ -132,6 +143,7 @@ export class QuickAddModal extends Modal {
       // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
       pinDue: () => { this.duePinned = true; this.nl.dueSrc = ""; this.nl.timeSrc = ""; },
       unparseDue: () => this.unparseDue(),
+      unparseRecur: () => this.unparseRecur(),
       resetParsedLabels: () => { this.nl.labels = []; },
       onParentPicked: (proj) => { if (proj) { this.f.project = proj; this.nl.project = null; this.renderProjekt(); } },
       // Details in der Schnelleingabe hat keinen Inline-Log -> öffnet den vollen Editor mit
