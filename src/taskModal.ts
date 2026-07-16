@@ -352,10 +352,9 @@ export class TaskModal extends Modal {
     if (this.f.project) meta.push(t("group_project") + ": " + projectDisplayName(this.f.project));
     const desc = (this.f.description ?? "").trim();
 
-    const iframe = doc.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.addClass("bt-print-frame");
-    doc.body.appendChild(iframe);
+    // Das iframe-Element selbst gehoert dem App-Realm -> Obsidian-Helfer: anlegen, klassifizieren
+    // und anhaengen in einem Zug.
+    const iframe = doc.body.createEl("iframe", { cls: "bt-print-frame", attr: { "aria-hidden": "true" } });
     // Inhalt liegt im iframe-Realm → nur Standard-DOM (kein Obsidian-createEl/addClass).
     const idoc = iframe.contentDocument, win = iframe.contentWindow;
     if (!idoc || !win) { iframe.remove(); return; }

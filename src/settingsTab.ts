@@ -159,7 +159,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
     // ── Aufgabenaktionen (Chips je Fläche ein-/ausblenden + sortieren) ──
     new Setting(containerEl).setName(t("set_chip_actions")).setHeading();
-    containerEl.createEl("div", { cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
+    containerEl.createDiv({ cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });
     this.renderChipActions(containerEl);
 
     // ── Status (früher im ListManager; Custom-Status ist Konfiguration → gehört hierher) ──
@@ -197,7 +197,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
     // ── Nicht verbunden: Assistent ──
     if (!p.gcalAuth.isConnected()) {
-      containerEl.createEl("div", { cls: "setting-item-description", text: t("gcal_setup_desc") });
+      containerEl.createDiv({ cls: "setting-item-description", text: t("gcal_setup_desc") });
       new Setting(containerEl).addButton((b) => b.setButtonText(t("gcal_help_btn"))
         .onClick(() => window.open(GCAL_GUIDE_URL)));
       // „Verbinden" muss reaktiv (de)aktiviert werden, sobald beide Felder gefüllt sind –
@@ -210,7 +210,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         txt.inputEl.type = "password";
         txt.setValue(g.clientSecret).onChange((v) => { g.clientSecret = v.trim(); void p.saveSettings(); refreshConnect(); });
       });
-      containerEl.createEl("div", { cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
+      containerEl.createDiv({ cls: "setting-item-description bt-gcal-hint", text: t("gcal_setup_hint") });
       new Setting(containerEl).addButton((b) => {
         connectBtn = b;
         b.setButtonText(t("gcal_connect_btn")).setCta().setDisabled(!g.clientId || !g.clientSecret)
@@ -234,7 +234,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));
 
     // Kein Ziel-Kalender (z. B. Auto-Anlage fehlgeschlagen) → deutlich führen statt still nichts tun.
-    if (!g.calendarId) containerEl.createEl("div", { cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
+    if (!g.calendarId) containerEl.createDiv({ cls: "bt-gcal-warn", text: t("gcal_no_calendar_warn") });
 
     const statusSetting = new Setting(containerEl)
       .addButton((b) => b.setButtonText(t("gcal_sync_now_btn")).onClick(() => void p.gcalSync.syncNow()));

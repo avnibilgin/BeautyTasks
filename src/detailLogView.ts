@@ -123,7 +123,9 @@ export class DetailLogView {
     const copyCurrent = async (): Promise<void> => {
       const img = imgs[i];
       try {
-        const canvas = doc.createElement("canvas");
+        // Globales createEl (nicht doc.win.createEl – Window hat keins): erzeugt ein loses
+        // Element im App-Realm, das nie ins DOM kommt. Nur Zwischenschritt fuer toBlob().
+        const canvas = createEl("canvas");
         canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("no 2d context");
