@@ -519,7 +519,11 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
  *  Zone verlassen ist, beim Drag-Ende ODER wenn das Board neu gerendert/entfernt wurde (`isConnected`).
  *  KEIN vertikales Autoscroll: Spalten scrollen intern und Drops sind positionsunabhängig – man muss
  *  beim Ziehen nie eine Spalte intern scrollen. */
-function attachEdgeAutoscroll(board: HTMLElement): void {
+/** Rand-Autoscroll fürs Board. Gibt `drive(clientX)` zurück, um dieselbe Mechanik von außen zu
+ *  füttern (`null` stoppt) – Karten ziehen per HTML5-Drag, da feuert `dragover` von selbst; Spalten
+ *  ziehen per Pointer-Events, da feuert `dragover` NIE. Ohne diese Ansteuerung stünde das Board beim
+ *  Spalten-Ziehen still, und man käme mit der rechten Spalte nie an den linken Rand. */
+function attachEdgeAutoscroll(board: HTMLElement): (clientX: number | null) => void {
   const EDGE = 56;   // Randzone (px)
   const MAX = 18;    // Höchstgeschwindigkeit (px/Frame)
   let hSpeed = 0, rafId = 0;
@@ -530,14 +534,16 @@ function attachEdgeAutoscroll(board: HTMLElement): void {
     rafId = window.requestAnimationFrame(tick);
   };
   const stop = (): void => { hSpeed = 0; if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; } };
-  board.addEventListener("dragover", (e) => {
-    if (!dragPath) return;   // nur eigene Karten, kein Vault-/Text-Drag
+  const drive = (clientX: number | null): void => {
+    if (clientX === null) { stop(); return; }
     const r = board.getBoundingClientRect();
-    hSpeed = e.clientX < r.left + EDGE ? -ramp(e.clientX - r.left) : e.clientX > r.right - EDGE ? ramp(r.right - e.clientX) : 0;
+    hSpeed = clientX < r.left + EDGE ? -ramp(clientX - r.left) : clientX > r.right - EDGE ? ramp(r.right - clientX) : 0;
     if (hSpeed && !rafId) rafId = window.requestAnimationFrame(tick);
-  });
+  };
+  board.addEventListener("dragover", (e) => { if (dragPath) drive(e.clientX); });   // nur eigene Karten, kein Vault-/Text-Drag
   board.addEventListener("dragend", stop);
   board.addEventListener("drop", stop);
+  return drive;
 }
 
 /** Sentinel-Spalten („Ohne Label"/„Kein Projekt") – bleiben immer hinten, nicht umsortierbar. */
@@ -559,7 +565,11 @@ function applyColumnOrder(cols: BoardColumn[], saved: string[] | undefined): Boa
 /** Kanban-Spalte horizontal umsortieren – der ganze Spaltenkopf ist der Ziehgriff (Pointer-basiert,
  *  Maus + Touch, Popout-sicher). Persistiert die neue ID-Reihenfolge (ohne Sentinel) je Gruppierung,
  *  aber nur wenn sich die Reihenfolge tatsächlich geändert hat (bloßer Klick = No-Op). */
-function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLElement, groupKey: string, plugin: BeautyTasksPlugin): void {
+/** `drive` = Rand-Autoscroll des Boards (aus attachEdgeAutoscroll). Karten bekommen ihn beim Ziehen
+ *  von selbst über `dragover`; ein Pointer-Drag kennt dieses Ereignis nicht, also fütterte ihn die
+ *  Spalte hier direkt – damit sie sich beim Anfahren des linken/rechten Randes genauso verhält. */
+function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLElement, groupKey: string,
+                          plugin: BeautyTasksPlugin, drive: (clientX: number | null) => void): void {
   const cols = (): HTMLElement[] => Array.from(board.children).filter((el): el is HTMLElement => el.instanceOf(HTMLElement) && el.hasClass("bt-kanban-col"));
   const orderIds = (): string[] => cols().filter((el) => el.dataset.pin !== "1").map((el) => el.dataset.col).filter((c): c is string => !!c);
   handle.addEventListener("pointerdown", (ev) => {
@@ -567,9 +577,8 @@ function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLEl
     ev.preventDefault();
     const doc = board.ownerDocument;
     const before = orderIds().join(",");
-    const onMove = (me: PointerEvent): void => {
-      colEl.addClass("is-col-dragging");   // Drag-Optik erst bei echter Bewegung (Klick = kein Aufblinken)
-      const x = me.clientX;
+    let lastX = ev.clientX;
+    const place = (x: number): void => {
       let placed = false;
       for (const sib of cols()) {
         if (sib === colEl || sib.dataset.pin === "1") continue;   // Sentinel bleibt hinten, nie verdrängen
@@ -578,15 +587,28 @@ function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLEl
       }
       if (!placed) { const pin = cols().find((el) => el.dataset.pin === "1"); if (pin) board.insertBefore(colEl, pin); else board.appendChild(colEl); }
     };
+    const onMove = (me: PointerEvent): void => {
+      colEl.addClass("is-col-dragging");   // Drag-Optik erst bei echter Bewegung (Klick = kein Aufblinken)
+      lastX = me.clientX;
+      drive(lastX);      // Rand-Autoscroll wie beim Karten-Ziehen – Pointer-Drag feuert kein dragover
+      place(lastX);
+    };
+    // Während der Autoscroll läuft, feuert bei ruhendem Zeiger kein pointermove – die Nachbarn
+    // wandern aber unter ihm durch. Deshalb die Platzierung mit dem letzten X nachziehen, sonst
+    // scrollt das Board zwar nach links, die Spalte bliebe aber hinten einsortiert.
+    const onBoardScroll = (): void => place(lastX);
     const onUp = (): void => {
       colEl.removeClass("is-col-dragging");
+      drive(null);       // Autoscroll anhalten
       doc.removeEventListener("pointermove", onMove);
       doc.removeEventListener("pointerup", onUp);
+      board.removeEventListener("scroll", onBoardScroll);
       const ids = orderIds();
       if (ids.join(",") !== before) void plugin.setBoardColumnOrder(groupKey, ids);   // nur bei echter Änderung
     };
     doc.addEventListener("pointermove", onMove);
     doc.addEventListener("pointerup", onUp);
+    board.addEventListener("scroll", onBoardScroll);
   });
 }
 
@@ -627,7 +649,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
         : statusColumns(plugin, add);
   const cols = reorderable ? applyColumnOrder(baseCols, plugin.settings.boardColumnOrder?.[groupKey]) : baseCols;
   const board = root.createDiv({ cls: "bt-kanban" });
-  attachEdgeAutoscroll(board);
+  const driveScroll = attachEdgeAutoscroll(board);
   // Scroll-Position über Re-Renders halten: nach einem Karten-Drop rendert die ganze View neu –
   // ohne das spränge das Board zurück nach links. Schlüssel = aktuelle Board-Identität (+ Gruppierung).
   const scrollKey = (plugin.currentProject ?? plugin.currentLabel ?? plugin.currentFilter ?? plugin.currentView ?? "") + "|" + (opts.group ?? "");
@@ -645,7 +667,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     if (reorderable && !sentinel) {
       head.addClass("bt-col-draggable");
       setIcon(head.createSpan({ cls: "bt-kanban-grip" }), "grip-vertical");
-      attachColumnDrag(colEl, head, board, groupKey, plugin);
+      attachColumnDrag(colEl, head, board, groupKey, plugin, driveScroll);
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
