@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { parseQuickEntry, escapeTriggers, applyQuickEntry, emptyQuickEntryState, QuickEntryFields, QuickEntryOptions } from "../src/quickEntry";
-import { parseRecurrence } from "../src/recurrence";
+import { nextInstance, parseRecurrence } from "../src/recurrence";
+import type { Task } from "../src/types";
 
 // parseQuickEntry rechnet relative Phrasen gegen die Systemuhr -> hier einfrieren (Montag).
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0)); });
@@ -43,6 +44,54 @@ describe("Wiederholung – Erkennung", () => {
       expect(r, raw).not.toBeNull();
       expect(parseRecurrence(r!), raw).not.toBeNull();
     }
+  });
+});
+
+describe("Wiederholung – Wochentag (jeden Montag)", () => {
+  // Das Regelmodell {n, unit} in recurrence.ts kennt keine Wochentage – es braucht sie auch nicht:
+  // „every week" + Faelligkeit am naechsten Montag ist dasselbe, weil advance() von der
+  // Faelligkeit aus weiterzaehlt. Deshalb schluckt die Regel nur das Vorwort.
+  it.each([
+    ["jeden montag sport", "2026-06-22"],       // Testdatum ist Montag, 15.06. -> naechster Montag
+    ["jeden Freitag Müll", "2026-06-19"],
+    ["every monday standup", "2026-06-22"],
+  ])("%s -> woechentlich, verankert am Wochentag", (raw, due) => {
+    const r = parseQuickEntry(raw);
+    expect(r.recurrence).toBe("every week");
+    expect(r.faellig).toBe(due);
+  });
+
+  it("laesst den Rest des Titels in Ruhe und vertraegt eine Uhrzeit", () => {
+    const r = parseQuickEntry("jeden montag um 20:00 sport");
+    expect(r.recurrence).toBe("every week");
+    expect(r.faellig).toBe("2026-06-22");
+    expect(r.time).toBe("20:00");
+    expect(r.title).toBe("sport");
+  });
+
+  it("kehrt tatsaechlich montags wieder", () => {
+    const p = parseQuickEntry("jeden montag sport");
+    const task = { recurrence: p.recurrence, recurBasis: "due", due: p.faellig, scheduled: null } as unknown as Task;
+    const next = nextInstance(task, p.faellig);
+    expect(next?.due).toBe("2026-06-29");                                  // + 1 Woche
+    expect(new Date(next!.due + "T00:00:00").getDay()).toBe(1);            // wieder Montag
+  });
+
+  it("verwechselt einen blossen Wochentag nicht mit einer Wiederholung", () => {
+    const r = parseQuickEntry("Montag Sport");
+    expect(r.recurrence).toBeNull();
+    expect(r.faellig).toBe("2026-06-22");
+  });
+
+  it("das ✕ macht die ganze Phrase zu Text, nicht nur das Vorwort", () => {
+    // Nur „jeden" zu escapen liesse den Montag als Datum stehen – aber mit dem Titel „jeden sport".
+    const p = parseQuickEntry("jeden montag sport");
+    expect(p.recurSrc).toBe("jeden montag");
+    const next = escapeTriggers("jeden montag sport", [p.recurSrc]);
+    expect(next).toBe("\\jeden \\montag sport");
+    const after = parseQuickEntry(next);
+    expect(after.recurrence).toBeNull();
+    expect(after.title).toBe("jeden montag sport");
   });
 });
 

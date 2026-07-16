@@ -145,6 +145,22 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   grabRecur(re("(?:jeden|jede[nsr]?|alle|every)\\s+(?:(\\d+)\\s+)?(" + RUNITS + ")"),
     (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()]));
   grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
+  // „jeden Montag", „every friday": wöchentlich, verankert am Wochentag. Das Regelmodell {n, unit}
+  // in recurrence.ts kennt keine Wochentage – es braucht sie aber auch nicht: „every week" plus
+  // Fälligkeit am nächsten Montag IST „jeden Montag", weil advance() von der Fälligkeit aus
+  // weiterzählt. Deshalb hier NUR das Vorwort schlucken und den Wochentag stehen lassen; die
+  // Datumsregel unten macht daraus den nächsten Montag.
+  // Auslöser ist die GANZE Phrase, nicht nur das Vorwort: Das ✕ escapt sie dann zu „jeden montag"
+  // im Titel – die Wörter des Nutzers, unversehrt. Nur „jeden" zu escapen ließe den Montag als
+  // Datum stehen, hinterließe aber den Titel „jeden sport", und solchen Wortmüll erfinden wir nicht.
+  if (!recurrence) {
+    const m = text.match(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + WDNAMES + ")"));
+    if (m) {
+      recurrence = "every week";
+      recurSrc = trigger(m[0]);
+      text = text.replace(m[0], " " + m[1] + " ");
+    }
+  }
 
   // ── Uhrzeit, Teil 1: mit „um"/„at" davor ──
   // Bewusst VOR den Datumsregeln. „um 20.12" ist eine Uhrzeit – die Datumsregel unten wuerde es

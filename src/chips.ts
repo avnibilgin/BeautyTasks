@@ -12,7 +12,7 @@ import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
-import { slugify } from "./taskService";
+import { slugify, todayIso } from "./taskService";
 import { t } from "./i18n";
 
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
@@ -136,7 +136,15 @@ function openRecur(host: ChipHost, anchor: HTMLElement): void {
       pop.empty();
       popRow(pop, "x", t("recur_none"), () => { f.recurrence = null; host.rerender(); close(); }, !f.recurrence);
       for (const r of RECUR) {
-        popRow(pop, "refresh-ccw", t(r.key), () => { f.recurrence = r.val; host.rerender(); render(); }, f.recurrence === r.val);
+        popRow(pop, "refresh-ccw", t(r.key), () => {
+          f.recurrence = r.val;
+          // Eine Wiederholung braucht einen Anker: ohne Datum liefert recurrence.ts keine naechste
+          // Instanz (nextInstance: ohne due UND scheduled -> null). Der Chip zeigte dann „Taeglich"
+          // an, ohne dass je etwas wiederkehrt. Genau wie bei der Texterkennung: ohne Datum heute.
+          // pinDue, weil das hier eine Handauswahl ist – der Titel soll es nicht ueberschreiben.
+          if (!f.due) { f.due = todayIso(); host.pinDue(); }
+          host.rerender(); render();
+        }, f.recurrence === r.val);
       }
       if (f.recurrence) {
         pop.createDiv({ cls: "bt-pop-head", text: t("recur_basis") });
