@@ -129,6 +129,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   // Regeln mit (kein Lookbehind wegen iOS) – deshalb abschneiden, falls kein Buchstabe/Ziffer.
   const trigger = (hit: string): string => hit.replace(/^[^\p{L}\p{N}]/u, "");
   let faelligSrc = "", timeSrc = "";
+  let faellig = "", time = "";   // vor dem chrono-Rueckfall deklariert, der sie zuerst fuellen kann
 
   // Wiederholung VOR den Datumsregeln: „alle 3 tage" darf seinen Text zuerst greifen, damit in
   // „alle 3 tage ab morgen" hinterher noch „morgen" als Datum übrig bleibt.
@@ -162,12 +163,36 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
     }
   }
 
+  // ── Rückfall für Sprachen, die die Regeln unten nicht können (es, pt, fr, it, ru, zh, ja) ──
+  // „mañana", „明天", „завтра". `chronos` ist für de/en/tr LEER – dort ist der eigene Parser
+  // besser (Kurzdaten „am 20.12.", „übermorgen") und chrono brächte eigene Falscherkennungen mit.
+  //
+  // Bewusst VOR den eigenen Datums-/Uhrzeitregeln: Sonst schnappt die Uhrzeit-Regel in
+  // „Reunión mañana a las 20:00" die 20:00 weg, chrono sieht nur noch „mañana a las" und der
+  // Termin landet auf HEUTE 20:00 statt morgen – mit „a las" als Rest im Titel. In der eigenen
+  // Sprache hat chrono Vorrang; die Regeln unten fangen danach die englischen Schlüsselwörter ab
+  // („Escribir informe tomorrow"), denn chrono es kennt kein Englisch.
+  //
+  // forwardDate: ohne das wählt chrono auch vergangene Tage („segunda-feira" -> letzter Montag).
+  for (const c of chronos) {
+    const hit = c.parse(text, today, { forwardDate: true })[0];
+    if (!hit) continue;
+    const d = hit.start.date();
+    faellig = iso(d);
+    faelligSrc = hit.text;
+    // Nur eine ausdrücklich genannte Uhrzeit übernehmen – sonst füllt chrono die Stunde aus dem
+    // Bezugszeitpunkt auf und jede Datumsangabe bekäme eine erfundene Uhrzeit.
+    if (hit.start.isCertain("hour")) { time = z(d.getHours()) + ":" + z(d.getMinutes()); timeSrc = hit.text; }
+    // Über den Index schneiden, nicht per replace(): der Treffertext kann mehrfach vorkommen.
+    text = text.slice(0, hit.index) + " " + text.slice(hit.index + hit.text.length);
+    break;
+  }
+
   // ── Uhrzeit, Teil 1: mit „um"/„at" davor ──
   // Bewusst VOR den Datumsregeln. „um 20.12" ist eine Uhrzeit – die Datumsregel unten wuerde es
   // sonst als 20. Dezember wegschnappen, waehrend „um 20.15" durchkaeme (Monat 15 gibt es nicht).
   // Mal Datum, mal Uhrzeit, je nach Minutenzahl – genau das darf nicht passieren. Mit „um" davor
   // ist es eindeutig eine Zeit, also entscheidet das Vorwort, nicht die Reihenfolge.
-  let time = "";
   const hm = (h: number, mi: number): string | null => (h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z(h) + ":" + z(mi) : null);
   const grabTime = (rx: RegExp, fn: (m: RegExpMatchArray) => string | null) => {
     if (time) return;
@@ -183,7 +208,6 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   // Jahreszahl („Fotos von 2015 sortieren"). Stunde 00–23, Minute 00–59 – „um 2500" bleibt Text.
   grabTime(/(?:^|\s)(?:um|at)\s*([01]\d|2[0-3])([0-5]\d)(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
 
-  let faellig = "";
   const grab = (rx: RegExp, fn: (m: RegExpMatchArray) => Date | null) => {
     if (faellig) return;
     const m = text.match(rx);
@@ -230,27 +254,6 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   grabTime(/(?:^|\s)(\d{1,2}):(\d{2})(?!\d)/, (m) => hm(+m[1], +m[2]));
   grabTime(/(?:^|\s)(?:um|at)\s*(\d{1,2})(?:\s*uhr)?(?![\d:])/i, (m) => hm(+m[1], 0));
   grabTime(/(?:^|\s)(\d{1,2})\s*uhr(?!\d)/i, (m) => hm(+m[1], 0));
-
-  // Rückfall für Sprachen, die die Regeln oben nicht können (es, pt, fr, it, ru, zh, ja) – „mañana",
-  // „明天", „завтра". Läuft NUR, wenn oben nichts gefunden wurde: in Deutsch und Englisch ist der
-  // eigene Parser besser (Kurzdaten „am 20.12.", „übermorgen"), und chrono brächte dort eigene
-  // Falscherkennungen mit. `chronos` ist für de/en/tr deshalb leer – siehe chronoLocale.ts.
-  // forwardDate: ohne das wählt chrono auch vergangene Tage („segunda-feira" -> letzter Montag).
-  if (!faellig && !time) {
-    for (const c of chronos) {
-      const hit = c.parse(text, today, { forwardDate: true })[0];
-      if (!hit) continue;
-      const d = hit.start.date();
-      faellig = iso(d);
-      faelligSrc = hit.text;
-      // Nur eine ausdrücklich genannte Uhrzeit übernehmen – sonst füllt chrono die Stunde aus dem
-      // Bezugszeitpunkt auf und jede Datumsangabe bekäme eine erfundene Uhrzeit.
-      if (hit.start.isCertain("hour")) { time = z(d.getHours()) + ":" + z(d.getMinutes()); timeSrc = hit.text; }
-      // Über den Index schneiden, nicht per replace(): der Treffertext kann mehrfach vorkommen.
-      text = text.slice(0, hit.index) + " " + text.slice(hit.index + hit.text.length);
-      break;
-    }
-  }
 
   // Priorität: „p1"–„p4" bzw. „!1"–„!4" (Todoist-Stil). p1 = höchste.
   let priority: Priority | null = null;

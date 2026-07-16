@@ -87,7 +87,18 @@ describe("chrono-Rueckfall – greift nur, wenn der eigene Parser nichts findet"
   it("nimmt eine ausdrueckliche Uhrzeit mit, erfindet aber keine", () => {
     // chrono fuellt die Stunde sonst aus dem Bezugszeitpunkt auf.
     expect(parse("es", "Reunión mañana").time).toBe("");
-    expect(parse("es", "Reunión mañana a las 20:00").time).toBe("20:00");
+    expect(parse("es", "Reunión mañana").faellig).toBe("2026-07-17");
+  });
+
+  // Regression: Der chrono-Rueckfall lief zuerst NACH den eigenen Regeln. Deren Uhrzeit-Regel
+  // schnappte sich die "20:00", damit galt der Rueckfall als erledigt und chrono sah das "mañana"
+  // nie – der Termin landete auf HEUTE 20:00 statt morgen, mit "a las" als Rest im Titel.
+  // In der eigenen Sprache hat chrono deshalb Vorrang vor den Regeln.
+  it("erkennt Datum UND Uhrzeit in einem Satz", () => {
+    const r = parse("es", "Reunión mañana a las 20:00");
+    expect(r.faellig).toBe("2026-07-17");
+    expect(r.time).toBe("20:00");
+    expect(r.title).toBe("Reunión");
   });
 
   it("laesst sich escapen wie alles andere", () => {
