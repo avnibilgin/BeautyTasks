@@ -52,8 +52,10 @@ const re = (body: string) => new RegExp("(?:^|[^A-Za-zÄÖÜäöüß\\uE000-\\uF
 // er Pfade („C:\Users\avni") mitten im Wort. `\\ ` am Wortanfang ergibt einen echten Backslash.
 const MASK = /(^|\s)\\(\S+)|(["„“”])([^"„“”]+)(["„“”])/g;
 const PUA = /[\uE000-\uF8FF]/g;
+/** Regex-Sonderzeichen entschaerfen (Projektnamen, Ausloeser-Woerter). */
+const rxEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null; }
+export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null; faelligSrc: string; timeSrc: string; }
 
 // `projects` = bekannte Projekt-/Bereichsnamen. Nur damit wird @Projekt erkannt (Zuordnung nur
 // zu Bestehenden – Projekte sind Dateien, kein Anlegen bei Tippfehler). Labels dagegen sind frei.
@@ -81,8 +83,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   let project: string | null = null;
   const known = projects.filter(Boolean);
   if (known.length) {
-    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const alt = [...known].sort((a, b) => b.length - a.length).map(esc).join("|");
+    const alt = [...known].sort((a, b) => b.length - a.length).map(rxEsc).join("|");
     const m = text.match(new RegExp("(?:^|\\s)@(" + alt + ")(?![\\p{L}\\p{N}_])", "iu"));
     if (m) {
       project = known.find((p) => p.toLowerCase() === m[1].toLowerCase()) ?? m[1];
@@ -91,13 +92,18 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   }
 
   const today = now;
+  // Welcher Text hat den Treffer ausgelöst? Wird als faelligSrc/timeSrc gemeldet, damit das ✕ am
+  // Chip ihn im Titel escapen kann (escapeTriggers). Das führende Grenzzeichen konsumieren die
+  // Regeln mit (kein Lookbehind wegen iOS) – deshalb abschneiden, falls kein Buchstabe/Ziffer.
+  const trigger = (hit: string): string => hit.replace(/^[^\p{L}\p{N}]/u, "");
+  let faelligSrc = "", timeSrc = "";
   let faellig = "";
   const grab = (rx: RegExp, fn: (m: RegExpMatchArray) => Date | null) => {
     if (faellig) return;
     const m = text.match(rx);
     if (!m) return;
     const d = fn(m);
-    if (d && !isNaN(d.getTime())) { faellig = iso(d); text = text.replace(m[0], " "); }
+    if (d && !isNaN(d.getTime())) { faellig = iso(d); faelligSrc = trigger(m[0]); text = text.replace(m[0], " "); }
   };
   grab(re("heute|today"), () => today);
   grab(re("übermorgen|day\\s+after\\s+tomorrow"), () => addDays(today, 2));
@@ -141,7 +147,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
     const m = text.match(rx);
     if (!m) return;
     const t = fn(m);
-    if (t) { time = t; text = text.replace(m[0], " "); }
+    if (t) { time = t; timeSrc = trigger(m[0]); text = text.replace(m[0], " "); }
   };
   grabTime(/(?:^|\s)(?:um|at|@)\s*(\d{1,2}):(\d{2})(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
   grabTime(/(?:^|\s)(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?![a-z])/i, (m) => { let h = +m[1] % 12; if (m[3].toLowerCase() === "pm") h += 12; return hm(h, m[2] ? +m[2] : 0); });
@@ -155,7 +161,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
 
   // Rücktausch NACH dem Kollabieren der Leerzeichen: eigene Formatierung im geschützten Text bleibt.
-  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project };
+  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, faelligSrc, timeSrc };
 }
 
 // ── Parse-Ergebnis auf die Eingabefelder anwenden ──
@@ -163,9 +169,30 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
 // selbst aus – dieselbe Logik doppelt, jeder Fehler doppelt zu fixen und mangels DOM ungetestet.
 // Hier bewusst als reine Funktion (Systemzeit als `today` hereingereicht), damit sie testbar ist.
 
-/** Was ein Modal zwischen zwei Tastendrücken behalten muss, um Erkanntes von Manuellem zu trennen. */
-export interface QuickEntryState { labels: string[]; project: string | null; }
-export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null });
+/** Was ein Modal zwischen zwei Tastendrücken behalten muss, um Erkanntes von Manuellem zu trennen.
+ *  `dueSrc`/`timeSrc` = der Text, der Datum bzw. Uhrzeit ausgelöst hat („morgen", „um 20:00"); leer,
+ *  sobald der Wert nicht (mehr) aus dem Titel stammt. Damit weiß das ✕ am Chip, ob es den Auslöser
+ *  im Titel escapen soll (Wort bleibt Text) statt das Feld nur zu leeren. */
+export interface QuickEntryState { labels: string[]; project: string | null; dueSrc: string; timeSrc: string; }
+export const emptyQuickEntryState = (): QuickEntryState => ({ labels: [], project: null, dueSrc: "", timeSrc: "" });
+
+/** Setzt vor jedes Wort der Auslöser einen Backslash – das ✕ am Datums-Chip tippt ihn also für den
+ *  Nutzer. Pro Wort statt Anführungszeichen ums Ganze: die blieben sonst im Titel stehen.
+ *  ALLE Vorkommen, nicht nur das erste – „kein Datum" gilt dem Wort, nicht einem Vorkommen
+ *  („heute heute anrufen" braucht beide). Bereits Escaptes wird nicht doppelt escapt.
+ *  Findet sich ein Auslöser nicht mehr wörtlich im Rohtext, bleibt der Text unverändert: bei
+ *  `in 3 #x tagen` strippt der Parser das Label vor der Datumsregel, der gemeldete Auslöser trägt
+ *  dann dessen Lücke. Der Aufrufer erkennt das am unveränderten Rückgabewert und leert normal. */
+export function escapeTriggers(raw: string, triggers: string[]): string {
+  let out = raw;
+  for (const trg of triggers) {
+    if (!trg.trim()) continue;
+    const body = trg.trim().split(/\s+/).map(rxEsc).join("\\s+");
+    const rx = new RegExp("(^|[^\\p{L}\\p{N}\\\\])(" + body + ")(?![\\p{L}\\p{N}])", "giu");
+    out = out.replace(rx, (_m, pre: string, hit: string) => pre + hit.replace(/(^|\s)(\S)/g, "$1\\$2"));
+  }
+  return out;
+}
 
 /** Die Felder, die aus dem Titel befüllt werden können (Teilmenge der Modal-Felder). */
 export interface QuickEntryFields {
@@ -192,11 +219,12 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   const p = parseQuickEntry(raw, opts.projects ?? [], new Date(y, mo - 1, d));
   const f: QuickEntryFields = { ...fields };
 
-  if (!opts.duePinned && p.faellig) f.due = p.faellig;
+  let dueSrc = "", timeSrc = "";
+  if (!opts.duePinned && p.faellig) { f.due = p.faellig; dueSrc = p.faelligSrc; }
   // Eine Uhrzeit impliziert einen Tag: ohne Datum wäre sie unsichtbar (der Datums-Chip prüft
   // `!!due`) und ginge beim Speichern verloren (nur mit Datum wird kombiniert). Default heute –
   // wie Todoist/TickTick. Betrifft auch „Zahnarzt um 20:00" ganz ohne Escape.
-  if (!opts.duePinned && p.time) { f.dueTime = p.time; f.due ??= opts.today; }
+  if (!opts.duePinned && p.time) { f.dueTime = p.time; f.due ??= opts.today; timeSrc = p.timeSrc; }
   if (p.priority) f.priority = p.priority;
 
   // @Projekt: erkannt -> setzen; wieder aus dem Titel gelöscht -> zurück auf den Default.
@@ -210,5 +238,5 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
   f.labels = [...manual, ...parsed];
 
-  return { title: p.title, fields: f, state: { labels: parsed, project } };
+  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc } };
 }

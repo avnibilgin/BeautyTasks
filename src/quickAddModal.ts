@@ -7,7 +7,7 @@
 import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus } from "./types";
-import { applyQuickEntry, emptyQuickEntryState, QuickEntryState } from "./quickEntry";
+import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
 import { createTaskNote, listProjectsAndAreas, isInboxLink } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { todayStr } from "./format";
@@ -101,6 +101,22 @@ export class QuickAddModal extends Modal {
     this.nl = r.state;
   }
 
+  /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit das
+   *  Wort Text bleibt. false = nichts zu escapen (manuell gesetzt oder Auslöser nicht auffindbar),
+   *  dann leert der Chip wie bisher. */
+  private unparseDue(): boolean {
+    const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.input.value = next;
+    // Der Wert kam aus dem Titel – escapen heisst: er ist weg. Erst leeren, dann neu parsen
+    // (der escapte Text setzt nichts mehr). KEIN pinDue: das Escape im Titel IST der Zustand,
+    // ein spaeter getipptes „uebermorgen" soll wieder erkannt werden.
+    this.f.due = null; this.f.dueTime = null; this.f.duration = null;
+    this.parse();
+    return true;
+  }
+
   // ── Chips (gemeinsame Registry) ──
   /** Brücke Modal ⇄ Chip-Registry. Kein existing (Neu-Anlage): Status nur lokal, keine Ausschlüsse. */
   private chipHost(): ChipHost {
@@ -113,7 +129,9 @@ export class QuickAddModal extends Modal {
       compactLabels: true,     // Priorität als „P1" (kompakt)
       iconsOnly: true,         // leere Chips stets nur Icon
       applyStatus: (s) => { this.f.status = s; this.renderChips(); },
-      pinDue: () => { this.duePinned = true; },
+      // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
+      pinDue: () => { this.duePinned = true; this.nl.dueSrc = ""; this.nl.timeSrc = ""; },
+      unparseDue: () => this.unparseDue(),
       resetParsedLabels: () => { this.nl.labels = []; },
       onParentPicked: (proj) => { if (proj) { this.f.project = proj; this.nl.project = null; this.renderProjekt(); } },
       // Details in der Schnelleingabe hat keinen Inline-Log -> öffnet den vollen Editor mit

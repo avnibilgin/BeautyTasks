@@ -4,7 +4,7 @@ import { Task, TaskStatus } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, TaskFields } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
-import { applyQuickEntry, emptyQuickEntryState, QuickEntryState } from "./quickEntry";
+import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
 import { readLog } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
 import { firstOpenStatus } from "./statuses";
@@ -25,6 +25,7 @@ export class TaskModal extends Modal {
   private chipBar!: HTMLElement;
   private descInput: HTMLTextAreaElement | null = null;
   private projektBtn!: HTMLButtonElement;
+  private titleInput!: HTMLInputElement;   // fuer unparseDue: Auslöser im Titel escapen
   private detailsWrap!: HTMLElement;
   private logWrap!: HTMLElement;
   private detailsChip?: HTMLElement;   // Büroklammer-Chip, der die Detail-Sektion toggelt
@@ -78,6 +79,7 @@ export class TaskModal extends Modal {
 
     const placeholder = this.opts.parent ? t("placeholder_subtask") : t("placeholder_taskname");
     const title = contentEl.createEl("input", { type: "text", cls: "bt-titel", attr: { placeholder } });
+    this.titleInput = title;
     title.value = this.f.title;
     title.oninput = () => { this.f.title = title.value; this.applyParse(); this.renderChips(); };
     title.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void this.save(); } };
@@ -184,6 +186,22 @@ export class TaskModal extends Modal {
     this.nl = r.state;
   }
 
+  /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit
+   *  das Wort Text bleibt. false = nichts zu escapen (manuell gesetzt, bestehende Aufgabe oder
+   *  Auslöser nicht auffindbar), dann leert der Chip wie bisher. */
+  private unparseDue(): boolean {
+    const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.titleInput.value = next;
+    // Der Wert kam aus dem Titel – escapen heisst: er ist weg. Erst leeren, dann neu parsen
+    // (der escapte Text setzt nichts mehr). KEIN pinDue: das Escape im Titel IST der Zustand,
+    // ein spaeter getipptes „uebermorgen" soll wieder erkannt werden.
+    this.f.due = null; this.f.dueTime = null; this.f.duration = null;
+    this.applyParse();
+    return true;
+  }
+
   // ── Chips ──
   /** Brücke Modal ⇄ Chip-Registry: Feldzustand + host-spezifische Callbacks. */
   private chipHost(): ChipHost {
@@ -196,7 +214,9 @@ export class TaskModal extends Modal {
       compactLabels: false,
       iconsOnly: this.plugin.settings.chipsIconsOnly,
       applyStatus: (s) => void this.applyStatus(s),
-      pinDue: () => { this.duePinned = true; },
+      // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
+      pinDue: () => { this.duePinned = true; this.nl.dueSrc = ""; this.nl.timeSrc = ""; },
+      unparseDue: () => this.unparseDue(),
       existingPath: this.existing?.path,
       onParentPicked: (proj) => { if (proj) this.f.project = proj; if (!this.opts.hideProjekt) this.renderProjekt(); },
       toggleDetails: () => this.toggleDetails(),

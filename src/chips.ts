@@ -69,6 +69,9 @@ export interface ChipHost {
   iconsOnly: boolean;                     // leere Chips nur als Icon (Schnelleingabe immer; Editor per Setting)
   applyStatus(s: TaskStatus): void;       // Status übernehmen (Editor: live schreiben)
   pinDue(): void;                         // Datum manuell gesetzt/geleert -> NL überschreibt nicht
+  /** ✕ am Datums-Chip: Kam der Wert aus dem Titel („morgen"), dort den Auslöser escapen, statt nur
+   *  das Feld zu leeren – sonst bliebe das Wort aus dem Titel gestrippt. true = übernommen. */
+  unparseDue?(): boolean;
   resetParsedLabels?(): void;             // Schnelleingabe: manuelle Label-Änderung entkoppelt vom Parser
   existingPath?: string;                  // vorhandene Aufgabe -> Selbst/Nachfahren im Parent-Picker ausschließen
   onParentPicked?(projectBase: string | null): void;  // Parent gewählt -> ggf. Projekt erben + neu zeichnen
@@ -271,7 +274,13 @@ export const CHIPS: Record<ChipId, ChipDef> = {
     isSet: (f) => !!f.due,
     valueLabel: (f) => formatDateTime(combineDT(f.due!, f.dueTime)) + (f.duration ? " · " + formatDuration(f.duration) : ""),
     open: (host, a) => openDate(host, a, "due"),
-    clear: (host) => { host.f.due = null; host.f.dueTime = null; host.f.duration = null; host.pinDue(); },
+    // Aus dem Titel erkannt -> dort escapen (das Modal parst neu, der Chip leert sich dabei selbst
+    // und das Wort bleibt im Titel). Sonst – manuell gesetzt oder Auslöser nicht mehr auffindbar –
+    // wie bisher einfach leeren.
+    clear: (host) => {
+      if (host.unparseDue?.()) return;
+      host.f.due = null; host.f.dueTime = null; host.f.duration = null; host.pinDue();
+    },
   },
   priority: {
     id: "priority", icon: "flag", nameKey: "chip_priority", kind: "value",

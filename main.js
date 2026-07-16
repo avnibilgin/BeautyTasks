@@ -6328,6 +6328,7 @@ var L = "[A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF]";
 var re = (body) => new RegExp("(?:^|[^A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF\\uE000-\\uF8FF])" + body + "(?!" + L + ")", "i");
 var MASK = /(^|\s)\\(\S+)|(["„“”])([^"„“”]+)(["„“”])/g;
 var PUA = /[\uE000-\uF8FF]/g;
+var rxEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
   let text = " " + (raw || "") + " ";
   const lits = [];
@@ -6341,8 +6342,7 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
   let project = null;
   const known = projects.filter(Boolean);
   if (known.length) {
-    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const alt = [...known].sort((a, b) => b.length - a.length).map(esc).join("|");
+    const alt = [...known].sort((a, b) => b.length - a.length).map(rxEsc).join("|");
     const m = text.match(new RegExp("(?:^|\\s)@(" + alt + ")(?![\\p{L}\\p{N}_])", "iu"));
     if (m) {
       project = known.find((p) => p.toLowerCase() === m[1].toLowerCase()) ?? m[1];
@@ -6350,6 +6350,8 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     }
   }
   const today = now;
+  const trigger = (hit) => hit.replace(/^[^\p{L}\p{N}]/u, "");
+  let faelligSrc = "", timeSrc = "";
   let faellig = "";
   const grab = (rx, fn) => {
     if (faellig) return;
@@ -6358,6 +6360,7 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     const d = fn(m);
     if (d && !isNaN(d.getTime())) {
       faellig = iso3(d);
+      faelligSrc = trigger(m[0]);
       text = text.replace(m[0], " ");
     }
   };
@@ -6409,6 +6412,7 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     const t2 = fn(m);
     if (t2) {
       time = t2;
+      timeSrc = trigger(m[0]);
       text = text.replace(m[0], " ");
     }
   };
@@ -6427,18 +6431,33 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     priority = ["highest", "high", "medium", "normal"][+pm[1] - 1];
     text = text.replace(pm[0], " ");
   }
-  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project };
+  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, faelligSrc, timeSrc };
 }
-var emptyQuickEntryState = () => ({ labels: [], project: null });
+var emptyQuickEntryState = () => ({ labels: [], project: null, dueSrc: "", timeSrc: "" });
+function escapeTriggers(raw, triggers) {
+  let out = raw;
+  for (const trg of triggers) {
+    if (!trg.trim()) continue;
+    const body = trg.trim().split(/\s+/).map(rxEsc).join("\\s+");
+    const rx = new RegExp("(^|[^\\p{L}\\p{N}\\\\])(" + body + ")(?![\\p{L}\\p{N}])", "giu");
+    out = out.replace(rx, (_m, pre, hit) => pre + hit.replace(/(^|\s)(\S)/g, "$1\\$2"));
+  }
+  return out;
+}
 function applyQuickEntry(raw, fields, state, opts) {
   if (!opts.enabled || opts.frozen) return { title: raw, fields, state };
   const [y, mo, d] = opts.today.split("-").map(Number);
   const p = parseQuickEntry(raw, opts.projects ?? [], new Date(y, mo - 1, d));
   const f = { ...fields };
-  if (!opts.duePinned && p.faellig) f.due = p.faellig;
+  let dueSrc = "", timeSrc = "";
+  if (!opts.duePinned && p.faellig) {
+    f.due = p.faellig;
+    dueSrc = p.faelligSrc;
+  }
   if (!opts.duePinned && p.time) {
     f.dueTime = p.time;
     f.due ?? (f.due = opts.today);
+    timeSrc = p.timeSrc;
   }
   if (p.priority) f.priority = p.priority;
   let project = state.project;
@@ -6452,7 +6471,7 @@ function applyQuickEntry(raw, fields, state, opts) {
   const manual = fields.labels.filter((l) => !state.labels.includes(l));
   const parsed = [...new Set(p.tags)].filter((tag) => !manual.includes(tag));
   f.labels = [...manual, ...parsed];
-  return { title: p.title, fields: f, state: { labels: parsed, project } };
+  return { title: p.title, fields: f, state: { labels: parsed, project, dueSrc, timeSrc } };
 }
 
 // src/detailLog.ts
@@ -7277,7 +7296,11 @@ var CHIPS = {
     isSet: (f) => !!f.due,
     valueLabel: (f) => formatDateTime(combineDT(f.due, f.dueTime)) + (f.duration ? " \xB7 " + formatDuration(f.duration) : ""),
     open: (host, a) => openDate(host, a, "due"),
+    // Aus dem Titel erkannt -> dort escapen (das Modal parst neu, der Chip leert sich dabei selbst
+    // und das Wort bleibt im Titel). Sonst – manuell gesetzt oder Auslöser nicht mehr auffindbar –
+    // wie bisher einfach leeren.
     clear: (host) => {
+      if (host.unparseDue?.()) return;
       host.f.due = null;
       host.f.dueTime = null;
       host.f.duration = null;
@@ -7548,6 +7571,7 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     contentEl.empty();
     const placeholder = this.opts.parent ? t("placeholder_subtask") : t("placeholder_taskname");
     const title = contentEl.createEl("input", { type: "text", cls: "bt-titel", attr: { placeholder } });
+    this.titleInput = title;
     title.value = this.f.title;
     title.oninput = () => {
       this.f.title = title.value;
@@ -7654,6 +7678,20 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
     Object.assign(this.f, r.fields);
     this.nl = r.state;
   }
+  /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit
+   *  das Wort Text bleibt. false = nichts zu escapen (manuell gesetzt, bestehende Aufgabe oder
+   *  Auslöser nicht auffindbar), dann leert der Chip wie bisher. */
+  unparseDue() {
+    const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.titleInput.value = next;
+    this.f.due = null;
+    this.f.dueTime = null;
+    this.f.duration = null;
+    this.applyParse();
+    return true;
+  }
   // ── Chips ──
   /** Brücke Modal ⇄ Chip-Registry: Feldzustand + host-spezifische Callbacks. */
   chipHost() {
@@ -7666,9 +7704,13 @@ var TaskModal = class _TaskModal extends import_obsidian11.Modal {
       compactLabels: false,
       iconsOnly: this.plugin.settings.chipsIconsOnly,
       applyStatus: (s) => void this.applyStatus(s),
+      // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
       pinDue: () => {
         this.duePinned = true;
+        this.nl.dueSrc = "";
+        this.nl.timeSrc = "";
       },
+      unparseDue: () => this.unparseDue(),
       existingPath: this.existing?.path,
       onParentPicked: (proj) => {
         if (proj) this.f.project = proj;
@@ -10967,6 +11009,20 @@ var QuickAddModal = class extends import_obsidian21.Modal {
     Object.assign(this.f, r.fields);
     this.nl = r.state;
   }
+  /** ✕ am Datums-Chip: den erkannten Auslöser im Titel escapen („morgen" -> „\morgen"), damit das
+   *  Wort Text bleibt. false = nichts zu escapen (manuell gesetzt oder Auslöser nicht auffindbar),
+   *  dann leert der Chip wie bisher. */
+  unparseDue() {
+    const next = escapeTriggers(this.f.title, [this.nl.dueSrc, this.nl.timeSrc]);
+    if (next === this.f.title) return false;
+    this.f.title = next;
+    this.input.value = next;
+    this.f.due = null;
+    this.f.dueTime = null;
+    this.f.duration = null;
+    this.parse();
+    return true;
+  }
   // ── Chips (gemeinsame Registry) ──
   /** Brücke Modal ⇄ Chip-Registry. Kein existing (Neu-Anlage): Status nur lokal, keine Ausschlüsse. */
   chipHost() {
@@ -10984,9 +11040,13 @@ var QuickAddModal = class extends import_obsidian21.Modal {
         this.f.status = s;
         this.renderChips();
       },
+      // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
       pinDue: () => {
         this.duePinned = true;
+        this.nl.dueSrc = "";
+        this.nl.timeSrc = "";
       },
+      unparseDue: () => this.unparseDue(),
       resetParsedLabels: () => {
         this.nl.labels = [];
       },
