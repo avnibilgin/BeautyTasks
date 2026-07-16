@@ -1263,7 +1263,7 @@ const STRINGS: Record<string, Dict> = {
     tn_import_folder: "Klasör (isteğe bağlı)", tn_import_folder_desc: "Bir klasörle sınırla. Boş bırakılırsa tüm kasa taranır.", tn_import_folder_ph: "örn. Görevler",
     tn_import_found: "{0} görev notu bulundu.", tn_import_none: "TaskNotes görevi bulunamadı.", tn_import_btn: "İçe aktar",
     tn_import_done: "{0} içe aktarıldı, {1} atlandı.", tn_import_lossy: "Karmaşık yinelemeye sahip {0} görev, orijinali not olarak korudu.", tn_import_failed: "İçe aktarma başarısız.",
-    qa_placeholder: "örn. Yarın rapor yaz p1 #önemli @iş", qa_added: "Görev eklendi", qa_open_full: "Tam düzenleyicide aç",
+    qa_placeholder: "örn. Rapor yaz tomorrow p1 #önemli @iş", qa_added: "Görev eklendi", qa_open_full: "Tam düzenleyicide aç",
     nav_search: "Ara", search_placeholder: "Görev ara …",
     search_exclude_archived: "Arşivi hariç tut",
     notice_count: "BeautyTasks: {0} görev ({1} açık)",

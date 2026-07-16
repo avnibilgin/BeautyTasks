@@ -14,7 +14,7 @@ A Todoist-style task & project manager that lives **inside** Obsidian — with a
 - **A real task app, natively.** A Todoist-inspired dashboard with sidebar navigation, a chip-based task editor, quick capture and keyboard-friendly flows — all rendered inside Obsidian, popout-window compatible.
 - **Zero plugin dependencies, local-first.** No other plugin and no account required. Your tasks are plain Markdown in your vault — the one optional online feature is two-way **Google Calendar sync**, which stays off until you set it up.
 - **Fully themeable.** Every color is a CSS variable; works with your theme, CSS snippets, or the Style Settings plugin — including a monochrome mode.
-- **10 languages.** The interface is available in English, German, Spanish, Portuguese (Brazil), French, Italian, Turkish, Russian, Simplified Chinese and Japanese (auto-detected from Obsidian, or set in settings). Natural-language date parsing is available in English and German.
+- **10 languages.** The interface is available in English, German, Spanish, Portuguese (Brazil), French, Italian, Turkish, Russian, Simplified Chinese and Japanese (auto-detected from Obsidian, or set in settings). Natural-language **dates and times** work in all of them except Turkish, where English keywords (`tomorrow`, `next monday`) still do. English keywords work in every language, alongside your own.
 
 ---
 
@@ -91,10 +91,15 @@ Each task can carry:
 - A **Markdown description**, a **timestamped comment log**, and **file/image attachments** (see below).
 
 ### Quick capture with natural language
-Add tasks at the speed of thought. The quick-add modal understands plain sentences in **English and German**:
+Add tasks at the speed of thought. The quick-add modal understands plain sentences:
 
 > `Write report tomorrow p1 #work`
 > `Bericht schreiben morgen um 07:30 #arbeit`
+> `Escribir informe mañana #importante`
+
+**Dates and times** are understood in your interface language — English, German, Spanish, Portuguese, French, Italian, Russian, Chinese and Japanese. English keywords work everywhere, alongside your own, so `Escribir informe tomorrow` is fine too. Turkish has no date parser yet; there, English keywords are the way.
+
+Everything else in the table below is the same in every language: **recurrence** is written in English or German (`every day`, `jeden Tag`), and `p1`, `#label` and `@project` are symbols, not words.
 
 Recognized tokens are stripped from the title automatically:
 

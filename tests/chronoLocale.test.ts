@@ -23,6 +23,27 @@ describe("chrono-Rueckfall – Sprachen, die der eigene Parser nicht kann", () =
     expect(parse(loc, text).faellig, text).toBe("2026-07-17");
   });
 
+  // Der Platzhalter ist das, was die Leute lesen – er darf nichts versprechen, was nicht geht.
+  // Vorher schlugen 8 von 10 Sprachen ein Datumswort vor, das der Parser nicht kannte.
+  it.each([
+    ["es", "Escribir informe mañana p1 #importante @trabajo"],
+    ["pt", "Escrever relatório amanhã p1 #importante @trabalho"],
+    ["fr", "Rédiger le rapport demain p1 #important @travail"],
+    ["it", "Scrivere report domani p1 #importante @lavoro"],
+    ["ru", "Написать отчёт завтра p1 #важно @работа"],
+    ["zh", "明天写报告 p1 #重要 @工作"],
+    ["ja", "明日 レポート作成 p1 #重要 @仕事"],
+    ["de", "Bericht schreiben morgen p1 #wichtig @arbeit"],
+    ["en", "Write report tomorrow p1 #important @work"],
+    // Tuerkisch hat keinen chrono-Parser -> der Platzhalter zeigt bewusst das englische Wort.
+    ["tr", "Rapor yaz tomorrow p1 #önemli @iş"],
+  ])("%s: der qa_placeholder-Vorschlag funktioniert wirklich", (loc, text) => {
+    const r = parse(loc, text);
+    expect(r.faellig, text).not.toBe("");
+    expect(r.priority, text).toBe("highest");
+    expect(r.tags.length, text).toBe(1);
+  });
+
   it("entfernt die erkannte Phrase aus dem Titel", () => {
     expect(parse("es", "Escribir informe mañana").title).toBe("Escribir informe");
     expect(parse("fr", "Rédiger le rapport demain").title).toBe("Rédiger le rapport");
