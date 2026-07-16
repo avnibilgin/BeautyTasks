@@ -6408,6 +6408,21 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()])
   );
   grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
+  let time = "";
+  const hm = (h, mi) => h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z3(h) + ":" + z3(mi) : null;
+  const grabTime = (rx, fn) => {
+    if (time) return;
+    const m = text.match(rx);
+    if (!m) return;
+    const t2 = fn(m);
+    if (t2) {
+      time = t2;
+      timeSrc = trigger(m[0]);
+      text = text.replace(m[0], " ");
+    }
+  };
+  grabTime(/(?:^|\s)(?:um|at|@)\s*(\d{1,2})[.:](\d{2})(?:\s*uhr)?(?!\.?\d)/i, (m) => hm(+m[1], +m[2]));
+  grabTime(/(?:^|\s)(?:um|at)\s*([01]\d|2[0-3])([0-5]\d)(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
   let faellig = "";
   const grab = (rx, fn) => {
     if (faellig) return;
@@ -6459,20 +6474,6 @@ function parseQuickEntry(raw, projects = [], now = /* @__PURE__ */ new Date()) {
     const d = new Date(+m[1], +m[2] - 1, +m[3]);
     return d.getMonth() === +m[2] - 1 ? d : null;
   });
-  let time = "";
-  const hm = (h, mi) => h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z3(h) + ":" + z3(mi) : null;
-  const grabTime = (rx, fn) => {
-    if (time) return;
-    const m = text.match(rx);
-    if (!m) return;
-    const t2 = fn(m);
-    if (t2) {
-      time = t2;
-      timeSrc = trigger(m[0]);
-      text = text.replace(m[0], " ");
-    }
-  };
-  grabTime(/(?:^|\s)(?:um|at|@)\s*(\d{1,2}):(\d{2})(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
   grabTime(/(?:^|\s)(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?![a-z])/i, (m) => {
     let h = +m[1] % 12;
     if (m[3].toLowerCase() === "pm") h += 12;

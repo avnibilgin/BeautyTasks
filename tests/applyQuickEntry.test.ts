@@ -69,14 +69,14 @@ describe("applyQuickEntry – der Titel besitzt, was er gesetzt hat", () => {
     return { fields: f, state: s, title };
   };
 
-  // Regression: Beim Tippen laeuft man zwangslaeufig durch Zwischenstaende. „Termin um 25" kommt
-  // an „um 2" vorbei (= 02:00 + Anker heute); der fertige Text ergibt keine Uhrzeit mehr (25 Uhr
-  // gibt es nicht) – der Wert klebte trotzdem fest, und der Chip zeigte „Heute · 02:00".
+  // Regression: „Heut um 2015" lief beim Tippen durch den Zwischenstand „Heut um 20" (= 20:00 +
+  // Anker heute). Der fertige Text ergibt keine Uhrzeit mehr – der Wert klebte trotzdem fest und
+  // der Chip zeigte „Heute · 20:00".
   it("nimmt einen Zwischenstand zurueck, der im fertigen Text nicht mehr steht", () => {
-    const r = tippen("Termin um 25");
-    expect(r.fields.dueTime).toBeNull();
-    expect(r.fields.due).toBeNull();
-    expect(r.title).toBe("Termin um 25");
+    const r = tippen("Heut um 2015");
+    expect(r.fields.dueTime).toBe("20:15");
+    expect(r.fields.due).toBe(HEUTE);
+    expect(r.title).toBe("Heut");
   });
 
   it("raeumt Datum und Uhrzeit ab, wenn der Ausloeser wieder geloescht wird", () => {

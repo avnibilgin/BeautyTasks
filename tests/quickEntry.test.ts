@@ -106,6 +106,67 @@ describe("parseQuickEntry – Uhrzeit", () => {
     expect(parseQuickEntry("call 7pm").time).toBe("19:00");
     expect(parseQuickEntry("call 7:30 am").time).toBe("07:30");
   });
+  it("erkennt die deutsche Punkt-Schreibweise mit um", () => {
+    expect(parseQuickEntry("Termin um 20.15").time).toBe("20:15");
+    expect(parseQuickEntry("Termin um 8.30").time).toBe("08:30");
+  });
+
+  // Der Grund, warum die um-Regeln VOR den Datumsregeln laufen: „20.12" ist als Datum gueltig
+  // (20. Dezember), „20.15" nicht (Monat 15). Ohne die Reihenfolge waere „um 20.12" ein Datum und
+  // „um 20.15" eine Uhrzeit – dasselbe Muster mit zwei Ergebnissen, je nach Minutenzahl.
+  it("liest um TT.MM als Uhrzeit, auch wenn die Minute ein gueltiger Monat waere", () => {
+    for (const [raw, time] of [["Termin um 20.12", "20:12"], ["Termin um 8.12", "08:12"], ["Termin um 20.01", "20:01"]]) {
+      const r = parseQuickEntry(raw);
+      expect(r.time, raw).toBe(time);
+      expect(r.faellig, raw).toBe("");
+    }
+  });
+
+  it("laesst Datumsangaben Datumsangaben – auch mit Punkt", () => {
+    expect(parseQuickEntry("Bericht am 20.12.").faellig).toBe("2026-12-20");
+    expect(parseQuickEntry("Bericht 20.12").faellig).toBe("2026-12-20");
+    expect(parseQuickEntry("Bericht 2.7.").faellig).toBe("2026-07-02");
+    expect(parseQuickEntry("Bericht am 20.12.").time).toBe("");
+    // Vollstaendiges Datum bleibt Datum, auch wenn „um" davor steht.
+    expect(parseQuickEntry("Termin um 20.10.2026").faellig).toBe("2026-10-20");
+    expect(parseQuickEntry("Termin um 20.10.2026").time).toBe("");
+  });
+
+  it("erkennt Datum und Uhrzeit nebeneinander", () => {
+    const r = parseQuickEntry("Zahnarzt am 20.12. um 8.30");
+    expect(r.faellig).toBe("2026-12-20");
+    expect(r.time).toBe("08:30");
+    expect(r.title).toBe("Zahnarzt");
+  });
+
+  it("weist unmoegliche Punkt-Uhrzeiten ab", () => {
+    expect(parseQuickEntry("Termin um 25.15").time).toBe("");
+    expect(parseQuickEntry("Termin um 25.15").title).toBe("Termin um 25.15");
+  });
+
+  it("erkennt vierstellige Uhrzeiten mit um/at", () => {
+    expect(parseQuickEntry("Termin um 2015").time).toBe("20:15");
+    expect(parseQuickEntry("Termin um 0930").time).toBe("09:30");
+    expect(parseQuickEntry("meeting at 1745").time).toBe("17:45");
+    expect(parseQuickEntry("Termin um 2015 uhr").time).toBe("20:15");
+    expect(parseQuickEntry("Termin um 20").time).toBe("20:00");   // zweistellig unveraendert
+  });
+
+  it("haelt vierstellige Zahlen ohne um/at fuer Jahre, nicht fuer Uhrzeiten", () => {
+    // Ohne diesen Schutz wuerde jede Jahreszahl im Titel zur Uhrzeit.
+    for (const raw of ["Fotos von 2015 sortieren", "Jubilaeum 2015 feiern", "Termin 2015", "Bericht 1999"]) {
+      const r = parseQuickEntry(raw);
+      expect(r.time, raw).toBe("");
+      expect(r.title, raw).toBe(raw);
+    }
+  });
+
+  it("weist unmoegliche vierstellige Uhrzeiten ab", () => {
+    const r = parseQuickEntry("Termin um 2500");
+    expect(r.time).toBe("");
+    expect(r.title).toBe("Termin um 2500");
+  });
+
   it("ignoriert ungueltige Zeiten", () => {
     expect(parseQuickEntry("Code 99:99").time).toBe("");
   });

@@ -141,6 +141,27 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
     (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()]));
   grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
 
+  // ── Uhrzeit, Teil 1: mit „um"/„at" davor ──
+  // Bewusst VOR den Datumsregeln. „um 20.12" ist eine Uhrzeit – die Datumsregel unten wuerde es
+  // sonst als 20. Dezember wegschnappen, waehrend „um 20.15" durchkaeme (Monat 15 gibt es nicht).
+  // Mal Datum, mal Uhrzeit, je nach Minutenzahl – genau das darf nicht passieren. Mit „um" davor
+  // ist es eindeutig eine Zeit, also entscheidet das Vorwort, nicht die Reihenfolge.
+  let time = "";
+  const hm = (h: number, mi: number): string | null => (h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z(h) + ":" + z(mi) : null);
+  const grabTime = (rx: RegExp, fn: (m: RegExpMatchArray) => string | null) => {
+    if (time) return;
+    const m = text.match(rx);
+    if (!m) return;
+    const t = fn(m);
+    if (t) { time = t; timeSrc = trigger(m[0]); text = text.replace(m[0], " "); }
+  };
+  // „um 20:15" und „um 20.15" (deutsche Schreibweise). Der Schluss-Guard laesst „um 20.10.2026"
+  // in Ruhe – das ist ein Datum, keine Uhrzeit.
+  grabTime(/(?:^|\s)(?:um|at|@)\s*(\d{1,2})[.:](\d{2})(?:\s*uhr)?(?!\.?\d)/i, (m) => hm(+m[1], +m[2]));
+  // Vierstellig ohne Trenner („um 2015" -> 20:15). NUR mit „um"/„at": ein blosses „2015" ist eine
+  // Jahreszahl („Fotos von 2015 sortieren"). Stunde 00–23, Minute 00–59 – „um 2500" bleibt Text.
+  grabTime(/(?:^|\s)(?:um|at)\s*([01]\d|2[0-3])([0-5]\d)(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
+
   let faellig = "";
   const grab = (rx: RegExp, fn: (m: RegExpMatchArray) => Date | null) => {
     if (faellig) return;
@@ -183,17 +204,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
     const d = new Date(+m[1], +m[2] - 1, +m[3]); return d.getMonth() === +m[2] - 1 ? d : null;
   });
 
-  // Uhrzeit: „um 07:30", „07:30", „um 7 uhr", „7 uhr"; englisch „7pm", „7:30 am". Erste Treffer gewinnt.
-  let time = "";
-  const hm = (h: number, mi: number): string | null => (h >= 0 && h < 24 && mi >= 0 && mi < 60 ? z(h) + ":" + z(mi) : null);
-  const grabTime = (rx: RegExp, fn: (m: RegExpMatchArray) => string | null) => {
-    if (time) return;
-    const m = text.match(rx);
-    if (!m) return;
-    const t = fn(m);
-    if (t) { time = t; timeSrc = trigger(m[0]); text = text.replace(m[0], " "); }
-  };
-  grabTime(/(?:^|\s)(?:um|at|@)\s*(\d{1,2}):(\d{2})(?:\s*uhr)?(?!\d)/i, (m) => hm(+m[1], +m[2]));
+  // Uhrzeit, Teil 2: ohne Vorwort („07:30", „7 uhr", „7pm"). Erster Treffer gewinnt.
   grabTime(/(?:^|\s)(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?![a-z])/i, (m) => { let h = +m[1] % 12; if (m[3].toLowerCase() === "pm") h += 12; return hm(h, m[2] ? +m[2] : 0); });
   grabTime(/(?:^|\s)(\d{1,2}):(\d{2})(?!\d)/, (m) => hm(+m[1], +m[2]));
   grabTime(/(?:^|\s)(?:um|at)\s*(\d{1,2})(?:\s*uhr)?(?![\d:])/i, (m) => hm(+m[1], 0));
