@@ -1,29 +1,35 @@
-// Zuordnung Obsidian-Sprache -> chrono-Parser für die Datums-/Uhrzeit-Erkennung.
+// chrono als RÜCKFALL für die Sprachen, die der eigene Parser nicht kann.
 //
-// Benannte Importe aus der Wurzel, NICHT Subpath ("chrono-node/de"): die tsconfig steht auf
-// moduleResolution "node", das versteht chronos exports-Map nicht. Getree-shaked wird trotzdem –
-// nachgemessen: identische 140 KB wie mit Subpath-Importen, die ungenutzten Sprachen (fi, nl, sv,
-// uk, vi) fliegen raus. Deshalb hier NUR die Sprachen importieren, die das Plugin auch anbietet.
-import { Chrono, de, en, es, fr, it, ja, pt, ru, zh } from "chrono-node";
+// Warum nicht als Ersatz: In Deutsch und Englisch ist der eigene Parser nachweislich besser.
+// chrono kennt deutsche Kurzdaten ohne Jahr nicht („am 20.12.", „2.7." -> nichts; nur mit Jahr),
+// und „day after tomorrow" greift es als „tomorrow" heraus – also ein stillschweigend FALSCHES
+// Datum statt gar keinem. Dazu „nächste woche" = +7 Tage statt nächster Montag und die
+// Jahreszahl-Falle („Fotos von 2015 sortieren" -> 20:15). Deshalb: eigener Parser zuerst, chrono
+// nur, wo heute ohnehin nichts erkannt wird.
+//
+// Darum stehen en und de hier auch NICHT in der Liste – die deckt der eigene Parser ab. Das spart
+// zugleich deren Sprachpakete im Bundle.
+//
+// Benannte Importe aus der Wurzel statt Subpath ("chrono-node/es"): die tsconfig steht auf
+// moduleResolution "node" und versteht chronos exports-Map nicht. Getree-shaked wird trotzdem –
+// nachgemessen identisch; alles, was hier nicht importiert wird, fliegt raus.
+import { Chrono, es, fr, it, ja, pt, ru, zh } from "chrono-node";
 import { getLocale } from "./i18n";
 
-// chrono kennt: de en es fi fr it ja nl pt ru sv uk vi zh.
-// Das Plugin kann zehn Sprachen – für TÜRKISCH hat chrono keinen Parser. tr fällt darum (wie jede
-// unbekannte Sprache) auf Englisch zurück; der türkische qa_placeholder verspricht bis dahin mehr,
-// als die Erkennung halten kann.
-const CHRONO: Record<string, Chrono> = {
-  en: en.casual, de: de.casual, es: es.casual, pt: pt.casual,
-  fr: fr.casual, it: it.casual, ru: ru.casual, zh: zh.casual, ja: ja.casual,
+// chrono kann: de en es fi fr it ja nl pt ru sv uk vi zh.
+// Das Plugin bietet zehn Sprachen an. Für TÜRKISCH hat chrono keinen Parser – dort bleibt es beim
+// eigenen Parser, der nur die englischen Schlüsselwörter versteht. Bekannte Lücke.
+const FALLBACK: Record<string, Chrono> = {
+  es: es.casual, pt: pt.casual, fr: fr.casual,
+  it: it.casual, ru: ru.casual, zh: zh.casual, ja: ja.casual,
 };
 
-/** Hat chrono einen Parser für diese Sprache? (false = wir parsen dort nur englisch.) */
-export const hasChronoLocale = (loc: string): boolean => CHRONO[loc] !== undefined;
+/** Gibt es für diese Sprache einen chrono-Rückfall? (de/en/tr: nein – siehe oben.) */
+export const hasChronoFallback = (loc: string): boolean => FALLBACK[loc] !== undefined;
 
-/** Die Parser für eine Sprache, in Anwendungsreihenfolge – erster Treffer gewinnt.
- *  Englisch hängt immer hinten dran: der handgeschriebene Parser verstand DE und EN stets
- *  gleichzeitig („Bericht morgen" wie „report tomorrow"), und englische Schlüsselwörter sind
- *  in Obsidian-Vaults verbreitet. Für en selbst bleibt es bei einem Parser. */
-export function chronoFor(loc: string = getLocale()): Chrono[] {
-  const own = CHRONO[loc];
-  return own && loc !== "en" ? [own, CHRONO.en] : [CHRONO.en];
+/** Der chrono-Rückfall für eine Sprache – leer, wenn der eigene Parser zuständig ist.
+ *  Nur EIN Parser: Englisch braucht es hier nicht, das kann der eigene Parser bereits. */
+export function chronoFallback(loc: string = getLocale()): Chrono[] {
+  const own = FALLBACK[loc];
+  return own ? [own] : [];
 }
