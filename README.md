@@ -96,7 +96,37 @@ Add tasks at the speed of thought. The quick-add modal understands plain sentenc
 > `Write report tomorrow p1 #work`
 > `Bericht schreiben morgen um 07:30 #arbeit`
 
-It recognizes **dates** (today/tomorrow, weekdays, `3 Jul`, month names), **times** (`um 07:30`, `7pm`), **priority** (`p1`–`p4`), inline **`#labels`** and an **`@project`** (matching an existing project or area), and strips those tokens from the title automatically. Prefer full control? Open the Todoist-style task editor with its chip row for date, priority, labels, recurrence, deadline, reminder and parent — and **show, hide or reorder those chips** to taste (separately for quick add and the full editor).
+Recognized tokens are stripped from the title automatically:
+
+| What | Examples |
+| --- | --- |
+| **Date** | `today`, `tomorrow`, `day after tomorrow`, `in 3 days`, `next week`, `next monday`, a bare weekday (`friday`), `3 Jul` / `July 3rd`, `20.06.2026`, `06/20/2026`, `2026-06-20` |
+| **Time** | `at 7:30`, `7:30`, `7pm`, `at 7`, `um 20.15`, `um 2015` (four digits and the dot form need `at`/`um` in front — otherwise `Sort photos from 2015` would become a time) |
+| **Recurrence** | `every day`, `daily`, `every week`, `weekly`, `every 3 days`, `every 2 weeks`, `every 3 months`, `yearly` |
+| **Priority** | `p1`–`p4` or `!1`–`!4` |
+| **Label** | `#work` — any label, created on the fly |
+| **Project** | `@project` — existing projects and areas only |
+
+A time or a recurrence without a date is anchored to **today**: a time needs a day to be shown and saved, and a recurrence without a date would never come back.
+
+**Not recognized** (use the chips instead): reminders, duration, start date, status and parent.
+
+#### When a word should stay text
+
+Writing `Today's plan` and getting the word swallowed as a date is annoying. Two ways out — and both are the same thing under the hood:
+
+- **Click the ✕ on the chip.** The recognized value goes away, the word returns to the title. This is the easy path; you don't need to know any syntax.
+- **Type it yourself.** `\word` protects a single word — the same backslash escape Markdown uses, and the backslash disappears from the title. `"a whole phrase"` protects several words at once; the quotation marks stay, because they're your punctuation, not syntax.
+
+```
+\Today I go swimming      → title "Today I go swimming", no date
+Book "Der Prozess" today  → title kept as typed, due today
+every \monday standup     → title "every monday standup", no recurrence
+```
+
+The ✕ simply writes that backslash for you: `Dentist tomorrow` → ✕ → `Dentist \tomorrow`. Because the escape lives in the text, it survives — and typing a new date word afterwards is recognized again.
+
+Prefer full control? Open the Todoist-style task editor with its chip row for date, priority, labels, recurrence, deadline, reminder and parent — and **show, hide or reorder those chips** to taste (separately for quick add and the full editor).
 
 ### Reminders
 Attach one or more reminders to a task — either **relative** (“at time of task”, 10 min / 30 min / 1 h / 1 day before) or an **absolute** date & time. When a reminder is due, BeautyTasks shows a **system notification** on desktop (even when Obsidian is in the background) and an in-app notice; clicking it opens the task.

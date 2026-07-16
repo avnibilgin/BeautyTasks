@@ -106,12 +106,12 @@ var STRINGS = {
     whatsnew_ok: "Got it",
     wn_cal_t: "Calendar view",
     wn_cal_d: "Year, month, week and day \u2013 drag tasks to reschedule them.",
-    wn_vault_t: "Tasks from anywhere in your vault",
-    wn_vault_d: "Add `type: task` to any note and it shows up in the inbox \u2013 or turn the current note into a task with one command.",
-    wn_inbox_t: "The inbox, rethought",
-    wn_inbox_d: "The inbox is now built in: every task without a project lands there automatically \u2013 one consistent home instead of \u201CNo project\u201D.",
-    wn_notes_t: "Turn notes into tasks",
-    wn_notes_d: "Whole content notes become tasks without losing their text \u2013 with an \u201COpen note\u201D link and the description kept in the frontmatter.",
+    wn_recur_t: "Type recurrence in plain words",
+    wn_recur_d: "\u201Cevery day\u201D, \u201Cevery 3 weeks\u201D, \u201Cweekly\u201D \u2013 recognized right in the title, next to date, time, priority and labels.",
+    wn_unparse_t: "Not a date? One click.",
+    wn_unparse_d: "Click the \u2715 on a chip and the recognized word goes back to being text. Or type it yourself: \\word protects one word, \u201Ca whole phrase\u201D protects several.",
+    wn_time_t: "More ways to write a time",
+    wn_time_d: "\u201Cat 2015\u201D and \u201Cum 20.15\u201D now work alongside \u201Cat 20:15\u201D. A time without a date is anchored to today, so it stays visible and gets saved.",
     wn_unsched_t: "Unscheduled sidebar",
     wn_unsched_d: "Tasks without a date, ready to drag into the grid.",
     wn_dir_t: "Sort direction",
@@ -576,12 +576,12 @@ var STRINGS = {
     whatsnew_ok: "Verstanden",
     wn_cal_t: "Kalender-Ansicht",
     wn_cal_d: "Jahr, Monat, Woche und Tag \u2013 Aufgaben per Drag & Drop umplanen.",
-    wn_vault_t: "Aufgaben aus dem ganzen Vault",
-    wn_vault_d: "Schreib `type: task` in eine beliebige Notiz \u2013 sie erscheint im Eingang. Oder mach die aktuelle Notiz per Befehl zur Aufgabe.",
-    wn_inbox_t: "Der Eingang, neu gedacht",
-    wn_inbox_d: "Der Eingang ist jetzt eingebaut: jede Aufgabe ohne Projekt landet automatisch dort \u2013 ein einheitliches Zuhause statt \u201EKein Projekt\u201C.",
-    wn_notes_t: "Notizen werden zu Aufgaben",
-    wn_notes_d: "Ganze Inhaltsnotizen werden zur Aufgabe, ohne ihren Text zu verlieren \u2013 mit \u201ENotiz \xF6ffnen\u201C und Beschreibung im Frontmatter.",
+    wn_recur_t: "Wiederholung einfach hinschreiben",
+    wn_recur_d: "\u201Ejeden Tag\u201C, \u201Ealle 3 Wochen\u201C, \u201Ew\xF6chentlich\u201C \u2013 wird direkt im Titel erkannt, neben Datum, Uhrzeit, Priorit\xE4t und Labels.",
+    wn_unparse_t: "Kein Datum? Ein Klick.",
+    wn_unparse_d: "Klick auf das \u2715 am Chip \u2013 das erkannte Wort ist wieder Text. Oder selbst tippen: \\wort sch\xFCtzt ein Wort, \u201Eeine ganze Phrase\u201C sch\xFCtzt mehrere.",
+    wn_time_t: "Mehr Schreibweisen f\xFCr Uhrzeiten",
+    wn_time_d: "\u201Eum 2015\u201C und \u201Eum 20.15\u201C gehen jetzt genauso wie \u201Eum 20:15\u201C. Eine Uhrzeit ohne Datum wird auf heute gesetzt \u2013 so bleibt sie sichtbar und wird gespeichert.",
     wn_unsched_t: "Seitenleiste \u201EUndatiert\u201C",
     wn_unsched_d: "Aufgaben ohne Datum, bereit zum Ziehen ins Raster.",
     wn_dir_t: "Sortierrichtung",
@@ -12989,9 +12989,9 @@ var WhatsNewModal = class extends import_obsidian28.Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
     const items = [
-      { icon: "list-checks", title: t("wn_vault_t"), desc: t("wn_vault_d") },
-      { icon: "inbox", title: t("wn_inbox_t"), desc: t("wn_inbox_d") },
-      { icon: "file-text", title: t("wn_notes_t"), desc: t("wn_notes_d") }
+      { icon: "repeat", title: t("wn_recur_t"), desc: t("wn_recur_d") },
+      { icon: "undo-2", title: t("wn_unparse_t"), desc: t("wn_unparse_d") },
+      { icon: "clock", title: t("wn_time_t"), desc: t("wn_time_d") }
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
