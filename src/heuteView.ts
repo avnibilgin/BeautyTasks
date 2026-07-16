@@ -25,6 +25,11 @@ let dragPath: string | null = null;
 let dragFromCol: string | null = null;
 // Horizontale Board-Scrollposition je Board-Identität – überlebt Re-Renders (z. B. nach Karten-Drop).
 const boardScroll = new Map<string, number>();
+// Senkrechte Position INNERHALB einer Spalte (Schlüssel: Board-Identität + Spalten-ID).
+// Nötig, weil `.bt-kanban-list` bei jeder Zeichnung neu entsteht – ein frisches Element startet
+// zwangsläufig bei 0. In der Listenansicht stellt sich die Frage nicht: dort ist der Scroller
+// contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
+const colScroll = new Map<string, number>();
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -648,7 +653,17 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
+    // Abhaken schreibt die Notiz -> der Index meldet -> MainView.draw() baut alles neu. Ohne das
+    // Folgende spränge die Spalte dabei nach oben, und wer unten mehrere Karten abhaken will,
+    // müsste nach jeder einzelnen erneut hinunterscrollen.
+    const colKey = scrollKey + "|" + col.id;
+    listEl.addEventListener("scroll", () => colScroll.set(colKey, listEl.scrollTop));
     for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id });
+    // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
+    // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
+    // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
+    const savedTop = colScroll.get(colKey);
+    if (savedTop) listEl.scrollTop = savedTop;
 
     const addEl = colEl.createDiv({ cls: "bt-kanban-add" });
     addEl.createSpan({ cls: "bt-add-icon" });
