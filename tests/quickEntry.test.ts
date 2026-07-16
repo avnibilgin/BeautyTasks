@@ -129,6 +129,81 @@ describe("parseQuickEntry – Prioritaet", () => {
   });
 });
 
+describe("parseQuickEntry – wörtlich per \\wort", () => {
+  it("schützt ein einzelnes Wort und entfernt den Backslash", () => {
+    const r = parseQuickEntry("\\Heute mache ich");
+    expect(r.title).toBe("Heute mache ich");
+    expect(r.faellig).toBe("");
+  });
+
+  it("schützt nur das markierte Wort – ein zweites Datum daneben greift weiter", () => {
+    const r = parseQuickEntry("\\Heute Aufgabe planen morgen");
+    expect(r.title).toBe("Heute Aufgabe planen");
+    expect(r.faellig).toBe("2026-06-16");
+  });
+
+  it("wirkt auch auf Labels, Priorität und @Projekt", () => {
+    const r = parseQuickEntry("Notiz \\#kein-label \\p1 \\@BeautyTasks", ["BeautyTasks"]);
+    expect(r.title).toBe("Notiz #kein-label p1 @BeautyTasks");
+    expect(r.tags).toEqual([]);
+    expect(r.priority).toBeNull();
+    expect(r.project).toBeNull();
+  });
+
+  it("entfernt den Marker auch vor Wörtern, die gar keine Auslöser sind", () => {
+    expect(parseQuickEntry("\\Milch kaufen").title).toBe("Milch kaufen");
+  });
+
+  it("\\\\ ergibt einen echten Backslash im Titel", () => {
+    expect(parseQuickEntry("Pfad \\\\ pruefen").title).toBe("Pfad \\ pruefen");
+  });
+
+  it("zählt nur am Wortanfang – Pfade bleiben unversehrt", () => {
+    expect(parseQuickEntry("C:\\Users\\avni sichern").title).toBe("C:\\Users\\avni sichern");
+  });
+});
+
+describe("parseQuickEntry – wörtlich per Anführungszeichen", () => {
+  it("schützt eine Phrase und lässt die Anführungszeichen im Titel stehen", () => {
+    const r = parseQuickEntry('Buch "Der Prozess" heute lesen');
+    expect(r.title).toBe('Buch "Der Prozess" lesen');
+    expect(r.faellig).toBe("2026-06-15");
+  });
+
+  it("schützt mehrwortige Datumsphrasen, die \\wort nicht sauber fasst", () => {
+    expect(parseQuickEntry('Vortrag "next monday" erklären').faellig).toBe("");
+    expect(parseQuickEntry('Vortrag "day after tomorrow" erklären').faellig).toBe("");
+  });
+
+  it("erkennt auch typografische Anführungszeichen (Autokorrektur)", () => {
+    const r = parseQuickEntry("Kapitel „heute“ lesen");
+    expect(r.faellig).toBe("");
+    expect(r.title).toBe("Kapitel „heute“ lesen");
+  });
+
+  it("erhält die Formatierung im geschützten Text", () => {
+    expect(parseQuickEntry('Zitat "a  b" merken').title).toBe('Zitat "a  b" merken');
+  });
+
+  it("unpaariges Anführungszeichen ändert nichts", () => {
+    const r = parseQuickEntry('Zoll " heute zahlen');
+    expect(r.faellig).toBe("2026-06-15");
+    expect(r.title).toBe('Zoll " zahlen');
+  });
+
+  it("lässt Apostrophe unangetastet (kein Escape-Zeichen)", () => {
+    const r = parseQuickEntry("Peter's Auto heute waschen");
+    expect(r.faellig).toBe("2026-06-15");
+    expect(r.title).toBe("Peter's Auto waschen");
+  });
+
+  it("lässt Wikilinks im Titel heil", () => {
+    const r = parseQuickEntry("Notiz [[Projekt X]] heute lesen");
+    expect(r.title).toBe("Notiz [[Projekt X]] lesen");
+    expect(r.faellig).toBe("2026-06-15");
+  });
+});
+
 describe("parseQuickEntry – kombiniert (Original-Eingabe)", () => {
   it("Morgen um 07:30 Zahnarzt #wichtig p1", () => {
     const r = parseQuickEntry("Morgen um 07:30 Zahnarzt #wichtig p1");

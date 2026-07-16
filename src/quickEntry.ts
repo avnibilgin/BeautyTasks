@@ -1,6 +1,11 @@
 // Quick-Entry-Parser (zweisprachig). Zerlegt Freitext in { title, faellig, time, tags, priority }.
 // Erkennt inline #Labels, gängige Datumsphrasen, Uhrzeiten und Prioritäten (DE + EN);
 // gibt den um die erkannten Token bereinigten Titel zurück. Portiert aus tasks-ui.js.
+//
+// Wörtlich (nicht erkannt) wird Text auf zwei Wegen: `\wort` schützt ein einzelnes Wort (wie das
+// Escaping in Markdown; der Backslash selbst fällt weg, `\\` ergibt einen echten Backslash), und
+// "…" schützt eine ganze Phrase (die Anführungszeichen bleiben im Titel stehen – sie sind das
+// Satzzeichen des Nutzers, nicht Syntax). Siehe mask() unten.
 import { Priority } from "./types";
 
 const z = (n: number) => String(n).padStart(2, "0");
@@ -34,7 +39,19 @@ const L = "[A-Za-zÄÖÜäöüß]";
 // Wort-Grenze ohne Lookbehind (iOS < 16.4 unterstützt keine Lookbehinds): die führende
 // Grenze als nicht-fangende Gruppe (^ oder Nicht-Buchstabe). Nicht-fangend → Capture-Indizes
 // bleiben stabil; der konsumierte Grenz-Char wird beim Strippen ohnehin zu Leerraum.
-const re = (body: string) => new RegExp("(?:^|[^A-Za-zÄÖÜäöüß])" + body + "(?!" + L + ")", "i");
+// Platzhalter (PUA, siehe mask()) sind hier ausgenommen: die führende Grenze wird mitkonsumiert
+// und beim Strippen gelöscht – sie würde sonst direkt anschließenden Wörtern den Schutz nehmen.
+const re = (body: string) => new RegExp("(?:^|[^A-Za-zÄÖÜäöüß\\uE000-\\uF8FF])" + body + "(?!" + L + ")", "i");
+
+// ── Wörtlicher Text (`\wort`, "phrase") ──
+// Beides wird vor der ersten Regel durch je EIN Zeichen aus der Private Use Area ersetzt. Das
+// matcht auf keine Regel (weder Buchstabe noch \p{L}/\p{N}/Ziffer) und wandert – anders als eine
+// gemerkte Position – unbeschadet durch die replace()-Mutationen der Regeln mit. Am Ende wird es
+// im fertigen Titel wieder gegen den Originaltext getauscht.
+// Der Backslash zählt nur am Wortanfang – wie #Label und @Projekt weiter unten. Sonst zerlegte
+// er Pfade („C:\Users\avni") mitten im Wort. `\\ ` am Wortanfang ergibt einen echten Backslash.
+const MASK = /(^|\s)\\(\S+)|(["„“”])([^"„“”]+)(["„“”])/g;
+const PUA = /[\uE000-\uF8FF]/g;
 
 export interface QuickEntry { title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null; }
 
@@ -42,6 +59,14 @@ export interface QuickEntry { title: string; faellig: string; time: string; tags
 // zu Bestehenden – Projekte sind Dateien, kein Anlegen bei Tippfehler). Labels dagegen sind frei.
 export function parseQuickEntry(raw: string, projects: string[] = []): QuickEntry {
   let text = " " + (raw || "") + " ";
+
+  // Wörtlichen Text ausblenden – muss VOR jeder Regel laufen (auch vor den Labels, damit
+  // `\#kein-label` als Text durchgeht). Über 6400 Literale sprengen die PUA -> unmaskiert lassen.
+  const lits: string[] = [];
+  const lit = (s: string): string => (lits.length >= 6400 ? s : String.fromCharCode(0xE000 + lits.push(s) - 1));
+  const unmask = (s: string): string => s.replace(PUA, (c) => lits[c.charCodeAt(0) - 0xE000] ?? c);
+  text = text.replace(MASK, (_m, ws: string | undefined, word: string | undefined, q1: string, inner: string, q2: string) =>
+    word !== undefined ? ws + lit(word) : q1 + lit(inner) + q2);
 
   // Inline-#Labels sammeln + strippen.
   const tags: string[] = [];
@@ -127,5 +152,6 @@ export function parseQuickEntry(raw: string, projects: string[] = []): QuickEntr
   const pm = text.match(/(?:^|\s)[p!]([1-4])(?![\wäöüßÄÖÜ])/i);
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
 
-  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority, project };
+  // Rücktausch NACH dem Kollabieren der Leerzeichen: eigene Formatierung im geschützten Text bleibt.
+  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project };
 }

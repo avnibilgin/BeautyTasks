@@ -6325,9 +6325,15 @@ var MONTHS2 = {
 };
 var MONTHNAMES = Object.keys(MONTHS2).sort((a, b) => b.length - a.length).join("|");
 var L = "[A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF]";
-var re = (body) => new RegExp("(?:^|[^A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF])" + body + "(?!" + L + ")", "i");
+var re = (body) => new RegExp("(?:^|[^A-Za-z\xC4\xD6\xDC\xE4\xF6\xFC\xDF\\uE000-\\uF8FF])" + body + "(?!" + L + ")", "i");
+var MASK = /(^|\s)\\(\S+)|(["„“”])([^"„“”]+)(["„“”])/g;
+var PUA = /[\uE000-\uF8FF]/g;
 function parseQuickEntry(raw, projects = []) {
   let text = " " + (raw || "") + " ";
+  const lits = [];
+  const lit = (s) => lits.length >= 6400 ? s : String.fromCharCode(57344 + lits.push(s) - 1);
+  const unmask = (s) => s.replace(PUA, (c) => lits[c.charCodeAt(0) - 57344] ?? c);
+  text = text.replace(MASK, (_m, ws, word, q1, inner, q2) => word !== void 0 ? ws + lit(word) : q1 + lit(inner) + q2);
   const tags = [];
   const tagRe = /(?:^|\s)#([\p{L}\p{N}_/-]+)/gu;
   for (const m of text.matchAll(tagRe)) tags.push(m[1]);
@@ -6421,7 +6427,7 @@ function parseQuickEntry(raw, projects = []) {
     priority = ["highest", "high", "medium", "normal"][+pm[1] - 1];
     text = text.replace(pm[0], " ");
   }
-  return { title: text.replace(/\s{2,}/g, " ").trim(), faellig, time, tags: [...new Set(tags)], priority, project };
+  return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project };
 }
 
 // src/detailLog.ts
