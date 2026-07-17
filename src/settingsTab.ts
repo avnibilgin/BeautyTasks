@@ -304,7 +304,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
   /**
    * „Termine anzeigen" (read-only). Getrennt vom Sync-Schalter: „nur anzeigen, nichts schreiben" ist
-   * ein vollwertiger Zustand. Kalenderliste im Todoist-Stil – Farbpunkt links, Auge rechts (statt
+   * ein vollwertiger Zustand. Kalenderliste – Farbpunkt links, Auge rechts (statt
    * Häkchen). Der eigene BeautyTasks-Sync-Kalender taucht gar nicht erst auf (gcalFeed filtert ihn).
    */
   private renderGCalFeed(containerEl: HTMLElement, redraw: () => void): void {

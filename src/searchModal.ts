@@ -36,9 +36,9 @@ function renderTaskSuggestion(match: FuzzyMatch<Task>, el: HTMLElement): void {
 /** Aufgaben-Suche im Command-Palette-Stil: Fuzzy über Titel, Projekt und Labels;
  *  Enter/Klick springt zur Aufgabe in ihrer Liste und hebt sie hervor. */
 export class TaskSearchModal extends FuzzySuggestModal<Task> {
-  /** Archivierte Projekte bleiben standardmäßig außen vor – wie in Todoist, wo archivierte
-   *  Projekte gar nicht erst durchsucht werden. Der Schalter unter dem Suchfeld holt sie zurück;
-   *  er ist bewusst NICHT persistent: jede neue Suche beginnt wieder ohne Altlasten. */
+  /** Archivierte Projekte bleiben standardmäßig außen vor und werden gar nicht erst durchsucht.
+   *  Der Schalter unter dem Suchfeld holt sie zurück; er ist bewusst NICHT persistent: jede neue
+   *  Suche beginnt wieder ohne Altlasten. */
   private excludeArchived = true;
 
   constructor(private plugin: BeautyTasksPlugin) {

@@ -1,4 +1,4 @@
-// Kompaktes Schnell-Erfassungs-Modal (Todoist-Stil): ein Titelfeld mit Natural-Language-Parsing
+// Kompaktes Schnell-Erfassungs-Modal: ein Titelfeld mit Natural-Language-Parsing
 // und eine interaktive Chip-Leiste. Die Chips kommen – wie im vollen Editor – aus der gemeinsamen
 // Registry (chips.ts): volle Chip-Parität (hier stets als Nur-Icon, kompakt). Beschreibung und
 // Kommentar-Log (Details-Chip) teilen sich Feld/Komponente mit dem vollen Editor. Ein „+" bündelt

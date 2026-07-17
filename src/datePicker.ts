@@ -178,7 +178,7 @@ export function openDatePicker(
     }
     renderCal();
 
-    // ── Uhrzeit + Dauer (Todoist-Stil) ─────────────────────────────────────────
+    // ── Uhrzeit + Dauer ─────────────────────────────────────────
     const timeWrap = pop.createDiv({ cls: "bt-time-wrap" });
     function renderTime(): void {
       timeWrap.empty();

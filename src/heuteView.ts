@@ -128,7 +128,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
         section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv);
       } else {
-        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split (Todoist-Stil). Termine passen in keine
+        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Termine passen in keine
         // Sachgruppe (Priorität/Label/…) → ein schlichtes Band-Segment oben, vor den Gruppen.
         if (todayEv.length) renderEventBands(root.createDiv({ cls: "bt-section bt-list" }), todayEv);
         for (const g of filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today))
@@ -143,7 +143,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const groups = idx.upcomingByDate(today);
     // Termine des Vorschauzeitraums (read-only). Der Feed lädt diesen Bereich nach (Listen-Layout
     // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
-    // Gruppe – „Demnächst" wird zur ehrlichen Wochenplanungs-Fläche (Idee aus dem belki-Plugin).
+    // Gruppe – „Demnächst" wird so zur ehrlichen Wochenplanungs-Fläche.
     const eventEnd = addDays(today, UPCOMING_EVENT_HORIZON_DAYS);
     plugin.gcalFeed?.setRange(today, eventEnd);
     const evByDate = feedEventsByDate(plugin, today, eventEnd);
@@ -318,7 +318,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
  * Die Reihenfolge der GRUPPEN ist dagegen fest und richtungsunabhängig: „Überfällig → Heute →
  * Demnächst → Kein Datum" ist eine Semantik (dringend zuerst), keine Skala – umgedreht ergäbe sie
  * keinen Sinn. Ebenso Priorität (P1→P4) und Label/Projekt (alphabetisch). Die Sortierrichtung
- * betrifft nur die Aufgaben unter den Überschriften. (So macht es auch Todoist.)
+ * betrifft nur die Aufgaben unter den Überschriften.
  */
 function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup, today: string): { title: string; tasks: Task[] }[] {
   if (group === "none") return [{ title: t("sec_tasks"), tasks }];
@@ -439,7 +439,7 @@ function sortColumn(list: Task[], kind: StatusKind): Task[] {
   return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
 }
 
-// ── Generisches Spalten-Modell: das Board folgt der Gruppierung (Todoist-Muster) ──
+// ── Generisches Spalten-Modell: das Board folgt der Gruppierung ──
 // Fundament für Status/Label/… – aktuell freigeschaltet: Status (Default) und Label.
 /** Basis-Kontext fürs „+ Aufgabe" einer Spalte (die Spalten-Dimension setzt die Spalte selbst). */
 interface BoardAdd { project?: string | null; label?: string; today?: boolean; }
@@ -765,8 +765,8 @@ const bandTime = (min: number): string => z2(Math.floor(min / 60)) + ":" + z2(mi
 /**
  * Ein Termin als schmales Band – bewusst KEINE Aufgabenzeile (kein Abhak-Kreis, keine Meta-Zeile):
  * ein Farbbalken links, Uhrzeit vor dem Titel, Klick öffnet den Termin im Google Kalender. Die
- * Bänder stehen oben in der Tagesgruppe (Ganztägig zuerst, dann nach Uhrzeit) – so wie Todoist es
- * zeigt: eine Zeitmarke, kein Listeneintrag, der um die Sortierung konkurriert.
+ * Bänder stehen oben in der Tagesgruppe (Ganztägig zuerst, dann nach Uhrzeit): eine Zeitmarke,
+ * kein Listeneintrag, der um die Sortierung konkurriert.
  */
 function renderEventBands(list: HTMLElement, events: DayEvent[]): void {
   const sorted = [...events].sort((a, b) => (a.startMin ?? -1) - (b.startMin ?? -1) || a.event.title.localeCompare(b.event.title));
@@ -775,7 +775,7 @@ function renderEventBands(list: HTMLElement, events: DayEvent[]): void {
     const row = list.createDiv({ cls: "bt-gcal-band" });
     row.style.setProperty("--bt-ev-color", ev.color);
     // Schlanker, runder Farbbalken in EIGENER Spalte (Google-Kalenderfarbe) statt getönter Zeile –
-    // so trägt allein der Balken die Farbe und die Zeile bleibt ruhig (Idee aus dem belki-Plugin).
+    // so trägt allein der Balken die Farbe und die Zeile bleibt ruhig.
     row.createSpan({ cls: "bt-gcal-band-bar", attr: { "aria-hidden": "true" } });
     if (de.startMin !== null) {
       const time = de.endMin !== null ? bandTime(de.startMin) + "–" + bandTime(de.endMin) : bandTime(de.startMin);
@@ -914,7 +914,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const chip = meta.createSpan({ cls: "bt-chip bt-sched", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
     chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
   }
-  // Kommentare/Anhänge: Büroklammer + dezente Anzahl (wie Todoist). Klick öffnet die Aufgabe.
+  // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
   const comments = plugin.index.commentsOf(task.path);
   if (comments > 0) {
     const chip = meta.createSpan({ cls: "bt-comments" });
@@ -1140,7 +1140,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const navColor = (path: string, stored: string | null): string | null =>
     plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
 
-  // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
+  // „Aufgabe hinzufügen" ganz oben: öffnet die kompakte Schnell-Erfassung.
   // Folgt dem Kontext der geöffneten Seite – wie der Command und der „+ Aufgabe"-Knopf (addContext).
   navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
 

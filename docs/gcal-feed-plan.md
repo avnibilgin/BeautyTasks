@@ -25,8 +25,7 @@ Das ist nicht Geschmack, sondern in dieser Codebasis zwingend:
 - **Löschen ist kaputt.** Der Sync definiert „Existenz ist Obsidian-gesteuert" — für fremde Termine
   gilt exakt das Gegenteil (Google ist die Wahrheit). Zwei Regeln in einem Datenmodell geht nicht auf.
 
-So machen es auch die etablierten Apps (Todoist, TickTick, Sunsama, Akiflow) und die Obsidian-Nachbarn
-(Full Calendar, TaskNotes): Termine sind ein separater Layer über der Aufgabenliste, nie Teil von ihr.
+Das ist der etablierte Ansatz: Termine sind ein separater Layer über der Aufgabenliste, nie Teil von ihr.
 
 ## Verbindung: geteilt, aber entkoppelt
 `gcalAuth.ts` und der Setup-Assistent bleiben unverändert — der Scope enthält **bereits**
@@ -77,7 +76,7 @@ der Fehler, der beim ersten Blick sofort auffällt, wenn man ihn nicht bewusst v
 `events.list` erlaubt **kein** `syncToken` zusammen mit `timeMin`/`timeMax`. Der Sync-Pull nutzt
 Tokens, weil er nur die eigenen Events (`privateExtendedProperty`) betrachtet — eine kleine Menge.
 Der Feed müsste dafür **den ganzen Kalender spiegeln**, inklusive der Termine von 2019. Deshalb hier
-das Fenster-Verfahren, das auch Fantastical/Sunsama fahren:
+das Fenster-Verfahren:
 
 ```
 GET /calendars/{id}/events
@@ -133,8 +132,8 @@ function layoutSlots<T extends Slot>(items: T[]): (T & { col: number; cols: numb
 Kalender ruft die generische Variante mit der Vereinigung aus Aufgabenblöcken und Terminblöcken auf.
 Die Cluster-Logik selbst wird **nicht** angefasst.
 
-### `calendarView.ts` — Termin-Block im Todoist-Stil
-**Leitbild (Nutzer-Entscheidung 2026-07-17, per Todoist-Screenshot):** Aufgabe und Termin unterscheiden
+### `calendarView.ts` — Termin-Block
+**Leitbild (Nutzer-Entscheidung 2026-07-17, per Screenshot-Vorgabe):** Aufgabe und Termin unterscheiden
 sich durch die **Fläche**, nicht durch die Farbe:
 
 | | Aufgabe (heute schon) | Termin (neu) |
@@ -146,7 +145,7 @@ sich durch die **Fläche**, nicht durch die Farbe:
 Das ist bewusst die **Umkehrung** meines ersten Vorschlags („gefüllte Fläche in Kalenderfarbe"): der
 gefüllte Block ist in deinem Kalender bereits die Sprache der *Aufgabe* — ein zweiter gefüllter Block
 daneben wäre nur eine weitere Farbe, kein anderer Gegenstand. Leer + Farbbalken liest sich auf einen
-Blick als „gehört nicht mir, ist nur belegt". Todoist macht es genau so.
+Blick als „gehört nicht mir, ist nur belegt".
 
 - **Woche/Tag**: Termine als `.bt-calview-ev` im selben Raster (teilen sich per `layoutSlots` die
   Breite mit Aufgabenblöcken), **kein `renderCheck`**, **kein Drag**, **kein Resize-Griff**.
@@ -161,7 +160,7 @@ Blick als „gehört nicht mir, ist nur belegt". Todoist macht es genau so.
   Datei: im Zweifel voll neu bauen.
 
 ### Liste (`heuteView.ts`) — schmales Band, kein eigener Abschnitt
-**Korrektur meines ersten Vorschlags** (Nutzer-Entscheidung 2026-07-17, per Todoist-Screenshot): Es
+**Korrektur meines ersten Vorschlags** (Nutzer-Entscheidung 2026-07-17, per Screenshot-Vorgabe): Es
 gibt **keinen** Abschnitt „Termine". Der Termin ist eine **einzeilige, volle Breite füllende Zeile**
 in der Tagesgruppe selbst:
 
@@ -176,7 +175,7 @@ Ein Band, dezent hinterlegt, Farbbalken links, **Uhrzeit vor dem Titel** in eine
 Abhak-Kreis, keine Meta-Zeile. Es steht **an seiner chronologischen Stelle** zwischen den Aufgaben,
 nicht in einem eigenen Block.
 
-Meine Sorge („zwei Ordnungen in einer Liste") löst Todoist eleganter, als ich sie umgangen habe: das
+Meine Sorge („zwei Ordnungen in einer Liste") löst sich eleganter, als ich sie zunächst umgehen wollte: das
 Band ist so offensichtlich kein Listeneintrag, dass es die Sortierung gar nicht erst beansprucht — es
 markiert eine Uhrzeit, keine Reihenfolge. Bleibt die **Regel für den Fall, dass die Liste nicht nach
 Zeit sortiert** (`opts.sort` = Priorität, Titel, …): dann steht das Band **oben in der Gruppe**,

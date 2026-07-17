@@ -191,8 +191,8 @@ export class GCalFeed {
     return this.cals.filter((c) => c.id !== own);
   }
 
-  /** Erstes Einschalten: primärer Kalender an, alle anderen aus (Todoist/TickTick-Vorgabe –
-   *  lieber zu wenig zeigen als ungefragt fremde Kalender ausbreiten). */
+  /** Erstes Einschalten: primärer Kalender an, alle anderen aus –
+   *  lieber zu wenig zeigen als ungefragt fremde Kalender ausbreiten. */
   async initDefaults(): Promise<void> {
     const s = this.host.settings;
     if (Object.keys(s.calendars).length) return;      // schon einmal gewählt → Wahl des Nutzers gilt

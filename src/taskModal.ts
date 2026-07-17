@@ -18,8 +18,8 @@ export { PRIOS, PRIO_KEY };
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
 const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
-/** Aufgaben-Modal im Todoist-Stil – 1:1 zu BeautyTasks (randloser Titel, Chip-Reihe,
- *  Projekt-Picker, CTA). Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
+/** Aufgaben-Modal (randloser Titel, Chip-Reihe, Projekt-Picker, CTA).
+ *  Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
 export class TaskModal extends Modal {
   private f: TaskFields & { scheduled?: string | null; recurrence?: string | null; reminders: string[] };
   private chipBar!: HTMLElement;
