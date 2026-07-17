@@ -740,7 +740,27 @@ body {
 }
 /* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
-.bt-task:hover { background: var(--background-modifier-hover); border-radius: 6px; }
+/* Hover-Signal statt Hintergrund: ein schlanker senkrechter Akzentbalken links (dort, wo Drag-Apps
+   ihren Griff zeigen). Er markiert nur die Zeile unter dem Cursor – KEINE Drag-Bedeutung, denn diese
+   Listen lassen sich nicht ziehen. Weil Unteraufgaben per margin-left eingerückt sind, wandert der
+   Balken mit und zeigt zugleich die Ebene. */
+.bt-task::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 58%;
+  max-height: 22px;
+  border-radius: 999px;
+  background: var(--interactive-accent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.bt-task:hover::before, .bt-task:focus-within::before { opacity: 1; }
+/* Kanban-Karten sind Karten, keine Listenzeilen → sie behalten ihren eigenen Hover, kein Balken. */
+.bt-kanban-list .bt-task::before { display: none; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
