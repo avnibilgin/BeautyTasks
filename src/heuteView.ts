@@ -128,11 +128,18 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
         section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv);
       } else {
-        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Termine passen in keine
-        // Sachgruppe (Priorität/Label/…) → ein schlichtes Band-Segment oben, vor den Gruppen.
-        if (todayEv.length) renderEventBands(root.createDiv({ cls: "bt-section bt-list" }), todayEv);
-        for (const g of filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today))
-          if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
+        // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
+        // (nie oben über allem schwebend).
+        const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
+        const hasToday = gs.some((g) => g.title === t("sec_today"));
+        const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
+        const eventsSection = (): void => section(root, plugin, t("sec_today"), [], today, false, false, present, todayEv);
+        if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
+        gs.forEach((g, i) => {
+          section(root, plugin, g.title, g.tasks, today, false, false, present, g.title === t("sec_today") ? todayEv : []);
+          if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
+        });
       }
       if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
@@ -800,7 +807,8 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   head.createSpan({ cls: "bt-section-lbl", text: title });
   head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
-  renderEventBands(list, events);   // Termine des Tages oben (read-only), vor den Aufgaben
+  // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
+  if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), events);
   for (const task of top) renderTask(list, plugin, task, today, 0, trash);
   annotateSubtaskTree(list);
 

@@ -1802,6 +1802,15 @@ body {
   background: var(--bt-ev-color); align-self: center;
 }
 
+/* Termine eines Tages gebündelt in einer dezenten Box (Sidebar-Hintergrund) oben in der
+   Tagesgruppe – so heben sie sich als „schon belegt" von den Aufgaben ab, ohne aufzudrängen. */
+.bt-gcal-daybox {
+  background: var(--background-secondary);
+  border-radius: 8px; padding: 4px 6px; margin: 2px 0 10px;
+}
+.bt-gcal-daybox .bt-gcal-band { margin: 0; }
+.bt-gcal-daybox .bt-gcal-band:hover, .bt-gcal-daybox .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); }
+
 /* Termin-Band in der Liste (Heute/Demnächst): eine ruhige Zeile ohne Tönung – die Farbe trägt
    allein der schlanke, runde Balken links (echte Google-Kalenderfarbe). Kein Listeneintrag. */
 .bt-gcal-band {
