@@ -13,8 +13,8 @@ import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
-import { renderCalendar, calendarDayAnchor, tryPatchCalendar } from "./calendarView";
-import { DayEvent, bucketEvents } from "./calendarModel";
+import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
+import { DayEvent, bucketEvents, addDays } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
@@ -141,19 +141,25 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // Eingang/Projekt bzw. später „Irgendwann") und KEINE erledigten (gehören in „Erledigt").
     const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
-    // Feed über den gezeigten Zukunftsbereich informieren (Listen-Layout stößt ihn sonst nicht an).
-    if (groups.length) plugin.gcalFeed?.setRange(groups[0].date, groups[groups.length - 1].date);
-    if (!groups.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
+    // Termine des Vorschauzeitraums (read-only). Der Feed lädt diesen Bereich nach (Listen-Layout
+    // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
+    // Gruppe – „Demnächst" wird zur ehrlichen Wochenplanungs-Fläche (Idee aus dem belki-Plugin).
+    const eventEnd = addDays(today, UPCOMING_EVENT_HORIZON_DAYS);
+    plugin.gcalFeed?.setRange(today, eventEnd);
+    const evByDate = feedEventsByDate(plugin, today, eventEnd);
+    if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
+      // Termine haben im Board keine Spalte (keine Tages-Spalten) → nur Aufgaben.
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
       const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
-      // Termine des jeweiligen Tages oben in seine Datumsgruppe – so wird „Demnächst" zur
-      // Wochenplanungs-Fläche (sichtbar, welcher Tag schon belegt ist). v1-Grenze: ein Tag OHNE
-      // Aufgabe, aber MIT Terminen bekommt (noch) keine eigene Gruppe.
-      for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present, dayEvents(plugin, g.date));
+      const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
+      // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
+      const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
+      for (const date of dates)
+        section(root, plugin, groupLabel(date, today), tasksByDate.get(date) ?? [], today, false, false, present, evByDate.get(date) ?? []);
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -735,11 +741,23 @@ function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> 
 }
 
 // ── Google-Termine als Bänder in der Liste (read-only) ─────────────────────────
+/** Wie weit „Demnächst" Termine OHNE zugehörige Aufgabe als eigenen Tag zeigt (≈ 5 Wochen). */
+const UPCOMING_EVENT_HORIZON_DAYS = 34;
+
 /** Die Termine EINES Tages aus dem Feed, tagegenau zugeschnitten. Leer, wenn der Feed aus/leer ist. */
 function dayEvents(plugin: BeautyTasksPlugin, day: string): DayEvent[] {
   const feed = plugin.gcalFeed;
   if (!feed?.isActive()) return [];
   return bucketEvents(feed.eventsIn(day, day), [day]).get(day) ?? [];
+}
+
+/** Termine eines Zeitraums nach Tag gebündelt (für „Demnächst": auch Tage ohne Aufgabe). */
+function feedEventsByDate(plugin: BeautyTasksPlugin, from: string, to: string): Map<string, DayEvent[]> {
+  const feed = plugin.gcalFeed;
+  if (!feed?.isActive()) return new Map();
+  const days: string[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+  return bucketEvents(feed.eventsIn(from, to), days);
 }
 const z2 = (n: number): string => String(n).padStart(2, "0");
 const bandTime = (min: number): string => z2(Math.floor(min / 60)) + ":" + z2(min % 60);
@@ -763,7 +781,7 @@ function renderEventBands(list: HTMLElement, events: DayEvent[]): void {
     row.createSpan({ cls: "bt-gcal-band-title", text: ev.title });
     row.setAttr("aria-label", t("gcalfeed_open_in_google"));
     row.setAttr("data-tooltip-position", "top");
-    if (ev.htmlLink) row.onclick = () => window.open(ev.htmlLink, "_blank");
+    activateEventOpen(row, ev);
   }
 }
 

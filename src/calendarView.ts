@@ -511,7 +511,7 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
           if (!compact) inner.createDiv({ cls: "bt-calview-ev-time", text: span(b.startMin, b.endMin) });
           el.setAttr("aria-label", eventTooltip({ event: b.event, startMin: b.startMin, endMin: b.endMin }));
           el.setAttr("data-tooltip-position", "top");
-          el.onclick = (e) => { e.stopPropagation(); openEvent(b.event); };
+          activateEventOpen(el, b.event);
           continue;
         }
 
@@ -625,9 +625,27 @@ function renderChip(parent: HTMLElement, plugin: BeautyTasksPlugin, task: Task):
 }
 
 // ── Termine (read-only Anzeige-Schicht) ────────────────────────────────────────
-/** Termin öffnen = im Google Kalender (Browser). Read-only: hier wird nichts geändert. */
-function openEvent(ev: CalEvent): void {
-  if (ev.htmlLink) window.open(ev.htmlLink, "_blank");
+/** Termin öffnen = im Google Kalender. Auf dem Desktop über Electrons `shell.openExternal`
+ *  (kein leeres Obsidian-Fenster), sonst `window.open` als Rückfall. */
+export function openEventExternal(ev: CalEvent): void {
+  if (!ev.htmlLink) return;
+  const req = (window as unknown as { require?: (m: string) => unknown }).require;
+  try {
+    const electron = req?.("electron") as { shell?: { openExternal?: (u: string) => void } } | undefined;
+    if (electron?.shell?.openExternal) { electron.shell.openExternal(ev.htmlLink); return; }
+  } catch { /* Rückfall unten */ }
+  window.open(ev.htmlLink, "_blank");
+}
+
+/** Ein Termin-Element klick- UND tastaturbedienbar machen (Enter/Leertaste), mit Button-Rolle
+ *  für Screenreader. Read-only: die einzige Aktion ist „im Google Kalender öffnen". */
+export function activateEventOpen(el: HTMLElement, ev: CalEvent): void {
+  if (!ev.htmlLink) return;
+  el.setAttr("role", "button");
+  el.setAttr("tabindex", "0");
+  const open = (e: Event): void => { e.preventDefault(); e.stopPropagation(); openEventExternal(ev); };
+  el.addEventListener("click", open);
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") open(e); });
 }
 /** Tooltip: Uhrzeitspanne · Titel · Ort (der Titel kann in der Zelle abgeschnitten sein). */
 function eventTooltip(de: DayEvent): string {
@@ -646,7 +664,7 @@ function renderEventChip(parent: HTMLElement, de: DayEvent): void {
   chip.createSpan({ cls: "bt-calview-chip-title", text: ev.title });
   chip.setAttr("aria-label", eventTooltip(de));
   chip.setAttr("data-tooltip-position", "top");
-  chip.onclick = (e) => { e.stopPropagation(); openEvent(ev); };
+  activateEventOpen(chip, ev);
 }
 
 /** Gemeinsames Verhalten von Chip und Zeitblock: Farbe, Erledigt-Zustand, Klick. */
