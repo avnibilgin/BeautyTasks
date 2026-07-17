@@ -126,7 +126,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
         section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
-        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv);
+        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
@@ -134,10 +134,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
         const hasToday = gs.some((g) => g.title === t("sec_today"));
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => section(root, plugin, t("sec_today"), [], today, false, false, present, todayEv);
+        const eventsSection = (): void => section(root, plugin, t("sec_today"), [], today, false, false, present, todayEv, today);
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
-          section(root, plugin, g.title, g.tasks, today, false, false, present, g.title === t("sec_today") ? todayEv : []);
+          const isToday = g.title === t("sec_today");
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
@@ -166,7 +167,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
       const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
       for (const date of dates)
-        section(root, plugin, groupLabel(date, today), tasksByDate.get(date) ?? [], today, false, false, present, evByDate.get(date) ?? []);
+        section(root, plugin, groupLabel(date, today), tasksByDate.get(date) ?? [], today, false, false, present, evByDate.get(date) ?? [], date);
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -769,15 +770,23 @@ function feedEventsByDate(plugin: BeautyTasksPlugin, from: string, to: string): 
 const z2 = (n: number): string => String(n).padStart(2, "0");
 const bandTime = (min: number): string => z2(Math.floor(min / 60)) + ":" + z2(min % 60);
 
+/** Wie viele Termine ein Tag zeigt, bevor der Rest hinter „+N weitere" klappt. */
+const GCAL_BAND_LIMIT = 5;
+/** Aufgeklappte Tage (Schlüssel = Tag). Modul-Zustand, damit die Wahl ein Neuzeichnen übersteht –
+ *  wie boardScroll/anchors; ein Reload startet wieder eingeklappt. */
+const gcalExpanded = new Set<string>();
+
 /**
  * Ein Termin als schmales Band – bewusst KEINE Aufgabenzeile (kein Abhak-Kreis, keine Meta-Zeile):
  * ein Farbbalken links, Uhrzeit vor dem Titel, Klick öffnet den Termin im Google Kalender. Die
  * Bänder stehen oben in der Tagesgruppe (Ganztägig zuerst, dann nach Uhrzeit): eine Zeitmarke,
- * kein Listeneintrag, der um die Sortierung konkurriert.
+ * kein Listeneintrag, der um die Sortierung konkurriert. Ab `GCAL_BAND_LIMIT` klappt der Rest ein.
  */
-function renderEventBands(list: HTMLElement, events: DayEvent[]): void {
+function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: DayEvent[], key: string): void {
   const sorted = [...events].sort((a, b) => (a.startMin ?? -1) - (b.startMin ?? -1) || a.event.title.localeCompare(b.event.title));
-  for (const de of sorted) {
+  const expanded = gcalExpanded.has(key);
+  const visible = expanded ? sorted : sorted.slice(0, GCAL_BAND_LIMIT);
+  for (const de of visible) {
     const ev = de.event;
     const row = list.createDiv({ cls: "bt-gcal-band" });
     row.style.setProperty("--bt-ev-color", ev.color);
@@ -794,9 +803,18 @@ function renderEventBands(list: HTMLElement, events: DayEvent[]): void {
     row.setAttr("data-tooltip-position", "top");
     activateEventOpen(row, ev);
   }
+  if (sorted.length > GCAL_BAND_LIMIT) {
+    const hidden = sorted.length - GCAL_BAND_LIMIT;
+    const more = list.createDiv({ cls: "bt-gcal-more", attr: { role: "button", tabindex: "0" } });
+    setIcon(more.createSpan({ cls: "bt-gcal-more-ic" }), expanded ? "chevron-up" : "chevron-down");
+    more.createSpan({ text: expanded ? t("gcalfeed_show_less") : t("gcalfeed_more", hidden) });
+    const toggle = (): void => { if (expanded) gcalExpanded.delete(key); else gcalExpanded.add(key); plugin.renderMain(); };
+    more.onclick = toggle;
+    more.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+  }
 }
 
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = []): void {
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): void {
   // Variante A: Unteraufgaben werden verschachtelt unter ihrem Parent gezeigt, WENN dieser
   // in der Ansicht vorkommt (present). Fehlt der Parent in der Ansicht, erscheint die
   // Unteraufgabe eigenständig als eigene Zeile – statt ganz zu verschwinden.
@@ -808,7 +826,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
-  if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), events);
+  if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
   for (const task of top) renderTask(list, plugin, task, today, 0, trash);
   annotateSubtaskTree(list);
 

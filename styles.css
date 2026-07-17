@@ -1810,6 +1810,15 @@ body {
 }
 .bt-gcal-daybox .bt-gcal-band { margin: 0; }
 .bt-gcal-daybox .bt-gcal-band:hover, .bt-gcal-daybox .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); }
+/* „+N weitere" / „Weniger anzeigen": klappt die restlichen Termine des Tages auf/zu. */
+.bt-gcal-more {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 4px 8px; margin-top: 1px; border-radius: 6px;
+  font-size: 0.85em; font-weight: 500; color: var(--text-muted);
+}
+.bt-gcal-more:hover, .bt-gcal-more:focus-visible { background: var(--background-modifier-hover); color: var(--text-normal); outline: none; }
+.bt-gcal-more-ic { display: inline-flex; }
+.bt-gcal-more-ic .svg-icon { width: 15px; height: 15px; }
 
 /* Termin-Band in der Liste (Heute/Demnächst): eine ruhige Zeile ohne Tönung – die Farbe trägt
    allein der schlanke, runde Balken links (echte Google-Kalenderfarbe). Kein Listeneintrag. */
