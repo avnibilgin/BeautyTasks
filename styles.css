@@ -1773,6 +1773,48 @@ body {
 .bt-calview-block.is-resizing { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
 .bt-calview-block.is-resizing .bt-calview-resize:hover { background: none; opacity: 0; }
 
+/* ── Google-Termine (read-only) ──────────────────────────────────────────────────
+   Bewusst ANDERS als der Aufgaben-Block: eine Aufgabe ist eine gefüllte Fläche mit Abhak-Kreis,
+   ein Termin eine NEUTRALE Fläche mit kräftigem Farbbalken links (Kalenderfarbe). So liest sich
+   auf einen Blick „gehört nicht mir, ist nur belegt" – kein Kreis, kein Ziehen, kein Griff. */
+.bt-calview-ev {
+  position: absolute; z-index: 1; display: flex; overflow: hidden; box-sizing: border-box;
+  padding: 3px 6px 3px 7px; border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--bt-ev-color) 10%, var(--background-primary));
+  border-left: 3px solid var(--bt-ev-color); font-size: 0.84em; line-height: 1.35;
+}
+.bt-calview-ev:hover { background: color-mix(in srgb, var(--bt-ev-color) 18%, var(--background-primary)); }
+.bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.bt-calview-ev.is-compact .bt-calview-ev-in { flex-direction: row; align-items: center; gap: 5px; }
+.bt-calview-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); font-weight: 500; }
+.bt-calview-ev-time { flex-shrink: 0; font-size: 0.88em; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Termin-Chip (Monatszelle / Ganztägig-Zeile / Popover): Farbpunkt statt Abhak-Kreis. */
+.bt-calview-evchip { cursor: pointer; }
+.bt-calview-evchip:hover { background: color-mix(in srgb, var(--bt-ev-color) 20%, transparent); }
+.bt-calview-evdot {
+  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--bt-ev-color); align-self: center;
+}
+
+/* Termin-Band in der Liste (Heute/Demnächst): eine schmale Zeile, kein Listeneintrag. */
+.bt-gcal-band {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 3px 8px 3px 9px; margin: 1px 0; border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--bt-ev-color) 9%, var(--background-primary));
+  border-left: 3px solid var(--bt-ev-color); font-size: 0.9em; color: var(--text-muted);
+}
+.bt-gcal-band:hover { background: color-mix(in srgb, var(--bt-ev-color) 16%, var(--background-primary)); }
+.bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.bt-gcal-band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
+
+/* Einstellungen: Kalenderliste – Farbpunkt vor dem Namen (wie in Google/Todoist). */
+.bt-gcalfeed-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;
+  background: var(--interactive-accent); vertical-align: middle;
+}
+.bt-gcalfeed-list .setting-item { padding: 6px 0; border: none; }
+
 /* ── Jahr: zwölf Mini-Monate ── */
 .bt-calview-year {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px;

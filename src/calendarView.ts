@@ -9,9 +9,10 @@ import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { openPopover } from "./popover";
 import {
-  CalMode, CAL_MODES, monthGrid, weekDays, yearMonths, bucketByDue, layoutDay, allDayOf,
+  CalMode, CAL_MODES, monthGrid, weekDays, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
   addDays, addMonths, addYears, sameMonth, parseISO, DEFAULT_BLOCK_MIN,
   ChipMetrics, ChipFit, chipsThatFit, shownChips,
+  DayEvent, bucketEvents, allDayEventsOf,
 } from "./calendarModel";
 
 /**
@@ -53,6 +54,10 @@ const monthYear = (isoDate: string): string =>
 
 /** Projekt/Label der Seite – eine hier angelegte Aufgabe erbt sie (wie „+ Aufgabe" der Liste). */
 export interface CalendarAdd { project?: string | null; label?: string }
+
+/** Jeder Modus-Zeichner liefert diese Füll-Funktion: Aufgaben UND Termine des Zeitraums, jeweils
+ *  nach Tag gebündelt. Das Gerüst bleibt stehen, nur der Inhalt wird neu gezeichnet. */
+type GridFiller = (tasks: Map<string, Task[]>, events: Map<string, DayEvent[]>) => void;
 
 /**
  * ── Inkrementelles Nachzeichnen ──────────────────────────────────────────────────────────────
@@ -170,6 +175,18 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   // In eine feinere Ansicht springen: Anker zuerst setzen, dann den Modus (der rendert neu).
   const zoom = (next: string, m: CalMode): void => { anchors.set(key, next); void plugin.setPageViewOption({ calMode: m }); };
 
+  // Sichtbare Tage des Rasters – Grundlage für den Termin-Abruf (setRange) und das Zuschneiden
+  // (bucketEvents). Das Jahr zeigt in v1 keine Termine, dort bleibt die Liste leer.
+  const gridDays: string[] = mode === "year" ? []
+    : mode === "month" ? monthGrid(anchor)
+      : mode === "day" ? [anchor] : weekDays(anchor);
+  // Der Feed holt genau diesen Zeitraum nach (Cache/Snapshot füllt sofort, Rest im Hintergrund).
+  if (gridDays.length) plugin.gcalFeed?.setRange(gridDays[0], gridDays[gridDays.length - 1]);
+  const feedEvents = (): Map<string, DayEvent[]> => {
+    if (!gridDays.length || !plugin.gcalFeed?.isActive()) return new Map();
+    return bucketEvents(plugin.gcalFeed.eventsIn(gridDays[0], gridDays[gridDays.length - 1]), gridDays);
+  };
+
   // Kalender + Seitenleiste stehen nebeneinander (das Panel schiebt das Raster, überlagert es nicht).
   const body = root.createDiv({ cls: "bt-calview-body" });
   // Jeder Zeichner baut sein GERÜST und liefert eine Funktion zurück, die nur die Aufgaben füllt.
@@ -179,10 +196,12 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
       : renderTimeGrid(body, plugin, mode === "day" ? [anchor] : weekDays(anchor), today, add);
   const fillPanel = panelUseful && opts.calPanel ? renderUnscheduled(body, plugin, add) : null;
 
-  /** Nur die aufgabenabhängigen Teile neu zeichnen (Gerüst bleibt stehen). */
+  /** Nur die aufgabenabhängigen Teile neu zeichnen (Gerüst bleibt stehen). Termine werden bei
+   *  JEDEM paint frisch aus dem Feed gelesen – so genügt ein renderMain() nach einem Feed-Refresh,
+   *  ohne dass die Kontext-Signatur die (ständig wechselnde) Terminmenge kennen müsste. */
   const paint = (list: Task[]): void => {
     const unsched = unscheduledOf(list);
-    fillGrid(bucketByDue(list));
+    fillGrid(bucketByDue(list), feedEvents());
     fillPanel?.(unsched);
     setPanelCount(unsched.length);
   };
@@ -218,7 +237,7 @@ function weekTitle(anchor: string): string {
 /** Klick auf den Monatsnamen -> Monatsansicht, Klick auf einen Tag -> Tagesansicht. Tage mit
  *  Aufgaben sind markiert (Punkt), damit das Jahr nicht nur ein Datumsraster ist. */
 function renderYear(root: HTMLElement, plugin: BeautyTasksPlugin,
-  anchor: string, today: string, zoom: (next: string, m: CalMode) => void): (b: Map<string, Task[]>) => void {
+  anchor: string, today: string, zoom: (next: string, m: CalMode) => void): GridFiller {
   const wrap = root.createDiv({ cls: "bt-calview bt-calview-year" });
   const cells: { day: string; el: HTMLElement }[] = [];
 
@@ -286,7 +305,7 @@ const firstTask = (buckets: Map<string, Task[]>): Task | null => {
 };
 
 function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
-  anchor: string, today: string, add: CalendarAdd): (b: Map<string, Task[]>) => void {
+  anchor: string, today: string, add: CalendarAdd): GridFiller {
   const wrap = root.createDiv({ cls: "bt-calview bt-calview-month" });
   const wd = wrap.createDiv({ cls: "bt-calview-weekdays" });
   for (const i of [1, 2, 3, 4, 5, 6, 0]) wd.createDiv({ cls: "bt-calview-wd", text: weekdayShort(i) });
@@ -316,20 +335,26 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
     dropTarget(cell, plugin, (task) => combineDT(day, task.dueTime));
   }
 
-  const fillCell = (day: string, body: HTMLElement, items: Task[], fit: ChipFit): void => {
+  // Termine zuerst (sie sind der Kontext des Tages: „so viel ist schon belegt"), dann die Aufgaben.
+  // „+N weitere" zählt beide zusammen, damit die Zelle nicht überläuft.
+  const fillCell = (day: string, body: HTMLElement, events: DayEvent[], tasks: Task[], fit: ChipFit): void => {
     body.empty();
-    const shown = shownChips(items.length, fit);
+    const draws: ((p: HTMLElement) => void)[] = [
+      ...events.map((de) => (p: HTMLElement) => renderEventChip(p, de)),
+      ...tasks.map((tk) => (p: HTMLElement) => renderChip(p, plugin, tk)),
+    ];
+    const shown = shownChips(draws.length, fit);
     const list = body.createDiv({ cls: "bt-calview-chips" });
-    for (const tk of items.slice(0, shown)) renderChip(list, plugin, tk);
-    if (items.length > shown) {
-      const more = body.createDiv({ cls: "bt-calview-more", text: t("cal_more", items.length - shown) });
+    for (const d of draws.slice(0, shown)) d(list);
+    if (draws.length > shown) {
+      const more = body.createDiv({ cls: "bt-calview-more", text: t("cal_more", draws.length - shown) });
       more.onclick = (e) => {
         e.stopPropagation();
-        openPopover(more, (pop) => {                       // alle Aufgaben des Tages im Popover
+        openPopover(more, (pop) => {                       // alle Termine + Aufgaben des Tages im Popover
           pop.addClass("bt-calview-pop");
           installCheckDelegation(pop, plugin);             // Popovers hängen am Body, nicht in der View
           pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
-          for (const tk of items) renderChip(pop, plugin, tk);
+          for (const d of draws) d(pop);
         });
       };
     }
@@ -338,6 +363,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
   let metrics: ChipMetrics | null = null;
   let fit: ChipFit | null = null;
   let last: Map<string, Task[]> = new Map();
+  let lastEv: Map<string, DayEvent[]> = new Map();
 
   /** Passende Chip-Zahl für die aktuelle Zellenhöhe. Ohne Höhe (View noch nicht sichtbar) oder ohne
    *  Aufgabe zum Messen bleibt es beim Notnagel – der ResizeObserver zieht nach, sobald es liegt. */
@@ -351,7 +377,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
 
   const draw = (): void => {
     fit = currentFit();
-    for (const { day, body } of cells) fillCell(day, body, sortDay(last.get(day) ?? []), fit);
+    for (const { day, body } of cells) fillCell(day, body, lastEv.get(day) ?? [], sortDay(last.get(day) ?? []), fit);
   };
 
   // Zellenhöhe ändert sich mit dem Fenster, der Sidebar und der Zoomstufe – ohne Datenänderung.
@@ -363,8 +389,9 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
   });
   ro.observe(grid);
 
-  return (buckets) => {
+  return (buckets, events) => {
     last = buckets;
+    lastEv = events;
     draw();
   };
 }
@@ -384,7 +411,7 @@ function sortDay(list: Task[]): Task[] {
 
 // ── Zeitraster: Woche (7 Spalten) und Tag (1 Spalte) ───────────────────────────
 function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
-  days: string[], today: string, add: CalendarAdd): (b: Map<string, Task[]>) => void {
+  days: string[], today: string, add: CalendarAdd): GridFiller {
   const wrap = root.createDiv({ cls: "bt-calview bt-calview-week" + (days.length === 1 ? " bt-calview-day" : "") });
   // Gescrollt wird der GANZE Wochenblock (wrap), nicht nur das Zeitraster: hätte das Raster eine
   // eigene Scrollbar, wären seine 7 Spalten um die Scrollbar-Breite schmaler als die Spalten in
@@ -447,29 +474,51 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
   // direkt nach dem Erzeugen hat der Block noch keine Höhe, scrollTop würde auf 0 geklemmt.
   window.setTimeout(() => { if (wrap.isConnected) wrap.scrollTop = DAY_START_HOUR * HOUR_PX; }, 0);
 
-  // Füller: nur Ganztägig-Chips und Zeitblöcke – Gerüst, Stundenraster und Scrollposition bleiben.
-  return (buckets) => {
+  // Füller: Ganztägig-Zeile (Aufgaben + Termine) und Zeitblöcke (gemeinsam angeordnet) – Gerüst,
+  // Stundenraster und Scrollposition bleiben. Termine sind read-only, teilen sich aber die Breite
+  // mit den Aufgabenblöcken (ein Meeting schiebt den Aufgabenblock zur Seite, statt ihn zu verdecken).
+  return (buckets, events) => {
     for (const day of days) {
       const dayTasks = sortDay(buckets.get(day) ?? []);
+      const dayEvents = events.get(day) ?? [];
 
       const cell = alldayCells.get(day)!;
       cell.empty();
+      for (const de of allDayEventsOf(dayEvents)) renderEventChip(cell, de);
       for (const tk of allDayOf(dayTasks)) renderChip(cell, plugin, tk);
 
       const col = cols.get(day)!;
       for (const old of Array.from(col.children)) {
-        if (old.hasClass("bt-calview-block")) old.remove();   // Jetzt-Linie bleibt stehen
+        if (old.hasClass("bt-calview-block") || old.hasClass("bt-calview-ev")) old.remove();   // Jetzt-Linie bleibt stehen
       }
-      for (const b of layoutDay(dayTasks)) {
-        const el = col.createDiv({ cls: "bt-calview-block" });
+      for (const b of layoutDayMixed(dayTasks, dayEvents)) {
         const h = Math.max(18, ((b.endMin - b.startMin) / 60) * HOUR_PX - 2);
-        el.style.top = (b.startMin / 60) * HOUR_PX + "px";
-        el.style.height = h + "px";
-        el.style.left = `calc(${(b.col / b.cols) * 100}% + 2px)`;
-        el.style.width = `calc(${(1 / b.cols) * 100}% - 4px)`;
+        const setBox = (el: HTMLElement): void => {
+          el.style.top = (b.startMin / 60) * HOUR_PX + "px";
+          el.style.height = h + "px";
+          el.style.left = `calc(${(b.col / b.cols) * 100}% + 2px)`;
+          el.style.width = `calc(${(1 / b.cols) * 100}% - 4px)`;
+        };
+        const compact = h < TWO_LINE_PX;
+
+        if (b.kind === "event") {
+          // Termin: neutrale Fläche, kräftiger Farbbalken links – kein Kreis, kein Drag, kein Griff.
+          const el = col.createDiv({ cls: "bt-calview-ev" + (compact ? " is-compact" : "") });
+          setBox(el);
+          el.style.setProperty("--bt-ev-color", b.event.color);
+          const inner = el.createDiv({ cls: "bt-calview-ev-in" });
+          inner.createDiv({ cls: "bt-calview-ev-title", text: b.event.title });
+          if (!compact) inner.createDiv({ cls: "bt-calview-ev-time", text: span(b.startMin, b.endMin) });
+          el.setAttr("aria-label", eventTooltip({ event: b.event, startMin: b.startMin, endMin: b.endMin }));
+          el.setAttr("data-tooltip-position", "top");
+          el.onclick = (e) => { e.stopPropagation(); openEvent(b.event); };
+          continue;
+        }
+
+        const el = col.createDiv({ cls: "bt-calview-block" });
+        setBox(el);
         // Flacher Block (30 min = eine Zeile hoch): NUR der Titel. Die Uhrzeit steht ohnehin an
         // der Position im Raster – eine zweite Zeile würde den Titel verdrängen.
-        const compact = h < TWO_LINE_PX;
         if (compact) el.addClass("is-compact");
         decorate(el, plugin, b.task);
         renderCheck(el, plugin, b.task, { compact: true });
@@ -573,6 +622,31 @@ function renderChip(parent: HTMLElement, plugin: BeautyTasksPlugin, task: Task):
   if (task.dueTime) chip.createSpan({ cls: "bt-calview-chip-time", text: task.dueTime });
   chip.createSpan({ cls: "bt-calview-chip-title", text: task.title });
   dragSource(chip, task);
+}
+
+// ── Termine (read-only Anzeige-Schicht) ────────────────────────────────────────
+/** Termin öffnen = im Google Kalender (Browser). Read-only: hier wird nichts geändert. */
+function openEvent(ev: CalEvent): void {
+  if (ev.htmlLink) window.open(ev.htmlLink, "_blank");
+}
+/** Tooltip: Uhrzeitspanne · Titel · Ort (der Titel kann in der Zelle abgeschnitten sein). */
+function eventTooltip(de: DayEvent): string {
+  const ev = de.event;
+  const time = de.startMin !== null && de.endMin !== null ? span(de.startMin, de.endMin) + " · " : "";
+  return time + ev.title + (ev.location ? " · " + ev.location : "");
+}
+/** Termin-Chip (Monatszelle / Ganztägig-Zeile / Popover): Farbpunkt + optional Uhrzeit + Titel.
+ *  Bewusst OHNE Abhak-Kreis und ohne Drag – ein Termin ist nichts, was man erledigt oder verschiebt. */
+function renderEventChip(parent: HTMLElement, de: DayEvent): void {
+  const ev = de.event;
+  const chip = parent.createDiv({ cls: "bt-calview-chip bt-calview-evchip" });
+  chip.style.setProperty("--bt-ev-color", ev.color);
+  chip.createSpan({ cls: "bt-calview-evdot" });
+  if (de.startMin !== null) chip.createSpan({ cls: "bt-calview-chip-time", text: hhmm(de.startMin) });
+  chip.createSpan({ cls: "bt-calview-chip-title", text: ev.title });
+  chip.setAttr("aria-label", eventTooltip(de));
+  chip.setAttr("data-tooltip-position", "top");
+  chip.onclick = (e) => { e.stopPropagation(); openEvent(ev); };
 }
 
 /** Gemeinsames Verhalten von Chip und Zeitblock: Farbe, Erledigt-Zustand, Klick. */

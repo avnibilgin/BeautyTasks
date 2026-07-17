@@ -3,8 +3,17 @@ import {
   addDays, addMonths, startOfWeek, monthGrid, weekDays,
   bucketByDue, minutesOf, layoutDay, allDayOf, DEFAULT_BLOCK_MIN, yearMonths, addYears,
   chipsThatFit, shownChips,
+  bucketEvents, layoutDayMixed, allDayEventsOf, layoutSlots,
 } from "../src/calendarModel";
-import { Task } from "../src/types";
+import { Task, CalEvent } from "../src/types";
+
+function mkEv(p: Partial<CalEvent>): CalEvent {
+  return {
+    id: p.id ?? "e", calendarId: "c", title: p.title ?? "Termin",
+    start: p.start ?? "2026-07-17T09:00", end: p.end ?? "2026-07-17T10:00",
+    allDay: p.allDay ?? false, color: "#3b82f6", htmlLink: "", ...p,
+  };
+}
 
 function mk(p: Partial<Task>): Task {
   return {
@@ -185,5 +194,79 @@ describe("Chips je Monatszelle", () => {
     expect(shownChips(4, fit)).toBe(4);                               // passt genau -> kein „+N"
     expect(shownChips(5, fit)).toBe(3);                               // 3 Chips + „+2 weitere"
     expect(shownChips(20, fit)).toBe(3);
+  });
+});
+
+describe("bucketEvents – Termine auf Tage verteilen", () => {
+  const days = weekDays("2026-07-15");   // Mo 13. – So 19. Juli 2026
+
+  it("ein einfacher Termin liegt an genau seinem Tag", () => {
+    const b = bucketEvents([mkEv({ start: "2026-07-15T09:00", end: "2026-07-15T10:00" })], days);
+    expect(b.get("2026-07-15")).toHaveLength(1);
+    expect(b.get("2026-07-15")![0].startMin).toBe(540);
+    expect(b.get("2026-07-14")).toBeUndefined();
+  });
+
+  it("Ganztags-Termin Mi–Fr belegt drei Tage (Ende ist exklusiv)", () => {
+    // Google liefert Mi–Fr als start=Mi, end=Sa (Ende exklusiv).
+    const b = bucketEvents([mkEv({ allDay: true, start: "2026-07-15", end: "2026-07-18" })], days);
+    expect(b.get("2026-07-15")).toHaveLength(1);   // Mi
+    expect(b.get("2026-07-16")).toHaveLength(1);   // Do
+    expect(b.get("2026-07-17")).toHaveLength(1);   // Fr
+    expect(b.get("2026-07-18")).toBeUndefined();   // Sa NICHT mehr
+    expect(b.get("2026-07-15")![0].startMin).toBeNull();   // ganztägig
+  });
+
+  it("Termin über Mitternacht steht an beiden Tagen, je zugeschnitten", () => {
+    const b = bucketEvents([mkEv({ start: "2026-07-15T23:00", end: "2026-07-16T01:00" })], days);
+    expect(b.get("2026-07-15")![0]).toMatchObject({ startMin: 1380, endMin: 1440 });   // 23:00–24:00
+    expect(b.get("2026-07-16")![0]).toMatchObject({ startMin: 0, endMin: 60 });         // 00:00–01:00
+  });
+
+  it("endet der Termin exakt um Mitternacht, gehört er NICHT auf den Folgetag", () => {
+    const b = bucketEvents([mkEv({ start: "2026-07-15T22:00", end: "2026-07-16T00:00" })], days);
+    expect(b.get("2026-07-15")![0]).toMatchObject({ startMin: 1320, endMin: 1440 });
+    expect(b.get("2026-07-16")).toBeUndefined();
+  });
+
+  it("Termin ohne Dauer (start==end) bekommt die Standard-Blockhöhe", () => {
+    const b = bucketEvents([mkEv({ start: "2026-07-15T09:00", end: "2026-07-15T09:00" })], days);
+    expect(b.get("2026-07-15")![0].endMin).toBe(540 + DEFAULT_BLOCK_MIN);
+  });
+
+  it("Termine außerhalb des Rasters fallen weg", () => {
+    const b = bucketEvents([mkEv({ start: "2026-08-01T09:00", end: "2026-08-01T10:00" })], days);
+    expect(b.size).toBe(0);
+  });
+});
+
+describe("layoutSlots / layoutDayMixed – Aufgaben und Termine teilen sich die Breite", () => {
+  it("überlappende Slots bekommen eigene Spalten", () => {
+    const laid = layoutSlots([
+      { startMin: 600, endMin: 660 },   // 10:00–11:00
+      { startMin: 630, endMin: 690 },   // 10:30–11:30 (überlappt)
+    ]);
+    expect(laid[0].cols).toBe(2);
+    expect(laid[1].cols).toBe(2);
+    expect(laid[0].col).not.toBe(laid[1].col);
+  });
+
+  it("ein Meeting und ein Aufgabenblock zur selben Zeit weichen einander aus", () => {
+    const task = mk({ title: "Aufgabe", due: "2026-07-17", dueTime: "10:00", duration: 60 });
+    const events: ReturnType<typeof bucketEvents> = bucketEvents(
+      [mkEv({ title: "Meeting", start: "2026-07-17T10:30", end: "2026-07-17T11:30" })],
+      ["2026-07-17"],
+    );
+    const laid = layoutDayMixed([task], events.get("2026-07-17")!);
+    expect(laid).toHaveLength(2);
+    expect(laid.every((b) => b.cols === 2)).toBe(true);   // beide teilen sich die Spalte
+    expect(laid.map((b) => b.kind).sort()).toEqual(["event", "task"]);
+  });
+
+  it("ganztägige Termine landen NICHT im Zeitraster (sondern in der Ganztägig-Zeile)", () => {
+    const events = bucketEvents([mkEv({ allDay: true, start: "2026-07-17", end: "2026-07-18" })], ["2026-07-17"]);
+    const de = events.get("2026-07-17")!;
+    expect(allDayEventsOf(de)).toHaveLength(1);
+    expect(layoutDayMixed([], de)).toHaveLength(0);   // nichts im Raster
   });
 });

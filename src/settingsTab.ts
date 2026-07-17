@@ -277,6 +277,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName(t("gcal_autosync")).setDesc(t("gcal_autosync_desc"))
       .addToggle((tg) => tg.setValue(g.autoSync).onChange((v) => { g.autoSync = v; void p.saveSettings(); }));
 
+    // ── Termine anzeigen (read-only Feed, getrennt vom Sync) ──
+    this.renderGCalFeed(containerEl, redraw);
+
     // ── Erweitert (zugeklappt) ──
     const adv = containerEl.createEl("details", { cls: "bt-gcal-advanced" });
     adv.createEl("summary", { text: t("gcal_advanced") });
@@ -297,6 +300,60 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     new Setting(av).setName(t("gcal_statusbar")).addToggle((tg) =>
       tg.setValue(g.showStatusBar).onChange((v) => { g.showStatusBar = v; void p.saveSettings(); p.refreshGCalStatusBar(); }));
     boolRow("gcal_notify_conflicts", () => g.notifyConflicts, (v) => (g.notifyConflicts = v));
+  }
+
+  /**
+   * „Termine anzeigen" (read-only). Getrennt vom Sync-Schalter: „nur anzeigen, nichts schreiben" ist
+   * ein vollwertiger Zustand. Kalenderliste im Todoist-Stil – Farbpunkt links, Auge rechts (statt
+   * Häkchen). Der eigene BeautyTasks-Sync-Kalender taucht gar nicht erst auf (gcalFeed filtert ihn).
+   */
+  private renderGCalFeed(containerEl: HTMLElement, redraw: () => void): void {
+    const p = this.plugin;
+    const gf = p.settings.gcalFeed!;
+    const feed = p.gcalFeed;
+
+    new Setting(containerEl).setName(t("gcalfeed_show")).setDesc(t("gcalfeed_show_desc")).setHeading()
+      .addToggle((tg) => tg.setValue(gf.enabled).onChange(async (v) => {
+        gf.enabled = v;
+        await p.saveSettings();
+        if (v) await feed.initDefaults();   // erstes Einschalten: primären Kalender vorwählen
+        else await feed.clear();            // aus: Speicher + Snapshot leeren
+        p.renderMain();
+        redraw();                           // Abschnitt neu zeichnen (Kalenderliste ein-/ausblenden)
+      }));
+
+    if (!gf.enabled) return;
+
+    // Kalenderliste (async). Farbpunkt links + Auge rechts (statt Häkchen); Klick blendet ein/aus.
+    const listHost = containerEl.createDiv({ cls: "bt-gcalfeed-list" });
+    void (async () => {
+      let cals: CalendarInfo[] = [];
+      try { cals = await feed.calendarList(); }
+      catch { listHost.createDiv({ cls: "setting-item-description", text: t("gcalfeed_offline") }); return; }
+      for (const c of cals) {
+        const row = new Setting(listHost).setName(c.summary);
+        const dot = createSpan({ cls: "bt-gcalfeed-dot" });
+        if (c.backgroundColor) dot.style.backgroundColor = c.backgroundColor;
+        row.nameEl.prepend(dot);
+        row.addExtraButton((b) => {
+          const paint = (): void => { b.setIcon(gf.calendars[c.id] ? "eye" : "eye-off")
+            .setTooltip(gf.calendars[c.id] ? t("gcalfeed_hide_cal") : t("gcalfeed_show_cal")); };
+          paint();
+          b.onClick(async () => {
+            await feed.setCalendarVisible(c.id, !gf.calendars[c.id]);
+            paint();
+            p.renderMain();
+          });
+        });
+      }
+    })();
+
+    new Setting(containerEl).setName(t("gcalfeed_hide_declined"))
+      .addToggle((tg) => tg.setValue(gf.hideDeclined).onChange(async (v) => {
+        gf.hideDeclined = v; await p.saveSettings(); await feed.refresh(); p.renderMain();
+      }));
+
+    containerEl.createDiv({ cls: "setting-item-description bt-gcal-hint", text: t("gcalfeed_privacy_hint") });
   }
 
   /** Fläche wählen (Normale Eingabe · Schnelleingabe) und darunter deren drei Tier-Zonen zeichnen.

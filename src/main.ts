@@ -1422,8 +1422,10 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.gcalAuth.disconnect();
     g.account = null;
     g.enabled = false;
+    await this.gcalFeed.clear();   // gezeigte Termine + Snapshot verwerfen (Verbindung ist weg)
     await this.saveSettings();
     this.refreshGCalStatusBar();
+    this.renderMain();
   }
 
   /** Kalenderliste für den Ziel-Kalender-Picker. */
