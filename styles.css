@@ -742,10 +742,9 @@ body {
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
 /* Hover-Signal statt Hintergrund: ein schlanker senkrechter Akzentbalken links (dort, wo Drag-Apps
    ihren Griff zeigen). Er markiert nur die Zeile unter dem Cursor – KEINE Drag-Bedeutung, denn diese
-   Listen lassen sich nicht ziehen. Weil Unteraufgaben per margin-left eingerückt sind, wandert der
-   Balken mit und zeigt zugleich die Ebene. */
-.bt-task::before {
-  content: "";
+   Listen lassen sich nicht ziehen. Bewusst ein EIGENES Element (nicht ::before/::after): die zeichnen
+   bereits die Unteraufgaben-Baumlinie, ein Pseudo-Element hier würde sie überschreiben/verzerren. */
+.bt-task-marker {
   position: absolute;
   left: -6px;
   top: 50%;
@@ -757,10 +756,12 @@ body {
   background: var(--interactive-accent);
   opacity: 0;
   transition: opacity 120ms ease;
+  pointer-events: none;
 }
-.bt-task:hover::before, .bt-task:focus-within::before { opacity: 1; }
-/* Kanban-Karten sind Karten, keine Listenzeilen → sie behalten ihren eigenen Hover, kein Balken. */
-.bt-kanban-list .bt-task::before { display: none; }
+.bt-task:hover > .bt-task-marker, .bt-task:focus-within > .bt-task-marker { opacity: 1; }
+/* Unteraufgaben zeigen ihre Ebene schon über den Baum-Elbow → dort kein zusätzlicher Balken (er
+   würde die Baumlinie kreuzen). Kanban-Karten behalten ihren eigenen Karten-Hover. */
+.bt-task.bt-subtask > .bt-task-marker, .bt-kanban-list .bt-task-marker { display: none; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
