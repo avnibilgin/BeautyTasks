@@ -774,11 +774,15 @@ function renderEventBands(list: HTMLElement, events: DayEvent[]): void {
     const ev = de.event;
     const row = list.createDiv({ cls: "bt-gcal-band" });
     row.style.setProperty("--bt-ev-color", ev.color);
+    // Schlanker, runder Farbbalken in EIGENER Spalte (Google-Kalenderfarbe) statt getönter Zeile –
+    // so trägt allein der Balken die Farbe und die Zeile bleibt ruhig (Idee aus dem belki-Plugin).
+    row.createSpan({ cls: "bt-gcal-band-bar", attr: { "aria-hidden": "true" } });
     if (de.startMin !== null) {
       const time = de.endMin !== null ? bandTime(de.startMin) + "–" + bandTime(de.endMin) : bandTime(de.startMin);
       row.createSpan({ cls: "bt-gcal-band-time", text: time });
     }
     row.createSpan({ cls: "bt-gcal-band-title", text: ev.title });
+    setIcon(row.createSpan({ cls: "bt-gcal-band-open", attr: { "aria-hidden": "true" } }), "external-link");
     row.setAttr("aria-label", t("gcalfeed_open_in_google"));
     row.setAttr("data-tooltip-position", "top");
     activateEventOpen(row, ev);

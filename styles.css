@@ -1779,9 +1779,14 @@ body {
    auf einen Blick „gehört nicht mir, ist nur belegt" – kein Kreis, kein Ziehen, kein Griff. */
 .bt-calview-ev {
   position: absolute; z-index: 1; display: flex; overflow: hidden; box-sizing: border-box;
-  padding: 3px 6px 3px 7px; border-radius: 4px; cursor: pointer;
-  background: color-mix(in srgb, var(--bt-ev-color) 10%, var(--background-primary));
-  border-left: 3px solid var(--bt-ev-color); font-size: 0.84em; line-height: 1.35;
+  padding: 3px 6px 3px 11px; border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--bt-ev-color) 11%, var(--background-primary));
+  font-size: 0.84em; line-height: 1.35;
+}
+/* Schlanker, runder Farbbalken (echte Google-Kalenderfarbe), leicht eingerückt – wie im belki-Stil. */
+.bt-calview-ev::before {
+  content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 3px;
+  border-radius: 999px; background: var(--bt-ev-color);
 }
 .bt-calview-ev:hover { background: color-mix(in srgb, var(--bt-ev-color) 18%, var(--background-primary)); }
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
@@ -1797,16 +1802,23 @@ body {
   background: var(--bt-ev-color); align-self: center;
 }
 
-/* Termin-Band in der Liste (Heute/Demnächst): eine schmale Zeile, kein Listeneintrag. */
+/* Termin-Band in der Liste (Heute/Demnächst): eine ruhige Zeile ohne Tönung – die Farbe trägt
+   allein der schlanke, runde Balken links (echte Google-Kalenderfarbe). Kein Listeneintrag. */
 .bt-gcal-band {
   display: flex; align-items: center; gap: 8px; min-width: 0;
-  padding: 3px 8px 3px 9px; margin: 1px 0; border-radius: 4px; cursor: pointer;
-  background: color-mix(in srgb, var(--bt-ev-color) 9%, var(--background-primary));
-  border-left: 3px solid var(--bt-ev-color); font-size: 0.9em; color: var(--text-muted);
+  padding: 4px 8px; margin: 1px 0; border-radius: 6px; cursor: pointer;
+  font-size: 0.9em; color: var(--text-muted);
 }
-.bt-gcal-band:hover { background: color-mix(in srgb, var(--bt-ev-color) 16%, var(--background-primary)); }
+.bt-gcal-band:hover, .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); outline: none; }
+.bt-gcal-band-bar {
+  flex-shrink: 0; align-self: stretch; width: 3px; min-height: 16px;
+  border-radius: 999px; background: var(--bt-ev-color);
+}
 .bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
 .bt-gcal-band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
+.bt-gcal-band-open { flex-shrink: 0; margin-left: auto; display: inline-flex; color: var(--text-faint); opacity: 0; transition: opacity 120ms ease; }
+.bt-gcal-band-open .svg-icon { width: 14px; height: 14px; }
+.bt-gcal-band:hover .bt-gcal-band-open, .bt-gcal-band:focus-visible .bt-gcal-band-open { opacity: 1; }
 
 /* Einstellungen: Kalenderliste – Farbpunkt vor dem Namen (wie in Google/Todoist). */
 .bt-gcalfeed-dot {
