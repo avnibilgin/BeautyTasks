@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Task } from "./types";
+import { Task, CalEvent } from "./types";
 import { ViewOptions } from "./filterEngine";
 import { t, getLocale, projectDisplayName } from "./i18n";
 import { isInboxLink } from "./taskService";

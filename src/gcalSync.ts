@@ -31,8 +31,9 @@ import { GCalAuth, GCalAuthError } from "./gcalAuth";
  */
 
 /** HTTP-Fehler der Kalender-API mit Statuscode – für gezielte Behandlung:
- *  404/410 = Event/Kalender weg (neu anlegen bzw. ignorieren); 410 im Pull = syncToken abgelaufen. */
-class GCalHttpError extends Error {
+ *  404/410 = Event/Kalender weg (neu anlegen bzw. ignorieren); 410 im Pull = syncToken abgelaufen;
+ *  403 im Feed = kein Zugriff auf diesen Kalender (überspringen). */
+export class GCalHttpError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
@@ -108,20 +109,36 @@ export interface GCalSyncHost {
 }
 
 // ── Kalender-API (authentifiziert, mit Backoff) ───────────────────────────────
-async function api(
-  auth: GCalAuth, method: string, path: string, body?: unknown,
-): Promise<Record<string, unknown> | null> {
+/** Antwort eines Roh-Aufrufs: Status und ETag zusätzlich zum Body – beides braucht der Feed
+ *  (`304 Not Modified` + `If-None-Match`), der Sync nur den Body. */
+export interface GCalResponse {
+  status: number;
+  json: Record<string, unknown> | null;
+  etag: string | null;
+}
+
+/**
+ * Einziger Ort für Auth-Header, Backoff und Fehler-Übersetzung der Kalender-API — Sync UND Feed
+ * gehen hier durch. `304` gilt als Erfolg (leerer Body, Aufrufer nutzt seinen Cache).
+ */
+export async function gcalRequest(
+  auth: GCalAuth, method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>,
+): Promise<GCalResponse> {
   const token = await auth.getAccessToken();
   for (let attempt = 0; ; attempt++) {
     const res = await requestUrl({
       url: API + path,
       method,
-      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", ...extraHeaders },
       body: body != null ? JSON.stringify(body) : undefined,
       throw: false,
     });
-    if (res.status === 204 || !res.text) return null;      // z. B. DELETE
-    if (res.status < 400) { try { return res.json as Record<string, unknown>; } catch { return null; } }
+    const etag = headerOf(res.headers, "etag");
+    if (res.status === 204 || res.status === 304 || !res.text) return { status: res.status, json: null, etag };
+    if (res.status < 400) {
+      try { return { status: res.status, json: res.json as Record<string, unknown>, etag }; }
+      catch { return { status: res.status, json: null, etag }; }
+    }
     if (res.status === 401) throw new GCalAuthError("Google-Verbindung abgelaufen – bitte neu verbinden.");
     // 403/429 (Quota/Rate) und 5xx: mit exponentiellem Backoff wiederholen
     if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 5) {
@@ -134,8 +151,23 @@ async function api(
   }
 }
 
+/** Header-Zugriff ohne Annahme über die Schreibweise (requestUrl normalisiert nicht garantiert). */
+function headerOf(headers: Record<string, string> | undefined, name: string): string | null {
+  if (!headers) return null;
+  const hit = Object.keys(headers).find((k) => k.toLowerCase() === name);
+  return hit ? headers[hit] : null;
+}
+
+async function api(
+  auth: GCalAuth, method: string, path: string, body?: unknown,
+): Promise<Record<string, unknown> | null> {
+  return (await gcalRequest(auth, method, path, body)).json;
+}
+
 // ── Kalender-Helfer ───────────────────────────────────────────────────────────
-export interface CalendarInfo { id: string; summary: string; primary: boolean; }
+/** `backgroundColor` = die Farbe, die Google dem Kalender gibt – der Feed färbt damit den
+ *  Balken am Termin (dieselbe Farbe wie der Punkt in den Einstellungen). */
+export interface CalendarInfo { id: string; summary: string; primary: boolean; backgroundColor?: string }
 
 export async function listCalendars(auth: GCalAuth): Promise<CalendarInfo[]> {
   const out: CalendarInfo[] = [];
@@ -144,7 +176,12 @@ export async function listCalendars(auth: GCalAuth): Promise<CalendarInfo[]> {
     const q = pageToken ? "?pageToken=" + encodeURIComponent(pageToken) : "";
     const resp = await api(auth, "GET", "/users/me/calendarList" + q);
     for (const c of (resp?.items as Record<string, unknown>[] | undefined) ?? []) {
-      out.push({ id: c.id as string, summary: (c.summary as string) ?? (c.id as string), primary: !!c.primary });
+      out.push({
+        id: c.id as string,
+        summary: (c.summary as string) ?? (c.id as string),
+        primary: !!c.primary,
+        backgroundColor: c.backgroundColor as string | undefined,
+      });
     }
     pageToken = resp?.nextPageToken as string | undefined;
   } while (pageToken);
