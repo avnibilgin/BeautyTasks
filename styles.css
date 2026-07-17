@@ -755,7 +755,7 @@ body {
   height: 16px;
   width: 6px;
   border-radius: 999px;
-  background: var(--background-modifier-border);
+  background: var(--interactive-accent);
   opacity: 0;
   transition: opacity 120ms ease;
   pointer-events: none;
