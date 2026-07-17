@@ -887,9 +887,6 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   opts: { flat?: boolean; draggable?: boolean; colId?: string } = {}): void {
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
-  // Hover-Marker (senkrechter Akzentbalken links). Absolut positioniert → beeinflusst das Layout
-  // nicht; eigenes Element, damit es NICHT mit der ::before/::after-Baumlinie der Unteraufgaben kollidiert.
-  row.createDiv({ cls: "bt-task-marker", attr: { "aria-hidden": "true" } });
   row.dataset.path = task.path;
   if (isDone(task.status)) row.addClass("is-done");
   if (trash) row.addClass("is-cancelled");

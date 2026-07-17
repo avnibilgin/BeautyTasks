@@ -740,32 +740,7 @@ body {
 }
 /* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
-/* Hover-Signal statt Hintergrund: ein schlanker senkrechter Akzentbalken links (dort, wo Drag-Apps
-   ihren Griff zeigen). Er markiert nur die Zeile unter dem Cursor – KEINE Drag-Bedeutung, denn diese
-   Listen lassen sich nicht ziehen. Bewusst ein EIGENES Element (nicht ::before/::after): die zeichnen
-   bereits die Unteraufgaben-Baumlinie, ein Pseudo-Element hier würde sie überschreiben/verzerren. */
-.bt-task-marker {
-  position: absolute;
-  left: -15px;
-  /* Exakt auf Höhe des Checkbox-Kreises und genauso hoch (16px). Die Vertikal-Rechnung spiegelt
-     die der Checkbox (.bt-task > .bt-check: line-height 1.4, margin-top calc((1lh - 16px)/2)) plus
-     das padding-top (6px) der Zeile → bündig, unabhängig von Theme/Schriftgröße. */
-  line-height: 1.4;
-  top: calc(6px + (1lh - 16px) / 2);
-  height: 16px;
-  width: 6px;
-  border-radius: 999px;
-  background: var(--interactive-accent);
-  opacity: 0;
-  transition: opacity 120ms ease;
-  pointer-events: none;
-}
-.bt-task:hover > .bt-task-marker, .bt-task:focus-within > .bt-task-marker { opacity: 1; }
-/* Kanban-Karten behalten ihren eigenen Karten-Hover, kein Balken. */
-.bt-kanban-list .bt-task-marker { display: none; }
-/* Unteraufgaben: Balken NICHT eingerückt, sondern an der linken Position der Hauptaufgaben – die
-   Zeilen-Einrückung (margin-left: depth*24px) wird wieder herausgerechnet → durchgehende Leiste. */
-.bt-task.bt-subtask > .bt-task-marker { left: calc(-15px - var(--bt-depth, 1) * 24px); }
+.bt-task:hover { background: var(--background-modifier-hover); border-radius: 6px; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
