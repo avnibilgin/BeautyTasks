@@ -746,14 +746,14 @@ body {
    bereits die Unteraufgaben-Baumlinie, ein Pseudo-Element hier würde sie überschreiben/verzerren. */
 .bt-task-marker {
   position: absolute;
-  left: -6px;
+  left: -12px;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
+  width: 6px;
   height: 58%;
   max-height: 22px;
   border-radius: 999px;
-  background: var(--interactive-accent);
+  background: var(--background-secondary);
   opacity: 0;
   transition: opacity 120ms ease;
   pointer-events: none;
