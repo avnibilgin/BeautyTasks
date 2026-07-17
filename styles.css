@@ -747,11 +747,9 @@ body {
 .bt-task-marker {
   position: absolute;
   left: -15px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 8px;            /* Oberkante des Checkbox-Kreises (padding-top 6px + Checkbox-margin ~2px) */
+  bottom: 4px;         /* fast bis zur horizontalen Trennlinie (::after bei bottom:0) */
   width: 6px;
-  height: 58%;
-  max-height: 22px;
   border-radius: 999px;
   background: var(--background-modifier-border);
   opacity: 0;
