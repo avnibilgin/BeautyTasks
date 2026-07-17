@@ -747,8 +747,12 @@ body {
 .bt-task-marker {
   position: absolute;
   left: -15px;
-  top: 8px;            /* Oberkante des Checkbox-Kreises (padding-top 6px + Checkbox-margin ~2px) */
-  bottom: 4px;         /* fast bis zur horizontalen Trennlinie (::after bei bottom:0) */
+  /* Exakt auf Höhe des Checkbox-Kreises und genauso hoch (16px). Die Vertikal-Rechnung spiegelt
+     die der Checkbox (.bt-task > .bt-check: line-height 1.4, margin-top calc((1lh - 16px)/2)) plus
+     das padding-top (6px) der Zeile → bündig, unabhängig von Theme/Schriftgröße. */
+  line-height: 1.4;
+  top: calc(6px + (1lh - 16px) / 2);
+  height: 16px;
   width: 6px;
   border-radius: 999px;
   background: var(--background-modifier-border);
