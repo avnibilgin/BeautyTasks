@@ -627,7 +627,7 @@ body { --bt-font-size: calc(var(--font-text-size, 16px) * 0.9375); }
 .bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
 .bt-nav-head-toggle {
   flex: 1; min-width: 0; cursor: pointer;
-  font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+  font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
 }
 .bt-nav-head-toggle:hover { color: var(--text-normal); }
 .bt-nav-head-lbl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
