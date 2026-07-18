@@ -129,7 +129,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   locale: "auto",
   fontTaskPct: 100,
   fontNavPct: 90,
-  fontHeadingPct: 68,
+  fontHeadingPct: 80,
   showDescriptionInList: true,
   navCollapsed: {},
   startView: "heute",
