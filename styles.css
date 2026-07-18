@@ -250,20 +250,14 @@ body {
 .bt-search-tag.is-overdue { color: var(--bt-overdue); }   /* Datum überfällig */
 .bt-search-tag.is-today { color: var(--bt-today); }       /* Datum heute */
 
-/* ── Zentrale Textgrößen ──────────────────────────────────────────────────────────────────────
-   Alle drei aus Obsidians konfigurierter Textgröße `--font-text-size` abgeleitet (× Prozentfaktor),
-   also folgt ALLES der Obsidian-Einstellung und skaliert mit ihr. Die Prozentwerte sind über die
-   Einstellungen überschreibbar – main.ts setzt dann `--bt-font-size` / `--bt-nav-font-size` /
-   `--bt-nav-head-font-size` per Inline-Style auf body (überschreibt diese Defaults). Bewusst NICHT
-   `em`: em hinge am geerbten Wert der Fläche (Sidebar/Modals erben Obsidians Textgröße nicht sicher). */
-body {
-  --bt-font-size: var(--font-text-size, 16px);   /* 100% (Default; über die Einstellungen änderbar) */
-  --bt-nav-font-size: calc(var(--font-text-size, 16px) * 0.9);
-  --bt-nav-head-font-size: calc(var(--font-text-size, 16px) * 0.78);
-}
+/* ── Textgrößen (überschreibbar) ──────────────────────────────────────────────────────────────
+   Bewusst `em`: das bezieht sich im `font-size` auf den GEERBTEN Wert der jeweiligen Fläche – also
+   exakt die Basis, die die Ansicht ohnehin hat (wie ursprünglich, ohne Größen-Override). Bei
+   Skalierung 1 (= 100 %) ist die Größe damit unverändert, der Nutzer-Faktor skaliert nur.
+   main.ts setzt --bt-task-scale / --bt-nav-scale / --bt-head-scale (Prozent/100) auf body. */
 
 .bt-view {
-  font-size: var(--bt-font-size);
+  font-size: calc(1em * var(--bt-task-scale, 1));
   padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
   overflow-y: auto;
 }
@@ -347,7 +341,7 @@ body {
 }
 
 /* ── Aufgaben-Modal ── */
-.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; font-size: var(--bt-font-size); }
+.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; }
 /* Damit die randlose Trennlinie den ECHTEN Modal-Rand erreicht: den horizontalen Innen-
    abstand vom Modal auf .modal-content verlagern (oben: padding-left/right 0 am Modal, hier
    der Abstand). So füllt .modal-content die volle Modalbreite; die Linie kann per negativer
@@ -503,7 +497,7 @@ body {
    Teilt sich .bt-task-modal (Titel-/Projekt-/Chip-Styles); hier nur die kompakte Anordnung. */
 /* Schmaler als das volle Aufgaben-Modal (800px) – die Quick-Erfassung braucht keine so breite
    Fläche. Etwas kompakter, aber weiter responsiv gedeckelt. */
-.bt-quickadd { width: 660px; font-size: var(--bt-font-size); }
+.bt-quickadd { width: 660px; }
 .bt-quickadd .bt-titel { font-size: 1.1em; }
 /* Eine Zeile: Projekt-Chip + Attribut-Chips links, Aktionen rechts (margin-left:auto). Umbruch
    erlaubt, falls viele Labels -> Buttons rutschen dann in die nächste Zeile. */
@@ -589,10 +583,8 @@ body {
 .bt-pop .bt-row.is-disabled { opacity: 0.45; pointer-events: none; }
 
 /* ── Linke Navigation ── */
-/* Gemeinsamer Grundmaßstab wie die Hauptansicht (zentral aus --font-text-size). Die Nav-Einträge
-   (0.96em) bleiben dadurch bewusst etwas kleiner – sekundäre Navigation, dichter. */
-.bt-nav { padding: 6px 6px 16px; font-size: var(--bt-font-size); }
-.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: var(--bt-nav-font-size); color: var(--text-normal); }
+.bt-nav { padding: 6px 6px 16px; }
+.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: calc(0.9em * var(--bt-nav-scale, 1)); color: var(--text-normal); }
 /* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
 .bt-nav-item:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
@@ -632,7 +624,7 @@ body {
 .bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
 .bt-nav-head-toggle {
   flex: 1; min-width: 0; cursor: pointer;
-  font-size: var(--bt-nav-head-font-size); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+  font-size: calc(0.78em * var(--bt-head-scale, 1)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
 }
 .bt-nav-head-toggle:hover { color: var(--text-normal); }
 .bt-nav-head-lbl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

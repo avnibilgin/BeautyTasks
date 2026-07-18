@@ -69,7 +69,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
     this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
     this.register(() => {                      // beim Entladen die gesetzten Variablen wieder entfernen
-      for (const n of ["--bt-font-size", "--bt-nav-font-size", "--bt-nav-head-font-size"]) document.body.style.removeProperty(n);
+      for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale"]) document.body.style.removeProperty(n);
     });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
@@ -1298,16 +1298,15 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
 
-  /** Die drei überschreibbaren Textgrößen als CSS-Variablen auf <body> setzen: aus Obsidians
-   *  `--font-text-size` × Nutzer-Prozent. Überschreibt die Defaults aus styles.css. Nach einer
-   *  Änderung in den Einstellungen erneut aufrufen (sofort sichtbar, kein Neustart nötig). */
+  /** Die drei Textgrößen-Skalierungen (Nutzer-Prozent/100) als CSS-Variablen auf <body> setzen.
+   *  Die styles.css multipliziert damit die geerbte Basis-Größe: bei 100 % (Faktor 1) unverändert
+   *  wie ohne Anpassung. Nach einer Änderung in den Einstellungen erneut aufrufen (sofort sichtbar). */
   applyFontSizes(): void {
     const s = this.settings;
-    const set = (name: string, pct: number): void =>
-      document.body.style.setProperty(name, `calc(var(--font-text-size, 16px) * ${pct / 100})`);
-    set("--bt-font-size", s.fontTaskPct);
-    set("--bt-nav-font-size", s.fontNavPct);
-    set("--bt-nav-head-font-size", s.fontHeadingPct);
+    const set = (name: string, pct: number): void => document.body.style.setProperty(name, String(pct / 100));
+    set("--bt-task-scale", s.fontTaskPct);
+    set("--bt-nav-scale", s.fontNavPct);
+    set("--bt-head-scale", s.fontHeadingPct);
   }
 
   /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
