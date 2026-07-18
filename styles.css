@@ -1671,7 +1671,7 @@ body {
   background: color-mix(in srgb, var(--bt-cal-tint) 16%, transparent);
   border-left: 2px solid var(--bt-cal-tint); color: var(--text-normal);
 }
-.bt-calview-chip:hover { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
+.bt-calview-chip:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); }
 .bt-calview-chip.is-done { opacity: 0.55; }
 .bt-calview-chip.is-done .bt-calview-chip-title { text-decoration: line-through; }
 .bt-calview-chip.is-dragging { opacity: 0.4; }
