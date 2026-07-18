@@ -1802,7 +1802,9 @@ body {
    gebogene Ecke laufen; runde Enden wie beim Ganztags-Balken. */
 .bt-calview-ev::before {
   content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
-  border-radius: 999px; background: var(--bt-ev-color);
+  border-radius: 999px;
+  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
+  background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
 }
 .bt-calview-ev:hover { background: var(--background-modifier-hover); }
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
@@ -1819,7 +1821,9 @@ body {
 .bt-calview-evchip:hover { background: var(--background-modifier-hover); }
 .bt-calview-evbar {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 14px;
-  border-radius: 999px; background: var(--bt-ev-color);
+  border-radius: 999px;
+  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
+  background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
 }
 /* Uhrzeit der Termine heller und NICHT fett (die Aufgaben-Chip-Zeit bleibt kräftig/fett). */
 .bt-calview-evchip .bt-calview-chip-time { font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
@@ -1852,7 +1856,9 @@ body {
 .bt-gcal-band:hover, .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); outline: none; }
 .bt-gcal-band-bar {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 16px;
-  border-radius: 999px; background: var(--bt-ev-color);
+  border-radius: 999px;
+  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
+  background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
 }
 .bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
 .bt-gcal-band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
