@@ -1797,11 +1797,12 @@ body {
   background: color-mix(in srgb, var(--bt-ev-color) 11%, var(--background-primary));
   font-size: 0.84em; line-height: 1.35;
 }
-/* Farbbalken (echte Google-Kalenderfarbe) bündig am linken Rand, volle Höhe – wie die
-   Aufgaben-Kante und der Ganztags-Balken (die abgerundeten Ecken kommen vom border-radius des Blocks). */
+/* Farbbalken (echte Google-Kalenderfarbe) bündig am linken Rand. Oben/unten bis zum Beginn des
+   Eckbogens (= border-radius 4px) einrücken, damit die Enden symmetrisch sind und nicht in die
+   gebogene Ecke laufen; runde Enden wie beim Ganztags-Balken. */
 .bt-calview-ev::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--bt-ev-color);
+  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
+  border-radius: 999px; background: var(--bt-ev-color);
 }
 .bt-calview-ev:hover { background: color-mix(in srgb, var(--bt-ev-color) 18%, var(--background-primary)); }
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
