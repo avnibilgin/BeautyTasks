@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { ChipId, ChipTier, ChipSurface } from "./types";
+import { ChipId, ChipTier, ChipSurface, DEFAULT_SETTINGS } from "./types";
 import { CHIPS, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
@@ -158,16 +158,31 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       }));
 
     // ── Textgrößen (überschreibbar, in % von Obsidians Textgröße → skaliert mit dieser mit) ──
-    new Setting(containerEl).setName(t("set_fontsizes_heading")).setHeading();
-    containerEl.createDiv({ cls: "setting-item-description", text: t("set_fontsizes_desc") });
-    const fontSlider = (name: string, get: () => number, assign: (v: number) => void): void => {
-      new Setting(containerEl).setName(name).addSlider((sl) =>
-        sl.setLimits(60, 130, 1).setValue(get())
-          .onChange(async (v) => { assign(v); await p.saveSettings(); p.applyFontSizes(); }));
+    // Eigener Host, damit „Auf Standard zurücksetzen" die Slider mit den neuen Werten neu zeichnen kann.
+    const fontHost = containerEl.createDiv();
+    const drawFonts = (): void => {
+      fontHost.empty();
+      new Setting(fontHost).setName(t("set_fontsizes_heading")).setHeading()
+        .addExtraButton((b) => b.setIcon("rotate-ccw").setTooltip(t("chip_reset_default"))
+          .onClick(async () => {
+            p.settings.fontTaskPct = DEFAULT_SETTINGS.fontTaskPct;
+            p.settings.fontNavPct = DEFAULT_SETTINGS.fontNavPct;
+            p.settings.fontHeadingPct = DEFAULT_SETTINGS.fontHeadingPct;
+            await p.saveSettings();
+            p.applyFontSizes();
+            drawFonts();
+          }));
+      fontHost.createDiv({ cls: "setting-item-description", text: t("set_fontsizes_desc") });
+      const fontSlider = (name: string, get: () => number, assign: (v: number) => void): void => {
+        new Setting(fontHost).setName(name).addSlider((sl) =>
+          sl.setLimits(60, 130, 1).setValue(get())
+            .onChange(async (v) => { assign(v); await p.saveSettings(); p.applyFontSizes(); }));
+      };
+      fontSlider(t("set_font_task"), () => p.settings.fontTaskPct, (v) => (p.settings.fontTaskPct = v));
+      fontSlider(t("set_font_nav"), () => p.settings.fontNavPct, (v) => (p.settings.fontNavPct = v));
+      fontSlider(t("set_font_heading"), () => p.settings.fontHeadingPct, (v) => (p.settings.fontHeadingPct = v));
     };
-    fontSlider(t("set_font_task"), () => p.settings.fontTaskPct, (v) => (p.settings.fontTaskPct = v));
-    fontSlider(t("set_font_nav"), () => p.settings.fontNavPct, (v) => (p.settings.fontNavPct = v));
-    fontSlider(t("set_font_heading"), () => p.settings.fontHeadingPct, (v) => (p.settings.fontHeadingPct = v));
+    drawFonts();
 
     // ── Aufgabenaktionen (Chips je Fläche ein-/ausblenden + sortieren) ──
     new Setting(containerEl).setName(t("set_chip_actions")).setHeading();
