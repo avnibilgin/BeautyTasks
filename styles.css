@@ -1638,7 +1638,7 @@ body {
   display: flex; flex-direction: column; gap: 2px; padding: 4px; overflow: hidden;
   background: var(--background-primary); cursor: pointer;
 }
-.bt-calview-cell:hover { background: var(--background-modifier-hover); }
+.bt-calview-cell:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); }
 .bt-calview-cell.is-weekend { background: var(--background-primary-alt); }
 .bt-calview-cell.is-other { opacity: 0.45; }
 .bt-calview-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
@@ -1671,7 +1671,7 @@ body {
   background: color-mix(in srgb, var(--bt-cal-tint) 16%, transparent);
   border-left: 2px solid var(--bt-cal-tint); color: var(--text-normal);
 }
-.bt-calview-chip:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); }
+.bt-calview-chip:hover { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
 .bt-calview-chip.is-done { opacity: 0.55; }
 .bt-calview-chip.is-done .bt-calview-chip-title { text-decoration: line-through; }
 .bt-calview-chip.is-dragging { opacity: 0.4; }
