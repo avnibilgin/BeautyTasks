@@ -1836,6 +1836,8 @@ body {
   background: color-mix(in srgb, var(--background-primary), var(--text-normal) 7%);
   border-radius: 8px; padding: 4px 6px; margin: 2px 0 10px;
 }
+/* In Light reicht ein dezenterer Ton (dunkle Textfarbe schlägt stärker durch); Dark bleibt bei 7%. */
+.theme-light .bt-gcal-daybox { background: color-mix(in srgb, var(--background-primary), var(--text-normal) 4%); }
 .bt-gcal-daybox .bt-gcal-band { margin: 0; }
 .bt-gcal-daybox .bt-gcal-band:hover, .bt-gcal-daybox .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); }
 /* „+N weitere" / „Weniger anzeigen": klappt die restlichen Termine des Tages auf/zu. */
