@@ -1793,14 +1793,15 @@ body {
    auf einen Blick „gehört nicht mir, ist nur belegt" – kein Kreis, kein Ziehen, kein Griff. */
 .bt-calview-ev {
   position: absolute; z-index: 1; display: flex; overflow: hidden; box-sizing: border-box;
-  padding: 3px 6px 3px 11px; border-radius: 4px; cursor: pointer;
+  padding: 3px 6px 3px 9px; border-radius: 4px; cursor: pointer;
   background: color-mix(in srgb, var(--bt-ev-color) 11%, var(--background-primary));
   font-size: 0.84em; line-height: 1.35;
 }
-/* Schlanker, runder Farbbalken (echte Google-Kalenderfarbe), leicht eingerückt. */
+/* Farbbalken (echte Google-Kalenderfarbe) bündig am linken Rand, volle Höhe – wie die
+   Aufgaben-Kante und der Ganztags-Balken (die abgerundeten Ecken kommen vom border-radius des Blocks). */
 .bt-calview-ev::before {
-  content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 3px;
-  border-radius: 999px; background: var(--bt-ev-color);
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--bt-ev-color);
 }
 .bt-calview-ev:hover { background: color-mix(in srgb, var(--bt-ev-color) 18%, var(--background-primary)); }
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
