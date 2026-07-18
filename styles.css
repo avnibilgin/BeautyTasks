@@ -1642,6 +1642,9 @@ body {
    Raster (.bt-calview-grid background) durch und der Hover wirkt dunkler. Heller Ton (30%). */
 .bt-calview-cell:hover { background: color-mix(in srgb, var(--background-modifier-hover) 30%, var(--background-primary)); }
 .bt-calview-cell.is-weekend { background: var(--background-primary-alt); }
+/* Wochenendzellen bekommen sonst KEINEN Hover: .is-weekend steht nach :hover und hat gleiche
+   Spezifität → gewinnt. Eigene, spezifischere Regel; heller Ton über der Wochenend-Grundfarbe. */
+.bt-calview-cell.is-weekend:hover { background: color-mix(in srgb, var(--background-modifier-hover) 30%, var(--background-primary-alt)); }
 .bt-calview-cell.is-other { opacity: 0.45; }
 .bt-calview-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
 .bt-calview-daynum {
