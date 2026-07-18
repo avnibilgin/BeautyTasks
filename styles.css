@@ -740,7 +740,7 @@ body {
 }
 /* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
-.bt-task:hover { background: var(--background-modifier-hover); border-radius: 6px; }
+.bt-task:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
