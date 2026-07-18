@@ -67,6 +67,10 @@ export default class BeautyTasksPlugin extends Plugin {
     registerIcons();
     await this.loadSettings();
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
+    this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
+    this.register(() => {                      // beim Entladen die gesetzten Variablen wieder entfernen
+      for (const n of ["--bt-font-size", "--bt-nav-font-size", "--bt-nav-head-font-size"]) document.body.style.removeProperty(n);
+    });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
     this.index = new TaskIndex(this.app, () => this.settings);
@@ -1293,6 +1297,18 @@ export default class BeautyTasksPlugin extends Plugin {
     this.settings.gcalFeed = Object.assign({}, DEFAULT_GCAL_FEED_SETTINGS, this.settings.gcalFeed);
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
+
+  /** Die drei überschreibbaren Textgrößen als CSS-Variablen auf <body> setzen: aus Obsidians
+   *  `--font-text-size` × Nutzer-Prozent. Überschreibt die Defaults aus styles.css. Nach einer
+   *  Änderung in den Einstellungen erneut aufrufen (sofort sichtbar, kein Neustart nötig). */
+  applyFontSizes(): void {
+    const s = this.settings;
+    const set = (name: string, pct: number): void =>
+      document.body.style.setProperty(name, `calc(var(--font-text-size, 16px) * ${pct / 100})`);
+    set("--bt-font-size", s.fontTaskPct);
+    set("--bt-nav-font-size", s.fontNavPct);
+    set("--bt-nav-head-font-size", s.fontHeadingPct);
+  }
 
   /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
    *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */

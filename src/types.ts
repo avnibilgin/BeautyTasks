@@ -91,6 +91,9 @@ export interface BeautyTasksSettings {
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
   labelColors: Record<string, string>;   // Label-Name -> Farbe (Hex); Labels sind keine Notizen, daher hier
   locale: string;          // "auto" (folgt Obsidian) | "en" (Kanon) | "de"
+  fontTaskPct: number;     // Schriftgröße Aufgabentext, % von Obsidians Textgröße (--font-text-size)
+  fontNavPct: number;      // Schriftgröße Seitenleisten-Einträge, % von Obsidians Textgröße
+  fontHeadingPct: number;  // Schriftgröße Sektionsüberschriften der Seitenleiste, % von Obsidians Textgröße
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
@@ -124,6 +127,9 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   visibleLabels: [],
   labelColors: {},
   locale: "auto",
+  fontTaskPct: 94,
+  fontNavPct: 86,
+  fontHeadingPct: 68,
   showDescriptionInList: true,
   navCollapsed: {},
   startView: "heute",

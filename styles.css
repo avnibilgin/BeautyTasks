@@ -250,12 +250,17 @@ body {
 .bt-search-tag.is-overdue { color: var(--bt-overdue); }   /* Datum überfällig */
 .bt-search-tag.is-today { color: var(--bt-today); }       /* Datum heute */
 
-/* ── Zentrale Basis-Textgröße ─────────────────────────────────────────────────────────────────
-   EIN Wert für alle BeautyTasks-Flächen (Hauptansicht, Seitenleiste, Modals), abgeleitet direkt aus
-   Obsidians konfigurierter Textgröße `--font-text-size` × 0.9375 (etwas kompakter). Bewusst NICHT
-   `em`: em hängt am geerbten Wert der jeweiligen Fläche (Sidebar/Modals erben Obsidians Textgröße
-   nicht zuverlässig). So folgt ALLES zentral der Obsidian-Einstellung und skaliert mit ihr. */
-body { --bt-font-size: calc(var(--font-text-size, 16px) * 0.9375); }
+/* ── Zentrale Textgrößen ──────────────────────────────────────────────────────────────────────
+   Alle drei aus Obsidians konfigurierter Textgröße `--font-text-size` abgeleitet (× Prozentfaktor),
+   also folgt ALLES der Obsidian-Einstellung und skaliert mit ihr. Die Prozentwerte sind über die
+   Einstellungen überschreibbar – main.ts setzt dann `--bt-font-size` / `--bt-nav-font-size` /
+   `--bt-nav-head-font-size` per Inline-Style auf body (überschreibt diese Defaults). Bewusst NICHT
+   `em`: em hinge am geerbten Wert der Fläche (Sidebar/Modals erben Obsidians Textgröße nicht sicher). */
+body {
+  --bt-font-size: calc(var(--font-text-size, 16px) * 0.94);
+  --bt-nav-font-size: calc(var(--font-text-size, 16px) * 0.86);
+  --bt-nav-head-font-size: calc(var(--font-text-size, 16px) * 0.68);
+}
 
 .bt-view {
   font-size: var(--bt-font-size);
@@ -587,7 +592,7 @@ body { --bt-font-size: calc(var(--font-text-size, 16px) * 0.9375); }
 /* Gemeinsamer Grundmaßstab wie die Hauptansicht (zentral aus --font-text-size). Die Nav-Einträge
    (0.96em) bleiben dadurch bewusst etwas kleiner – sekundäre Navigation, dichter. */
 .bt-nav { padding: 6px 6px 16px; font-size: var(--bt-font-size); }
-.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.92em; color: var(--text-normal); }
+.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: var(--bt-nav-font-size); color: var(--text-normal); }
 /* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
 .bt-nav-item:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
@@ -627,7 +632,7 @@ body { --bt-font-size: calc(var(--font-text-size, 16px) * 0.9375); }
 .bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
 .bt-nav-head-toggle {
   flex: 1; min-width: 0; cursor: pointer;
-  font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+  font-size: var(--bt-nav-head-font-size); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
 }
 .bt-nav-head-toggle:hover { color: var(--text-normal); }
 .bt-nav-head-lbl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

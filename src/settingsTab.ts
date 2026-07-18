@@ -157,6 +157,18 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
       }));
 
+    // ── Textgrößen (überschreibbar, in % von Obsidians Textgröße → skaliert mit dieser mit) ──
+    new Setting(containerEl).setName(t("set_fontsizes_heading")).setHeading();
+    containerEl.createDiv({ cls: "setting-item-description", text: t("set_fontsizes_desc") });
+    const fontSlider = (name: string, get: () => number, assign: (v: number) => void): void => {
+      new Setting(containerEl).setName(name).addSlider((sl) =>
+        sl.setLimits(60, 130, 1).setValue(get())
+          .onChange(async (v) => { assign(v); await p.saveSettings(); p.applyFontSizes(); }));
+    };
+    fontSlider(t("set_font_task"), () => p.settings.fontTaskPct, (v) => (p.settings.fontTaskPct = v));
+    fontSlider(t("set_font_nav"), () => p.settings.fontNavPct, (v) => (p.settings.fontNavPct = v));
+    fontSlider(t("set_font_heading"), () => p.settings.fontHeadingPct, (v) => (p.settings.fontHeadingPct = v));
+
     // ── Aufgabenaktionen (Chips je Fläche ein-/ausblenden + sortieren) ──
     new Setting(containerEl).setName(t("set_chip_actions")).setHeading();
     containerEl.createDiv({ cls: "setting-item-description bt-chip-actions-desc", text: t("set_chip_actions_desc") });

@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
