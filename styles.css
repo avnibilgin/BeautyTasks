@@ -259,7 +259,7 @@ body {
 body {
   --bt-font-size: var(--font-text-size, 16px);   /* 100% (Default; über die Einstellungen änderbar) */
   --bt-nav-font-size: calc(var(--font-text-size, 16px) * 0.9);
-  --bt-nav-head-font-size: calc(var(--font-text-size, 16px) * 0.8);
+  --bt-nav-head-font-size: calc(var(--font-text-size, 16px) * 0.78);
 }
 
 .bt-view {
