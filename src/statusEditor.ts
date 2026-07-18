@@ -35,7 +35,9 @@ export function renderStatusEditor(container: HTMLElement, plugin: BeautyTasksPl
   const head = container.createDiv({ cls: "bt-status-head" });
   head.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
   const resetWrap = head.createDiv({ cls: "bt-status-reset-wrap" });
-  const resetBtn = resetWrap.createEl("button", { cls: "bt-chip-reset", text: t("status_reset_default") });
+  // Reset als Icon (rotate-ccw), einheitlich zu den anderen Reset-Buttons in den Einstellungen.
+  const resetBtn = resetWrap.createEl("button", { cls: "clickable-icon", attr: { "aria-label": t("status_reset_default"), "data-tooltip-position": "top" } });
+  setIcon(resetBtn, "rotate-ccw");
   resetBtn.onclick = () => confirmInline(resetWrap, t("confirm_reset_statuses_q"), () => then(plugin.resetStatuses(), redraw), redraw);
   const statuses = plugin.getStatuses();
   // Standard-Rollen: erster offener = neue Aufgaben, erster erledigt = beim Abhaken, abgebrochen = Papierkorb.
