@@ -261,8 +261,10 @@ body {
   padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
   overflow-y: auto;
   /* Scrollbalken-Platz IMMER reservieren → kein Reflow/Verschieben von Überschriften & Text, wenn
-     die Leiste auftaucht oder verschwindet (z. B. beim Ansichtswechsel). Wie beim Kanban-Scroller. */
-  scrollbar-gutter: stable;
+     die Leiste auftaucht oder verschwindet (z. B. beim Ansichtswechsel). `both-edges` reserviert den
+     Streifen auf BEIDEN Seiten → der zentrierte Inhalt bleibt exakt mittig; der Platz kommt aus dem
+     ohnehin breiten Leerrand der Lesebreite, kostet also nichts. */
+  scrollbar-gutter: stable both-edges;
 }
 /* Inhalt zentriert auf Lesebreite (wie das alte BeautyTasks). WICHTIG: der seitliche
    Abstand wird über die SIZER-BREITE geregelt, nicht über Padding – denn bei einem
