@@ -15,8 +15,8 @@ export type FilterRange = "any" | "today" | "overdue" | "next7" | "nodate";
 export type FilterSort = "smart" | "due" | "deadline" | "priority" | "created" | "title";
 export type FilterGroup = "none" | "date" | "deadline" | "priority" | "label" | "project";
 export type PageLayout = "list" | "board" | "calendar";
-/** Sortierrichtung. Gilt für die Aufgaben UND die Reihenfolge der Gruppen (eine Entscheidung,
- *  wie in Todoist). Bei „smart" bedeutungslos – dort wird sie im UI gar nicht erst angeboten. */
+/** Sortierrichtung. Gilt für die Aufgaben UND die Reihenfolge der Gruppen (eine Entscheidung).
+ *  Bei „smart" bedeutungslos – dort wird sie im UI gar nicht erst angeboten. */
 export type SortDir = "asc" | "desc";
 /** Verknüpfungs-Modus einer Auswahl-Facette: irgendeines (ODER) / alle (UND) / keines (NICHT).
  *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
@@ -91,7 +91,7 @@ function inRange(t: Task, range: FilterRange, today: string): boolean {
   if (range === "nodate") return !t.due;
   if (!t.due) return false;
   if (range === "overdue") return t.due < today;
-  if (range === "today") return t.due <= today;             // überfällig + heute (wie Todoist „Heute")
+  if (range === "today") return t.due <= today;             // überfällig + heute
   if (range === "next7") return t.due >= today && t.due <= addDays(today, 7);
   return true;
 }

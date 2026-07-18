@@ -1,4 +1,4 @@
-import { Task } from "./types";
+import { Task, CalEvent } from "./types";
 import { dateOf, timeOf } from "./format";
 
 /**
@@ -87,29 +87,31 @@ export function minutesOf(task: Task): number | null {
   return min >= 0 && min < 1440 ? min : null;
 }
 
+/** Alles, was im Zeitraster eine Fläche belegt – Aufgabe wie Termin. */
+export interface Slot { startMin: number; endMin: number }
+/** Slot + Position in seiner Überlappungs-Gruppe. */
+export type Laid<T> = T & { col: number; cols: number };
 /** Ein Zeitblock in der Wochen-/Tagesspalte. col/cols = Position in der Überlappungs-Gruppe. */
-export type TimedBlock = { task: Task; startMin: number; endMin: number; col: number; cols: number };
+export type TimedBlock = Laid<{ task: Task; startMin: number; endMin: number }>;
 /** Ohne eigene Dauer bekommt ein Termin diese Blockhöhe (sonst wäre er 0 Minuten hoch). */
 export const DEFAULT_BLOCK_MIN = 30;
 
 /**
  * Zeitblöcke eines Tages überlappungsfrei anordnen (Kalender-Standardverfahren):
- * überlappende Blöcke bilden einen Cluster und teilen sich dessen Breite. Blöcke ohne Uhrzeit
- * gehören nicht hierher (die zeigt die Ganztägig-Zeile) und werden übersprungen.
+ * überlappende Blöcke bilden einen Cluster und teilen sich dessen Breite.
+ *
+ * Bewusst generisch über `Slot`: seit der Kalender auch Google-Termine zeigt, müssen Aufgabe UND
+ * Termin einander ausweichen – sie stecken im selben Cluster, sonst läge ein Meeting unsichtbar
+ * unter einem Aufgabenblock. Was ein Block IST, weiß hier niemand (`tie` entscheidet nur die
+ * Reihenfolge bei exakt gleicher Zeit).
  */
-export function layoutDay(tasks: Task[]): TimedBlock[] {
-  const blocks: TimedBlock[] = [];
-  for (const task of tasks) {
-    const startMin = minutesOf(task);
-    if (startMin === null) continue;
-    const dur = task.duration && task.duration > 0 ? task.duration : DEFAULT_BLOCK_MIN;
-    blocks.push({ task, startMin, endMin: Math.min(startMin + dur, 1440), col: 0, cols: 1 });
-  }
-  blocks.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin || a.task.title.localeCompare(b.task.title));
+export function layoutSlots<T extends Slot>(items: T[], tie: (a: T, b: T) => number = () => 0): Laid<T>[] {
+  const blocks: Laid<T>[] = items.map((it) => ({ ...it, col: 0, cols: 1 }));
+  blocks.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin || tie(a, b));
 
   // Cluster = maximale Kette sich (transitiv) überlappender Blöcke. Innerhalb eines Clusters
   // bekommt jeder Block die erste Spalte, die zum Zeitpunkt seines Starts frei ist.
-  let cluster: TimedBlock[] = [];
+  let cluster: Laid<T>[] = [];
   let clusterEnd = -1;
   const flush = (): void => {
     if (!cluster.length) return;
@@ -130,8 +132,121 @@ export function layoutDay(tasks: Task[]): TimedBlock[] {
   return blocks;
 }
 
+/** Aufgabe -> Slot. Ohne Uhrzeit (= ganztägig) kein Slot: die zeigt die Ganztägig-Zeile. */
+function taskSlot(task: Task): { task: Task; startMin: number; endMin: number } | null {
+  const startMin = minutesOf(task);
+  if (startMin === null) return null;
+  const dur = task.duration && task.duration > 0 ? task.duration : DEFAULT_BLOCK_MIN;
+  return { task, startMin, endMin: Math.min(startMin + dur, 1440) };
+}
+
+/** Zeitblöcke der Aufgaben eines Tages (ohne Termine – siehe layoutDayMixed). */
+export function layoutDay(tasks: Task[]): TimedBlock[] {
+  const slots = tasks.map(taskSlot).filter((s): s is NonNullable<typeof s> => s !== null);
+  return layoutSlots(slots, (a, b) => a.task.title.localeCompare(b.task.title));
+}
+
 /** Aufgaben eines Tages ohne Uhrzeit (Ganztägig-Zeile der Wochenansicht). */
 export const allDayOf = (tasks: Task[]): Task[] => tasks.filter((tk) => minutesOf(tk) === null);
+
+// ── Termine (read-only Anzeige-Schicht, siehe gcalFeed.ts) ─────────────────────
+/**
+ * Ein Termin, zugeschnitten auf EINEN Tag. Ein Termin kann über mehrere Tage laufen (Ganztags
+ * Mi–Fr, oder 23:00–01:00) und steht dann an jedem betroffenen Tag mit seinem dortigen Ausschnitt.
+ * `startMin === null` heißt: belegt an diesem Tag ganztägig (gehört in die Ganztägig-Zeile).
+ */
+export interface DayEvent {
+  event: CalEvent;
+  startMin: number | null;
+  endMin: number | null;
+}
+
+/** Alles, was in einer Tagesspalte liegt: Aufgabe ODER Termin. */
+export type DayBlock =
+  | { kind: "task"; task: Task; startMin: number; endMin: number }
+  | { kind: "event"; event: CalEvent; startMin: number; endMin: number };
+
+const titleOf = (b: DayBlock): string => (b.kind === "task" ? b.task.title : b.event.title);
+
+/** Aufgaben UND Termine eines Tages gemeinsam anordnen – sie teilen sich die Spaltenbreite. */
+export function layoutDayMixed(tasks: Task[], events: DayEvent[]): Laid<DayBlock>[] {
+  const blocks: DayBlock[] = [];
+  for (const task of tasks) {
+    const s = taskSlot(task);
+    if (s) blocks.push({ kind: "task", task, startMin: s.startMin, endMin: s.endMin });
+  }
+  for (const de of events) {
+    if (de.startMin === null || de.endMin === null) continue;   // ganztägig -> Ganztägig-Zeile
+    blocks.push({ kind: "event", event: de.event, startMin: de.startMin, endMin: de.endMin });
+  }
+  return layoutSlots(blocks, (a, b) => titleOf(a).localeCompare(titleOf(b)));
+}
+
+/** Termine eines Tages, die ganztägig belegen (Ganztägig-Zeile). */
+export const allDayEventsOf = (events: DayEvent[]): DayEvent[] => events.filter((e) => e.startMin === null);
+
+/** Minuten seit Mitternacht aus "YYYY-MM-DDTHH:mm"; ohne Zeitanteil null. */
+const minutesIn = (stamp: string): number | null => {
+  const m = stamp.match(/T(\d{2}):(\d{2})/);
+  if (!m) return null;
+  return +m[1] * 60 + +m[2];
+};
+/** Reißleine gegen kaputte Daten (Ende Jahre nach dem Start) – kein Endlos-Loop im Raster. */
+const MAX_EVENT_DAYS = 400;
+
+/**
+ * Termine auf die Tage des Rasters verteilen und pro Tag zuschneiden.
+ *
+ * Zwei Fallen, an denen naive Umsetzungen brechen:
+ *  - **Ganztags-Ende ist exklusiv** (Google): Mi–Fr kommt als start=Mi, end=Sa an und belegt Mi/Do/Fr.
+ *  - **Termin über Mitternacht**: 23:00–01:00 steht an Tag 1 (23:00–24:00) UND Tag 2 (00:00–01:00);
+ *    endet er exakt um 00:00, gehört er NICHT mehr auf den Folgetag (leerer Ausschnitt).
+ */
+export function bucketEvents(events: CalEvent[], days: string[]): Map<string, DayEvent[]> {
+  const want = new Set(days);
+  const out = new Map<string, DayEvent[]>();
+  const push = (day: string, de: DayEvent): void => {
+    if (!want.has(day)) return;
+    const arr = out.get(day);
+    if (arr) arr.push(de); else out.set(day, [de]);
+  };
+
+  for (const ev of events) {
+    const startDay = ev.start.slice(0, 10);
+    const endDay = ev.end.slice(0, 10);
+    if (!startDay || endDay < startDay) continue;
+
+    if (ev.allDay) {
+      // Ende exklusiv: der letzte belegte Tag ist der Tag VOR `end`. Ein kaputtes end <= start
+      // belegt wenigstens den Starttag (sonst wäre der Termin unsichtbar).
+      let day = startDay;
+      for (let i = 0; i < MAX_EVENT_DAYS && day < endDay; i++) {
+        push(day, { event: ev, startMin: null, endMin: null });
+        day = addDays(day, 1);
+      }
+      if (endDay <= startDay) push(startDay, { event: ev, startMin: null, endMin: null });
+      continue;
+    }
+
+    const sMin = minutesIn(ev.start) ?? 0;
+    // Termin ohne Dauer (start === end, in Google erlaubt) bekommt die Standard-Blockhöhe,
+    // sonst fiele er durch die `to > from`-Prüfung und wäre unsichtbar.
+    const rawEnd = minutesIn(ev.end) ?? 1440;
+    const eMin = startDay === endDay && rawEnd <= sMin ? Math.min(sMin + DEFAULT_BLOCK_MIN, 1440) : rawEnd;
+    let day = startDay;
+    for (let i = 0; i < MAX_EVENT_DAYS && day <= endDay; i++) {
+      const from = day === startDay ? sMin : 0;
+      const to = day === endDay ? eMin : 1440;
+      if (to > from) push(day, { event: ev, startMin: from, endMin: Math.min(to, 1440) });
+      day = addDays(day, 1);
+    }
+  }
+
+  for (const list of out.values()) {
+    list.sort((a, b) => (a.startMin ?? -1) - (b.startMin ?? -1) || a.event.title.localeCompare(b.event.title));
+  }
+  return out;
+}
 
 // ── Chips je Monatszelle ───────────────────────────────────────────────────────
 /**

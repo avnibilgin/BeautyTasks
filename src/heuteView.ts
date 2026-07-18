@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
@@ -13,7 +13,8 @@ import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
-import { renderCalendar, calendarDayAnchor, tryPatchCalendar } from "./calendarView";
+import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
+import { DayEvent, bucketEvents, addDays } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
@@ -106,23 +107,42 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
     const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
     const open = [...overdue, ...dueToday];
-    if (!open.length && !(opts.showDone && doneToday.length)) {
+    // Termine des Tages (read-only) zählen mit: sonst behauptete „Nichts für heute" leeren Tag,
+    // obwohl der Kalender voller Meetings steckt. setRange meldet dem Feed den Zeitraum (Listen-Layout
+    // hat sonst nichts, was ihn anstößt – das macht sonst nur der Kalender).
+    plugin.gcalFeed?.setRange(today, today);
+    const todayEv = dayEvents(plugin, today);
+    if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
       // Board folgt der Gruppierung (Status/Label/Priorität/Projekt) – wie die vollen Seiten.
+      // Termine haben hier keine Spalte (kein Tages-Board) → sie erscheinen im Listen-/Kalender-Layout.
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
       const present = renderedPaths(plugin, opts.showDone ? [...open, ...doneToday] : open);
       if (opts.group === "none") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
+        // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
+        // „Heute"-Kopf im Datumsstil „18. Jul · Heute · Samstag" (wie in „Demnächst").
         section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
-        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present);
+        section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
       } else {
-        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split (Todoist-Stil).
-        for (const g of filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today))
-          if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+        // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
+        // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
+        // (nie oben über allem schwebend).
+        const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
+        const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
+        const hasToday = gs.some((g) => g.title === todayHead);
+        const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
+        const eventsSection = (): void => section(root, plugin, todayHead, [], today, false, false, present, todayEv, today);
+        if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
+        gs.forEach((g, i) => {
+          const isToday = g.title === todayHead;
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
+          if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
+        });
       }
       if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
@@ -131,14 +151,25 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // Eingang/Projekt bzw. später „Irgendwann") und KEINE erledigten (gehören in „Erledigt").
     const opts = plugin.pageViewOptions();
     const groups = idx.upcomingByDate(today);
-    if (!groups.length) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
+    // Termine des Vorschauzeitraums (read-only). Der Feed lädt diesen Bereich nach (Listen-Layout
+    // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
+    // Gruppe – „Demnächst" wird so zur ehrlichen Wochenplanungs-Fläche.
+    const eventEnd = addDays(today, UPCOMING_EVENT_HORIZON_DAYS);
+    plugin.gcalFeed?.setRange(today, eventEnd);
+    const evByDate = feedEventsByDate(plugin, today, eventEnd);
+    if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
+      // Termine haben im Board keine Spalte (keine Tages-Spalten) → nur Aufgaben.
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
       const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
-      for (const g of groups) section(root, plugin, groupLabel(g.date, today), g.tasks, today, false, false, present);
+      const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
+      // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
+      const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
+      for (const date of dates)
+        section(root, plugin, groupLabel(date, today), tasksByDate.get(date) ?? [], today, false, false, present, evByDate.get(date) ?? [], date);
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -297,7 +328,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
  * Die Reihenfolge der GRUPPEN ist dagegen fest und richtungsunabhängig: „Überfällig → Heute →
  * Demnächst → Kein Datum" ist eine Semantik (dringend zuerst), keine Skala – umgedreht ergäbe sie
  * keinen Sinn. Ebenso Priorität (P1→P4) und Label/Projekt (alphabetisch). Die Sortierrichtung
- * betrifft nur die Aufgaben unter den Überschriften. (So macht es auch Todoist.)
+ * betrifft nur die Aufgaben unter den Überschriften.
  */
 function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup, today: string): { title: string; tasks: Task[] }[] {
   if (group === "none") return [{ title: t("sec_tasks"), tasks }];
@@ -313,7 +344,7 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
     if (group === "date" || group === "deadline") {
       const d = group === "date" ? tk.due : tk.scheduled;   // „Datum" = due, „Deadline" = scheduled
       if (d && d < today) push("overdue", t("sec_overdue"), 0, tk);
-      else if (d === today) push("today", t("sec_today"), 1, tk);
+      else if (d === today) push("today", groupLabel(today, today), 1, tk);   // „18. Jul · Heute · Samstag" – konsistent zu Gruppierung „Keine"
       else if (d && d > today) push("upcoming", t("sec_upcoming"), 2, tk);
       else push("nodate", t("sec_no_date"), 3, tk);
     } else if (group === "priority") {
@@ -418,7 +449,7 @@ function sortColumn(list: Task[], kind: StatusKind): Task[] {
   return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
 }
 
-// ── Generisches Spalten-Modell: das Board folgt der Gruppierung (Todoist-Muster) ──
+// ── Generisches Spalten-Modell: das Board folgt der Gruppierung ──
 // Fundament für Status/Label/… – aktuell freigeschaltet: Status (Default) und Label.
 /** Basis-Kontext fürs „+ Aufgabe" einer Spalte (die Spalten-Dimension setzt die Spalte selbst). */
 interface BoardAdd { project?: string | null; label?: string; today?: boolean; }
@@ -697,11 +728,17 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   if (savedLeft) board.scrollLeft = savedLeft;
 }
 
+/** Datums-Überschrift: „18. Jul · Heute · Samstag" / „19. Jul · Morgen · Sonntag" /
+ *  „17. Jul · Gestern · Freitag", für sonstige Tage „20. Jul · Montag" (Datum · [rel ·] Wochentag). */
 function groupLabel(dateISO: string, today: string): string {
-  const lbl = formatDate(dateISO, today);
-  if (lbl === t("date_today") || lbl === t("date_tomorrow") || lbl === t("date_yesterday")) return lbl;
-  const wd = new Intl.DateTimeFormat(getLocale(), { weekday: "short" }).format(new Date(dateISO + "T00:00:00"));
-  return wd + ", " + lbl;
+  const d = new Date(dateOf(dateISO) + "T00:00");
+  const tn = new Date(dateOf(today) + "T00:00");
+  const diff = Math.round((d.getTime() - tn.getTime()) / 86400000);
+  const sameYear = d.getFullYear() === tn.getFullYear();
+  const datePart = `${d.getDate()}. ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
+  const weekday = new Intl.DateTimeFormat(getLocale(), { weekday: "long" }).format(d);
+  const rel = diff === 0 ? t("date_today") : diff === 1 ? t("date_tomorrow") : diff === -1 ? t("date_yesterday") : null;
+  return [datePart, rel, weekday].filter(Boolean).join(" · ");
 }
 
 /** Alle Pfade, die in dieser Ansicht real gerendert werden: die Anker-Aufgaben plus ihre
@@ -719,7 +756,73 @@ function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> 
   return present;
 }
 
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>): void {
+// ── Google-Termine als Bänder in der Liste (read-only) ─────────────────────────
+/** Wie weit „Demnächst" Termine OHNE zugehörige Aufgabe als eigenen Tag zeigt (≈ 5 Wochen). */
+const UPCOMING_EVENT_HORIZON_DAYS = 34;
+
+/** Die Termine EINES Tages aus dem Feed, tagegenau zugeschnitten. Leer, wenn der Feed aus/leer ist. */
+function dayEvents(plugin: BeautyTasksPlugin, day: string): DayEvent[] {
+  const feed = plugin.gcalFeed;
+  if (!feed?.isActive()) return [];
+  return bucketEvents(feed.eventsIn(day, day), [day]).get(day) ?? [];
+}
+
+/** Termine eines Zeitraums nach Tag gebündelt (für „Demnächst": auch Tage ohne Aufgabe). */
+function feedEventsByDate(plugin: BeautyTasksPlugin, from: string, to: string): Map<string, DayEvent[]> {
+  const feed = plugin.gcalFeed;
+  if (!feed?.isActive()) return new Map();
+  const days: string[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+  return bucketEvents(feed.eventsIn(from, to), days);
+}
+const z2 = (n: number): string => String(n).padStart(2, "0");
+const bandTime = (min: number): string => z2(Math.floor(min / 60)) + ":" + z2(min % 60);
+
+/** Wie viele Termine ein Tag zeigt, bevor der Rest hinter „+N weitere" klappt. */
+const GCAL_BAND_LIMIT = 5;
+/** Aufgeklappte Tage (Schlüssel = Tag). Modul-Zustand, damit die Wahl ein Neuzeichnen übersteht –
+ *  wie boardScroll/anchors; ein Reload startet wieder eingeklappt. */
+const gcalExpanded = new Set<string>();
+
+/**
+ * Ein Termin als schmales Band – bewusst KEINE Aufgabenzeile (kein Abhak-Kreis, keine Meta-Zeile):
+ * ein Farbbalken links, Uhrzeit vor dem Titel, Klick öffnet den Termin im Google Kalender. Die
+ * Bänder stehen oben in der Tagesgruppe (Ganztägig zuerst, dann nach Uhrzeit): eine Zeitmarke,
+ * kein Listeneintrag, der um die Sortierung konkurriert. Ab `GCAL_BAND_LIMIT` klappt der Rest ein.
+ */
+function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: DayEvent[], key: string): void {
+  const sorted = [...events].sort((a, b) => (a.startMin ?? -1) - (b.startMin ?? -1) || a.event.title.localeCompare(b.event.title));
+  const expanded = gcalExpanded.has(key);
+  const visible = expanded ? sorted : sorted.slice(0, GCAL_BAND_LIMIT);
+  for (const de of visible) {
+    const ev = de.event;
+    const row = list.createDiv({ cls: "bt-gcal-band" });
+    row.style.setProperty("--bt-ev-color", ev.color);
+    // Schlanker, runder Farbbalken in EIGENER Spalte (Google-Kalenderfarbe) statt getönter Zeile –
+    // so trägt allein der Balken die Farbe und die Zeile bleibt ruhig.
+    row.createSpan({ cls: "bt-gcal-band-bar", attr: { "aria-hidden": "true" } });
+    if (de.startMin !== null) {
+      const time = de.endMin !== null ? bandTime(de.startMin) + "–" + bandTime(de.endMin) : bandTime(de.startMin);
+      row.createSpan({ cls: "bt-gcal-band-time", text: time });
+    }
+    row.createSpan({ cls: "bt-gcal-band-title", text: ev.title });
+    setIcon(row.createSpan({ cls: "bt-gcal-band-open", attr: { "aria-hidden": "true" } }), "external-link");
+    row.setAttr("aria-label", t("gcalfeed_open_in_google"));
+    row.setAttr("data-tooltip-position", "top");
+    activateEventOpen(row, ev);
+  }
+  if (sorted.length > GCAL_BAND_LIMIT) {
+    const hidden = sorted.length - GCAL_BAND_LIMIT;
+    const more = list.createDiv({ cls: "bt-gcal-more", attr: { role: "button", tabindex: "0" } });
+    setIcon(more.createSpan({ cls: "bt-gcal-more-ic" }), expanded ? "chevron-up" : "chevron-down");
+    more.createSpan({ text: expanded ? t("gcalfeed_show_less") : t("gcalfeed_more", hidden) });
+    const toggle = (): void => { if (expanded) gcalExpanded.delete(key); else gcalExpanded.add(key); plugin.renderMain(); };
+    more.onclick = toggle;
+    more.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+  }
+}
+
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): void {
   // Variante A: Unteraufgaben werden verschachtelt unter ihrem Parent gezeigt, WENN dieser
   // in der Ansicht vorkommt (present). Fehlt der Parent in der Ansicht, erscheint die
   // Unteraufgabe eigenständig als eigene Zeile – statt ganz zu verschwinden.
@@ -730,6 +833,8 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   head.createSpan({ cls: "bt-section-lbl", text: title });
   head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
+  // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
+  if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
   for (const task of top) renderTask(list, plugin, task, today, 0, trash);
   annotateSubtaskTree(list);
 
@@ -843,7 +948,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const chip = meta.createSpan({ cls: "bt-chip bt-sched", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
     chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
   }
-  // Kommentare/Anhänge: Büroklammer + dezente Anzahl (wie Todoist). Klick öffnet die Aufgabe.
+  // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
   const comments = plugin.index.commentsOf(task.path);
   if (comments > 0) {
     const chip = meta.createSpan({ cls: "bt-comments" });
@@ -1069,7 +1174,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const navColor = (path: string, stored: string | null): string | null =>
     plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
 
-  // „Aufgabe hinzufügen" ganz oben (Todoist-Stil): öffnet die kompakte Schnell-Erfassung.
+  // „Aufgabe hinzufügen" ganz oben: öffnet die kompakte Schnell-Erfassung.
   // Folgt dem Kontext der geöffneten Seite – wie der Command und der „+ Aufgabe"-Knopf (addContext).
   navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
 

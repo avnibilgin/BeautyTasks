@@ -80,7 +80,7 @@ Zusätzlich: manueller Command „Jetzt synchronisieren" + optionaler Intervall-
 (`window.setInterval`, Skill-Regel 30 beachten). Einzellauf-Flag gegen Überlappung.
 
 ## User Experience & UI
-Leitprinzip (Things/Todoist): **die Standard-Oberfläche ist winzig, Tiefe steckt hinter „Erweitert".**
+Leitprinzip: **die Standard-Oberfläche ist winzig, Tiefe steckt hinter „Erweitert".**
 Progressive Offenlegung — vor dem Verbinden sieht der Nutzer genau *einen* Knopf; Optionen erscheinen
 erst nach erfolgreicher Verbindung. Kein Toggle-Wall.
 
@@ -94,7 +94,7 @@ vorige erledigt ist:
 3. **Autorisieren** — Button startet Loopback- (Desktop) bzw. Device-Code-Flow (Mobile).
 Nach Erfolg klappt der Assistent zu und wird durch den Verbunden-Zustand ersetzt.
 
-### 2. Verbunden-Zustand (Status-Kopf, wie Todoist/TickTick)
+### 2. Verbunden-Zustand (Status-Kopf)
 ```
 Google Kalender
  ● Verbunden als avni.bilgin@gmail.com            [ Abmelden ]

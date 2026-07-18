@@ -250,9 +250,21 @@ body {
 .bt-search-tag.is-overdue { color: var(--bt-overdue); }   /* Datum überfällig */
 .bt-search-tag.is-today { color: var(--bt-today); }       /* Datum heute */
 
+/* ── Textgrößen (überschreibbar) ──────────────────────────────────────────────────────────────
+   Bewusst `em`: das bezieht sich im `font-size` auf den GEERBTEN Wert der jeweiligen Fläche – also
+   exakt die Basis, die die Ansicht ohnehin hat (wie ursprünglich, ohne Größen-Override). Bei
+   Skalierung 1 (= 100 %) ist die Größe damit unverändert, der Nutzer-Faktor skaliert nur.
+   main.ts setzt --bt-task-scale / --bt-nav-scale / --bt-head-scale (Prozent/100) auf body. */
+
 .bt-view {
+  font-size: calc(1em * var(--bt-task-scale, 1));
   padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
   overflow-y: auto;
+  /* Scrollbalken-Platz IMMER reservieren → kein Reflow/Verschieben von Überschriften & Text, wenn
+     die Leiste auftaucht oder verschwindet (z. B. beim Ansichtswechsel). `both-edges` reserviert den
+     Streifen auf BEIDEN Seiten → der zentrierte Inhalt bleibt exakt mittig; der Platz kommt aus dem
+     ohnehin breiten Leerrand der Lesebreite, kostet also nichts. */
+  scrollbar-gutter: stable both-edges;
 }
 /* Inhalt zentriert auf Lesebreite (wie das alte BeautyTasks). WICHTIG: der seitliche
    Abstand wird über die SIZER-BREITE geregelt, nicht über Padding – denn bei einem
@@ -333,7 +345,7 @@ body {
   color: var(--interactive-accent);
 }
 
-/* ── Aufgaben-Modal (Todoist-Stil, 1:1 zu BeautyTasks) ── */
+/* ── Aufgaben-Modal ── */
 .bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; }
 /* Damit die randlose Trennlinie den ECHTEN Modal-Rand erreicht: den horizontalen Innen-
    abstand vom Modal auf .modal-content verlagern (oben: padding-left/right 0 am Modal, hier
@@ -565,7 +577,7 @@ body {
 .bt-pop .bt-pop-head { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 8px 8px 3px; }
 .bt-pop .bt-row-action .bt-row-lbl, .bt-pop .bt-row-action .bt-row-ic { color: var(--interactive-accent); }
 
-/* Erinnerungs-Popover (Todoist-Stil): Liste bestehender Erinnerungen + Presets */
+/* Erinnerungs-Popover: Liste bestehender Erinnerungen + Presets */
 .bt-pop.bt-rem { min-width: 240px; }
 .bt-pop .bt-pop-sub { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 6px 8px 2px; }
 .bt-pop .bt-rem-item .bt-rem-x { display: inline-flex; flex-shrink: 0; color: var(--text-faint); cursor: pointer; }
@@ -577,7 +589,7 @@ body {
 
 /* ── Linke Navigation ── */
 .bt-nav { padding: 6px 6px 16px; }
-.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
+.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: calc(0.9em * var(--bt-nav-scale, 1)); color: var(--text-normal); }
 /* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
 .bt-nav-item:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
@@ -586,7 +598,7 @@ body {
 .bt-nav-ic svg { width: 16px; height: 16px; }
 /* Seitenleisten-Icon-Farben: Boards einzeln, Labels/Bereiche/Projekte je gemeinsam.
    Eine per-Item-Frontmatter-Farbe (inline gesetzt) sticht die Gruppenfarbe. */
-/* „Aufgabe hinzufügen" ganz oben (Todoist-Stil): das Icon bt-add-task (siehe registerIcons in
+/* „Aufgabe hinzufügen" ganz oben: das Icon bt-add-task (siehe registerIcons in
    main.ts) ist ein gefüllter Kreis mit ausgestanztem Plus. currentColor färbt den Kreis, also
    reicht hier color. Text bleibt --text-normal (Schwarz im hellen, Weiß im dunklen Theme). */
 .bt-nav-add-task { color: var(--text-normal); font-weight: 700; }
@@ -617,7 +629,7 @@ body {
 .bt-nav-head { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; }
 .bt-nav-head-toggle {
   flex: 1; min-width: 0; cursor: pointer;
-  font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+  font-size: calc(0.78em * var(--bt-head-scale, 1)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
 }
 .bt-nav-head-toggle:hover { color: var(--text-normal); }
 .bt-nav-head-lbl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -656,7 +668,7 @@ body {
 .bt-pop .bt-cal-day.is-today { box-shadow: inset 0 0 0 1.5px var(--text-error); color: var(--text-error); font-weight: 600; border-radius: 7px; }
 .bt-pop .bt-cal-day.is-sel { background: var(--interactive-accent); color: var(--text-on-accent); box-shadow: none; font-weight: 600; }
 
-/* ── Uhrzeit + Dauer (Todoist-Stil) im Date-Picker ── */
+/* ── Uhrzeit + Dauer im Date-Picker ── */
 .bt-pop .bt-time-wrap { border-top: 1px solid var(--background-modifier-border); margin-top: 6px; padding-top: 6px; }
 .bt-pop .bt-time-toggle {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px;
@@ -703,8 +715,8 @@ body {
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
 .bt-section-title {
-  font-size: 0.75em; font-weight: 600; margin: 8px 0 0;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+  font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
+  color: var(--text-normal);
 }
 /* Einklappbare Sektion (z. B. „Erledigt"): Titel + Anzahl + Chevron rechts, klickbar. */
 .bt-collapsible .bt-section-title { display: flex; align-items: center; cursor: pointer; }
@@ -740,7 +752,7 @@ body {
 }
 /* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
-.bt-task:hover { background: var(--background-modifier-hover); border-radius: 6px; }
+.bt-task:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
@@ -809,7 +821,7 @@ body {
 /* Inline gerenderter Markdown (Titel/Beschreibung mit Links): <p> inline + randlos,
    damit die Zeile/Ellipsis passt. */
 .bt-md-inline p { display: inline; margin: 0; }
-/* Beschreibungs-Vorschau: einzeilig, gekürzt, gedämpft (Todoist-Stil) */
+/* Beschreibungs-Vorschau: einzeilig, gekürzt, gedämpft */
 .bt-desc {
   font-size: 0.85em; color: var(--text-muted); line-height: 1.3; margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -924,7 +936,7 @@ body {
 .bt-remind { display: inline-flex; align-items: center; color: var(--text-muted); }
 .bt-remind svg { width: 14px; height: 14px; }
 
-/* Kommentar-/Anhang-Chip (Büroklammer + dezente Anzahl, wie Todoist) */
+/* Kommentar-/Anhang-Chip (Büroklammer + dezente Anzahl) */
 .bt-comments { display: inline-flex; align-items: center; gap: 3px; color: var(--bt-attach); font-size: 0.85em; }
 .bt-comments-ic { display: inline-flex; }
 .bt-comments-ic svg { width: 14px; height: 14px; }
@@ -1493,8 +1505,8 @@ body {
    Element-Selektor (0,1,1) schlägt Obsidians Default-Button-Styling, ohne !important. */
 .bt-chip-surface-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin: 4px 0 14px; border-bottom: 1px solid var(--background-modifier-border); }
 .bt-chip-surface-tabs { display: flex; gap: 4px; }
-.bt-chip-reset { margin-bottom: 4px; padding: 3px 10px; border: none; border-radius: 5px; background: transparent; box-shadow: none; color: var(--text-muted); font-size: 0.82em; cursor: pointer; }
-.bt-chip-reset:hover { color: var(--text-normal); background: var(--background-modifier-hover); box-shadow: none; }
+/* Reset-Icon (clickable-icon übernimmt Optik/Hover); hier nur die Ausrichtung in der Leiste. */
+.bt-chip-reset { margin-bottom: 2px; }
 .bt-chip-surface-tabs button {
   padding: 6px 12px; margin-bottom: -1px;
   border: none; border-bottom: 2px solid transparent; border-radius: 0;
@@ -1638,8 +1650,15 @@ body {
   display: flex; flex-direction: column; gap: 2px; padding: 4px; overflow: hidden;
   background: var(--background-primary); cursor: pointer;
 }
-.bt-calview-cell:hover { background: var(--background-modifier-hover); }
-.bt-calview-cell.is-weekend { background: var(--background-primary-alt); }
+/* Deckend über die Zellen-Grundfarbe mischen (NICHT transparent): sonst scheint das dunkle
+   Raster (.bt-calview-grid background) durch und der Hover wirkt dunkler. Heller Ton (30%). */
+.bt-calview-cell:hover { background: color-mix(in srgb, var(--background-modifier-hover) 30%, var(--background-primary)); }
+/* Etwas kräftigerer Wochenend-Ton als --background-primary-alt (das kaum sichtbar ist). Als eigene
+   Variable, damit der Hover sauber darüber mischen kann. */
+.bt-calview-cell.is-weekend { --bt-weekend-bg: color-mix(in srgb, var(--background-modifier-border) 22%, var(--background-primary)); background: var(--bt-weekend-bg); }
+/* Wochenendzellen bekommen sonst KEINEN Hover: .is-weekend steht nach :hover und hat gleiche
+   Spezifität → gewinnt. Eigene, spezifischere Regel; heller Ton über der Wochenend-Grundfarbe. */
+.bt-calview-cell.is-weekend:hover { background: color-mix(in srgb, var(--background-modifier-hover) 30%, var(--bt-weekend-bg)); }
 .bt-calview-cell.is-other { opacity: 0.45; }
 .bt-calview-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
 .bt-calview-daynum {
@@ -1772,6 +1791,96 @@ body {
    Hintergrund und Griff-Balken, weil die Kachelhöhe in 15-Min-Stufen springt, der Cursor aber stetig. */
 .bt-calview-block.is-resizing { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
 .bt-calview-block.is-resizing .bt-calview-resize:hover { background: none; opacity: 0; }
+
+/* ── Google-Termine (read-only) ──────────────────────────────────────────────────
+   Bewusst ANDERS als der Aufgaben-Block: eine Aufgabe ist eine gefüllte Fläche mit Abhak-Kreis,
+   ein Termin eine NEUTRALE Fläche mit kräftigem Farbbalken links (Kalenderfarbe). So liest sich
+   auf einen Blick „gehört nicht mir, ist nur belegt" – kein Kreis, kein Ziehen, kein Griff. */
+.bt-calview-ev {
+  position: absolute; z-index: 1; display: flex; overflow: hidden; box-sizing: border-box;
+  padding: 3px 6px 3px 9px; border-radius: 4px; cursor: pointer;
+  background: transparent;   /* keine Füllung – die Farbe trägt allein der Balken (wie der Ganztags-Chip) */
+  font-size: 0.84em; line-height: 1.35;
+}
+/* Farbbalken (echte Google-Kalenderfarbe) bündig am linken Rand. Oben/unten bis zum Beginn des
+   Eckbogens (= border-radius 4px) einrücken, damit die Enden symmetrisch sind und nicht in die
+   gebogene Ecke laufen; runde Enden wie beim Ganztags-Balken. */
+.bt-calview-ev::before {
+  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
+  border-radius: 999px;
+  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
+  background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
+}
+.bt-calview-ev:hover { background: var(--background-modifier-hover); }
+.bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.bt-calview-ev.is-compact .bt-calview-ev-in { flex-direction: row; align-items: center; gap: 5px; }
+.bt-calview-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); font-weight: 500; }
+.bt-calview-ev-time { flex-shrink: 0; font-size: 0.88em; font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Termin-Chip (Monatszelle / Ganztägig-Zeile / Popover): Farbpunkt statt Abhak-Kreis. */
+/* Google-Termin-Chip = konsistent zum Listen-Band: transparent, die Farbe trägt allein der schlanke
+   senkrechte Balken links (echte Google-Kalenderfarbe). Kein getönter Kasten, kein linker Rand. */
+/* padding-left 0: der Balken sitzt bündig an der Chip-Kante (wie die Farbkante der Aufgaben-Chips),
+   statt hinter dem 7px-Innenabstand nach rechts eingerückt. */
+.bt-calview-evchip { cursor: pointer; background: transparent; border-left: 0; padding-left: 0; }
+.bt-calview-evchip:hover { background: var(--background-modifier-hover); }
+.bt-calview-evbar {
+  flex-shrink: 0; align-self: stretch; width: 3px; min-height: 14px;
+  border-radius: 999px;
+  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
+  background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
+}
+/* Uhrzeit der Termine heller und NICHT fett (die Aufgaben-Chip-Zeit bleibt kräftig/fett). */
+.bt-calview-evchip .bt-calview-chip-time { font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
+
+/* Termine eines Tages gebündelt in einer dezenten Box oben in der Tagesgruppe – so heben sie sich
+   als „schon belegt" von den Aufgaben ab. Theme-adaptiv: Grundfarbe + etwas Textfarbe → in Light
+   dunkelt die Box minimal ab, in Dark hellt sie minimal auf, sodass sie sich in BEIDEN Modi vom
+   Seiteninhalt absetzt (reines --background-secondary war in Dark kaum unterscheidbar). */
+.bt-gcal-daybox {
+  background: color-mix(in srgb, var(--background-primary), var(--text-normal) 7%);
+  border-radius: 8px; padding: 4px 6px; margin: 2px 0 10px;
+}
+/* In Light reicht ein dezenterer Ton (dunkle Textfarbe schlägt stärker durch); Dark bleibt bei 7%. */
+.theme-light .bt-gcal-daybox { background: color-mix(in srgb, var(--background-primary), var(--text-normal) 4%); }
+.bt-gcal-daybox .bt-gcal-band { margin: 0; }
+.bt-gcal-daybox .bt-gcal-band:hover, .bt-gcal-daybox .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); }
+/* „+N weitere" / „Weniger anzeigen": klappt die restlichen Termine des Tages auf/zu. */
+.bt-gcal-more {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 4px 8px; margin-top: 1px; border-radius: 6px;
+  font-size: 0.85em; font-weight: 500; color: var(--text-muted);
+}
+.bt-gcal-more:hover, .bt-gcal-more:focus-visible { background: var(--background-modifier-hover); color: var(--text-normal); outline: none; }
+.bt-gcal-more-ic { display: inline-flex; }
+.bt-gcal-more-ic .svg-icon { width: 15px; height: 15px; }
+
+/* Termin-Band in der Liste (Heute/Demnächst): eine ruhige Zeile ohne Tönung – die Farbe trägt
+   allein der schlanke, runde Balken links (echte Google-Kalenderfarbe). Kein Listeneintrag. */
+.bt-gcal-band {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 4px 8px; margin: 1px 0; border-radius: 6px; cursor: pointer;
+  font-size: 0.9em; color: var(--text-muted);
+}
+.bt-gcal-band:hover, .bt-gcal-band:focus-visible { background: var(--background-modifier-hover); outline: none; }
+.bt-gcal-band-bar {
+  flex-shrink: 0; align-self: stretch; width: 3px; min-height: 16px;
+  border-radius: 999px;
+  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
+  background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
+}
+.bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
+.bt-gcal-band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
+.bt-gcal-band-open { flex-shrink: 0; margin-left: auto; display: inline-flex; color: var(--text-faint); opacity: 0; transition: opacity 120ms ease; }
+.bt-gcal-band-open .svg-icon { width: 14px; height: 14px; }
+.bt-gcal-band:hover .bt-gcal-band-open, .bt-gcal-band:focus-visible .bt-gcal-band-open { opacity: 1; }
+
+/* Einstellungen: Kalenderliste – Farbpunkt vor dem Namen. */
+.bt-gcalfeed-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;
+  background: var(--interactive-accent); vertical-align: middle;
+}
+.bt-gcalfeed-list .setting-item { padding: 6px 0; border: none; }
 
 /* ── Jahr: zwölf Mini-Monate ── */
 .bt-calview-year {
@@ -1946,7 +2055,7 @@ body {
 .bt-view .bt-manage-header h1 { margin-top: 0; }
 
 /* Suche: Schalter „Archiv ausschließen" direkt unter dem Suchfeld (standardmäßig an – archivierte
-   Projekte werden dann gar nicht erst durchsucht, wie in Todoist). */
+   Projekte werden dann gar nicht erst durchsucht). */
 .bt-search-bar {
   display: flex; align-items: center; justify-content: flex-end; gap: 10px;
   padding: 8px 12px;

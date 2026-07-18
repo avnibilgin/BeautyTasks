@@ -25,6 +25,7 @@ import { WhatsNewModal } from "./whatsNew";
 import { calendarDayAnchor } from "./calendarView";
 import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
 import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
+import { GCalFeed, GCalFeedHost, DEFAULT_GCAL_FEED_SETTINGS } from "./gcalFeed";
 
 /** Eigene Icons. addIcon() erwartet Inhalt für ein viewBox="0 0 100 100"; die Pfade sind auf
  *  einem 24er-Raster gezeichnet und werden deshalb um 100/24 skaliert.
@@ -43,7 +44,9 @@ export default class BeautyTasksPlugin extends Plugin {
   index!: TaskIndex;
   gcalAuth!: GCalAuth;
   gcalSync!: GCalSync;
+  gcalFeed!: GCalFeed;
   private gcalStatusBar: HTMLElement | null = null;
+  private feedRedrawTimer: number | null = null;
   currentView: ViewId = "heute";
   currentProject: string | null = null;
   currentLabel: string | null = null;                   // aktives Label-Board
@@ -64,6 +67,10 @@ export default class BeautyTasksPlugin extends Plugin {
     registerIcons();
     await this.loadSettings();
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
+    this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
+    this.register(() => {                      // beim Entladen die gesetzten Variablen wieder entfernen
+      for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale"]) document.body.style.removeProperty(n);
+    });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
     this.index = new TaskIndex(this.app, () => this.settings);
@@ -96,6 +103,8 @@ export default class BeautyTasksPlugin extends Plugin {
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
       this.gcalSync.start();  // Auto-Push verdrahten + einmal initial abgleichen
       void this.gcalSync.syncNow();
+      this.gcalFeed.start();  // Termine holen (ruhiges Intervall, nur bei sichtbarer Ansicht)
+      this.gcalFeed.refreshIfStale();
       // „Neu"-Modal nur für bestehende Nutzer und nur bei einem MINOR/MAJOR-Sprung (z. B. 1.7→1.8),
       // NICHT bei reinen Patches (1.8.0→1.8.1) – sonst nervt es bei Bugfix-Releases. Der Command
       // „Neuigkeiten anzeigen" öffnet es jederzeit manuell.
@@ -120,7 +129,10 @@ export default class BeautyTasksPlugin extends Plugin {
     // mousedown beim Wechsel zwischen Nav- und Main-Leaf und würde c.empty() mitten in
     // der Klick-Geste ausführen -> das Klickziel verschwindet vor mouseup, der erste Klick
     // im neuen Bereich geht verloren. Badges/Inhalte bleiben via index.subscribe aktuell.
-    this.registerEvent(this.app.workspace.on("layout-change", () => this.renderAll()));
+    this.registerEvent(this.app.workspace.on("layout-change", () => {
+      this.renderAll();
+      this.gcalFeed?.refreshIfStale();   // Ansicht wieder sichtbar -> Termine auffrischen (falls alt)
+    }));
     // Referenz-Integrität bei JEDEM Umbenennen (nativ ODER über das Plugin) selbst sicherstellen –
     // unabhängig von Obsidians „interne Links aktualisieren"-Einstellung (die Klartext-Kriterien in
     // Filtern ohnehin nie anfasst). Deckt Projekt/Bereich/Filter/Aufgabe ab.
@@ -1282,8 +1294,21 @@ export default class BeautyTasksPlugin extends Plugin {
     // Google-Kalender-Sub-Objekt mit Defaults auffüllen (fehlende/neue Felder ergänzen,
     // gespeicherte Werte behalten). Lebendes Objekt – Auth/Engine mutieren tokens/lastSynced darin.
     this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
+    this.settings.gcalFeed = Object.assign({}, DEFAULT_GCAL_FEED_SETTINGS, this.settings.gcalFeed);
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
+
+  /** Die drei Textgrößen-Skalierungen (Nutzer-Prozent/100) als CSS-Variablen auf <body> setzen.
+   *  Die styles.css multipliziert damit die geerbte Basis-Größe: bei 100 % (Faktor 1) unverändert
+   *  wie ohne Anpassung. Nach einer Änderung in den Einstellungen erneut aufrufen (sofort sichtbar). */
+  applyFontSizes(): void {
+    const s = this.settings;
+    const set = (name: string, pct: number): void => document.body.style.setProperty(name, String(pct / 100));
+    set("--bt-task-scale", s.fontTaskPct);
+    set("--bt-nav-scale", s.fontNavPct);
+    set("--bt-head-scale", s.fontHeadingPct);
+    set("--bt-section-scale", s.fontSectionPct);
+  }
 
   /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`
    *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */
@@ -1307,12 +1332,36 @@ export default class BeautyTasksPlugin extends Plugin {
     this.gcalSync = new GCalSync(host, this.gcalAuth);
     this.register(() => this.gcalSync.stop());   // Auto-Push-Abo + Debounce beim Unload lösen
 
+    // Termin-Anzeige (read-only). Teilt sich die Verbindung mit dem Sync, ist aber sonst
+    // unabhängig: „nur anzeigen, nichts schreiben" ist ein vollwertiger Zustand.
+    const feedHost: GCalFeedHost = {
+      settings: this.settings.gcalFeed!,
+      syncCalendarId: () => this.settings.gcal!.calendarId,
+      persist: () => this.saveSettings(),
+      isVisible: () => this.app.workspace.getLeavesOfType(VIEW_MAIN).some((l) => l.view.containerEl.isShown()),
+    };
+    this.gcalFeed = new GCalFeed(feedHost, this.gcalAuth);
+    this.register(() => this.gcalFeed.stop());
+    // Neue Termine -> Ansicht nachziehen. Entprellt, weil ein Lauf mehrfach meldet
+    // (Status „lädt", je Monat/Kalender einmal Daten, Status „fertig").
+    this.register(this.gcalFeed.onChange(() => this.scheduleFeedRedraw()));
+    this.register(() => { if (this.feedRedrawTimer) window.clearTimeout(this.feedRedrawTimer); });
+
     // Statusleiste: dünner Abonnent des Engine-Status (Ruhe/Sync/Fehler). Klick = manuell syncen.
     const bar = this.addStatusBarItem();
     bar.addClass("bt-gcal-sb");
     bar.addEventListener("click", () => void this.gcalSync.syncNow());
     this.gcalStatusBar = bar;
     this.register(this.gcalSync.onStatus((i) => this.renderStatusBar(i)));   // ruft sofort initial
+  }
+
+  /** Termin-Änderungen gebündelt nachzeichnen (siehe onChange-Abo in setupGCal). */
+  private scheduleFeedRedraw(): void {
+    if (this.feedRedrawTimer) return;
+    this.feedRedrawTimer = window.setTimeout(() => {
+      this.feedRedrawTimer = null;
+      this.renderMain();
+    }, 50);
   }
 
   /** Statusleiste zeichnen (nur wenn verbunden UND showStatusBar). Icon + Tooltip je Zustand. */
@@ -1389,8 +1438,10 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.gcalAuth.disconnect();
     g.account = null;
     g.enabled = false;
+    await this.gcalFeed.clear();   // gezeigte Termine + Snapshot verwerfen (Verbindung ist weg)
     await this.saveSettings();
     this.refreshGCalStatusBar();
+    this.renderMain();
   }
 
   /** Kalenderliste für den Ziel-Kalender-Picker. */

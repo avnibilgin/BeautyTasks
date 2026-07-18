@@ -64,6 +64,24 @@ export interface Task {
   externalId: string | null;
 }
 
+/**
+ * Ein Termin aus einem verbundenen Google-Kalender. **Reine Anzeige-Schicht**: ein CalEvent wird
+ * NIE eine Notiz, steht NIE im TaskIndex und hat kein Frontmatter — sonst würde `pushAll()` es als
+ * berechtigte Aufgabe ansehen und ein zweites Event dafür anlegen (Rückkopplung). Siehe
+ * `docs/gcal-feed-plan.md`. Lebensdauer: Speicher-Cache in gcalFeed.ts (+ Snapshot in data.json).
+ */
+export interface CalEvent {
+  id: string;
+  calendarId: string;
+  title: string;
+  start: string;        // "YYYY-MM-DD" (ganztägig) oder "YYYY-MM-DDTHH:mm" (lokale Zeit)
+  end: string;          // exklusiv (Google-Semantik: Ganztags-Ende = Folgetag)
+  allDay: boolean;
+  color: string;        // Kalenderfarbe (backgroundColor aus calendarList)
+  htmlLink: string;     // Klick -> in Google öffnen
+  location?: string;
+}
+
 export interface BeautyTasksSettings {
   itemsFolder: string;
   projectsFolder: string;   // Projekte UND Bereiche liegen hier (Bereich = type:area)
@@ -73,6 +91,10 @@ export interface BeautyTasksSettings {
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
   labelColors: Record<string, string>;   // Label-Name -> Farbe (Hex); Labels sind keine Notizen, daher hier
   locale: string;          // "auto" (folgt Obsidian) | "en" (Kanon) | "de"
+  fontTaskPct: number;     // Skalierung Aufgabentext in % (100 = Standardgröße, wie ohne Anpassung)
+  fontNavPct: number;      // Skalierung Seitenleisten-Einträge in % (100 = Standard)
+  fontHeadingPct: number;  // Skalierung Sektionsüberschriften der Seitenleiste in % (100 = Standard)
+  fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
@@ -94,6 +116,7 @@ export interface BeautyTasksSettings {
   didInboxRemoval?: boolean;       // intern: Migration „Inbox-Notiz entfernt" einmalig gelaufen
   lastSeenVersion?: string;        // intern: zuletzt im „Neu"-Modal gezeigte Plugin-Version
   gcal?: import("./gcalSync").GCalSyncSettings;   // Google-Kalender-Sync (undefined = nie eingerichtet)
+  gcalFeed?: import("./gcalFeed").GCalFeedSettings;   // Google-Termine ANZEIGEN (read-only, getrennt vom Sync)
 }
 
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
@@ -105,6 +128,10 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   visibleLabels: [],
   labelColors: {},
   locale: "auto",
+  fontTaskPct: 100,
+  fontNavPct: 100,
+  fontHeadingPct: 100,
+  fontSectionPct: 100,
   showDescriptionInList: true,
   navCollapsed: {},
   startView: "heute",

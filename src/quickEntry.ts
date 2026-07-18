@@ -255,7 +255,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   grabTime(/(?:^|\s)(?:um|at)\s*(\d{1,2})(?:\s*uhr)?(?![\d:])/i, (m) => hm(+m[1], 0));
   grabTime(/(?:^|\s)(\d{1,2})\s*uhr(?!\d)/i, (m) => hm(+m[1], 0));
 
-  // Priorität: „p1"–„p4" bzw. „!1"–„!4" (Todoist-Stil). p1 = höchste.
+  // Priorität: „p1"–„p4" bzw. „!1"–„!4". p1 = höchste.
   let priority: Priority | null = null;
   const pm = text.match(/(?:^|\s)[p!]([1-4])(?![\wäöüßÄÖÜ])/i);
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
@@ -338,8 +338,8 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   let dueSrc = "", timeSrc = "", recurSrc = "", dueFromTitle = false;
   if (!opts.duePinned && p.faellig) { f.due = p.faellig; dueSrc = p.faelligSrc; dueFromTitle = true; }
   // Eine Uhrzeit impliziert einen Tag: ohne Datum wäre sie unsichtbar (der Datums-Chip prüft
-  // `!!due`) und ginge beim Speichern verloren (nur mit Datum wird kombiniert). Default heute –
-  // wie Todoist/TickTick. Betrifft auch „Zahnarzt um 20:00" ganz ohne Escape.
+  // `!!due`) und ginge beim Speichern verloren (nur mit Datum wird kombiniert). Default heute.
+  // Betrifft auch „Zahnarzt um 20:00" ganz ohne Escape.
   if (!opts.duePinned && p.time) {
     f.dueTime = p.time; timeSrc = p.timeSrc;
     if (f.due == null) { f.due = opts.today; dueFromTitle = true; }
