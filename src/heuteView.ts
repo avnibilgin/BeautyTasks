@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf } from "./format";
+import { todayStr, formatDate, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
@@ -125,8 +125,9 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       if (opts.group === "none") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
+        // „Heute"-Kopf im Datumsstil „18. Jul · Heute · Samstag" (wie in „Demnächst").
         section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
-        section(root, plugin, t("sec_today"), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
+        section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
@@ -726,11 +727,17 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   if (savedLeft) board.scrollLeft = savedLeft;
 }
 
+/** Datums-Überschrift: „18. Jul · Heute · Samstag" / „19. Jul · Morgen · Sonntag" /
+ *  „17. Jul · Gestern · Freitag", für sonstige Tage „20. Jul · Montag" (Datum · [rel ·] Wochentag). */
 function groupLabel(dateISO: string, today: string): string {
-  const lbl = formatDate(dateISO, today);
-  if (lbl === t("date_today") || lbl === t("date_tomorrow") || lbl === t("date_yesterday")) return lbl;
-  const wd = new Intl.DateTimeFormat(getLocale(), { weekday: "short" }).format(new Date(dateISO + "T00:00:00"));
-  return wd + ", " + lbl;
+  const d = new Date(dateOf(dateISO) + "T00:00");
+  const tn = new Date(dateOf(today) + "T00:00");
+  const diff = Math.round((d.getTime() - tn.getTime()) / 86400000);
+  const sameYear = d.getFullYear() === tn.getFullYear();
+  const datePart = `${d.getDate()}. ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
+  const weekday = new Intl.DateTimeFormat(getLocale(), { weekday: "long" }).format(d);
+  const rel = diff === 0 ? t("date_today") : diff === 1 ? t("date_tomorrow") : diff === -1 ? t("date_yesterday") : null;
+  return [datePart, rel, weekday].filter(Boolean).join(" · ");
 }
 
 /** Alle Pfade, die in dieser Ansicht real gerendert werden: die Anker-Aufgaben plus ihre
