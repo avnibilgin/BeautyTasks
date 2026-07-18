@@ -1641,7 +1641,7 @@ body {
 /* Deckend über die Zellen-Grundfarbe mischen (NICHT transparent): sonst scheint das dunkle
    Raster (.bt-calview-grid background) durch und der Hover wirkt dunkler als in der Liste.
    Ergebnis = derselbe visuelle Ton wie der Listen-Hover (50% hover über hellem Untergrund). */
-.bt-calview-cell:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, var(--background-primary)); }
+.bt-calview-cell:hover { background: color-mix(in srgb, var(--background-modifier-hover) 30%, var(--background-primary)); }
 .bt-calview-cell.is-weekend { background: var(--background-primary-alt); }
 .bt-calview-cell.is-other { opacity: 0.45; }
 .bt-calview-cell.is-drop { box-shadow: inset 0 0 0 2px var(--interactive-accent); }
