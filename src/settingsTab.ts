@@ -175,7 +175,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       fontHost.createDiv({ cls: "setting-item-description", text: t("set_fontsizes_desc") });
       const fontSlider = (name: string, get: () => number, assign: (v: number) => void): void => {
         new Setting(fontHost).setName(name).addSlider((sl) =>
-          sl.setLimits(60, 160, 1).setValue(get())
+          sl.setLimits(80, 130, 5).setValue(get())
             .onChange(async (v) => { assign(v); await p.saveSettings(); p.applyFontSizes(); }));
       };
       fontSlider(t("set_font_task"), () => p.settings.fontTaskPct, (v) => (p.settings.fontTaskPct = v));
