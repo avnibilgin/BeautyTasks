@@ -1802,11 +1802,13 @@ body {
 .bt-calview-ev-time { flex-shrink: 0; font-size: 0.88em; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Termin-Chip (Monatszelle / Ganztägig-Zeile / Popover): Farbpunkt statt Abhak-Kreis. */
-.bt-calview-evchip { cursor: pointer; }
-.bt-calview-evchip:hover { background: color-mix(in srgb, var(--bt-ev-color) 20%, transparent); }
-.bt-calview-evdot {
-  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--bt-ev-color); align-self: center;
+/* Google-Termin-Chip = konsistent zum Listen-Band: transparent, die Farbe trägt allein der schlanke
+   senkrechte Balken links (echte Google-Kalenderfarbe). Kein getönter Kasten, kein linker Rand. */
+.bt-calview-evchip { cursor: pointer; background: transparent; border-left: 0; }
+.bt-calview-evchip:hover { background: var(--background-modifier-hover); }
+.bt-calview-evbar {
+  flex-shrink: 0; align-self: stretch; width: 3px; min-height: 14px;
+  border-radius: 999px; background: var(--bt-ev-color);
 }
 
 /* Termine eines Tages gebündelt in einer dezenten Box (Sidebar-Hintergrund) oben in der

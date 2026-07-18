@@ -659,7 +659,7 @@ function renderEventChip(parent: HTMLElement, de: DayEvent): void {
   const ev = de.event;
   const chip = parent.createDiv({ cls: "bt-calview-chip bt-calview-evchip" });
   chip.style.setProperty("--bt-ev-color", ev.color);
-  chip.createSpan({ cls: "bt-calview-evdot" });
+  chip.createSpan({ cls: "bt-calview-evbar", attr: { "aria-hidden": "true" } });
   if (de.startMin !== null) chip.createSpan({ cls: "bt-calview-chip-time", text: hhmm(de.startMin) });
   chip.createSpan({ cls: "bt-calview-chip-title", text: ev.title });
   chip.setAttr("aria-label", eventTooltip(de));
