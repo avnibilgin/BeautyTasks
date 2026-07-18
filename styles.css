@@ -251,10 +251,10 @@ body {
 .bt-search-tag.is-today { color: var(--bt-today); }       /* Datum heute */
 
 .bt-view {
-  /* Feste Basis-Textgröße nur für die BeautyTasks-Ansicht (kompakter, ~wie Todoist), unabhängig von
-     Obsidians globaler Schriftgröße. Alle em-basierten Größen (Titel 1.7em, Aufgabentext 1em,
-     Chips/Meta …) skalieren relativ dazu. */
-  font-size: 14px;
+  /* Basis-Textgröße der BeautyTasks-Ansicht: etwas kompakter als Obsidians Standard (~15px bei
+     16px-Basis), aber RELATIV (em) – so folgt sie der Schriftgröße-Einstellung des Nutzers
+     (Barrierefreiheit) statt sie zu überschreiben. Alle em-Größen skalieren relativ dazu. */
+  font-size: 0.9375em;
   padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
   overflow-y: auto;
 }
