@@ -132,13 +132,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
+        const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
         const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
-        const hasToday = gs.some((g) => g.title === t("sec_today"));
+        const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => section(root, plugin, t("sec_today"), [], today, false, false, present, todayEv, today);
+        const eventsSection = (): void => section(root, plugin, todayHead, [], today, false, false, present, todayEv, today);
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
-          const isToday = g.title === t("sec_today");
+          const isToday = g.title === todayHead;
           section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
@@ -343,7 +344,7 @@ function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
     if (group === "date" || group === "deadline") {
       const d = group === "date" ? tk.due : tk.scheduled;   // „Datum" = due, „Deadline" = scheduled
       if (d && d < today) push("overdue", t("sec_overdue"), 0, tk);
-      else if (d === today) push("today", t("sec_today"), 1, tk);
+      else if (d === today) push("today", groupLabel(today, today), 1, tk);   // „18. Jul · Heute · Samstag" – konsistent zu Gruppierung „Keine"
       else if (d && d > today) push("upcoming", t("sec_upcoming"), 2, tk);
       else push("nodate", t("sec_no_date"), 3, tk);
     } else if (group === "priority") {
