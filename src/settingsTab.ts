@@ -144,6 +144,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
             p.settings.fontTaskPct = DEFAULT_SETTINGS.fontTaskPct;
             p.settings.fontNavPct = DEFAULT_SETTINGS.fontNavPct;
             p.settings.fontHeadingPct = DEFAULT_SETTINGS.fontHeadingPct;
+            p.settings.fontSectionPct = DEFAULT_SETTINGS.fontSectionPct;
             await p.saveSettings();
             p.applyFontSizes();
             drawFonts();
@@ -157,6 +158,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       fontSlider(t("set_font_task"), () => p.settings.fontTaskPct, (v) => (p.settings.fontTaskPct = v));
       fontSlider(t("set_font_nav"), () => p.settings.fontNavPct, (v) => (p.settings.fontNavPct = v));
       fontSlider(t("set_font_heading"), () => p.settings.fontHeadingPct, (v) => (p.settings.fontHeadingPct = v));
+      fontSlider(t("set_font_section"), () => p.settings.fontSectionPct, (v) => (p.settings.fontSectionPct = v));
     };
     drawFonts();
 

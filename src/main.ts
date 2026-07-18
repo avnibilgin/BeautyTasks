@@ -69,7 +69,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
     this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
     this.register(() => {                      // beim Entladen die gesetzten Variablen wieder entfernen
-      for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale"]) document.body.style.removeProperty(n);
+      for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale"]) document.body.style.removeProperty(n);
     });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
@@ -1307,6 +1307,7 @@ export default class BeautyTasksPlugin extends Plugin {
     set("--bt-task-scale", s.fontTaskPct);
     set("--bt-nav-scale", s.fontNavPct);
     set("--bt-head-scale", s.fontHeadingPct);
+    set("--bt-section-scale", s.fontSectionPct);
   }
 
   /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`

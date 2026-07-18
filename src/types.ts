@@ -94,6 +94,7 @@ export interface BeautyTasksSettings {
   fontTaskPct: number;     // Skalierung Aufgabentext in % (100 = Standardgröße, wie ohne Anpassung)
   fontNavPct: number;      // Skalierung Seitenleisten-Einträge in % (100 = Standard)
   fontHeadingPct: number;  // Skalierung Sektionsüberschriften der Seitenleiste in % (100 = Standard)
+  fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
@@ -130,6 +131,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   fontTaskPct: 100,
   fontNavPct: 100,
   fontHeadingPct: 100,
+  fontSectionPct: 100,
   showDescriptionInList: true,
   navCollapsed: {},
   startView: "heute",

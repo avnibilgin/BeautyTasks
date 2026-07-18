@@ -710,7 +710,7 @@ body {
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
 .bt-section-title {
-  font-size: 0.9em; font-weight: 700; margin: 8px 0 0;   /* = Faktor der Seitenleisten-Einträge (.bt-nav-item) */
+  font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
   color: var(--text-normal);
 }
 /* Einklappbare Sektion (z. B. „Erledigt"): Titel + Anzahl + Chevron rechts, klickbar. */
