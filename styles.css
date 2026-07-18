@@ -338,7 +338,7 @@ body {
 }
 
 /* ── Aufgaben-Modal ── */
-.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; }
+.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; font-size: 0.9375em; }
 /* Damit die randlose Trennlinie den ECHTEN Modal-Rand erreicht: den horizontalen Innen-
    abstand vom Modal auf .modal-content verlagern (oben: padding-left/right 0 am Modal, hier
    der Abstand). So füllt .modal-content die volle Modalbreite; die Linie kann per negativer
@@ -494,7 +494,7 @@ body {
    Teilt sich .bt-task-modal (Titel-/Projekt-/Chip-Styles); hier nur die kompakte Anordnung. */
 /* Schmaler als das volle Aufgaben-Modal (800px) – die Quick-Erfassung braucht keine so breite
    Fläche. Etwas kompakter, aber weiter responsiv gedeckelt. */
-.bt-quickadd { width: 660px; }
+.bt-quickadd { width: 660px; font-size: 0.9375em; }
 .bt-quickadd .bt-titel { font-size: 1.1em; }
 /* Eine Zeile: Projekt-Chip + Attribut-Chips links, Aktionen rechts (margin-left:auto). Umbruch
    erlaubt, falls viele Labels -> Buttons rutschen dann in die nächste Zeile. */
@@ -580,7 +580,9 @@ body {
 .bt-pop .bt-row.is-disabled { opacity: 0.45; pointer-events: none; }
 
 /* ── Linke Navigation ── */
-.bt-nav { padding: 6px 6px 16px; }
+/* Gemeinsamer Grundmaßstab wie die Hauptansicht (relativ, folgt der Nutzer-Schriftgröße). Die
+   Nav-Einträge (0.9em) bleiben dadurch bewusst etwas kleiner – sekundäre Navigation, dichter. */
+.bt-nav { padding: 6px 6px 16px; font-size: 0.9375em; }
 .bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
 /* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
