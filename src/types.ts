@@ -127,7 +127,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   visibleLabels: [],
   labelColors: {},
   locale: "auto",
-  fontTaskPct: 94,
+  fontTaskPct: 100,
   fontNavPct: 86,
   fontHeadingPct: 68,
   showDescriptionInList: true,
