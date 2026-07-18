@@ -128,7 +128,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   labelColors: {},
   locale: "auto",
   fontTaskPct: 100,
-  fontNavPct: 86,
+  fontNavPct: 90,
   fontHeadingPct: 68,
   showDescriptionInList: true,
   navCollapsed: {},

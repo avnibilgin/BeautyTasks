@@ -258,7 +258,7 @@ body {
    `em`: em hinge am geerbten Wert der Fläche (Sidebar/Modals erben Obsidians Textgröße nicht sicher). */
 body {
   --bt-font-size: var(--font-text-size, 16px);   /* 100% (Default; über die Einstellungen änderbar) */
-  --bt-nav-font-size: calc(var(--font-text-size, 16px) * 0.86);
+  --bt-nav-font-size: calc(var(--font-text-size, 16px) * 0.9);
   --bt-nav-head-font-size: calc(var(--font-text-size, 16px) * 0.68);
 }
 
