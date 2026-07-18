@@ -583,7 +583,7 @@ body {
 /* Gemeinsamer Grundmaßstab wie die Hauptansicht (relativ, folgt der Nutzer-Schriftgröße). Die
    Nav-Einträge (0.9em) bleiben dadurch bewusst etwas kleiner – sekundäre Navigation, dichter. */
 .bt-nav { padding: 6px 6px 16px; font-size: 0.9375em; }
-.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
+.bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.96em; color: var(--text-normal); }
 /* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
 .bt-nav-item:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
