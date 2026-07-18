@@ -1845,7 +1845,7 @@ body {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 16px;
   border-radius: 999px; background: var(--bt-ev-color);
 }
-.bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 400; color: var(--text-faint); }
 .bt-gcal-band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
 .bt-gcal-band-open { flex-shrink: 0; margin-left: auto; display: inline-flex; color: var(--text-faint); opacity: 0; transition: opacity 120ms ease; }
 .bt-gcal-band-open .svg-icon { width: 14px; height: 14px; }
