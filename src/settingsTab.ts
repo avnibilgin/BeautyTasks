@@ -78,37 +78,11 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     containerEl.empty();
     const p = this.plugin;
 
-    // ── Ordner ──
-    new Setting(containerEl).setName(t("set_folders_heading")).setHeading();
-    const folderRow = (name: string, desc: string, get: () => string, set: (v: string) => void) => {
-      new Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
-        text.setValue(get());
-        const save = (raw: string) => { const v = normalizePath(raw.trim()); if (v && v !== ".") { set(v); void p.saveSettings(); } };
-        text.onChange(save);
-        new FolderSuggest(this.app, text.inputEl, (path) => { text.setValue(path); save(path); });
-      });
-    };
-    folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => (p.settings.itemsFolder = v));
-    folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => (p.settings.projectsFolder = v));
-    folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => (p.settings.attachmentsFolder = v));
+    // Struktur (Obsidian-Konvention, kurze Überschriften in logischer Reihenfolge):
+    // Allgemein · Darstellung · Textgröße · Aufgabenaktionen · Status · Ordner · Import & Export · Google Kalender.
 
-    // Ausschluss-Ordner: Notizen darin gelten NIE als Aufgabe (Schutz vor fremden type:task-Notizen).
-    // Ein Ordner pro Zeile. Änderung erfordert einen Index-Neuaufbau (parse-Ergebnis ändert sich).
-    new Setting(containerEl).setName(t("set_exclude_folders")).setDesc(t("set_exclude_folders_desc"))
-      .addTextArea((ta) => {
-        ta.setValue(p.settings.excludeFolders.join("\n"));
-        ta.inputEl.rows = 3;
-        // Tippen speichert nur den Wert (billig). Der teure Index-Neuaufbau (Vollscan) läuft
-        // erst beim Verlassen des Feldes – nicht bei jedem Tastendruck.
-        ta.onChange(async (v) => {
-          p.settings.excludeFolders = v.split("\n").map((s) => normalizePath(s.trim())).filter((s) => s && s !== ".");
-          await p.saveSettings();
-        });
-        ta.inputEl.addEventListener("blur", () => { p.index.build(); p.renderAll(); });
-      });
-
-    // ── Verhalten ──
-    new Setting(containerEl).setName(t("set_behavior_heading")).setHeading();
+    // ── Allgemein ──
+    new Setting(containerEl).setName(t("set_general_heading")).setHeading();
 
     new Setting(containerEl).setName(t("set_language")).setDesc(t("set_language_desc")).addDropdown((dd) => {
       dd.addOption("auto", t("set_language_auto"));
@@ -144,6 +118,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();   // Eingang + Zähler neu zeichnen
       }));
 
+    // ── Darstellung ──
+    new Setting(containerEl).setName(t("set_appearance_heading")).setHeading();
+
     new Setting(containerEl).setName(t("set_show_desc")).setDesc(t("set_show_desc_desc")).addToggle((tg) =>
       tg.setValue(p.settings.showDescriptionInList).onChange(async (v) => {
         p.settings.showDescriptionInList = v;
@@ -157,8 +134,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
       }));
 
-    // ── Textgrößen (überschreibbar, in % von Obsidians Textgröße → skaliert mit dieser mit) ──
-    // Eigener Host, damit „Auf Standard zurücksetzen" die Slider mit den neuen Werten neu zeichnen kann.
+    // Textgröße: eigener Host, damit das Reset-Icon die Slider mit den neuen Werten neu zeichnen kann.
     const fontHost = containerEl.createDiv();
     const drawFonts = (): void => {
       fontHost.empty();
@@ -192,6 +168,35 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     // ── Status (früher im ListManager; Custom-Status ist Konfiguration → gehört hierher) ──
     new Setting(containerEl).setName(t("tab_statuses")).setHeading();
     renderStatusEditor(containerEl.createDiv({ cls: "bt-settings-status" }), p);
+
+    // ── Ordner ──
+    new Setting(containerEl).setName(t("set_folders_heading")).setHeading();
+    const folderRow = (name: string, desc: string, get: () => string, set: (v: string) => void) => {
+      new Setting(containerEl).setName(name).setDesc(desc).addText((text) => {
+        text.setValue(get());
+        const save = (raw: string) => { const v = normalizePath(raw.trim()); if (v && v !== ".") { set(v); void p.saveSettings(); } };
+        text.onChange(save);
+        new FolderSuggest(this.app, text.inputEl, (path) => { text.setValue(path); save(path); });
+      });
+    };
+    folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => (p.settings.itemsFolder = v));
+    folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => (p.settings.projectsFolder = v));
+    folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => (p.settings.attachmentsFolder = v));
+
+    // Ausschluss-Ordner: Notizen darin gelten NIE als Aufgabe (Schutz vor fremden type:task-Notizen).
+    // Ein Ordner pro Zeile. Änderung erfordert einen Index-Neuaufbau (parse-Ergebnis ändert sich).
+    new Setting(containerEl).setName(t("set_exclude_folders")).setDesc(t("set_exclude_folders_desc"))
+      .addTextArea((ta) => {
+        ta.setValue(p.settings.excludeFolders.join("\n"));
+        ta.inputEl.rows = 3;
+        // Tippen speichert nur den Wert (billig). Der teure Index-Neuaufbau (Vollscan) läuft
+        // erst beim Verlassen des Feldes – nicht bei jedem Tastendruck.
+        ta.onChange(async (v) => {
+          p.settings.excludeFolders = v.split("\n").map((s) => normalizePath(s.trim())).filter((s) => s && s !== ".");
+          await p.saveSettings();
+        });
+        ta.inputEl.addEventListener("blur", () => { p.index.build(); p.renderAll(); });
+      });
 
     // ── Import & Export ──
     new Setting(containerEl).setName(t("set_data_heading")).setHeading();
@@ -392,7 +397,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     // Kopfzeile: Flächen-Tabs links, „Auf Standard zurücksetzen" (aktuelle Fläche) rechts.
     const bar = containerEl.createDiv({ cls: "bt-chip-surface-bar" });
     const tabs = bar.createDiv({ cls: "bt-chip-surface-tabs" });
-    const reset = bar.createEl("button", { cls: "bt-chip-reset", text: t("chip_reset_default") });
+    // Reset als Icon (rotate-ccw), einheitlich zu den anderen Reset-Buttons.
+    const reset = bar.createEl("button", { cls: "bt-chip-reset clickable-icon", attr: { "aria-label": t("chip_reset_default"), "data-tooltip-position": "top" } });
+    setIcon(reset, "rotate-ccw");
     const zonesHost = containerEl.createDiv();
     const drawTabs = (): void => {
       tabs.empty();
