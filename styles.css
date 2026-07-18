@@ -1804,7 +1804,9 @@ body {
 /* Termin-Chip (Monatszelle / Ganztägig-Zeile / Popover): Farbpunkt statt Abhak-Kreis. */
 /* Google-Termin-Chip = konsistent zum Listen-Band: transparent, die Farbe trägt allein der schlanke
    senkrechte Balken links (echte Google-Kalenderfarbe). Kein getönter Kasten, kein linker Rand. */
-.bt-calview-evchip { cursor: pointer; background: transparent; border-left: 0; }
+/* padding-left 0: der Balken sitzt bündig an der Chip-Kante (wie die Farbkante der Aufgaben-Chips),
+   statt hinter dem 7px-Innenabstand nach rechts eingerückt. */
+.bt-calview-evchip { cursor: pointer; background: transparent; border-left: 0; padding-left: 0; }
 .bt-calview-evchip:hover { background: var(--background-modifier-hover); }
 .bt-calview-evbar {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 14px;
