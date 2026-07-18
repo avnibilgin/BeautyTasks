@@ -250,11 +250,15 @@ body {
 .bt-search-tag.is-overdue { color: var(--bt-overdue); }   /* Datum überfällig */
 .bt-search-tag.is-today { color: var(--bt-today); }       /* Datum heute */
 
+/* ── Zentrale Basis-Textgröße ─────────────────────────────────────────────────────────────────
+   EIN Wert für alle BeautyTasks-Flächen (Hauptansicht, Seitenleiste, Modals), abgeleitet direkt aus
+   Obsidians konfigurierter Textgröße `--font-text-size` × 0.9375 (etwas kompakter). Bewusst NICHT
+   `em`: em hängt am geerbten Wert der jeweiligen Fläche (Sidebar/Modals erben Obsidians Textgröße
+   nicht zuverlässig). So folgt ALLES zentral der Obsidian-Einstellung und skaliert mit ihr. */
+body { --bt-font-size: calc(var(--font-text-size, 16px) * 0.9375); }
+
 .bt-view {
-  /* Basis-Textgröße der BeautyTasks-Ansicht: etwas kompakter als Obsidians Standard (~15px bei
-     16px-Basis), aber RELATIV (em) – so folgt sie der Schriftgröße-Einstellung des Nutzers
-     (Barrierefreiheit) statt sie zu überschreiben. Alle em-Größen skalieren relativ dazu. */
-  font-size: 0.9375em;
+  font-size: var(--bt-font-size);
   padding: 8px 0 40px;   /* seitlicher Abstand kommt aus der Sizer-Breite (unten), nicht hier */
   overflow-y: auto;
 }
@@ -338,7 +342,7 @@ body {
 }
 
 /* ── Aufgaben-Modal ── */
-.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; font-size: 0.9375em; }
+.bt-task-modal { width: 800px; max-width: 92vw; padding-left: 0; padding-right: 0; font-size: var(--bt-font-size); }
 /* Damit die randlose Trennlinie den ECHTEN Modal-Rand erreicht: den horizontalen Innen-
    abstand vom Modal auf .modal-content verlagern (oben: padding-left/right 0 am Modal, hier
    der Abstand). So füllt .modal-content die volle Modalbreite; die Linie kann per negativer
@@ -494,7 +498,7 @@ body {
    Teilt sich .bt-task-modal (Titel-/Projekt-/Chip-Styles); hier nur die kompakte Anordnung. */
 /* Schmaler als das volle Aufgaben-Modal (800px) – die Quick-Erfassung braucht keine so breite
    Fläche. Etwas kompakter, aber weiter responsiv gedeckelt. */
-.bt-quickadd { width: 660px; font-size: 0.9375em; }
+.bt-quickadd { width: 660px; font-size: var(--bt-font-size); }
 .bt-quickadd .bt-titel { font-size: 1.1em; }
 /* Eine Zeile: Projekt-Chip + Attribut-Chips links, Aktionen rechts (margin-left:auto). Umbruch
    erlaubt, falls viele Labels -> Buttons rutschen dann in die nächste Zeile. */
@@ -580,9 +584,9 @@ body {
 .bt-pop .bt-row.is-disabled { opacity: 0.45; pointer-events: none; }
 
 /* ── Linke Navigation ── */
-/* Gemeinsamer Grundmaßstab wie die Hauptansicht (relativ, folgt der Nutzer-Schriftgröße). Die
-   Nav-Einträge (0.9em) bleiben dadurch bewusst etwas kleiner – sekundäre Navigation, dichter. */
-.bt-nav { padding: 6px 6px 16px; font-size: 0.9375em; }
+/* Gemeinsamer Grundmaßstab wie die Hauptansicht (zentral aus --font-text-size). Die Nav-Einträge
+   (0.96em) bleiben dadurch bewusst etwas kleiner – sekundäre Navigation, dichter. */
+.bt-nav { padding: 6px 6px 16px; font-size: var(--bt-font-size); }
 .bt-nav-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.96em; color: var(--text-normal); }
 /* Hover & Aktiv sind aus der Akzentfarbe abgeleitet. Der Hover ist bewusst schwächer als der
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
