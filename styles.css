@@ -1794,7 +1794,7 @@ body {
 .bt-calview-ev {
   position: absolute; z-index: 1; display: flex; overflow: hidden; box-sizing: border-box;
   padding: 3px 6px 3px 9px; border-radius: 4px; cursor: pointer;
-  background: color-mix(in srgb, var(--bt-ev-color) 11%, var(--background-primary));
+  background: transparent;   /* keine Füllung – die Farbe trägt allein der Balken (wie der Ganztags-Chip) */
   font-size: 0.84em; line-height: 1.35;
 }
 /* Farbbalken (echte Google-Kalenderfarbe) bündig am linken Rand. Oben/unten bis zum Beginn des
@@ -1804,7 +1804,7 @@ body {
   content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
   border-radius: 999px; background: var(--bt-ev-color);
 }
-.bt-calview-ev:hover { background: color-mix(in srgb, var(--bt-ev-color) 18%, var(--background-primary)); }
+.bt-calview-ev:hover { background: var(--background-modifier-hover); }
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .bt-calview-ev.is-compact .bt-calview-ev-in { flex-direction: row; align-items: center; gap: 5px; }
 .bt-calview-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); font-weight: 500; }
