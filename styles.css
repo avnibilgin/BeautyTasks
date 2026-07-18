@@ -1818,7 +1818,7 @@ body {
 /* Termine eines Tages gebündelt in einer dezenten Box (Sidebar-Hintergrund) oben in der
    Tagesgruppe – so heben sie sich als „schon belegt" von den Aufgaben ab, ohne aufzudrängen. */
 .bt-gcal-daybox {
-  background: var(--background-secondary);
+  background: color-mix(in srgb, var(--background-secondary) 55%, var(--background-primary));
   border-radius: 8px; padding: 4px 6px; margin: 2px 0 10px;
 }
 .bt-gcal-daybox .bt-gcal-band { margin: 0; }
