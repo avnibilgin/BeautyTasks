@@ -1828,10 +1828,12 @@ body {
 /* Uhrzeit der Termine heller und NICHT fett (die Aufgaben-Chip-Zeit bleibt kräftig/fett). */
 .bt-calview-evchip .bt-calview-chip-time { font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
 
-/* Termine eines Tages gebündelt in einer dezenten Box (Sidebar-Hintergrund) oben in der
-   Tagesgruppe – so heben sie sich als „schon belegt" von den Aufgaben ab, ohne aufzudrängen. */
+/* Termine eines Tages gebündelt in einer dezenten Box oben in der Tagesgruppe – so heben sie sich
+   als „schon belegt" von den Aufgaben ab. Theme-adaptiv: Grundfarbe + etwas Textfarbe → in Light
+   dunkelt die Box minimal ab, in Dark hellt sie minimal auf, sodass sie sich in BEIDEN Modi vom
+   Seiteninhalt absetzt (reines --background-secondary war in Dark kaum unterscheidbar). */
 .bt-gcal-daybox {
-  background: color-mix(in srgb, var(--background-secondary) 55%, var(--background-primary));
+  background: color-mix(in srgb, var(--background-primary), var(--text-normal) 7%);
   border-radius: 8px; padding: 4px 6px; margin: 2px 0 10px;
 }
 .bt-gcal-daybox .bt-gcal-band { margin: 0; }
