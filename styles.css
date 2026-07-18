@@ -1799,7 +1799,7 @@ body {
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .bt-calview-ev.is-compact .bt-calview-ev-in { flex-direction: row; align-items: center; gap: 5px; }
 .bt-calview-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); font-weight: 500; }
-.bt-calview-ev-time { flex-shrink: 0; font-size: 0.88em; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-calview-ev-time { flex-shrink: 0; font-size: 0.88em; font-weight: 400; color: var(--text-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Termin-Chip (Monatszelle / Ganztägig-Zeile / Popover): Farbpunkt statt Abhak-Kreis. */
 /* Google-Termin-Chip = konsistent zum Listen-Band: transparent, die Farbe trägt allein der schlanke
@@ -1812,6 +1812,8 @@ body {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 14px;
   border-radius: 999px; background: var(--bt-ev-color);
 }
+/* Uhrzeit der Termine heller und NICHT fett (die Aufgaben-Chip-Zeit bleibt kräftig/fett). */
+.bt-calview-evchip .bt-calview-chip-time { font-weight: 400; color: var(--text-faint); }
 
 /* Termine eines Tages gebündelt in einer dezenten Box (Sidebar-Hintergrund) oben in der
    Tagesgruppe – so heben sie sich als „schon belegt" von den Aufgaben ab, ohne aufzudrängen. */
