@@ -130,9 +130,16 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
         // „Heute"-Kopf im Datumsstil „18. Jul · Heute · Samstag" (wie in „Demnächst").
-        const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
-        if (overdue.length) rescheduleButton(overdueHead, plugin, overdue);
-        section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
+        // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
+        // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
+        // (die zählen mit, auch ohne Aufgabe für heute).
+        if (overdue.length) {
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
+          rescheduleButton(overdueHead, plugin, overdue);
+        }
+        if (dueToday.length || todayEv.length) {
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
+        }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
