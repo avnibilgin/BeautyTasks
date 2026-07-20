@@ -462,14 +462,12 @@ body {
 .bt-task-modal .bt-log-edit-acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
 .bt-task-modal .bt-log-edit-btn { font-size: 0.82em; padding: 3px 10px; }
 .bt-task-modal .bt-log-composer {
-  display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; padding-top: 8px;
-  border-top: 1px solid var(--background-modifier-border);
+  display: flex; align-items: flex-end; gap: 6px; margin-top: 8px;
 }
-/* Ohne Kommentare: leere Timeline ausblenden und den Composer direkt unter die Chips
-   rücken (kein leeres Band, keine zweite Trennlinie). Mit Einträgen bleibt die Timeline
-   samt Trennlinie über dem Composer. */
+/* KEINE Trennlinie mehr zwischen Kommentaren und Eingabefeld – die Trennung zur Fußzeile
+   liegt jetzt UNTER dem Eingabefeld (siehe .bt-foot::before weiter unten). */
 .bt-task-modal .bt-log-list:empty { display: none; }
-.bt-task-modal .bt-log-list:empty + .bt-log-composer { margin-top: 0; padding-top: 0; border-top: none; }
+.bt-task-modal .bt-log-list:empty + .bt-log-composer { margin-top: 0; }
 .bt-task-modal .bt-log-input { flex: 1; resize: none; min-height: 34px; max-height: 220px; font-size: 0.9em; line-height: 1.4; }
 /* Dezenter Fokus statt Obsidians grellem Akzent-Glow – wie die übrigen Felder. */
 .bt-task-modal .bt-log-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
@@ -485,6 +483,19 @@ body {
 .bt-task-modal .bt-log-attach:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
 
 .bt-task-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+/* Bei offenem Detailbereich: volle Trennlinie ÜBER der Fußzeile (unter dem Eingabefeld),
+   randlos wie .bt-chips::after. NUR wenn Details offen ist – sonst liefert die chips::after-Linie
+   die Trennung zur Fußzeile schon, und es gäbe zwei Linien. `.bt-details` und `.bt-foot` sind
+   im Modal direkte Nachbarn. */
+/* margin-top 24px (statt 8): schafft ober- UND unterhalb der Linie je 12px – die Linie sitzt
+   damit mittig zwischen Eingabefeld und Fußzeile (unten 12px zu den Buttons wie im Modal ohne
+   Details, oben 12px zum Eingabefeld). Nur bei offenem Detailbereich. */
+.bt-task-modal .bt-details:not(.bt-hidden) + .bt-foot { position: relative; margin-top: 24px; }
+.bt-task-modal .bt-details:not(.bt-hidden) + .bt-foot::before {
+  content: ""; position: absolute; top: -12px;   /* mittig: 12px zum Eingabefeld, 12px zu den Buttons */
+  left: calc(-1 * var(--size-4-4) - 4px); right: calc(-1 * var(--size-4-4) - 4px);
+  border-top: 1px solid var(--bt-line);
+}
 .bt-task-modal .bt-projekt {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
   border: 1px solid var(--background-modifier-border); border-radius: 6px;
