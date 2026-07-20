@@ -15,7 +15,7 @@ import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidde
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
 import { nextInstance } from "./recurrence";
-import { todayStr, localStamp } from "./format";
+import { todayStr, localStamp, dateOf, timeOf, combineDT } from "./format";
 import { t, setLocale } from "./i18n";
 import { BeautyTasksSettingTab } from "./settingsTab";
 import { TaskSearchModal } from "./searchModal";
@@ -1123,6 +1123,23 @@ export default class BeautyTasksPlugin extends Plugin {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); if (isoVal) fm[field] = isoVal; else delete fm[field]; });
+  }
+
+  /** Sammel-Verschieben („Verschieben" im Kopf der Überfällig-Sektion): setzt `due` ALLER
+   *  übergebenen Aufgaben auf `isoVal`; leerer Wert („Kein Datum") entfernt die Fälligkeit.
+   *
+   *  Enthält `isoVal` KEINE Uhrzeit, behält jede Aufgabe ihre eigene: 15 überfällige Aufgaben
+   *  haben 15 verschiedene Uhrzeiten, und ein reiner Datumswechsel ist keine Aussage über sie.
+   *  Erst eine im Picker ausdrücklich gesetzte Uhrzeit gilt für alle.
+   *
+   *  Sequenziell wie restoreAllCancelled – processFrontMatter parallel auf vielen Dateien
+   *  handelt sich Schreibkonflikte ein. Teuer ist das nicht: Index (50 ms) und GCal-Sync (2 s)
+   *  fassen die Änderungen ohnehin zu je EINEM Lauf zusammen. */
+  async rescheduleTasks(tasks: Task[], isoVal: string): Promise<void> {
+    if (!tasks.length) return;
+    const date = dateOf(isoVal), time = timeOf(isoVal);
+    for (const task of tasks) await this.setTaskDate(task, "due", date ? combineDT(date, time ?? task.dueTime) : "");
+    new Notice(t("report_tasks_moved", tasks.length));
   }
 
   async setTaskDuration(task: Task, minutes: number | null): Promise<void> {

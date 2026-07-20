@@ -126,7 +126,8 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
         // „Heute"-Kopf im Datumsstil „18. Jul · Heute · Samstag" (wie in „Demnächst").
-        section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
+        const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
+        if (overdue.length) rescheduleButton(overdueHead, plugin, overdue);
         section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
@@ -136,11 +137,16 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => section(root, plugin, todayHead, [], today, false, false, present, todayEv, today);
+        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today); };
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
+          const gHead = section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
+          // „Verschieben" NUR bei Gruppierung „Datum": dort ist die Überfällig-Gruppe deckungsgleich
+          // mit der ungruppierten Sektion (beide aus `due`). Bei „Deadline" trägt die Gruppe zwar
+          // denselben Titel, stammt aber aus `scheduled` – und eine Deadline ist eine Zusage nach
+          // außen, die man einzeln neu verhandelt, nicht per Sammelklick vereinheitlicht.
+          if (opts.group === "date" && i === overdueIdx) rescheduleButton(gHead, plugin, g.tasks);
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
@@ -822,7 +828,10 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
   }
 }
 
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): void {
+/** Zeichnet eine Sektion und gibt ihren Überschriften-Kopf zurück – daran hängen Aufrufer
+ *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
+ *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): HTMLElement {
   // Variante A: Unteraufgaben werden verschachtelt unter ihrem Parent gezeigt, WENN dieser
   // in der Ansicht vorkommt (present). Fehlt der Parent in der Ansicht, erscheint die
   // Unteraufgabe eigenständig als eigene Zeile – statt ganz zu verschwinden.
@@ -846,6 +855,27 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
     apply();
     head.onclick = () => { plugin.doneCollapsed = !plugin.doneCollapsed; apply(); };
   }
+  return head;
+}
+
+/** „Verschieben" rechts im Kopf der Überfällig-Sektion (Sammel-Aktion auf ALLE Aufgaben der
+ *  Sektion). Der Picker startet bewusst OHNE Vorbelegung: 15 überfällige Aufgaben haben 15
+ *  verschiedene Daten – ein vorausgewählter Tag müsste eines davon erfinden und würde
+ *  suggerieren, es passiere ohnehin gleich. Klick daneben schließt folgenlos (openDatePicker
+ *  meldet nur bei ausdrücklicher Auswahl). */
+function rescheduleButton(head: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[]): void {
+  head.addClass("bt-has-action");
+  // Bewusst KEIN <button>: darauf greifen Obsidians App-Styles mit Rahmen, Schatten und
+  // eigener Textfarbe zu, die man einzeln wieder abräumen müsste (und die je nach Theme
+  // trotzdem gewinnen). Span mit role/tabindex wie bei .bt-gcal-more – reiner Text, der
+  // Schrift und Größe der Überschrift erbt und nur über die Akzentfarbe hervorsticht.
+  const btn = head.createSpan({ cls: "bt-sec-action", text: t("sec_reschedule"), attr: { role: "button", tabindex: "0" } });
+  const open = (e: Event): void => {
+    e.stopPropagation();   // ein einklappbarer Kopf (head.onclick) darf nicht mitschalten
+    openDatePicker(btn, "", (v) => void plugin.rescheduleTasks(tasks, v));
+  };
+  btn.onclick = open;
+  btn.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } };
 }
 
 /** Subtask-Baum-Marker in EINEM Durchlauf setzen (statt Nachbar-`:has` in CSS, das breite
