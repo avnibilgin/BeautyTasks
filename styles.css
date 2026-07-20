@@ -732,19 +732,20 @@ body {
    unterschieden allein durch die Akzentfarbe des Themes. Marker-Klasse statt :has(), das eine
    breite Style-Invalidierung auslöst (gleiche Begründung wie bei annotateSubtaskTree). */
 .bt-section-title.bt-has-action { display: flex; align-items: center; }
+/* Reiner Text in der Akzentfarbe – kein Rahmen, kein Hintergrund. Schrift und Größe erbt der
+   Span von der Überschrift, unterschieden wird allein über die Farbe. Erst beim Hover (und
+   für die Tastatur beim Fokus) kommt die dezente Fläche dazu. Das seitliche Polster gibt ihr
+   Luft, die negative Marge nimmt sie am rechten Rand wieder zurück – so bleibt die
+   Beschriftung bündig mit der Inhaltskante und springt beim Hover nicht. */
 .bt-sec-action {
   margin-left: auto;
-  font: inherit; letter-spacing: inherit;   /* <button> erbt die Schrift nicht von selbst */
   color: var(--text-accent);
-  background: transparent; border: none; box-shadow: none;
-  /* Reiner Text ohne Rahmen; erst beim Hover der dezente Flächen-Hintergrund. Das seitliche
-     Polster gibt ihm Luft, die negative Marge nimmt sie am rechten Rand wieder zurück –
-     so bleibt die Beschriftung bündig mit der Inhaltskante und springt beim Hover nicht. */
   padding: 2px 6px; margin-right: -6px; border-radius: 5px;
-  width: auto; height: auto; min-height: 0; line-height: 1; cursor: pointer;
+  line-height: 1; cursor: pointer;
 }
-.bt-sec-action:hover { color: var(--text-accent-hover); background: var(--background-modifier-hover); box-shadow: none; }
-.bt-sec-action:focus-visible { outline: 1px solid var(--text-accent); outline-offset: 2px; }
+.bt-sec-action:hover, .bt-sec-action:focus-visible {
+  color: var(--text-accent-hover); background: var(--background-modifier-hover); outline: none;
+}
 .bt-list { border-top: 1px solid var(--bt-line); margin-top: 6px; padding-top: 0.9em; }
 
 /* Aufgaben-Zeile */

@@ -865,11 +865,17 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
  *  meldet nur bei ausdrücklicher Auswahl). */
 function rescheduleButton(head: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[]): void {
   head.addClass("bt-has-action");
-  const btn = head.createEl("button", { cls: "bt-sec-action", text: t("sec_reschedule") });
-  btn.onclick = (e) => {
+  // Bewusst KEIN <button>: darauf greifen Obsidians App-Styles mit Rahmen, Schatten und
+  // eigener Textfarbe zu, die man einzeln wieder abräumen müsste (und die je nach Theme
+  // trotzdem gewinnen). Span mit role/tabindex wie bei .bt-gcal-more – reiner Text, der
+  // Schrift und Größe der Überschrift erbt und nur über die Akzentfarbe hervorsticht.
+  const btn = head.createSpan({ cls: "bt-sec-action", text: t("sec_reschedule"), attr: { role: "button", tabindex: "0" } });
+  const open = (e: Event): void => {
     e.stopPropagation();   // ein einklappbarer Kopf (head.onclick) darf nicht mitschalten
     openDatePicker(btn, "", (v) => void plugin.rescheduleTasks(tasks, v));
   };
+  btn.onclick = open;
+  btn.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } };
 }
 
 /** Subtask-Baum-Marker in EINEM Durchlauf setzen (statt Nachbar-`:has` in CSS, das breite
