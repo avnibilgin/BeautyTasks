@@ -38,6 +38,7 @@ export interface ViewOptions {
   sort: FilterSort;
   group: FilterGroup;
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
+  showSubtasks: boolean;   // Unteraufgaben in der Liste verschachtelt zeigen (aus = Fortschritts-Badge am Parent)
   sortDir: SortDir;        // Richtung von Sortierung + Gruppen-Reihenfolge
   calMode: CalMode;        // nur im Kalender-Layout: Jahr/Monat/Woche/Tag
   calPanel: boolean;       // nur im Kalender-Layout: Seitenleiste „Undatiert" offen?
@@ -50,7 +51,7 @@ export const DEFAULT_CRITERIA: FilterCriteria = {
   projects: [], projectsNot: [],
   search: "",
 };
-export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, sortDir: "asc", calMode: "month", calPanel: true };
+export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, showSubtasks: false, sortDir: "asc", calMode: "month", calPanel: true };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];

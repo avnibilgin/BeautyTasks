@@ -20,6 +20,7 @@ export function readViewOptions(fm: Record<string, unknown> | Partial<ViewOption
     sort: oneOf<FilterSort>(o.sort, SORTS, DEFAULT_OPTIONS.sort),
     group: oneOf<FilterGroup>(o.group, GROUPS, DEFAULT_OPTIONS.group),
     showDone: o.showDone === true,
+    showSubtasks: o.showSubtasks === true,
     sortDir: oneOf<SortDir>(o.sortDir, SORT_DIRS, DEFAULT_OPTIONS.sortDir),
     calMode: oneOf<CalMode>(o.calMode, CAL_MODES, DEFAULT_OPTIONS.calMode),
     calPanel: o.calPanel !== false,   // Default: offen
@@ -33,6 +34,7 @@ export function writeViewOptions(fm: Record<string, unknown>, o: ViewOptions): v
   setOrDel("sort", o.sort, DEFAULT_OPTIONS.sort);
   setOrDel("group", o.group, DEFAULT_OPTIONS.group);
   setOrDel("showDone", o.showDone, false);
+  setOrDel("showSubtasks", o.showSubtasks, false);
   setOrDel("sortDir", o.sortDir, DEFAULT_OPTIONS.sortDir);
   setOrDel("calMode", o.calMode, DEFAULT_OPTIONS.calMode);
   setOrDel("calPanel", o.calPanel, DEFAULT_OPTIONS.calPanel);

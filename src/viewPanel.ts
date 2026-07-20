@@ -44,6 +44,15 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         sw.onclick = () => apply({ showDone: !o.showDone });
       }
 
+      // Unteraufgaben anzeigen: nur in der Liste sinnvoll (Kanban ist ohnehin flach, der Kalender
+      // verschachtelt nicht). Aus (Default) = Parent zeigt ein Fortschritts-Badge statt der Zeilen.
+      if (o.layout === "list") {
+        const subRow = pop.createDiv({ cls: "bt-panel-row" });
+        subRow.createSpan({ cls: "bt-panel-k", text: t("panel_show_subtasks") });
+        const sw = subRow.createDiv({ cls: "bt-panel-switch" + (o.showSubtasks ? " is-on" : "") });
+        sw.onclick = () => apply({ showSubtasks: !o.showSubtasks });
+      }
+
       // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
       // Überfällig/Heute-Split). „Demnächst" bleibt bewusst eine reine, ungruppierte Termin-Agenda.
       // Der Kalender hat seine Achse (das Datum) fest vorgegeben – Sortieren/Gruppieren wäre dort
@@ -120,7 +129,7 @@ export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): voi
   btn.createSpan({ cls: "bt-anzeige-lbl", text: t("view_display") });
   const o = plugin.pageViewOptions();
   const modified = o.layout !== DEFAULT_OPTIONS.layout || o.sort !== DEFAULT_OPTIONS.sort || o.group !== DEFAULT_OPTIONS.group
-    || o.showDone !== DEFAULT_OPTIONS.showDone || o.sortDir !== DEFAULT_OPTIONS.sortDir;
+    || o.showDone !== DEFAULT_OPTIONS.showDone || o.showSubtasks !== DEFAULT_OPTIONS.showSubtasks || o.sortDir !== DEFAULT_OPTIONS.sortDir;
   if (modified) btn.createSpan({ cls: "bt-anzeige-dot" });
   btn.onclick = () => openViewPanel(btn, plugin);
 }

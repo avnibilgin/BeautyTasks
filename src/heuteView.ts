@@ -31,6 +31,10 @@ const boardScroll = new Map<string, number>();
 // zwangsläufig bei 0. In der Listenansicht stellt sich die Frage nicht: dort ist der Scroller
 // contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
 const colScroll = new Map<string, number>();
+// Bei „Unteraufgaben verstecken": Pfade der Aufgaben, deren Unteraufgaben der Nutzer per Klick auf
+// das Fortschritts-Badge TROTZDEM aufgeklappt hat (Pro-Aufgabe-Ausnahme). Modul-Zustand wie
+// gcalExpanded – überlebt renderMain(); ein Reload startet wieder eingeklappt.
+const subtasksExpanded = new Set<string>();
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -849,7 +853,9 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   const list = sec.createDiv({ cls: "bt-list" });
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash);
+  // EINMAL pro Section lesen (statt pro Zeile) und an renderTask durchreichen.
+  const showSubs = plugin.pageViewOptions().showSubtasks;
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { showSubs });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -927,7 +933,11 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; showSubs?: boolean } = {}): void {
+  // „Unteraufgaben anzeigen": vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
+  // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
+  // Default (undefined) = AUS = verschachtelte Zeilen versteckt, Fortschritts-Badge am Parent.
+  const showSubs = opts.showSubs ?? false;
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
@@ -990,6 +1000,27 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const ic = chip.createSpan({ cls: "bt-comments-ic" }); setIcon(ic, "paperclip");
     chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
   }
+  // Unteraufgaben-Fortschritt: nur wenn „Unteraufgaben anzeigen" AUS ist und die Aufgabe
+  // (nicht-abgebrochene) Kinder hat. list-checks + „erledigt/gesamt". Klick klappt DIESE eine
+  // Aufgabe auf/zu (Pro-Aufgabe-Ausnahme, ohne den globalen Schalter zu ändern) – sonst wären
+  // die Unteraufgaben bei ausgeblendeter Anzeige gar nicht erreichbar (das Modal listet sie nicht).
+  if (!showSubs && !opts.flat && !trash) {
+    const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
+    if (kids.length) {
+      const done = kids.filter((k) => isDone(k.status)).length;
+      const open = subtasksExpanded.has(task.path);
+      const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : ""), attr: { role: "button", tabindex: "0", "aria-label": t("subtasks_progress", done, kids.length) } });
+      setIcon(badge.createSpan({ cls: "bt-subs-ic" }), "list-checks");
+      badge.createSpan({ cls: "bt-subs-n", text: done + "/" + kids.length });
+      const toggle = (e: Event): void => {
+        e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
+        if (open) subtasksExpanded.delete(task.path); else subtasksExpanded.add(task.path);
+        plugin.renderMain();
+      };
+      badge.onclick = toggle;
+      badge.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); } };
+    }
+  }
 
   if (trash) {
     // Papierkorb: rechts zwei Icons – Wiederherstellen + Endgültig löschen (mit Bestätigung).
@@ -1015,9 +1046,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   row.onclick = () => plugin.openEditTask(task);
 
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
-  // und nicht im flachen Kanban-Kartenmodus.
-  if (!trash && !opts.flat) for (const kid of plugin.index.children(task.path)) {
-    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1);
+  // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
+  // wenn diese Aufgabe per Badge-Klick aufgeklappt wurde (subtasksExpanded).
+  const showKids = !trash && !opts.flat && (showSubs || subtasksExpanded.has(task.path));
+  if (showKids) for (const kid of plugin.index.children(task.path)) {
+    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { showSubs });
   }
 }
 
