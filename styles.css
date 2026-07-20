@@ -744,7 +744,7 @@ body {
      Polster nach innen – wie bei Todoist). Oben/unten heben die negativen Margen das Polster
      im LAYOUT auf: die Fläche wächst über den Text hinaus, belegt aber nur dessen Kasten, und
      die Kopfzeile behält die Höhe der übrigen Sektionsköpfe. */
-  padding: 9px 10px; margin: -9px 0 -9px auto; border-radius: 5px;
+  padding: 9px 4px; margin: -9px 0 -9px auto; border-radius: 5px;
   line-height: 1; cursor: pointer;
 }
 .bt-sec-action:hover, .bt-sec-action:focus-visible {
