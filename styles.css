@@ -739,11 +739,12 @@ body {
    Beschriftung bündig mit der Inhaltskante und springt beim Hover nicht. */
 .bt-sec-action {
   color: var(--text-accent);
-  /* Polster in Button-Größe. Die negativen Margen heben es im LAYOUT wieder auf: die Fläche
-     wächst nach allen Seiten über den Text hinaus, belegt aber weiterhin nur dessen Kasten.
-     So bleibt die Beschriftung bündig mit der Inhaltskante UND die Kopfzeile behält die Höhe
-     der übrigen Sektionsköpfe (sonst stünde ausgerechnet „Überfällig" aus der Reihe). */
-  padding: 9px 12px; margin: -9px -12px -9px auto; border-radius: 5px;
+  /* Polster in Button-Größe. Rechts KEINE negative Marge: so endet die Fläche exakt an der
+     Inhaltskante, bündig mit der Trennlinie darunter (die Beschriftung rückt dafür um das
+     Polster nach innen – wie bei Todoist). Oben/unten heben die negativen Margen das Polster
+     im LAYOUT auf: die Fläche wächst über den Text hinaus, belegt aber nur dessen Kasten, und
+     die Kopfzeile behält die Höhe der übrigen Sektionsköpfe. */
+  padding: 9px 10px; margin: -9px 0 -9px auto; border-radius: 5px;
   line-height: 1; cursor: pointer;
 }
 .bt-sec-action:hover, .bt-sec-action:focus-visible {
