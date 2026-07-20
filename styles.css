@@ -743,7 +743,7 @@ body {
      wächst nach allen Seiten über den Text hinaus, belegt aber weiterhin nur dessen Kasten.
      So bleibt die Beschriftung bündig mit der Inhaltskante UND die Kopfzeile behält die Höhe
      der übrigen Sektionsköpfe (sonst stünde ausgerechnet „Überfällig" aus der Reihe). */
-  padding: 5px 10px; margin: -5px -10px -5px auto; border-radius: 5px;
+  padding: 9px 12px; margin: -9px -12px -9px auto; border-radius: 5px;
   line-height: 1; cursor: pointer;
 }
 .bt-sec-action:hover, .bt-sec-action:focus-visible {
