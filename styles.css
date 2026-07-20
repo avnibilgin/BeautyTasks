@@ -736,10 +736,14 @@ body {
   margin-left: auto;
   font: inherit; letter-spacing: inherit;   /* <button> erbt die Schrift nicht von selbst */
   color: var(--text-accent);
-  background: none; border: none; box-shadow: none;
-  padding: 0; width: auto; height: auto; cursor: pointer;
+  background: transparent; border: none; box-shadow: none;
+  /* Reiner Text ohne Rahmen; erst beim Hover der dezente Flächen-Hintergrund. Das seitliche
+     Polster gibt ihm Luft, die negative Marge nimmt sie am rechten Rand wieder zurück –
+     so bleibt die Beschriftung bündig mit der Inhaltskante und springt beim Hover nicht. */
+  padding: 2px 6px; margin-right: -6px; border-radius: 5px;
+  width: auto; height: auto; min-height: 0; line-height: 1; cursor: pointer;
 }
-.bt-sec-action:hover { color: var(--text-accent-hover); background: none; box-shadow: none; }
+.bt-sec-action:hover { color: var(--text-accent-hover); background: var(--background-modifier-hover); box-shadow: none; }
 .bt-sec-action:focus-visible { outline: 1px solid var(--text-accent); outline-offset: 2px; }
 .bt-list { border-top: 1px solid var(--bt-line); margin-top: 6px; padding-top: 0.9em; }
 
