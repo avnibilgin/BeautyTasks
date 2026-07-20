@@ -387,6 +387,13 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         gf.hideDeclined = v; await p.saveSettings(); await feed.refresh(); p.renderMain();
       }));
 
+    // Vorschau-Horizont für „Demnächst". Kein feed.refresh() nötig: „Demnächst" meldet dem Feed
+    // beim Zeichnen selbst den neuen Zeitraum (setRange) und lädt fehlende Monate nach.
+    // Den Zahlenwert zeigt Obsidian von sich aus neben dem Regler (setDynamicTooltip ist veraltet).
+    new Setting(containerEl).setName(t("gcalfeed_horizon")).setDesc(t("gcalfeed_horizon_desc"))
+      .addSlider((sl) => sl.setLimits(1, 12, 1).setValue(gf.upcomingMonths)
+        .onChange(async (v) => { gf.upcomingMonths = v; await p.saveSettings(); p.renderMain(); }));
+
     containerEl.createDiv({ cls: "setting-item-description bt-gcal-hint", text: t("gcalfeed_privacy_hint") });
   }
 
