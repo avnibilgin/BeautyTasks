@@ -738,9 +738,12 @@ body {
    Luft, die negative Marge nimmt sie am rechten Rand wieder zurück – so bleibt die
    Beschriftung bündig mit der Inhaltskante und springt beim Hover nicht. */
 .bt-sec-action {
-  margin-left: auto;
   color: var(--text-accent);
-  padding: 2px 6px; margin-right: -6px; border-radius: 5px;
+  /* Polster in Button-Größe. Die negativen Margen heben es im LAYOUT wieder auf: die Fläche
+     wächst nach allen Seiten über den Text hinaus, belegt aber weiterhin nur dessen Kasten.
+     So bleibt die Beschriftung bündig mit der Inhaltskante UND die Kopfzeile behält die Höhe
+     der übrigen Sektionsköpfe (sonst stünde ausgerechnet „Überfällig" aus der Reihe). */
+  padding: 5px 10px; margin: -5px -10px -5px auto; border-radius: 5px;
   line-height: 1; cursor: pointer;
 }
 .bt-sec-action:hover, .bt-sec-action:focus-visible {
