@@ -973,6 +973,32 @@ body {
   align-items: center;
   gap: 8px;
 }
+/* ── „Bearbeite Aufgabennotiz"-Zeile im Modal-Detailbereich ──
+   Äußere Zeile schiebt den kompakten Button nach rechts; der Button selbst ist die Treffer-
+   und Ankerfläche (daran richtet Obsidian die Seitenvorschau aus). Chevron + Label; Hover löst
+   die native „Seitenvorschau" aus, Klick öffnet die Notiz. */
+.bt-notes-editrow { display: flex; justify-content: flex-end; margin: 4px 0 10px; }
+.bt-notes-edit {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border-radius: 6px;
+  /* Dauerhafter Hintergrund + Rahmen wie die Chips darüber – so bleibt es immer als Button
+     erkennbar. Hover hebt nur den Text an (Rückmeldung ohne harten Wechsel). */
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted); cursor: pointer;
+}
+/* Die native Seitenvorschau (--layer-popover = 30) liegt sonst UNTER dem Modal (--layer-modal
+   = 50) und erscheint dahinter. Solange ein Aufgaben-Modal offen ist (Klasse von onOpen/onClose
+   gesetzt), über das Modal heben. Feste Klasse statt :has(), damit der z-index vom ersten Frame
+   an steht und die Vorschau beim Hovern nicht kurz dahinter aufblitzt. */
+body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal) + 5); }
+.bt-notes-edit:hover, .bt-notes-edit:focus-visible {
+  color: var(--text-normal); border-color: var(--background-modifier-border-hover); outline: none;
+}
+.bt-notes-edit-ic { display: inline-flex; align-items: center; color: var(--text-faint); }
+.bt-notes-edit-ic svg { width: 14px; height: 14px; }
+.bt-notes-edit-lbl { font-size: 0.9em; }
+
 .bt-backlink { font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
 .bt-backlink:hover { color: var(--text-normal); text-decoration: underline; }
 /* Papierkorb-Zeilenaktionen (Wiederherstellen/Löschen) rechts – wie Manage-Aktionen. */

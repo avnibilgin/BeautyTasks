@@ -120,6 +120,10 @@ export default class BeautyTasksPlugin extends Plugin {
 
     this.registerView(VIEW_MAIN, (leaf: WorkspaceLeaf) => new MainView(leaf, this));
     this.registerView(VIEW_NAV, (leaf: WorkspaceLeaf) => new NavView(leaf, this));
+    // Bei „Seitenvorschau" als Quelle anmelden: erscheint dort in den Einstellungen und folgt der
+    // Strg-Vorgabe des Nutzers. defaultMod:false, weil das Icon der ausdrückliche Auslöser ist –
+    // ein Strg-Zwang wäre hier unnötige Reibung (auf einem Wikilink im Text gilt weiter die Vorgabe).
+    this.registerHoverLinkSource("beautytasks", { display: "BeautyTasks", defaultMod: false });
 
     this.addRibbonIcon("check-circle", t("ribbon_open"), () => void this.openBeautyTasks());
     this.addSettingTab(new BeautyTasksSettingTab(this.app, this));

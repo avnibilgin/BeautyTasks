@@ -1,4 +1,4 @@
-import { Modal, TFile, Notice, setIcon, Platform } from "obsidian";
+import { Modal, TFile, Notice, setIcon, Platform, HoverPopover } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
 import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, TaskFields } from "./taskService";
@@ -27,6 +27,7 @@ export class TaskModal extends Modal {
   private projektBtn!: HTMLButtonElement;
   private titleInput!: HTMLInputElement;   // fuer unparseDue: Auslöser im Titel escapen
   private detailsWrap!: HTMLElement;
+  hoverPopover: HoverPopover | null = null;   // macht das Modal zum HoverParent (native „Seitenvorschau")
   private logWrap!: HTMLElement;
   private detailsChip?: HTMLElement;   // Büroklammer-Chip, der die Detail-Sektion toggelt
   private log!: DetailLogView;         // Kommentar-Log (gemeinsame Komponente)
@@ -74,6 +75,11 @@ export class TaskModal extends Modal {
   onOpen(): void {
     const { contentEl, modalEl } = this;
     modalEl.addClass("bt-task-modal");
+    // Klasse auf <body>, solange dieses Modal offen ist: hebt die native „Seitenvorschau" per CSS
+    // über das Modal (sonst erschiene sie dahinter). Bewusst eine feste Klasse statt body:has(...) –
+    // die :has-Auswertung kann einen Frame nachhinken, wodurch die Vorschau beim Hovern kurz
+    // hinter dem Modal aufblitzt und dann nach vorne springt (das gemeldete Ruckeln).
+    document.body.addClass("bt-task-modal-open");
     modalEl.toggleClass("bt-chips-icons-only", this.plugin.settings.chipsIconsOnly);   // nur Chip-Icons
     contentEl.empty();
 
@@ -85,7 +91,8 @@ export class TaskModal extends Modal {
     title.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void this.save(); } };
     window.setTimeout(() => title.focus(), 0);
 
-    // Beschreibung: freier Markdown-Text, im Body zwischen Titel und Kommentar-Log.
+    // Beschreibung: kurzer Zusatztext im FRONTMATTER (`description`) – die einzeilige Vorschau
+    // auf der Karte. Der Notiz-Body ist etwas anderes und hängt weiter unten als „Notizen".
     const desc = contentEl.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "1" } });
     desc.value = this.f.description ?? "";
     desc.oninput = () => { this.f.description = desc.value; this.growDesc(); };
@@ -99,6 +106,12 @@ export class TaskModal extends Modal {
     // lebt im Body der Aufgaben-Notiz. Vor renderChips() anlegen, damit der Details-Chip
     // seinen Offen/Zu-Zustand aus logWrap lesen kann.
     this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
+    // Aufgabennotiz = der NOTIZ-BODY. Bewusst KEIN eigenes Eingabefeld: bearbeitet wird in
+    // Obsidian selbst. Diese Zeile stößt bei Hover Obsidians „Seitenvorschau" an (hover-link)
+    // und öffnet bei Klick die volle Notiz. Nur bei bestehenden Aufgaben – eine neue Notiz
+    // existiert beim Erfassen noch nicht.
+    if (this.existing) this.renderNotesLink(this.detailsWrap.createDiv({ cls: "bt-notes-editrow" }));
+
     this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
     this.log = new DetailLogView(this.app, this.plugin, {
       srcPath: () => this.logSrc(),
@@ -154,6 +167,7 @@ export class TaskModal extends Modal {
     // persist() ist gegen Doppel-Schreiben geschützt (this.persisted) und braucht kein DOM.
     if (!this.discarding) void this.persist();
     this.log?.unload();
+    document.body.removeClass("bt-task-modal-open");
     this.contentEl.empty();
   }
 
@@ -162,6 +176,30 @@ export class TaskModal extends Modal {
     const el = this.descInput; if (!el) return;
     el.setCssStyles({ height: "auto" });
     el.setCssStyles({ height: Math.min(el.scrollHeight, 200) + "px" });
+  }
+
+  /** „Bearbeite Aufgabennotiz"-Zeile (Chevron + Label). Hover zeigt Obsidians native
+   *  „Seitenvorschau" der Notiz, Klick/Tab öffnet sie voll im Editor. Das Modal ist dabei der
+   *  HoverParent (hoverPopover-Feld). Bearbeitet wird ausschließlich dort – kein eigenes Feld.
+   *  `targetEl` ist bewusst das KOMPAKTE Icon+Label (nicht die volle Zeile): Obsidian richtet
+   *  die Vorschau daran aus, sonst landet sie am linken Rand weit weg vom Button. */
+  private renderNotesLink(row: HTMLElement): void {
+    const file = this.existing && this.app.vault.getAbstractFileByPath(this.existing.path);
+    if (!(file instanceof TFile)) { row.remove(); return; }
+    const btn = row.createSpan({ cls: "bt-notes-edit", attr: { role: "button", tabindex: "0" } });
+    setIcon(btn.createSpan({ cls: "bt-notes-edit-ic" }), "chevron-down");   // links vor dem Text
+    btn.createSpan({ cls: "bt-notes-edit-lbl", text: t("notes_edit") });
+    // mouseENTER, nicht mouseover: mouseover feuert bei jedem Wechsel über die Kind-Spans
+    // (Icon/Label) und beim Wiedereintritt erneut -> jeder Aufruf baut die Vorschau neu auf
+    // (das Ruckeln). mouseenter feuert genau EINMAL beim Betreten und ignoriert die Kinder.
+    btn.addEventListener("mouseenter", (e) => {
+      this.app.workspace.trigger("hover-link", {
+        event: e, source: "beautytasks", hoverParent: this, targetEl: btn, linktext: file.path, sourcePath: file.path,
+      });
+    });
+    const open = (): void => { void this.app.workspace.getLeaf("tab").openFile(file); this.close(); };
+    btn.onclick = open;
+    btn.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   }
 
   /** Natural-Language: Datum + #Labels aus dem Titel erkennen und übernehmen.
@@ -532,8 +570,6 @@ export class TaskModal extends Modal {
           // -> kein Umbenennen (bricht sonst Eltern-Links) und keine Längenbegrenzung.
           await this.app.vault.process(file, (c) => c.replace(/^#\s+.*$/m, () => "# " + title));
         }
-        // Beschreibung steht im Frontmatter (siehe set("description") oben) – der Notiz-Body
-        // (eigener Inhalt einer umgewandelten Notiz) bleibt hier bewusst unangetastet.
       }
     } else {
       const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null });
