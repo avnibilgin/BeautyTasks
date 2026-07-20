@@ -468,7 +468,14 @@ body {
    liegt jetzt UNTER dem Eingabefeld (siehe .bt-foot::before weiter unten). */
 .bt-task-modal .bt-log-list:empty { display: none; }
 .bt-task-modal .bt-log-list:empty + .bt-log-composer { margin-top: 0; }
-.bt-task-modal .bt-log-input { flex: 1; resize: none; min-height: 34px; max-height: 220px; font-size: 0.9em; line-height: 1.4; }
+.bt-task-modal .bt-log-input {
+  flex: 1; resize: none; min-height: 34px; max-height: 220px; font-size: 0.9em; line-height: 1.4;
+  /* Als Eingabefeld erkennbar – gleiche Form-Field-Optik wie die übrigen Inputs im Plugin
+     (statt Obsidians flachem Textarea-Default). Fokus-/Drop-Rahmen greifen darauf auf (s. u.). */
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px; padding: 6px 10px;
+}
 /* Dezenter Fokus statt Obsidians grellem Akzent-Glow – wie die übrigen Felder. */
 .bt-task-modal .bt-log-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
 .bt-task-modal .bt-log-input.bt-drop { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px var(--interactive-accent) inset; }
