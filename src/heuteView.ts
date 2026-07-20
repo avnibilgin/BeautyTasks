@@ -14,7 +14,7 @@ import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manag
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
-import { DayEvent, bucketEvents, addDays } from "./calendarModel";
+import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
@@ -160,7 +160,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // Termine des Vorschauzeitraums (read-only). Der Feed lädt diesen Bereich nach (Listen-Layout
     // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
     // Gruppe – „Demnächst" wird so zur ehrlichen Wochenplanungs-Fläche.
-    const eventEnd = addDays(today, UPCOMING_EVENT_HORIZON_DAYS);
+    const eventEnd = upcomingEventEnd(plugin, today);
     plugin.gcalFeed?.setRange(today, eventEnd);
     const evByDate = feedEventsByDate(plugin, today, eventEnd);
     if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
@@ -763,8 +763,13 @@ function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> 
 }
 
 // ── Google-Termine als Bänder in der Liste (read-only) ─────────────────────────
-/** Wie weit „Demnächst" Termine OHNE zugehörige Aufgabe als eigenen Tag zeigt (≈ 5 Wochen). */
-const UPCOMING_EVENT_HORIZON_DAYS = 34;
+/** Wie weit „Demnächst" Termine zeigt – einstellbar (`upcomingMonths`, Vorgabe 1 Monat).
+ *  Geklemmt auf 1–12: schützt gegen eine von Hand verbogene data.json und hält den Wert
+ *  innerhalb dessen, was MAX_MONTHS/MAX_STORE im Feed tatsächlich laden und halten können. */
+function upcomingEventEnd(plugin: BeautyTasksPlugin, today: string): string {
+  const months = Math.min(12, Math.max(1, plugin.settings.gcalFeed?.upcomingMonths ?? 1));
+  return addMonths(today, months);
+}
 
 /** Die Termine EINES Tages aus dem Feed, tagegenau zugeschnitten. Leer, wenn der Feed aus/leer ist. */
 function dayEvents(plugin: BeautyTasksPlugin, day: string): DayEvent[] {

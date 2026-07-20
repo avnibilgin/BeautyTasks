@@ -29,8 +29,12 @@ import { t } from "./i18n";
 
 const POLL_MS = 5 * 60 * 1000;    // ruhiger Refresh – nur wenn eine BeautyTasks-Ansicht sichtbar ist
 const PAD_DAYS = 7;               // Rand je Monatsfenster (Termine über die Monatsgrenze)
-const MAX_MONTHS = 6;             // Deckel je Anfrage: eine Aufgabe in 2028 darf kein Jahr laden
-const MAX_STORE = 3000;           // Notbremse gegen fette Kalender (Speicher)
+// ► MAX_MONTHS und MAX_STORE hängen am Vorschau-Regler (`upcomingMonths`, 1–12 Monate) und
+//   dürfen NICHT einzeln zurückgesetzt werden – beide Deckel würden den Regler still aushebeln:
+//   ein zu kleines MAX_MONTHS lädt die fernen Monate gar nicht erst, ein zu kleines MAX_STORE
+//   lässt prune() genau die fernsten Termine wieder wegwerfen (also die, die der Regler zeigen soll).
+const MAX_MONTHS = 13;            // Deckel je Anfrage; 12 Monate Horizont überspannen 13 Monatsfenster
+const MAX_STORE = 12000;          // Notbremse gegen fette Kalender (Speicher); deckt 12 Monate × mehrere Kalender
 const SNAPSHOT_MAX = 500;         // Deckel für data.json
 
 // ── Persistierte Einstellungen (Unter-Objekt von BeautyTasksSettings) ─────────
@@ -38,6 +42,7 @@ export interface GCalFeedSettings {
   enabled: boolean;                      // Termine anzeigen
   calendars: Record<string, boolean>;    // calendarId -> sichtbar
   hideDeclined: boolean;                 // abgelehnte Einladungen ausblenden
+  upcomingMonths: number;                // Vorschau in „Demnächst": 1–12 Monate (siehe MAX_MONTHS/MAX_STORE)
   snapshot: CalEvent[];                  // letzter Stand für Kaltstart/Offline (gedeckelt)
 }
 
@@ -45,6 +50,7 @@ export const DEFAULT_GCAL_FEED_SETTINGS: GCalFeedSettings = {
   enabled: false,
   calendars: {},
   hideDeclined: true,
+  upcomingMonths: 1,
   snapshot: [],
 };
 
