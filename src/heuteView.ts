@@ -1,11 +1,11 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, FilterGroup, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -145,7 +145,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts.sortDir).filter((g) => g.tasks.length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
         const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today); };
@@ -338,50 +338,6 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { label });
 }
 
-/**
- * Aufgaben eines Filter-Boards in Abschnitte gruppieren. Die Reihenfolge INNERHALB einer Gruppe
- * bringt bereits sortTasks() mit (inkl. Richtung).
- *
- * Die Reihenfolge der GRUPPEN ist dagegen fest und richtungsunabhängig: „Überfällig → Heute →
- * Demnächst → Kein Datum" ist eine Semantik (dringend zuerst), keine Skala – umgedreht ergäbe sie
- * keinen Sinn. Ebenso Priorität (P1→P4) und Label/Projekt (alphabetisch). Die Sortierrichtung
- * betrifft nur die Aufgaben unter den Überschriften.
- */
-function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup, today: string): { title: string; tasks: Task[] }[] {
-  if (group === "none") return [{ title: t("sec_tasks"), tasks }];
-  const buckets = new Map<string, { key: string; title: string; tasks: Task[]; order: number }>();
-  const push = (key: string, title: string, order: number, tk: Task): void => {
-    let b = buckets.get(key);
-    if (!b) { b = { key, title, tasks: [], order }; buckets.set(key, b); }
-    b.tasks.push(tk);
-  };
-  const prioKey = (p: string): string => p === "highest" ? "prio_1" : p === "high" ? "prio_2" : p === "medium" ? "prio_3" : "prio_4";
-  const prioOrder = (p: string): number => p === "highest" ? 0 : p === "high" ? 1 : p === "medium" ? 2 : 3;
-  for (const tk of tasks) {
-    if (group === "date" || group === "deadline") {
-      const d = group === "date" ? tk.due : tk.scheduled;   // „Datum" = due, „Deadline" = scheduled
-      if (d && d < today) push("overdue", t("sec_overdue"), 0, tk);
-      else if (d === today) push("today", groupLabel(today, today), 1, tk);   // „18. Jul · Heute · Samstag" – konsistent zu Gruppierung „Keine"
-      else if (d && d > today) push("upcoming", t("sec_upcoming"), 2, tk);
-      else push("nodate", t("sec_no_date"), 3, tk);
-    } else if (group === "priority") {
-      const k = prioKey(tk.priority);
-      push(k, t(k), prioOrder(tk.priority), tk);
-    } else if (group === "label") {
-      if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, tk);
-      else push("nolabel", t("no_label"), 0, tk);
-    } else {   // project – „nicht einsortiert" (kein Projekt ODER Inbox-Verweis) in EINEN Eingang-Bucket
-      if (tk.project && !isInboxLink(tk.project)) { const nm = projectName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, tk); }
-      else push("noproject", t("nav_inbox"), 0, tk);
-    }
-  }
-  // „Kein Datum" / „Kein Label" / „Kein Projekt" immer ans Ende – kein Wert auf der Skala,
-  // sondern dessen Abwesenheit (wie undatierte Aufgaben in sortTasks()).
-  const isRest = (k: string): number => (k === "nodate" || k === "nolabel" || k === "noproject" ? 1 : 0);
-  return [...buckets.values()].sort((a, b) =>
-    isRest(a.key) - isRest(b.key) || a.order - b.order || a.title.localeCompare(b.title));
-}
-
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
@@ -408,7 +364,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
-  for (const g of filterGroups(plugin, sorted, opts.group, today)) {
+  for (const g of groupTasks(sorted, opts.group, today, opts.sortDir)) {
     if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
   if (opts.showDone && done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
@@ -753,18 +709,6 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   if (savedLeft) board.scrollLeft = savedLeft;
 }
 
-/** Datums-Überschrift: „18. Jul · Heute · Samstag" / „19. Jul · Morgen · Sonntag" /
- *  „17. Jul · Gestern · Freitag", für sonstige Tage „20. Jul · Montag" (Datum · [rel ·] Wochentag). */
-function groupLabel(dateISO: string, today: string): string {
-  const d = new Date(dateOf(dateISO) + "T00:00");
-  const tn = new Date(dateOf(today) + "T00:00");
-  const diff = Math.round((d.getTime() - tn.getTime()) / 86400000);
-  const sameYear = d.getFullYear() === tn.getFullYear();
-  const datePart = `${d.getDate()}. ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
-  const weekday = new Intl.DateTimeFormat(getLocale(), { weekday: "long" }).format(d);
-  const rel = diff === 0 ? t("date_today") : diff === 1 ? t("date_tomorrow") : diff === -1 ? t("date_yesterday") : null;
-  return [datePart, rel, weekday].filter(Boolean).join(" · ");
-}
 
 /** Alle Pfade, die in dieser Ansicht real gerendert werden: die Anker-Aufgaben plus ihre
  *  (nicht abgebrochenen) Nachfahren, die renderTask verschachtelt zeichnet. Basis für
