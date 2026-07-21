@@ -552,15 +552,17 @@ body {
 }
 .bt-task-modal .bt-st-add:focus-within .bt-st-add-ic { color: var(--interactive-accent); }
 /* Nachgestellte Aktion – gleiche Groesse und Optik wie die Aktionen der Kommentar-Zeile
-   (.bt-log-attach/.bt-log-add), damit beide Erfassungszeilen rechts gleich enden. */
+   (.bt-log-attach/.bt-log-add), damit beide Erfassungszeilen rechts gleich enden.
+   `padding: 0` ist PFLICHT, nicht Kosmetik: Obsidians Button-Default bringt reichlich Padding
+   mit, und mit `box-sizing: border-box` frisst das die feste 30px-Box von innen auf – das Icon
+   wird auf einen Rest zusammengedrueckt. Gleiches Muster wie .bt-qa-icon in der Schnelleingabe. */
 .bt-task-modal .bt-st-full {
   flex: 0 0 auto; margin-left: 3px; cursor: pointer; color: var(--text-muted);
   background: transparent; box-shadow: none;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; min-height: 0; border-radius: 6px; line-height: 1;
+  width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 6px; line-height: 1;
 }
 .bt-task-modal .bt-st-full:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
-.bt-task-modal .bt-st-full .svg-icon { width: 14px; height: 14px; }
 
 /* Zähler am Details-Chip (Büroklammer): erledigt/gesamt der Unteraufgaben. */
 .bt-task-modal .bt-chip-badge { font-size: 0.85em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
@@ -639,9 +641,16 @@ body {
 .bt-task-modal .bt-log-composer-actions { display: flex; gap: 4px; margin-left: 3px; }
 .bt-task-modal .bt-log-attach, .bt-task-modal .bt-log-add {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+  width: 30px; height: 30px; padding: 0; border-radius: 6px; cursor: pointer;
   background: transparent; box-shadow: none; color: var(--text-muted);
 }
+/* Eine Glyphengroesse fuer ALLE Aktions-Buttons der beiden Erfassungszeilen (⤢ · Anhang ·
+   Verknuepfen · Senden). Explizit statt Obsidians geerbtem --icon-size: der Wert haengt sonst
+   am Theme, und genau daraus entstand die Ungleichheit – das ⤢ war fest auf 14px gesetzt,
+   die drei Nachbarn liefen auf dem Default (~18px). 16px wie .bt-qa-icon. */
+.bt-task-modal .bt-st-full svg,
+.bt-task-modal .bt-log-attach svg,
+.bt-task-modal .bt-log-add svg { width: 16px; height: 16px; }
 .bt-task-modal .bt-log-attach:hover, .bt-task-modal .bt-log-add:hover {
   color: var(--text-normal); background: var(--background-modifier-hover);
 }
