@@ -655,6 +655,18 @@ body {
    Ueberfahren erscheinen (Unteraufgabe loeschen, Kommentar bearbeiten/loeschen), waeren sonst
    nicht nur klein, sondern gar nicht erreichbar – sie werden hier dauerhaft sichtbar. */
 @media (pointer: coarse) {
+  /* Chip-Leiste: `height` ist fest gesetzt und muss deshalb ueberschrieben werden – min-height
+     allein bliebe wirkungslos. Der quadratische „+"-Button und die Icon-only-Chips wachsen
+     mit, sonst blieben sie 28px breit neben 44px hohen Nachbarn. */
+  .bt-task-modal .bt-chip { height: 44px; padding: 0 12px; }
+  .bt-task-modal .bt-chip-actions,
+  .bt-task-modal.bt-chips-icons-only .bt-chip:not(.is-set) { width: 44px; }
+  /* Das ✕ im Chip ist eine EIGENE Aktion (Wert leeren) innerhalb einer Aktion (Chip oeffnen).
+     44px wuerden hier den halben Chip verschlucken, darum die uebliche Technik: Padding zieht
+     die Trefferflaeche auf, negatives Margin nimmt sie aus dem Layout wieder heraus – optisch
+     unveraendert, aber ~29px statt 13px zum Treffen. */
+  .bt-task-modal .bt-chip-x { padding: 8px; margin: -8px -8px -8px -7px; }
+
   .bt-task-modal .bt-log-attach,
   .bt-task-modal .bt-log-add,
   .bt-task-modal .bt-st-full { width: 44px; height: 44px; border-radius: 8px; }
