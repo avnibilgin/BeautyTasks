@@ -10,7 +10,7 @@ import { DetailLogView } from "./detailLogView";
 import { SubtaskList } from "./subtaskList";
 import { ConfirmModal } from "./confirmModal";
 import { firstOpenStatus, isTrashed } from "./statuses";
-import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
+import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
@@ -84,7 +84,7 @@ export class TaskModal extends Modal {
     // die :has-Auswertung kann einen Frame nachhinken, wodurch die Vorschau beim Hovern kurz
     // hinter dem Modal aufblitzt und dann nach vorne springt (das gemeldete Ruckeln).
     document.body.addClass("bt-task-modal-open");
-    modalEl.toggleClass("bt-chips-icons-only", this.plugin.settings.chipsIconsOnly);   // nur Chip-Icons
+    modalEl.toggleClass("bt-chips-icons-only", chipsCompact(this.plugin.settings));   // nur Chip-Icons (auf Mobile immer)
     contentEl.empty();
 
     // Gegenrichtung zur Unteraufgaben-Sektion: Wer eine Unteraufgabe öffnet, sieht ganz oben,
@@ -304,7 +304,7 @@ export class TaskModal extends Modal {
       surface: "editor",
       rerender: () => this.renderChips(),
       compactLabels: false,
-      iconsOnly: this.plugin.settings.chipsIconsOnly,
+      iconsOnly: chipsCompact(this.plugin.settings),
       applyStatus: (s) => void this.applyStatus(s),
       // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
       pinDue: () => { this.duePinned = true; this.nl.dueSrc = ""; this.nl.timeSrc = ""; },
@@ -345,7 +345,7 @@ export class TaskModal extends Modal {
   private renderDetailsChip(bar: HTMLElement): void {
     const open = !this.logWrap.hasClass("bt-hidden");
     const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : "") });
-    if (this.plugin.settings.chipsIconsOnly) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
+    if (chipsCompact(this.plugin.settings)) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
     const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
     // Unteraufgaben-Stand direkt am Chip: bei zugeklapptem Detailbereich der einzige Hinweis,
