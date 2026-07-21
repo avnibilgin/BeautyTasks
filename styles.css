@@ -647,6 +647,51 @@ body {
 .bt-task-modal .bt-log-composer:focus-within .bt-log-add:hover,
 .bt-task-modal .bt-log-composer.has-text .bt-log-add:hover { background: var(--interactive-accent-hover); }
 
+/* ── Touch: Trefferflaechen im Detailbereich ────────────────────────────────────────────
+   Nur fuer grobe Zeiger (Finger/Stift) – `pointer: coarse` beschreibt das EINGABEGERAET, nicht
+   die Fensterbreite. Ein schmales Desktop-Fenster bleibt also fein, ein grosses Tablet nicht.
+   Die Maus-Optik ist damit unangetastet; 44px-Kaesten waeren dort unnoetig grob.
+   Zweiter, wichtigerer Punkt: auf Touch gibt es kein :hover. Aktionen, die am Desktop erst beim
+   Ueberfahren erscheinen (Unteraufgabe loeschen, Kommentar bearbeiten/loeschen), waeren sonst
+   nicht nur klein, sondern gar nicht erreichbar – sie werden hier dauerhaft sichtbar. */
+@media (pointer: coarse) {
+  .bt-task-modal .bt-log-attach,
+  .bt-task-modal .bt-log-add,
+  .bt-task-modal .bt-st-full { width: 44px; height: 44px; border-radius: 8px; }
+
+  .bt-task-modal .bt-st-del,
+  .bt-task-modal .bt-log-act {
+    width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 8px;
+  }
+  /* Kein :hover auf Touch -> die am Desktop eingeblendeten Aktionen dauerhaft zeigen. Die
+     Deckkraft liegt beim Kommentar am CONTAINER (.bt-log-actions), bei der Unteraufgabe am
+     Button selbst (.bt-st-del) – beide muessen gesetzt werden. */
+  .bt-task-modal .bt-log-actions,
+  .bt-task-modal .bt-st-del { opacity: 1; }
+
+  .bt-task-modal .bt-sec-toggle,
+  .bt-task-modal .bt-sec-act,
+  .bt-task-modal .bt-parent-crumb { min-height: 44px; }
+
+  .bt-task-modal .bt-st-input { height: 44px; }
+  .bt-task-modal .bt-log-input { min-height: 44px; }
+  /* Das fuehrende „+" sitzt am Desktop auf der ersten Textzeile des gewachsenen Feldes; bei
+     44px Mindesthoehe liegt diese Zeile tiefer. */
+  .bt-task-modal .bt-log-composer-ic { margin-top: 15px; }
+
+  /* Unteraufgaben-Zeile hoeher, damit die Trefferflaeche der Checkbox INNERHALB der eigenen
+     Zeile wachsen kann. Wuerde sie darueber hinausreichen, ueberlappten sich die Flaechen
+     benachbarter Zeilen und ein Tippen traefe mal die eine, mal die andere. */
+  .bt-task-modal .bt-st-row { padding-top: 12px; padding-bottom: 12px; }
+  /* Die 13px-Checkbox bleibt sichtbar wie sie ist (sie gehoert zum Listen-Design) – vergroessert
+     wird nur die Trefferflaeche ueber ein Pseudo. Nach rechts bewusst knapp: reichte sie bis an
+     den Titel, wuerde ein Tippen auf den Textanfang die Aufgabe abhaken statt sie zu oeffnen. */
+  .bt-task-modal .bt-st-row .bt-check { position: relative; }
+  .bt-task-modal .bt-st-row .bt-check::before {
+    content: ""; position: absolute; top: -12px; bottom: -12px; left: -6px; right: -6px;
+  }
+}
+
 .bt-task-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 /* Bei offenem Detailbereich: volle Trennlinie ÜBER der Fußzeile (unter dem Eingabefeld),
    randlos wie .bt-chips::after. NUR wenn Details offen ist – sonst liefert die chips::after-Linie
