@@ -453,11 +453,14 @@ body {
   height: auto; min-height: 0; line-height: 1.4;
 }
 .bt-task-modal .bt-st-toggle:hover, .bt-task-modal .bt-st-donetog:hover { background: var(--background-modifier-hover); }
+/* Die Kopfzeile steht ueber den Unteraufgaben-Zeilen (.bt-st-lbl, 0.9em) und ist deshalb
+   durchgaengig eine Spur groesser — Chevron, Titel, Zaehler und der Erledigt-Schalter
+   zusammen als EINE Ebene. */
 .bt-task-modal .bt-st-caret { display: inline-flex; color: var(--text-muted); }
-.bt-task-modal .bt-st-caret svg { width: 15px; height: 15px; }
-.bt-task-modal .bt-st-title { font-size: 0.86em; font-weight: 600; color: var(--text-normal); }
-.bt-task-modal .bt-st-count { font-size: 0.8em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.bt-task-modal .bt-st-donetog { font-size: 0.78em; color: var(--text-muted); font-weight: 500; }
+.bt-task-modal .bt-st-caret svg { width: 18px; height: 18px; }
+.bt-task-modal .bt-st-title { font-size: 1em; font-weight: 600; color: var(--text-normal); }
+.bt-task-modal .bt-st-count { font-size: 0.92em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-task-modal .bt-st-donetog { font-size: 0.88em; color: var(--text-muted); font-weight: 500; }
 .bt-task-modal .bt-st-donetog:hover { color: var(--text-normal); }
 
 .bt-task-modal .bt-st-body { margin-top: 2px; }
