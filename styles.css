@@ -429,8 +429,110 @@ body {
 }
 .bt-task-modal.bt-chips-icons-only .bt-chip:not(.is-set) .bt-chip-lbl { display: none; }
 
-/* Details = Kommentar-Log (Timeline + Composer) – portiert aus Tasks-Style.css .am-log-* */
+/* Breadcrumb über dem Titel: zu welcher Hauptaufgabe gehört diese Unteraufgabe. */
+.bt-task-modal .bt-parent-crumb {
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 2px;
+  color: var(--text-muted); font-size: 0.82em; cursor: pointer; border-radius: 4px; padding: 1px 3px;
+}
+.bt-task-modal .bt-parent-crumb:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-task-modal .bt-parent-crumb:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.bt-task-modal .bt-parent-ic { display: inline-flex; }
+.bt-task-modal .bt-parent-ic svg { width: 13px; height: 13px; }
+.bt-task-modal .bt-parent-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+
+/* Details = Unteraufgaben + Notiz-Link + Kommentar-Log (Timeline + Composer). */
 .bt-task-modal .bt-details { margin: 0 0 12px; }
+
+/* ── Unteraufgaben-Sektion (oberster Teil des Detailbereichs) ── */
+.bt-task-modal .bt-st { margin-top: 8px; }
+.bt-task-modal .bt-st-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bt-task-modal .bt-st-toggle,
+.bt-task-modal .bt-st-donetog {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 5px;
+  background: transparent; box-shadow: none; border-radius: 5px; cursor: pointer;
+  height: auto; min-height: 0; line-height: 1.4;
+}
+.bt-task-modal .bt-st-toggle:hover, .bt-task-modal .bt-st-donetog:hover { background: var(--background-modifier-hover); }
+.bt-task-modal .bt-st-caret { display: inline-flex; color: var(--text-muted); }
+.bt-task-modal .bt-st-caret svg { width: 15px; height: 15px; }
+.bt-task-modal .bt-st-title { font-size: 0.86em; font-weight: 600; color: var(--text-normal); }
+.bt-task-modal .bt-st-count { font-size: 0.8em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-task-modal .bt-st-donetog { font-size: 0.78em; color: var(--text-muted); font-weight: 500; }
+.bt-task-modal .bt-st-donetog:hover { color: var(--text-normal); }
+
+.bt-task-modal .bt-st-body { margin-top: 2px; }
+.bt-task-modal .bt-st-row {
+  display: flex; align-items: flex-start; gap: 9px; padding: 6px 4px 6px 6px;
+  border-bottom: 1px solid var(--bt-line-faint);
+}
+.bt-task-modal .bt-st-row:hover { background: var(--background-modifier-hover); border-radius: 6px; }
+/* Kreis auf die erste Textzeile ausrichten (wie in den Listen). */
+.bt-task-modal .bt-st-row .bt-check { margin-top: calc((1lh - 13px) / 2); flex: 0 0 auto; }
+.bt-task-modal .bt-st-main {
+  flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+  cursor: pointer; border-radius: 4px;
+}
+.bt-task-modal .bt-st-main:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.bt-task-modal .bt-st-lbl { font-size: 0.9em; color: var(--text-normal); overflow-wrap: anywhere; }
+.bt-task-modal .bt-st-row.is-done .bt-st-lbl { color: var(--text-muted); text-decoration: line-through; }
+.bt-task-modal .bt-st-meta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px 9px; }
+/* Eigene Chip-Basis: `.bt-chip` gehört im Modal den Eingabe-Chips (Button-Optik), die
+   Listen-Basis `.bt-view .bt-chip` greift hier nicht. Die Icon-Masken (.bt-due/.bt-recur/
+   .bt-label) sind global und werden mitbenutzt. */
+.bt-task-modal .bt-st-chip {
+  display: inline-flex; align-items: center; gap: 4px; line-height: 1.3;
+  font-size: 0.78em; color: var(--text-muted);
+}
+.bt-task-modal .bt-st-chip::before {
+  content: ""; display: inline-block; width: 13px; height: 13px; flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.bt-task-modal .bt-st-chip.bt-recur { color: var(--bt-recur); gap: 0; }
+.bt-task-modal .bt-st-chip.bt-label { color: var(--bt-label); gap: 0; }
+.bt-task-modal .bt-st-kids {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.78em; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.bt-task-modal .bt-st-kids-ic { display: inline-flex; }
+.bt-task-modal .bt-st-kids-ic svg { width: 13px; height: 13px; }
+.bt-task-modal .bt-st-del {
+  flex: 0 0 auto; padding: 2px; border-radius: 5px; cursor: pointer; color: var(--text-muted);
+  background: transparent; box-shadow: none; display: inline-flex; align-items: center;
+  height: auto; min-height: 0; line-height: 1; opacity: 0; transition: opacity .12s;
+}
+.bt-task-modal .bt-st-row:hover .bt-st-del, .bt-task-modal .bt-st-del:focus-visible { opacity: 1; }
+.bt-task-modal .bt-st-del:hover { color: var(--text-error, var(--text-normal)); background: var(--background-modifier-hover); }
+.bt-task-modal .bt-st-del .svg-icon { width: 14px; height: 14px; }
+
+/* Inline-Erfassung: sieht wie eine Zeile aus, ist aber immer eingabebereit. */
+.bt-task-modal .bt-st-add { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 6px; }
+.bt-task-modal .bt-st-add-ic { display: inline-flex; color: var(--text-faint); }
+.bt-task-modal .bt-st-add-ic svg { width: 14px; height: 14px; }
+.bt-task-modal .bt-st-input {
+  flex: 1; min-width: 0; height: 28px; font-size: 0.9em;
+  background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px;
+}
+.bt-task-modal .bt-st-input::placeholder { color: var(--text-faint); }
+.bt-task-modal .bt-st-input:focus {
+  background: var(--background-modifier-form-field);
+  border-color: var(--interactive-accent); box-shadow: none; outline: none;
+}
+.bt-task-modal .bt-st-add:focus-within .bt-st-add-ic { color: var(--interactive-accent); }
+.bt-task-modal .bt-st-full {
+  flex: 0 0 auto; padding: 3px; border-radius: 5px; cursor: pointer; color: var(--text-muted);
+  background: transparent; box-shadow: none; display: inline-flex; align-items: center;
+  height: auto; min-height: 0; line-height: 1;
+}
+.bt-task-modal .bt-st-full:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-task-modal .bt-st-full .svg-icon { width: 14px; height: 14px; }
+
+/* Zähler am Details-Chip (Büroklammer): erledigt/gesamt der Unteraufgaben. */
+.bt-task-modal .bt-chip-badge { font-size: 0.85em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-task-modal .bt-chip-details.is-open .bt-chip-badge { color: inherit; }
+
 .bt-task-modal .bt-log { margin-top: 8px; }
 .bt-task-modal .bt-log-list { max-height: 260px; overflow-y: auto; padding: 2px 2px 2px 16px; position: relative; }
 .bt-task-modal .bt-log-list::before {            /* durchgehende Timeline-Linie */

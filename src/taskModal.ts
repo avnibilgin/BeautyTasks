@@ -7,7 +7,9 @@ import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
 import { readLog } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
-import { firstOpenStatus } from "./statuses";
+import { SubtaskList } from "./subtaskList";
+import { ConfirmModal } from "./confirmModal";
+import { firstOpenStatus, isTrashed } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
@@ -31,6 +33,8 @@ export class TaskModal extends Modal {
   private logWrap!: HTMLElement;
   private detailsChip?: HTMLElement;   // Büroklammer-Chip, der die Detail-Sektion toggelt
   private log!: DetailLogView;         // Kommentar-Log (gemeinsame Komponente)
+  private subs!: SubtaskList;          // Unteraufgaben-Sektion (über dem Kommentar-Log)
+  private subsWrap!: HTMLElement;
   private duePinned = false;          // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
   private cleanTitle = "";            // Titel ohne erkannte Datum-/Label-Token
   private nl: QuickEntryState = emptyQuickEntryState();  // aus dem Titel Erkanntes (trennt es von Manuellem)
@@ -83,6 +87,10 @@ export class TaskModal extends Modal {
     modalEl.toggleClass("bt-chips-icons-only", this.plugin.settings.chipsIconsOnly);   // nur Chip-Icons
     contentEl.empty();
 
+    // Gegenrichtung zur Unteraufgaben-Sektion: Wer eine Unteraufgabe öffnet, sieht ganz oben,
+    // zu welcher Hauptaufgabe sie gehört – und kommt mit einem Klick dorthin.
+    this.renderParentCrumb(contentEl);
+
     const placeholder = this.opts.parent ? t("placeholder_subtask") : t("placeholder_taskname");
     const title = contentEl.createEl("input", { type: "text", cls: "bt-titel", attr: { placeholder } });
     this.titleInput = title;
@@ -106,6 +114,8 @@ export class TaskModal extends Modal {
     // lebt im Body der Aufgaben-Notiz. Vor renderChips() anlegen, damit der Details-Chip
     // seinen Offen/Zu-Zustand aus logWrap lesen kann.
     this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
+    // Unteraufgaben stehen im Detailbereich GANZ OBEN – vor Notiz-Link und Kommentaren.
+    this.subsWrap = this.detailsWrap.createDiv({ cls: "bt-st" });
     // Aufgabennotiz = der NOTIZ-BODY. Bewusst KEIN eigenes Eingabefeld: bearbeitet wird in
     // Obsidian selbst. Diese Zeile stößt bei Hover Obsidians „Seitenvorschau" an (hover-link)
     // und öffnet bei Klick die volle Notiz. Nur bei bestehenden Aufgaben – eine neue Notiz
@@ -120,10 +130,22 @@ export class TaskModal extends Modal {
       close: () => this.close(),
     });
 
+    this.subs = new SubtaskList(this.plugin, {
+      parent: () => this.existing ?? null,
+      projectBase: () => this.f.project ?? null,
+      openTask: (task) => { this.close(); this.plugin.openEditTask(task); },
+      openFullEditor: (title) => this.openSubtaskEditor(title),
+      changed: () => this.renderChips(),   // Badge am Details-Chip nachziehen
+    });
+
     this.applyParse();
     this.renderChips();
+    this.subs.mount(this.subsWrap);
     this.log.mount(this.logWrap);
     this.syncDetails();
+    // Hat die Aufgabe Unteraufgaben, ist der Detailbereich beim Öffnen direkt aufgeklappt –
+    // sonst wären sie (wie bisher) unsichtbar. Gleiche Regel wie bei vorhandenen Kommentaren.
+    if (this.hasSubtasks()) { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); }
     // Bestehende Aufgabe: Log aus dem Notiz-Body laden, bei Inhalt direkt aufgeklappt.
     // (Die Beschreibung kommt bereits aus dem Frontmatter über this.f.description.)
     if (this.existing) {
@@ -166,6 +188,7 @@ export class TaskModal extends Modal {
     // Auto-Speichern beim Wegklicken / Esc / X (nur mit Titel). „Cancel" verwirft bewusst.
     // persist() ist gegen Doppel-Schreiben geschützt (this.persisted) und braucht kein DOM.
     if (!this.discarding) void this.persist();
+    this.subs?.unload();
     this.log?.unload();
     document.body.removeClass("bt-task-modal-open");
     this.contentEl.empty();
@@ -176,6 +199,26 @@ export class TaskModal extends Modal {
     const el = this.descInput; if (!el) return;
     el.setCssStyles({ height: "auto" });
     el.setCssStyles({ height: Math.min(el.scrollHeight, 200) + "px" });
+  }
+
+  /** Hat diese Aufgabe (nicht gelöschte) Unteraufgaben? */
+  private hasSubtasks(): boolean {
+    if (!this.existing) return false;
+    return this.plugin.index.children(this.existing.path).some((k) => !isTrashed(k.status));
+  }
+
+  /** Breadcrumb über dem Titel: „↰ Hauptaufgabe". Nur bei einer Unteraufgabe, deren Eltern-
+   *  Aufgabe noch existiert. Klick wechselt in deren Modal – der aktuelle Stand wird dabei
+   *  wie beim normalen Schließen gespeichert. */
+  private renderParentCrumb(contentEl: HTMLElement): void {
+    const parent = this.existing ? this.parentTask() : null;
+    if (!parent) return;
+    const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") } });
+    setIcon(crumb.createSpan({ cls: "bt-parent-ic" }), "corner-left-up");
+    crumb.createSpan({ cls: "bt-parent-lbl", text: parent.title });
+    const open = (): void => { this.close(); this.plugin.openEditTask(parent); };
+    crumb.onclick = open;
+    crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   }
 
   /** „Bearbeite Aufgabennotiz"-Zeile (Chevron + Label). Hover zeigt Obsidians native
@@ -306,6 +349,10 @@ export class TaskModal extends Modal {
     if (this.plugin.settings.chipsIconsOnly) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
     const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
+    // Unteraufgaben-Stand direkt am Chip: bei zugeklapptem Detailbereich der einzige Hinweis,
+    // dass es überhaupt welche gibt.
+    const p = this.subs?.progress();
+    if (p?.total) chip.createSpan({ cls: "bt-chip-badge", text: p.done + "/" + p.total, attr: { "aria-label": t("subtasks_progress", p.done, p.total) } });
     chip.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
     this.detailsChip = chip;
   }
@@ -332,7 +379,7 @@ export class TaskModal extends Modal {
         if (!Platform.isMobile) row("external-link", t("menu_open_editor"), () => this.openInEditor());
         if (!Platform.isMobile) { pop.createDiv({ cls: "bt-plus-sep" }); row("printer", t("menu_print"), () => this.printTask()); }
         pop.createDiv({ cls: "bt-plus-sep" });
-        row("trash-2", t("btn_delete"), () => void this.remove(), true);
+        row("trash-2", t("btn_delete"), () => this.remove(), true);
         any = true;
       }
       if (any) pop.createDiv({ cls: "bt-plus-sep" });
@@ -504,18 +551,27 @@ export class TaskModal extends Modal {
   }
 
   // ── Unteraufgabe ──
-  /** „＋ Unteraufgabe": schließt dieses Modal und öffnet ein neues, vollwertiges
-   *  Aufgaben-Modal mit ausgeblendetem Projekt-Chip. Projekt = das der Hauptaufgabe,
-   *  parent = Eltern-Titel. Genau wie im alten BeautyTasks. */
+  /** „Unteraufgabe erstellen": klappt den Detailbereich auf und setzt den Cursor in die
+   *  Inline-Erfassung der Unteraufgaben-Sektion. Früher wurde dafür dieses Modal geschlossen
+   *  und ein zweites geöffnet – der Kontext (Hauptaufgabe) ging dabei verloren. */
   private addSubtask(): void {
     if (!this.existing) return;
+    this.logWrap.removeClass("bt-hidden");
+    this.syncDetails();
+    this.subs.focusComposer();
+  }
+
+  /** ⤢ aus der Inline-Erfassung: den getippten Titel im vollen Editor weiterbearbeiten.
+   *  Projekt-Chip ausgeblendet (die Unteraufgabe erbt das Projekt der Hauptaufgabe), der
+   *  Eltern-Link läuft über den Basename (Dateiname) – der Titel kann davon abweichen und
+   *  würde als Wikilink nicht auflösen. */
+  private openSubtaskEditor(title: string): void {
+    if (!this.existing) return;
     const parent = this.existing;
-    const parentProject = parent.project ? parent.project.split("/").pop()!.replace(/\.md$/, "") : undefined;
-    // Eltern-Link über den Basename (Dateiname), NICHT den Titel – der Titel (Überschrift)
-    // kann vom Dateinamen abweichen und würde als Wikilink sonst nicht auflösen.
-    const parentBase = parent.path.split("/").pop()!.replace(/\.md$/, "");
+    const parentProject = parent.project ? baseName(parent.project) : undefined;
+    const parentBase = baseName(parent.path);
     this.close();
-    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase }).open();
+    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase, defaultTitle: title }).open();
   }
 
   // ── Details: Kommentar-Log (gemeinsame Komponente DetailLogView) ──
@@ -577,11 +633,21 @@ export class TaskModal extends Modal {
     }
   }
 
-  private async remove(): Promise<void> {
-    if (!this.existing) return;
-    this.discarding = true;   // Löschen ist kein Bearbeiten -> onClose darf nicht auto-speichern
-    // Kaskade: Aufgabe UND alle Unteraufgaben in den Papierkorb (sonst verwaisen Kinder).
-    await this.plugin.cancelTask(this.existing);
-    this.close();
+  /** Löschen = Aufgabe UND alle Unteraufgaben in den Papierkorb (sonst verwaisen Kinder).
+   *  Weil die Kaskade mehr trifft als die eine sichtbare Aufgabe, fragt das Modal vorher nach –
+   *  ohne die Kinder aufzuzählen, aber mit dem Hinweis, dass sie mitgehen und wiederherstellbar
+   *  sind. Bestätigt wird immer, auch ohne Unteraufgaben: dieselbe Rückfrage an derselben
+   *  Stelle ist verlässlicher als eine, die je nach Aufgabe erscheint oder nicht. */
+  private remove(): void {
+    const task = this.existing;
+    if (!task) return;
+    new ConfirmModal(this.app, {
+      title: t("confirm_delete_title", task.title),
+      message: t("confirm_delete_cascade"),
+    }, () => {
+      this.discarding = true;   // Löschen ist kein Bearbeiten -> onClose darf nicht auto-speichern
+      void this.plugin.cancelTask(task);
+      this.close();
+    }).open();
   }
 }
