@@ -41,6 +41,18 @@ export class DetailLogView {
   /** Beim Anlegen einer neuen Aufgabe: gepufferte Einträge in die frische Datei schreiben. */
   async flush(file: TFile): Promise<void> { if (this.entries.length) await writeLog(this.app, file, this.entries); }
 
+  /** Beim Schliessen des Modals: getippten, aber nicht abgeschickten Kommentar trotzdem
+   *  uebernehmen – „Speichern" darf den Entwurf nicht wortlos verschlucken. Muss VOR dem
+   *  Anlegen einer neuen Aufgabe laufen, damit flush() den Eintrag mitschreibt.
+   *  Wird bei „Abbrechen" NICHT gerufen: dort ist Verwerfen die erwartete Bedeutung. */
+  flushDraft(): void {
+    const v = (this.input?.value || "").trim();
+    if (!v) return;
+    if (this.input) this.input.value = "";   // macht den Aufruf wiederholbar (save() + onClose)
+    this.entries.push({ ts: nowLogTs(), body: v });
+    void this.persistLog();
+  }
+
   /** Kopfzeile + Timeline der Einträge (Zeitstempel + Markdown + Bearbeiten/Löschen) + Composer. */
   render(): void {
     const wrap = this.wrap; wrap.empty();

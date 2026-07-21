@@ -57,6 +57,15 @@ export class SubtaskList {
     this.unsubscribe = null;
   }
 
+  /** Beim Schliessen des Modals: getippten, aber nicht mit Enter bestaetigten Text trotzdem
+   *  anlegen. Ohne das verschwindet die halb erfasste Unteraufgabe wortlos, sobald man statt
+   *  Enter auf „Speichern" klickt – das Feld hat ja bewusst keinen eigenen Senden-Button.
+   *  Wird bei „Abbrechen" NICHT gerufen: dort ist Verwerfen die erwartete Bedeutung. */
+  flushDraft(): void {
+    const raw = this.input?.value.trim() ?? "";
+    if (raw) void this.create(raw);
+  }
+
   /** Eingabefeld anfordern und fokussieren („+"-Menü -> „Unteraufgabe hinzufügen"). Blendet
    *  die Sektion ein, auch wenn die Aufgabe noch keine Unteraufgaben hat – das ist der einzige
    *  Weg dorthin, solange sie leer ist. */
@@ -181,10 +190,12 @@ export class SubtaskList {
       if (e.key === "Enter") { e.preventDefault(); void this.create(inp.value); }
       else if (e.key === "Escape" && inp.value) { e.preventDefault(); e.stopPropagation(); inp.value = ""; }
     };
-    // ⤢: Der getippte Text zieht in den vollen Editor um (dort gibt es alle Chips).
+    // ⤢: Der getippte Text zieht in den vollen Editor um (dort gibt es alle Chips). Das Feld
+    // wird dabei VORHER geleert – sonst legte flushDraft() beim Schliessen dieselbe Unteraufgabe
+    // noch einmal an, und der volle Editor erzeugte gleich darauf die zweite.
     const full = add.createEl("button", { cls: "bt-st-full", attr: { "aria-label": t("qa_open_full"), "data-tooltip-position": "top" } });
     setIcon(full, "maximize-2");
-    full.onclick = () => this.host.openFullEditor(inp.value.trim());
+    full.onclick = () => { const v = inp.value.trim(); inp.value = ""; this.host.openFullEditor(v); };
     if (focus) window.setTimeout(() => inp.focus(), 0);
   }
 

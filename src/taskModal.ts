@@ -183,7 +183,14 @@ export class TaskModal extends Modal {
   onClose(): void {
     // Auto-Speichern beim Wegklicken / Esc / X (nur mit Titel). „Cancel" verwirft bewusst.
     // persist() ist gegen Doppel-Schreiben geschützt (this.persisted) und braucht kein DOM.
-    if (!this.discarding) void this.persist();
+    if (!this.discarding) {
+      // Nicht bestätigte Entwürfe ZUERST: Wer eine Unteraufgabe oder einen Kommentar tippt und
+      // dann „Speichern" drückt statt Enter, erwartet nicht, dass sein Text verschwindet. Vor
+      // persist(), damit eine noch nicht angelegte Aufgabe den Kommentar beim Anlegen mitschreibt.
+      this.subs?.flushDraft();
+      this.log?.flushDraft();
+      void this.persist();
+    }
     this.subs?.unload();
     this.log?.unload();
     document.body.removeClass("bt-task-modal-open");
@@ -583,6 +590,12 @@ export class TaskModal extends Modal {
   /** Explizites Speichern (Button/Enter): bei leerem Titel Hinweis + offen bleiben. */
   private async save(): Promise<void> {
     if (!this.titleValue()) { new Notice(t("err_enter_taskname")); return; }
+    // Entwürfe VOR persist(): Bei einer neuen Aufgabe schreibt persist() den Kommentar-Puffer
+    // in die frisch angelegte Notiz. Käme der Entwurf erst über onClose dazu, wäre dieser
+    // Zug bereits gefahren und der Text verloren. Beide flushDraft() sind mehrfach aufrufbar
+    // (sie leeren ihr Feld), der zweite Aufruf aus onClose läuft also ins Leere.
+    this.subs?.flushDraft();
+    this.log?.flushDraft();
     await this.persist();
     this.close();
   }
