@@ -36,6 +36,7 @@ export class SubtaskList {
   private hideDone = false;     // erledigte Unteraufgaben ausblenden
   private sig = "";             // Signatur der zuletzt gezeichneten Kinder (verhindert Blind-Neuzeichnen)
   private busy = false;         // Anlegen läuft – schützt vor Doppel-Anlage bei schnellem Enter
+  private revealed = false;     // Erfassungszeile per „+"-Menü angefordert (auch ohne Unteraufgaben)
 
   constructor(private plugin: BeautyTasksPlugin, private host: SubtaskHost) {}
 
@@ -56,8 +57,11 @@ export class SubtaskList {
     this.unsubscribe = null;
   }
 
-  /** Eingabefeld fokussieren (Menüpunkt „Unteraufgabe erstellen"). */
+  /** Eingabefeld anfordern und fokussieren („+"-Menü -> „Unteraufgabe hinzufügen"). Blendet
+   *  die Sektion ein, auch wenn die Aufgabe noch keine Unteraufgaben hat – das ist der einzige
+   *  Weg dorthin, solange sie leer ist. */
   focusComposer(): void {
+    this.revealed = true;
     this.collapsed = false;
     this.render();
     this.input?.focus();
@@ -87,23 +91,25 @@ export class SubtaskList {
   render(): void {
     const wrap = this.wrap;
     const parent = this.host.parent();
-    // Neue, noch nicht gespeicherte Aufgabe: Ein Kind braucht eine Elternnotiz zum Verlinken –
-    // die Sektion erscheint deshalb erst nach dem Speichern.
-    wrap.toggleClass("bt-hidden", !parent);
-    if (!parent) { wrap.empty(); this.input = null; return; }
+    const kids = parent ? this.children() : [];
+    // Die Sektion kostet nur Platz, wenn sie etwas zeigt: Ohne Unteraufgaben verschwindet sie
+    // ganz – der Weg dorthin ist dann „+" -> „Unteraufgabe hinzufügen" (setzt revealed).
+    // Eine neue, noch nicht gespeicherte Aufgabe hat gar keine: Ein Kind braucht eine
+    // Elternnotiz, auf die sein `parent`-Link zeigen kann.
+    const show = !!parent && (kids.length > 0 || this.revealed);
+    wrap.toggleClass("bt-hidden", !show);
+    if (!show) { wrap.empty(); this.input = null; return; }
 
     const draft = this.input?.value ?? "";
     const hadFocus = this.input === activeDocument.activeElement;
     wrap.empty();
     this.sig = this.signature();
 
-    const kids = this.children();
     const done = kids.filter((k) => isDone(k.status)).length;
 
     // ── Kopfzeile: Chevron + Titel + Fortschritt, rechts der Erledigt-Schalter ──
-    // Ohne Unteraufgaben bleibt sie WEG: dann steht hier nur die leise Erfassungszeile, statt
-    // jede Aufgabe mit einer Überschrift und einer Trennlinie über einer leeren Liste zu belasten.
-    // Ab der ersten Unteraufgabe kommt sie dazu.
+    // Nur mit Unteraufgaben: beim erstmaligen Anlegen ueber das „+"-Menue steht hier zunaechst
+    // allein die Erfassungszeile, ohne Ueberschrift und Trennlinie ueber einer leeren Liste.
     if (kids.length) {
       const head = wrap.createDiv({ cls: "bt-sec-head" });
       const toggleBtn = head.createEl("button", {

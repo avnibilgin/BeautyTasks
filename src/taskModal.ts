@@ -361,7 +361,10 @@ export class TaskModal extends Modal {
       let any = renderPlusChips(pop, host, anchor, close);
       if (this.existing) {
         if (any) pop.createDiv({ cls: "bt-plus-sep" });
-        row("corner-down-right", t("menu_create_subtask"), () => this.addSubtask());
+        // Bewusst derselbe Schlüssel wie die Erfassungszeile (sub_add): Der Menüpunkt IST der
+        // Weg zu genau dieser Zeile – zwei getrennte Strings würden über zehn Sprachen hinweg
+        // frueher oder spaeter auseinanderlaufen.
+        row("corner-down-right", t("sub_add"), () => this.addSubtask());
         if (this.parentTask()) row("corner-left-up", t("menu_show_parent"), () => this.showParent());
         row("copy", t("menu_duplicate"), () => void this.duplicate());
         pop.createDiv({ cls: "bt-plus-sep" });
