@@ -1,8 +1,8 @@
 import { setIcon } from "obsidian";
 
-/** Einfaches Popover, an activeDocument.body gehängt (eigene Ebene über dem Modal),
- *  schließt bei Klick außerhalb. Wie .am-pop in BeautyTasks. Doc/Win werden beim
- *  Öffnen erfasst (Popout-Kompatibilität, kein activeDocument-Drift bei Cleanup). */
+/** Einfaches Popover auf eigener Ebene über der Oberfläche (im Modal: über dem Modal),
+ *  schließt bei Klick außerhalb. Doc/Win werden beim Öffnen erfasst (Popout-Kompatibilität,
+ *  kein activeDocument-Drift bei Cleanup). */
 /** Lebenden Anker beschaffen: Chip-Leisten werden bei jeder Änderung komplett neu gebaut
  *  (renderChips -> bar.empty()), ein zwischenzeitlich gemerktes Chip-Element ist danach aus
  *  dem DOM gelöst. Dessen getBoundingClientRect() liefert nur Nullen -> das Popover landete
@@ -20,10 +20,16 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   const doc = anchorEl.ownerDocument;
   const win = doc.defaultView ?? activeWindow;
   const anchor = liveAnchor(anchorEl) ?? anchorEl;
-  // Innerhalb eines Modals INS Modal einhängen (sonst reißt Obsidians Fokus-Trap den
-  // Fokus zurück -> Eingabefelder im Popover lassen sich nicht bedienen). position:fixed
-  // bleibt viewport-relativ (kein Transform am .modal), Positionierung stimmt weiterhin.
-  const host = anchor.closest<HTMLElement>(".modal") ?? doc.body;
+  // Innerhalb eines Modals in den .modal-CONTAINER einhängen – nicht in die .modal-Box:
+  // - Fokus: Obsidian setzt scope.setTabFocusContainerEl(containerEl), der Container reicht
+  //   also aus, damit Eingabefelder im Popover bedienbar bleiben (deshalb hing es früher im
+  //   Modal; body allein genügt nicht).
+  // - Clipping: .modal hat von Obsidian `overflow: auto`. Sobald ein Theme dem Modal einen
+  //   backdrop-filter/filter/transform gibt (Milchglas-Modale sind verbreitet), wird es zum
+  //   containing block für position:fixed – das Popover wurde dann an der Modal-Kante
+  //   abgeschnitten und zählte zum Scrollinhalt des Modals. Der Container hat kein overflow.
+  const modalBox = anchor.closest<HTMLElement>(".modal");
+  const host = modalBox?.closest<HTMLElement>(".modal-container") ?? modalBox ?? doc.body;
   const pop = host.createDiv({ cls: "bt-pop" });
   let closed = false;
   const close = () => {
@@ -34,7 +40,6 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
     win.removeEventListener("resize", close);
     onClose?.();
   };
-  const inModal = host !== doc.body;
   const onDoc = (e: MouseEvent) => {
     const t = e.target as Node;
     if (pop.contains(t) || t === anchor || anchor.contains(t)) return;
@@ -44,9 +49,12 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
     const inOtherPop = (t as HTMLElement).closest?.(".bt-pop");
     if (inOtherPop && inOtherPop !== pop) return;
     close();
-    // Klick außerhalb der Modal-Box würde sonst das ganze Modal schließen (und Änderungen
-    // verwerfen) -> diesen einen Klick verschlucken, das Modal bleibt offen.
-    if (inModal && !host.contains(t)) {
+    // Klick außerhalb der Modal-BOX würde sonst das ganze Modal schließen (und Änderungen
+    // verwerfen) -> diesen einen Klick verschlucken, das Modal bleibt offen. Bewusst gegen
+    // modalBox geprüft, nicht gegen host: der Container schließt die Abdunklung (.modal-bg)
+    // mit ein, und genau ein Klick DARAUF beendet das Modal (auf macOS über einen eigenen
+    // Handler an bgEl).
+    if (modalBox && !modalBox.contains(t)) {
       e.stopPropagation();
       let swallow: (ev: MouseEvent) => void;
       const cleanup = () => doc.removeEventListener("click", swallow, true);
@@ -57,10 +65,19 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   };
   build(pop, close);
 
+  // Nullpunkt des containing block ermitteln: Alles unten wird in VIEWPORT-Koordinaten
+  // gerechnet. position:fixed misst normalerweise ab der Viewport-Ecke – ist aber ein
+  // Vorfahr durch backdrop-filter/filter/transform/contain selbst zum containing block
+  // geworden (Themes mit Milchglas-Modalen tun das), zählt left/top ab DESSEN Ecke. Statt
+  // das zu erraten: einmal auf 0/0 setzen, nachmessen, wo das gelandet ist, und den Versatz
+  // am Ende herausrechnen. Ohne solchen Vorfahr ist der Versatz 0 und nichts ändert sich.
+  pop.setCssStyles({ left: "0px", top: "0px" });
+  const org = pop.getBoundingClientRect();
+
   // Letzte Sicherung: ist der Anker trotz allem nicht (mehr) im DOM, hat er eine Nullfläche.
   // Dann NICHT bei 0/0 aufschlagen, sondern am Modal (bzw. Viewport) ausrichten.
   const ar = anchor.getBoundingClientRect();
-  const r = ar.width || ar.height ? ar : host.getBoundingClientRect();
+  const r = ar.width || ar.height ? ar : (modalBox ?? host).getBoundingClientRect();
   const pw = pop.offsetWidth, ph = pop.offsetHeight;
   const maxL = win.innerWidth - pw - 8, maxT = win.innerHeight - ph - 8;
   const clampL = (x: number) => Math.max(8, Math.min(x, maxL));
@@ -81,7 +98,7 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   } else {
     left = clampL(r.left); top = Math.max(8, r.top - ph - 4);
   }
-  pop.setCssStyles({ left: `${left}px`, top: `${top}px` });
+  pop.setCssStyles({ left: `${left - org.left}px`, top: `${top - org.top}px` });
 
   win.setTimeout(() => doc.addEventListener("mousedown", onDoc, true), 0);
   win.addEventListener("resize", close);
