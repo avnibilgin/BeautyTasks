@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Task, Priority } from "../src/types";
-import { groupTasks } from "../src/filterEngine";
+import { groupTasks, visibleRows } from "../src/filterEngine";
 import { groupLabel } from "../src/format";
 import { t } from "../src/i18n";
 
@@ -107,6 +107,45 @@ describe("groupTasks – Richtung", () => {
     const asc = titles(groupTasks(list, "label", TODAY, "asc"));
     expect(asc).toEqual(["#apfel", "#zebra", t("no_label")]);
     expect(titles(groupTasks(list, "label", TODAY, "desc"))).toEqual(asc);
+  });
+});
+
+describe("visibleRows – Wächter und Sektion müssen dieselbe Regel benutzen", () => {
+  it("Unteraufgabe mit sichtbarem Parent zählt nicht als eigene Zeile", () => {
+    const present = new Set(["Items/eltern.md"]);
+    const rows = [mk({ id: "kind", parent: "Items/eltern.md" }), mk({ id: "frei", parent: null })];
+    expect(visibleRows(rows, present).map((x) => x.id)).toEqual(["frei"]);
+  });
+
+  it("Unteraufgabe ohne sichtbaren Parent bleibt eine eigene Zeile", () => {
+    const rows = [mk({ id: "kind", parent: "Items/woanders.md" })];
+    expect(visibleRows(rows, new Set(["Items/eltern.md"])).map((x) => x.id)).toEqual(["kind"]);
+  });
+
+  it("„Kein Datum“ aus lauter verschachtelten Unteraufgaben ist eine LEERE Sektion", () => {
+    // Der gemeldete Fall: undatierte Unteraufgaben datierter Aufgaben landen alle in „Kein
+    // Datum". Die Gruppe ist nicht leer – gezeichnet wird davon aber keine einzige Zeile.
+    // Ein Wächter auf g.tasks.length hätte hier einen Kopf mit „· 0" stehen lassen.
+    const eltern = mk({ id: "eltern", path: "Items/eltern.md", due: "2026-07-22" });
+    const kind = mk({ id: "kind", path: "Items/kind.md", parent: "Items/eltern.md", due: null });
+    const present = new Set([eltern.path, kind.path]);
+
+    const g = groupTasks([eltern, kind], "date", TODAY);
+    expect(titles(g)).toEqual([groupLabel("2026-07-22", TODAY), t("sec_no_date")]);
+
+    const nodate = g[1];
+    expect(nodate.tasks).toHaveLength(1);                    // Gruppe ist NICHT leer …
+    expect(visibleRows(nodate.tasks, present)).toHaveLength(0);   // … zeichnet aber nichts
+  });
+
+  it("bleibt sichtbar, sobald die Gruppe eine echte undatierte Aufgabe enthält", () => {
+    const eltern = mk({ id: "eltern", path: "Items/eltern.md", due: "2026-07-22" });
+    const kind = mk({ id: "kind", path: "Items/kind.md", parent: "Items/eltern.md", due: null });
+    const echt = mk({ id: "echt", path: "Items/echt.md", due: null });
+    const present = new Set([eltern.path, kind.path, echt.path]);
+
+    const nodate = groupTasks([eltern, kind, echt], "date", TODAY)[1];
+    expect(visibleRows(nodate.tasks, present).map((x) => x.id)).toEqual(["echt"]);
   });
 });
 

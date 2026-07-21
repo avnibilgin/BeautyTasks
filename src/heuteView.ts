@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -133,11 +133,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
-        if (overdue.length) {
+        if (visibleRows(overdue, present).length) {
           const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
-          rescheduleButton(overdueHead, plugin, overdue);
+          rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
-        if (dueToday.length || todayEv.length) {
+        if (visibleRows(dueToday, present).length || todayEv.length) {
           section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
         }
       } else {
@@ -145,7 +145,8 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts.sortDir).filter((g) => g.tasks.length);
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts.sortDir)
+          .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
         const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today); };
@@ -161,7 +162,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
-      if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
+      if (opts.showDone && visibleRows(doneToday, present).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
   } else if (view === "demnaechst") {
     // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
@@ -185,8 +186,13 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
       // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
       const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
-      for (const date of dates)
-        section(root, plugin, groupLabel(date, today), tasksByDate.get(date) ?? [], today, false, false, present, evByDate.get(date) ?? [], date);
+      for (const date of dates) {
+        const dayTasks = tasksByDate.get(date) ?? [], dayEv = evByDate.get(date) ?? [];
+        // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
+        // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
+        if (visibleRows(dayTasks, present).length || dayEv.length)
+          section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+      }
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -365,9 +371,9 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
   for (const g of groupTasks(sorted, opts.group, today, opts.sortDir)) {
-    if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+    if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
-  if (opts.showDone && done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+  if (opts.showDone && visibleRows(done, present).length) section(root, plugin, t("sec_done"), done, today, true, false, present);
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
@@ -800,11 +806,7 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
 function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): HTMLElement {
-  // Variante A: Unteraufgaben werden verschachtelt unter ihrem Parent gezeigt, WENN dieser
-  // in der Ansicht vorkommt (present). Fehlt der Parent in der Ansicht, erscheint die
-  // Unteraufgabe eigenständig als eigene Zeile – statt ganz zu verschwinden.
-  // Ohne present (z. B. Papierkorb/Wiederkehrend/Erledigt): altes Verhalten (nur verschachtelt).
-  const top = trash ? tasks : tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)));
+  const top = trash ? tasks : visibleRows(tasks, present);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });

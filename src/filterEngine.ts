@@ -180,6 +180,22 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc"):
   return arr.sort((a, b) => dueAsc(a, b) || (PRIO_RANK[a.priority] - PRIO_RANK[b.priority]));
 }
 
+/**
+ * Die Zeilen, die eine Liste WIRKLICH als eigene Zeile zeichnet (Variante A): Unteraufgaben,
+ * deren Parent in derselben Ansicht vorkommt (`present`), erscheinen verschachtelt unter ihm.
+ * Fehlt der Parent dort, steht die Unteraufgabe eigenständig da – statt zu verschwinden.
+ * Ohne `present` (Papierkorb/Wiederkehrend/Erledigt): altes Verhalten, nur verschachtelt.
+ *
+ * Eigene Funktion, weil ZWEI Stellen dieselbe Regel brauchen: die Sektion beim Zeichnen – und
+ * jeder Aufrufer, der vorher entscheidet, OB die Sektion überhaupt kommt. Liefen die auseinander,
+ * stünde dort ein Kopf mit „· 0" und nichts darunter. Genau das war der Fall bei „Kein Datum":
+ * undatierte Unteraufgaben datierter Aufgaben landen alle in dieser einen Gruppe, gezeichnet
+ * werden sie aber unter ihrem Parent.
+ */
+export function visibleRows(tasks: Task[], present?: Set<string>): Task[] {
+  return tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)));
+}
+
 export interface TaskGroup { title: string; tasks: Task[]; }
 
 /**
