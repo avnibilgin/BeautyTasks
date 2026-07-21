@@ -445,7 +445,12 @@ body {
 
 /* ── Unteraufgaben-Sektion (oberster Teil des Detailbereichs) ── */
 .bt-task-modal .bt-st { margin-top: 8px; }
-.bt-task-modal .bt-st-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* Trennlinie unter der Ueberschrift – bewusst dieselbe wie zwischen den Unteraufgaben
+   (.bt-st-row), damit die Kopfzeile als erste Zeile derselben Liste liest. */
+.bt-task-modal .bt-st-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding-bottom: 5px; border-bottom: 1px solid var(--bt-line-faint);
+}
 .bt-task-modal .bt-st-toggle,
 .bt-task-modal .bt-st-donetog {
   display: inline-flex; align-items: center; gap: 5px; padding: 2px 5px;
