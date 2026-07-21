@@ -146,30 +146,38 @@ export class SubtaskList {
     this.renderComposer(body, draft, hadFocus);
   }
 
-  /** Eine Unteraufgabe: Status-Kreis · Titel · Meta · ✕ (in den Papierkorb). */
+  /** Eine Unteraufgabe – gleicher Aufbau wie eine Zeile der Aufgabenliste (heuteView):
+   *  Status-Kreis links, daneben ein Textblock aus Titel und – DARUNTER – der Meta-Zeile
+   *  (Datum/Wiederholung/Labels). Nicht alles in eine Zeile: sobald ein Titel umbricht,
+   *  rutschten die Chips sonst quer durch den Fließtext. */
   private renderRow(body: HTMLElement, kid: Task): void {
     const row = body.createDiv({ cls: "bt-st-row" + (isDone(kid.status) ? " is-done" : "") });
-    renderCheck(row, this.plugin, kid, { compact: true });
+    // Ohne `compact`: die Liste nimmt fuer Unteraufgaben ebenfalls die normale .bt-check und
+    // verkleinert sie per CSS – so stimmen Ring, Haekchen und Status-Icon exakt ueberein.
+    renderCheck(row, this.plugin, kid);
 
     const main = row.createDiv({ cls: "bt-st-main", attr: { role: "button", tabindex: "0" } });
-    main.createSpan({ cls: "bt-st-lbl", text: kid.title });
+    main.createDiv({ cls: "bt-st-lbl", text: kid.title });
     const open = (): void => this.host.openTask(kid);
     main.onclick = open;
     main.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
 
-    const meta = main.createSpan({ cls: "bt-st-meta" });
+    // Meta-Zeile erst anlegen, wenn sie etwas enthaelt – ein leerer Kasten brauchte sonst
+    // seinen Abstand nach oben, ohne etwas zu zeigen.
+    let metaEl: HTMLElement | null = null;
+    const meta = (): HTMLElement => (metaEl ??= main.createDiv({ cls: "bt-st-meta" }));
     if (kid.due) {
-      const chip = meta.createSpan({ cls: "bt-st-chip bt-due", text: formatDateTime(combineDT(kid.due, kid.dueTime), todayStr()) });
+      const chip = meta().createSpan({ cls: "bt-st-chip bt-due", text: formatDateTime(combineDT(kid.due, kid.dueTime), todayStr()) });
       chip.dataset.when = dueWhen(kid.due, todayStr());
     }
-    if (kid.recurrence) meta.createSpan({ cls: "bt-st-chip bt-recur" });
-    for (const l of kid.labels) meta.createSpan({ cls: "bt-st-chip bt-label", text: l });
+    if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
+    for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });
     // Enkel nur als Zahl: Im Modal wird bewusst NUR eine Ebene gelistet – tiefer geht es
     // über das Modal der Unteraufgabe selbst.
     const grand = this.plugin.index.children(kid.path).filter((g) => !isTrashed(g.status));
     if (grand.length) {
       const gDone = grand.filter((g) => isDone(g.status)).length;
-      const badge = meta.createSpan({ cls: "bt-st-kids", attr: { "aria-label": t("subtasks_progress", gDone, grand.length) } });
+      const badge = meta().createSpan({ cls: "bt-st-kids", attr: { "aria-label": t("subtasks_progress", gDone, grand.length) } });
       setIcon(badge.createSpan({ cls: "bt-st-kids-ic" }), "list-checks");
       badge.createSpan({ text: gDone + "/" + grand.length });
     }
