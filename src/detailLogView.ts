@@ -14,6 +14,9 @@ export interface DetailLogHost {
   file(): TFile | null;       // Ziel-Datei für Live-Persistenz (null = neue Aufgabe -> nur Speicher)
   reveal(): void;             // Log-Sektion sichtbar machen (nach Eintrag/Anhang)
   close(): void;              // Modal schließen (Klick auf internen Link)
+  /** Optionale Aktion rechts in der Kopfzeile (im vollen Editor: „Aufgabennotiz bearbeiten").
+   *  Wird bei jedem Zeichnen neu aufgebaut – der Aufrufer hängt sein Element einfach an `head`. */
+  headAction?(head: HTMLElement): void;
 }
 
 export class DetailLogView {
@@ -56,6 +59,7 @@ export class DetailLogView {
     toggle.createSpan({ cls: "bt-sec-title", text: t("comments") });
     if (this.entries.length) toggle.createSpan({ cls: "bt-sec-count", text: String(this.entries.length) });
     toggle.onclick = () => { this.collapsed = !this.collapsed; this.render(); };
+    this.host.headAction?.(head);   // rechts in der Zeile, wie „Erledigte ausblenden" bei den Unteraufgaben
     if (this.collapsed) { this.input = null; return; }
 
     const list = wrap.createDiv({ cls: "bt-log-list" });

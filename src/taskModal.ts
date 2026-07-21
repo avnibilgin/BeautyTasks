@@ -114,13 +114,9 @@ export class TaskModal extends Modal {
     // lebt im Body der Aufgaben-Notiz. Vor renderChips() anlegen, damit der Details-Chip
     // seinen Offen/Zu-Zustand aus logWrap lesen kann.
     this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
-    // Unteraufgaben stehen im Detailbereich GANZ OBEN – vor Notiz-Link und Kommentaren.
+    // Unteraufgaben stehen im Detailbereich GANZ OBEN, darunter die Kommentare. Der Link zur
+    // Aufgabennotiz hängt rechts in der Kommentar-Kopfzeile (siehe renderNotesLink).
     this.subsWrap = this.detailsWrap.createDiv({ cls: "bt-st" });
-    // Aufgabennotiz = der NOTIZ-BODY. Bewusst KEIN eigenes Eingabefeld: bearbeitet wird in
-    // Obsidian selbst. Diese Zeile stößt bei Hover Obsidians „Seitenvorschau" an (hover-link)
-    // und öffnet bei Klick die volle Notiz. Nur bei bestehenden Aufgaben – eine neue Notiz
-    // existiert beim Erfassen noch nicht.
-    if (this.existing) this.renderNotesLink(this.detailsWrap.createDiv({ cls: "bt-notes-editrow" }));
 
     this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
     this.log = new DetailLogView(this.app, this.plugin, {
@@ -128,6 +124,7 @@ export class TaskModal extends Modal {
       file: () => this.existingFile(),
       reveal: () => { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); },
       close: () => this.close(),
+      headAction: (head) => this.renderNotesLink(head),
     });
 
     this.subs = new SubtaskList(this.plugin, {
@@ -221,15 +218,17 @@ export class TaskModal extends Modal {
     crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   }
 
-  /** „Bearbeite Aufgabennotiz"-Zeile (Chevron + Label). Hover zeigt Obsidians native
-   *  „Seitenvorschau" der Notiz, Klick/Tab öffnet sie voll im Editor. Das Modal ist dabei der
-   *  HoverParent (hoverPopover-Feld). Bearbeitet wird ausschließlich dort – kein eigenes Feld.
-   *  `targetEl` ist bewusst das KOMPAKTE Icon+Label (nicht die volle Zeile): Obsidian richtet
-   *  die Vorschau daran aus, sonst landet sie am linken Rand weit weg vom Button. */
-  private renderNotesLink(row: HTMLElement): void {
+  /** „Aufgabennotiz bearbeiten" – rechts in der Kommentar-Kopfzeile, an derselben Stelle und
+   *  im selben Stil (.bt-sec-act) wie „Erledigte ausblenden" bei den Unteraufgaben. Hover zeigt
+   *  Obsidians native „Seitenvorschau" der Notiz, Klick/Tab öffnet sie voll im Editor. Das Modal
+   *  ist dabei der HoverParent (hoverPopover-Feld). Bearbeitet wird ausschließlich dort – kein
+   *  eigenes Feld. `targetEl` ist bewusst der kompakte Button (nicht die ganze Zeile): Obsidian
+   *  richtet die Vorschau daran aus, sonst landet sie am linken Rand weit weg davon.
+   *  Nur bei bestehenden Aufgaben – eine neue Notiz existiert beim Erfassen noch nicht. */
+  private renderNotesLink(head: HTMLElement): void {
     const file = this.existing && this.app.vault.getAbstractFileByPath(this.existing.path);
-    if (!(file instanceof TFile)) { row.remove(); return; }
-    const btn = row.createSpan({ cls: "bt-notes-edit", attr: { role: "button", tabindex: "0" } });
+    if (!(file instanceof TFile)) return;
+    const btn = head.createSpan({ cls: "bt-sec-act bt-notes-edit", attr: { role: "button", tabindex: "0" } });
     setIcon(btn.createSpan({ cls: "bt-notes-edit-ic" }), "chevron-down");   // links vor dem Text
     btn.createSpan({ cls: "bt-notes-edit-lbl", text: t("notes_edit") });
     // mouseENTER, nicht mouseover: mouseover feuert bei jedem Wechsel über die Kind-Spans
