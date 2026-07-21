@@ -20,6 +20,11 @@ export { PRIOS, PRIO_KEY };
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
 const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
+/** Wie viele Aufgaben-Modale gerade offen sind. Seit Unteraufgaben SICH ÜBER ihr Elternmodal
+ *  legen (statt es zu schließen), können es mehrere sein – dann darf das oberste beim Schließen
+ *  die body-Klasse nicht dem darunterliegenden wegnehmen. Ein Zähler statt eines Schalters. */
+let openModals = 0;
+
 /** Aufgaben-Modal (randloser Titel, Chip-Reihe, Projekt-Picker, CTA).
  *  Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
 export class TaskModal extends Modal {
@@ -44,7 +49,7 @@ export class TaskModal extends Modal {
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean; stacked?: boolean } = {}) {
     super(plugin.app);
     const seed = opts.seed;
     this.f = existing
@@ -83,6 +88,7 @@ export class TaskModal extends Modal {
     // über das Modal (sonst erschiene sie dahinter). Bewusst eine feste Klasse statt body:has(...) –
     // die :has-Auswertung kann einen Frame nachhinken, wodurch die Vorschau beim Hovern kurz
     // hinter dem Modal aufblitzt und dann nach vorne springt (das gemeldete Ruckeln).
+    openModals++;
     document.body.addClass("bt-task-modal-open");
     modalEl.toggleClass("bt-chips-icons-only", chipsCompact(this.plugin.settings));   // nur Chip-Icons (auf Mobile immer)
     contentEl.empty();
@@ -133,7 +139,10 @@ export class TaskModal extends Modal {
     this.subs = new SubtaskList(this.plugin, {
       parent: () => this.existing ?? null,
       projectBase: () => this.f.project ?? null,
-      openTask: (task) => { this.close(); this.plugin.openEditTask(task); },
+      // Elternmodal bleibt bewusst OFFEN: Das Kind legt sich darüber, und wer es schließt
+      // (Speichern, Abbrechen, Esc), landet wieder hier statt in der Liste. Die Sektion hängt
+      // am Index und zeigt die Änderung sofort.
+      openTask: (task) => new TaskModal(this.plugin, task, undefined, { stacked: true }).open(),
       openFullEditor: (title) => this.openSubtaskEditor(title),
     });
 
@@ -193,7 +202,9 @@ export class TaskModal extends Modal {
     }
     this.subs?.unload();
     this.log?.unload();
-    document.body.removeClass("bt-task-modal-open");
+    // Erst wenn das LETZTE Aufgaben-Modal weg ist – sonst verlöre ein noch offenes
+    // Elternmodal die Klasse und seine Seitenvorschau erschiene wieder hinter dem Modal.
+    if (--openModals <= 0) { openModals = 0; document.body.removeClass("bt-task-modal-open"); }
     this.contentEl.empty();
   }
 
@@ -213,7 +224,12 @@ export class TaskModal extends Modal {
     const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") } });
     setIcon(crumb.createSpan({ cls: "bt-parent-ic" }), "corner-left-up");
     crumb.createSpan({ cls: "bt-parent-lbl", text: parent.title });
-    const open = (): void => { this.close(); this.plugin.openEditTask(parent); };
+    const open = (): void => {
+      this.close();
+      // Gestapelt liegt das Elternmodal bereits darunter und kommt durchs Schließen von selbst
+      // zum Vorschein – es erneut zu öffnen ergäbe zwei Modale derselben Aufgabe.
+      if (!this.opts.stacked) this.plugin.openEditTask(parent);
+    };
     crumb.onclick = open;
     crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   }
@@ -557,7 +573,7 @@ export class TaskModal extends Modal {
    *  und ein zweites geöffnet – der Kontext (Hauptaufgabe) ging dabei verloren. */
   private addSubtask(): void {
     if (!this.existing) return;
-    this.subs.focusComposer();   // Sektion ist immer sichtbar – nur noch Cursor setzen
+    this.subs.focusComposer();   // blendet die Sektion ein (falls leer) und setzt den Cursor
   }
 
   /** ⤢ aus der Inline-Erfassung: den getippten Titel im vollen Editor weiterbearbeiten.
@@ -569,8 +585,9 @@ export class TaskModal extends Modal {
     const parent = this.existing;
     const parentProject = parent.project ? baseName(parent.project) : undefined;
     const parentBase = baseName(parent.path);
-    this.close();
-    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase, defaultTitle: title }).open();
+    // Elternmodal bleibt offen (stacked): nach dem Anlegen steht man wieder in der Hauptaufgabe,
+    // und deren Liste zeigt die neue Unteraufgabe sofort.
+    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase, defaultTitle: title, stacked: true }).open();
   }
 
   // ── Details: Kommentar-Log (gemeinsame Komponente DetailLogView) ──
