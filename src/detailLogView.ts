@@ -14,6 +14,9 @@ export interface DetailLogHost {
   file(): TFile | null;       // Ziel-Datei für Live-Persistenz (null = neue Aufgabe -> nur Speicher)
   reveal(): void;             // Log-Sektion sichtbar machen (nach Eintrag/Anhang)
   close(): void;              // Modal schließen (Klick auf internen Link)
+  /** Optionale Aktion rechts in der Kopfzeile (im vollen Editor: „Aufgabennotiz bearbeiten").
+   *  Wird bei jedem Zeichnen neu aufgebaut – der Aufrufer hängt sein Element einfach an `head`. */
+  headAction?(head: HTMLElement): void;
 }
 
 export class DetailLogView {
@@ -22,24 +25,55 @@ export class DetailLogView {
   private input: HTMLTextAreaElement | null = null;
   private chain: Promise<void> = Promise.resolve();
   private wrap!: HTMLElement;
+  private collapsed = false;   // Sektion zugeklappt (nur für die Lebensdauer des Modals)
 
   constructor(private app: App, private plugin: BeautyTasksPlugin, private host: DetailLogHost) {}
 
   mount(wrap: HTMLElement): void { this.wrap = wrap; this.render(); }
   setEntries(entries: LogEntry[]): void { this.entries = entries; }
   hasEntries(): boolean { return this.entries.length > 0; }
-  focusComposer(): void { this.input?.focus(); }
+  focusComposer(): void {
+    if (this.collapsed) { this.collapsed = false; this.render(); }
+    this.input?.focus();
+  }
   unload(): void { this.comp?.unload(); }
 
   /** Beim Anlegen einer neuen Aufgabe: gepufferte Einträge in die frische Datei schreiben. */
   async flush(file: TFile): Promise<void> { if (this.entries.length) await writeLog(this.app, file, this.entries); }
 
-  /** Timeline der Einträge (Zeitstempel + Markdown + Bearbeiten/Löschen) + Composer. */
+  /** Beim Schliessen des Modals: getippten, aber nicht abgeschickten Kommentar trotzdem
+   *  uebernehmen – „Speichern" darf den Entwurf nicht wortlos verschlucken. Muss VOR dem
+   *  Anlegen einer neuen Aufgabe laufen, damit flush() den Eintrag mitschreibt.
+   *  Wird bei „Abbrechen" NICHT gerufen: dort ist Verwerfen die erwartete Bedeutung. */
+  flushDraft(): void {
+    const v = (this.input?.value || "").trim();
+    if (!v) return;
+    if (this.input) this.input.value = "";   // macht den Aufruf wiederholbar (save() + onClose)
+    this.entries.push({ ts: nowLogTs(), body: v });
+    void this.persistLog();
+  }
+
+  /** Kopfzeile + Timeline der Einträge (Zeitstempel + Markdown + Bearbeiten/Löschen) + Composer. */
   render(): void {
     const wrap = this.wrap; wrap.empty();
     this.comp?.unload();
     this.comp = new Component(); this.comp.load();
     const src = this.host.srcPath();
+
+    // Kopfzeile wie in der Unteraufgaben-Sektion (gemeinsame .bt-sec-*-Klassen): Chevron zum
+    // Ein-/Ausklappen, Titel, Anzahl. Zugeklappt bleibt nur die Zeile stehen.
+    const head = wrap.createDiv({ cls: "bt-sec-head" });
+    const toggle = head.createEl("button", {
+      cls: "bt-sec-toggle",
+      attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("comments") },
+    });
+    setIcon(toggle.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
+    toggle.createSpan({ cls: "bt-sec-title", text: t("comments") });
+    if (this.entries.length) toggle.createSpan({ cls: "bt-sec-count", text: String(this.entries.length) });
+    toggle.onclick = () => { this.collapsed = !this.collapsed; this.render(); };
+    this.host.headAction?.(head);   // rechts in der Zeile, wie „Erledigte ausblenden" bei den Unteraufgaben
+    if (this.collapsed) { this.input = null; return; }
+
     const list = wrap.createDiv({ cls: "bt-log-list" });
     // Klicks in den gerenderten Kommentaren: Bilder öffnen die Lightbox, interne
     // Links (Notizen/PDF) öffnen im Tab. MarkdownRenderer verdrahtet im Modal keine
@@ -75,10 +109,16 @@ export class DetailLogView {
       del.onclick = () => { this.entries.splice(idx, 1); this.render(); void this.persistLog(); };
     });
     const comp = wrap.createDiv({ cls: "bt-log-composer" });
+    // Fuehrendes „+" wie bei der Unteraufgaben-Erfassung: beide Zeilen haben dieselbe Anatomie
+    // [Icon] [Feld] [Aktion] und beginnen auf derselben Textkante.
+    setIcon(comp.createSpan({ cls: "bt-log-composer-ic" }), "plus");
     const inp = comp.createEl("textarea", { cls: "bt-log-input", attr: { placeholder: t("log_placeholder"), rows: "1" } });
     this.input = inp;
     const grow = () => { inp.setCssStyles({ height: "auto" }); inp.setCssStyles({ height: Math.min(inp.scrollHeight, 220) + "px" }); };
-    inp.oninput = grow;
+    // Ruhezustand ist leise (transparent). Gefuellt wird das Feld – und der Senden-Button
+    // akzentuiert – sobald es Fokus hat (per CSS :focus-within) ODER Text traegt (diese Klasse).
+    const syncState = (): void => comp.toggleClass("has-text", inp.value.trim().length > 0);
+    inp.oninput = () => { grow(); syncState(); };
     inp.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.addEntry(); } };
     inp.onpaste = (ev) => { const f = ev.clipboardData?.files; if (f && f.length) { ev.preventDefault(); void this.handleFiles(f); } };
     inp.ondragover = (ev) => { ev.preventDefault(); inp.addClass("bt-drop"); };
@@ -173,6 +213,7 @@ export class DetailLogView {
     const v = (this.input?.value || "").trim();
     if (!v) return;
     this.entries.push({ ts: nowLogTs(), body: v });
+    this.collapsed = false;   // ein neuer Kommentar landet nie in einer zugeklappten Sektion
     this.host.reveal();
     this.render();
     void this.persistLog();

@@ -3,7 +3,7 @@
 // (Datum, Priorität, Status, Wiederholung, Labels, Erinnerungen, Übergeordnet) und die
 // Sichtbarkeits-/Reihenfolge-Logik (chipOrder/chipTiers). Beide Modale rendern über CHIPS und
 // nutzen dieselben Picker – keine Duplikate mehr.
-import { App, setIcon } from "obsidian";
+import { App, Platform, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus, ChipId, ChipTier, ChipSurface, ChipProfile, CHIP_IDS, BeautyTasksSettings } from "./types";
 import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
@@ -17,6 +17,21 @@ import { t } from "./i18n";
 
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
 const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
+
+/**
+ * Kompakt-Modus des vollen Editors: leere Chips zeigen nur ihr Icon, der Name wandert in den
+ * Tooltip. Auf Mobile IMMER an – dort sind die Chips 44px hoch (styles.css, `pointer: coarse`),
+ * und mit Text daneben füllt schon die halbe Chip-Leiste den Bildschirm.
+ *
+ * Bewusst hier und nicht beim Laden der Einstellungen entschieden: Das Gerät ist keine
+ * Eigenschaft des Vaults. Ein in den Einstellungen gespeicherter Wert wanderte sonst per Sync
+ * aufs andere Gerät und machte dort eine Vorgabe, die nur fürs Handy gedacht war.
+ *
+ * EINE Quelle für alles, was am Kompakt-Modus hängt (CSS-Klasse, Tooltips, ARIA-Labels) –
+ * sonst laufen die drei auseinander und ein Chip verliert seinen zugänglichen Namen.
+ */
+export const chipsCompact = (settings: BeautyTasksSettings): boolean =>
+  settings.chipsIconsOnly || Platform.isMobile;
 
 // 4 Stufen (P1 rot / P2 orange / P3 blau / P4 = ohne). Label-Keys via t().
 export const PRIOS: { value: Priority; key: string; color: string }[] = [

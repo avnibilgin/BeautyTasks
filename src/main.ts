@@ -1302,12 +1302,10 @@ export default class BeautyTasksPlugin extends Plugin {
         editor: { order: legacy.chipOrder as ChipId[] | undefined, tiers: legacy.chipTiers as Partial<Record<ChipId, ChipTier>> | undefined },
       };
     }
-    // Kompakt-Modus (nur Chip-Icons) auf Mobile standardmäßig an – aber nur, wenn der Nutzer
-    // die Einstellung noch nie selbst gesetzt hat (frische Installation). Manuelles Umschalten
-    // in den Einstellungen bleibt danach erhalten.
-    if (saved?.chipsIconsOnly === undefined && Platform.isMobile) {
-      this.settings.chipsIconsOnly = true;
-    }
+    // (Der Kompakt-Modus wird NICHT mehr hier gesetzt: Er hing früher an der Installation – wer
+    // zuerst auf dem Handy installierte, bekam ihn gespeichert und per Sync auch auf den Desktop,
+    // wer zuerst am Desktop installierte, nie. Das Gerät ist keine Eigenschaft des Vaults, also
+    // entscheidet das jetzt chipsCompact() beim Zeichnen. Siehe chips.ts.)
     // Pflicht-Kategorien garantieren (offen/erledigt/abgebrochen), self-healing – z. B. re-added
     // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);

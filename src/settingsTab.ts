@@ -1,7 +1,7 @@
-import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice } from "obsidian";
+import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { ChipId, ChipTier, ChipSurface, DEFAULT_SETTINGS } from "./types";
-import { CHIPS, resolveChipOrder, chipTierOf } from "./chips";
+import { CHIPS, chipsCompact, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
 import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
@@ -128,8 +128,11 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();
       }));
 
+    // Auf Mobilgeraeten ist der Kompakt-Modus fest an (44px-Chips mit Text saehen dort den
+    // halben Bildschirm) – der Schalter zeigt das an und ist deaktiviert, statt wirkungslos
+    // umschaltbar zu sein. Der gespeicherte Wert bleibt unangetastet und gilt am Desktop weiter.
     new Setting(containerEl).setName(t("set_chips_iconsonly")).setDesc(t("set_chips_iconsonly_desc")).addToggle((tg) =>
-      tg.setValue(p.settings.chipsIconsOnly).onChange(async (v) => {
+      tg.setValue(chipsCompact(p.settings)).setDisabled(Platform.isMobile).onChange(async (v) => {
         p.settings.chipsIconsOnly = v;
         await p.saveSettings();
       }));

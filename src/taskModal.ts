@@ -7,8 +7,10 @@ import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
 import { readLog } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
+import { SubtaskList } from "./subtaskList";
+import { ConfirmModal } from "./confirmModal";
 import { firstOpenStatus } from "./statuses";
-import { CHIPS, ChipHost, ChipFields, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
+import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
@@ -17,6 +19,11 @@ export { PRIOS, PRIO_KEY };
 
 /** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
 const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
+
+/** Wie viele Aufgaben-Modale gerade offen sind. Seit Unteraufgaben SICH ÜBER ihr Elternmodal
+ *  legen (statt es zu schließen), können es mehrere sein – dann darf das oberste beim Schließen
+ *  die body-Klasse nicht dem darunterliegenden wegnehmen. Ein Zähler statt eines Schalters. */
+let openModals = 0;
 
 /** Aufgaben-Modal (randloser Titel, Chip-Reihe, Projekt-Picker, CTA).
  *  Erfasst neu oder bearbeitet/verschiebt eine bestehende Aufgabe. */
@@ -31,6 +38,8 @@ export class TaskModal extends Modal {
   private logWrap!: HTMLElement;
   private detailsChip?: HTMLElement;   // Büroklammer-Chip, der die Detail-Sektion toggelt
   private log!: DetailLogView;         // Kommentar-Log (gemeinsame Komponente)
+  private subs!: SubtaskList;          // Unteraufgaben-Sektion (über dem Kommentar-Log)
+  private subsWrap!: HTMLElement;
   private duePinned = false;          // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
   private cleanTitle = "";            // Titel ohne erkannte Datum-/Label-Token
   private nl: QuickEntryState = emptyQuickEntryState();  // aus dem Titel Erkanntes (trennt es von Manuellem)
@@ -40,7 +49,7 @@ export class TaskModal extends Modal {
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean; stacked?: boolean } = {}) {
     super(plugin.app);
     const seed = opts.seed;
     this.f = existing
@@ -79,9 +88,14 @@ export class TaskModal extends Modal {
     // über das Modal (sonst erschiene sie dahinter). Bewusst eine feste Klasse statt body:has(...) –
     // die :has-Auswertung kann einen Frame nachhinken, wodurch die Vorschau beim Hovern kurz
     // hinter dem Modal aufblitzt und dann nach vorne springt (das gemeldete Ruckeln).
+    openModals++;
     document.body.addClass("bt-task-modal-open");
-    modalEl.toggleClass("bt-chips-icons-only", this.plugin.settings.chipsIconsOnly);   // nur Chip-Icons
+    modalEl.toggleClass("bt-chips-icons-only", chipsCompact(this.plugin.settings));   // nur Chip-Icons (auf Mobile immer)
     contentEl.empty();
+
+    // Gegenrichtung zur Unteraufgaben-Sektion: Wer eine Unteraufgabe öffnet, sieht ganz oben,
+    // zu welcher Hauptaufgabe sie gehört – und kommt mit einem Klick dorthin.
+    this.renderParentCrumb(contentEl);
 
     const placeholder = this.opts.parent ? t("placeholder_subtask") : t("placeholder_taskname");
     const title = contentEl.createEl("input", { type: "text", cls: "bt-titel", attr: { placeholder } });
@@ -105,12 +119,13 @@ export class TaskModal extends Modal {
     // Büroklammer-Chip in der Chip-Leiste (statt der früheren "+ Details"-Zeile). Der Log
     // lebt im Body der Aufgaben-Notiz. Vor renderChips() anlegen, damit der Details-Chip
     // seinen Offen/Zu-Zustand aus logWrap lesen kann.
+    // Unteraufgaben sind STRUKTUR der Aufgabe, keine Beilage: eigene Sektion auf Titel-Ebene,
+    // immer sichtbar, NICHT hinter dem Details-Chip. Die Büroklammer bedeutet im ganzen Plugin
+    // „Kommentare/Anhänge" (siehe die Zeilen-Indikatoren in heuteView) – sie darf nicht zugleich
+    // der einzige Weg zu den Unteraufgaben sein.
+    this.subsWrap = contentEl.createDiv({ cls: "bt-st" });
+    // Detailbereich = Kommentare + Notiz-Link. Das ist es, was der Details-Chip schaltet.
     this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
-    // Aufgabennotiz = der NOTIZ-BODY. Bewusst KEIN eigenes Eingabefeld: bearbeitet wird in
-    // Obsidian selbst. Diese Zeile stößt bei Hover Obsidians „Seitenvorschau" an (hover-link)
-    // und öffnet bei Klick die volle Notiz. Nur bei bestehenden Aufgaben – eine neue Notiz
-    // existiert beim Erfassen noch nicht.
-    if (this.existing) this.renderNotesLink(this.detailsWrap.createDiv({ cls: "bt-notes-editrow" }));
 
     this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
     this.log = new DetailLogView(this.app, this.plugin, {
@@ -118,10 +133,22 @@ export class TaskModal extends Modal {
       file: () => this.existingFile(),
       reveal: () => { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); },
       close: () => this.close(),
+      headAction: (head) => this.renderNotesLink(head),
+    });
+
+    this.subs = new SubtaskList(this.plugin, {
+      parent: () => this.existing ?? null,
+      projectBase: () => this.f.project ?? null,
+      // Elternmodal bleibt bewusst OFFEN: Das Kind legt sich darüber, und wer es schließt
+      // (Speichern, Abbrechen, Esc), landet wieder hier statt in der Liste. Die Sektion hängt
+      // am Index und zeigt die Änderung sofort.
+      openTask: (task) => new TaskModal(this.plugin, task, undefined, { stacked: true }).open(),
+      openFullEditor: (title) => this.openSubtaskEditor(title),
     });
 
     this.applyParse();
     this.renderChips();
+    this.subs.mount(this.subsWrap);
     this.log.mount(this.logWrap);
     this.syncDetails();
     // Bestehende Aufgabe: Log aus dem Notiz-Body laden, bei Inhalt direkt aufgeklappt.
@@ -165,9 +192,19 @@ export class TaskModal extends Modal {
   onClose(): void {
     // Auto-Speichern beim Wegklicken / Esc / X (nur mit Titel). „Cancel" verwirft bewusst.
     // persist() ist gegen Doppel-Schreiben geschützt (this.persisted) und braucht kein DOM.
-    if (!this.discarding) void this.persist();
+    if (!this.discarding) {
+      // Nicht bestätigte Entwürfe ZUERST: Wer eine Unteraufgabe oder einen Kommentar tippt und
+      // dann „Speichern" drückt statt Enter, erwartet nicht, dass sein Text verschwindet. Vor
+      // persist(), damit eine noch nicht angelegte Aufgabe den Kommentar beim Anlegen mitschreibt.
+      this.subs?.flushDraft();
+      this.log?.flushDraft();
+      void this.persist();
+    }
+    this.subs?.unload();
     this.log?.unload();
-    document.body.removeClass("bt-task-modal-open");
+    // Erst wenn das LETZTE Aufgaben-Modal weg ist – sonst verlöre ein noch offenes
+    // Elternmodal die Klasse und seine Seitenvorschau erschiene wieder hinter dem Modal.
+    if (--openModals <= 0) { openModals = 0; document.body.removeClass("bt-task-modal-open"); }
     this.contentEl.empty();
   }
 
@@ -178,15 +215,36 @@ export class TaskModal extends Modal {
     el.setCssStyles({ height: Math.min(el.scrollHeight, 200) + "px" });
   }
 
-  /** „Bearbeite Aufgabennotiz"-Zeile (Chevron + Label). Hover zeigt Obsidians native
-   *  „Seitenvorschau" der Notiz, Klick/Tab öffnet sie voll im Editor. Das Modal ist dabei der
-   *  HoverParent (hoverPopover-Feld). Bearbeitet wird ausschließlich dort – kein eigenes Feld.
-   *  `targetEl` ist bewusst das KOMPAKTE Icon+Label (nicht die volle Zeile): Obsidian richtet
-   *  die Vorschau daran aus, sonst landet sie am linken Rand weit weg vom Button. */
-  private renderNotesLink(row: HTMLElement): void {
+  /** Breadcrumb über dem Titel: „↰ Hauptaufgabe". Nur bei einer Unteraufgabe, deren Eltern-
+   *  Aufgabe noch existiert. Klick wechselt in deren Modal – der aktuelle Stand wird dabei
+   *  wie beim normalen Schließen gespeichert. */
+  private renderParentCrumb(contentEl: HTMLElement): void {
+    const parent = this.existing ? this.parentTask() : null;
+    if (!parent) return;
+    const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") } });
+    setIcon(crumb.createSpan({ cls: "bt-parent-ic" }), "corner-left-up");
+    crumb.createSpan({ cls: "bt-parent-lbl", text: parent.title });
+    const open = (): void => {
+      this.close();
+      // Gestapelt liegt das Elternmodal bereits darunter und kommt durchs Schließen von selbst
+      // zum Vorschein – es erneut zu öffnen ergäbe zwei Modale derselben Aufgabe.
+      if (!this.opts.stacked) this.plugin.openEditTask(parent);
+    };
+    crumb.onclick = open;
+    crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+  }
+
+  /** „Aufgabennotiz bearbeiten" – rechts in der Kommentar-Kopfzeile, an derselben Stelle und
+   *  im selben Stil (.bt-sec-act) wie „Erledigte ausblenden" bei den Unteraufgaben. Hover zeigt
+   *  Obsidians native „Seitenvorschau" der Notiz, Klick/Tab öffnet sie voll im Editor. Das Modal
+   *  ist dabei der HoverParent (hoverPopover-Feld). Bearbeitet wird ausschließlich dort – kein
+   *  eigenes Feld. `targetEl` ist bewusst der kompakte Button (nicht die ganze Zeile): Obsidian
+   *  richtet die Vorschau daran aus, sonst landet sie am linken Rand weit weg davon.
+   *  Nur bei bestehenden Aufgaben – eine neue Notiz existiert beim Erfassen noch nicht. */
+  private renderNotesLink(head: HTMLElement): void {
     const file = this.existing && this.app.vault.getAbstractFileByPath(this.existing.path);
-    if (!(file instanceof TFile)) { row.remove(); return; }
-    const btn = row.createSpan({ cls: "bt-notes-edit", attr: { role: "button", tabindex: "0" } });
+    if (!(file instanceof TFile)) return;
+    const btn = head.createSpan({ cls: "bt-sec-act bt-notes-edit", attr: { role: "button", tabindex: "0" } });
     setIcon(btn.createSpan({ cls: "bt-notes-edit-ic" }), "chevron-down");   // links vor dem Text
     btn.createSpan({ cls: "bt-notes-edit-lbl", text: t("notes_edit") });
     // mouseENTER, nicht mouseover: mouseover feuert bei jedem Wechsel über die Kind-Spans
@@ -262,7 +320,7 @@ export class TaskModal extends Modal {
       surface: "editor",
       rerender: () => this.renderChips(),
       compactLabels: false,
-      iconsOnly: this.plugin.settings.chipsIconsOnly,
+      iconsOnly: chipsCompact(this.plugin.settings),
       applyStatus: (s) => void this.applyStatus(s),
       // Manuell gesetzt/geleert: der Titel besitzt das Datum ab jetzt nicht mehr.
       pinDue: () => { this.duePinned = true; this.nl.dueSrc = ""; this.nl.timeSrc = ""; },
@@ -303,9 +361,12 @@ export class TaskModal extends Modal {
   private renderDetailsChip(bar: HTMLElement): void {
     const open = !this.logWrap.hasClass("bt-hidden");
     const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : "") });
-    if (this.plugin.settings.chipsIconsOnly) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
+    if (chipsCompact(this.plugin.settings)) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
     const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
+    // Bewusst KEIN Zähler am Chip: Der Detailbereich enthält nur noch Kommentare, und deren
+    // Anzahl steht in der Sektionsüberschrift. Die Chip-Leiste ist die dichteste Zone des
+    // Modals – eine Zahl, die zwei Zeilen tiefer nochmal steht, verdient dort keinen Platz.
     chip.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
     this.detailsChip = chip;
   }
@@ -323,7 +384,10 @@ export class TaskModal extends Modal {
       let any = renderPlusChips(pop, host, anchor, close);
       if (this.existing) {
         if (any) pop.createDiv({ cls: "bt-plus-sep" });
-        row("corner-down-right", t("menu_create_subtask"), () => this.addSubtask());
+        // Bewusst derselbe Schlüssel wie die Erfassungszeile (sub_add): Der Menüpunkt IST der
+        // Weg zu genau dieser Zeile – zwei getrennte Strings würden über zehn Sprachen hinweg
+        // frueher oder spaeter auseinanderlaufen.
+        row("corner-down-right", t("sub_add"), () => this.addSubtask());
         if (this.parentTask()) row("corner-left-up", t("menu_show_parent"), () => this.showParent());
         row("copy", t("menu_duplicate"), () => void this.duplicate());
         pop.createDiv({ cls: "bt-plus-sep" });
@@ -332,7 +396,7 @@ export class TaskModal extends Modal {
         if (!Platform.isMobile) row("external-link", t("menu_open_editor"), () => this.openInEditor());
         if (!Platform.isMobile) { pop.createDiv({ cls: "bt-plus-sep" }); row("printer", t("menu_print"), () => this.printTask()); }
         pop.createDiv({ cls: "bt-plus-sep" });
-        row("trash-2", t("btn_delete"), () => void this.remove(), true);
+        row("trash-2", t("btn_delete"), () => this.remove(), true);
         any = true;
       }
       if (any) pop.createDiv({ cls: "bt-plus-sep" });
@@ -504,18 +568,26 @@ export class TaskModal extends Modal {
   }
 
   // ── Unteraufgabe ──
-  /** „＋ Unteraufgabe": schließt dieses Modal und öffnet ein neues, vollwertiges
-   *  Aufgaben-Modal mit ausgeblendetem Projekt-Chip. Projekt = das der Hauptaufgabe,
-   *  parent = Eltern-Titel. Genau wie im alten BeautyTasks. */
+  /** „Unteraufgabe erstellen": klappt den Detailbereich auf und setzt den Cursor in die
+   *  Inline-Erfassung der Unteraufgaben-Sektion. Früher wurde dafür dieses Modal geschlossen
+   *  und ein zweites geöffnet – der Kontext (Hauptaufgabe) ging dabei verloren. */
   private addSubtask(): void {
     if (!this.existing) return;
+    this.subs.focusComposer();   // blendet die Sektion ein (falls leer) und setzt den Cursor
+  }
+
+  /** ⤢ aus der Inline-Erfassung: den getippten Titel im vollen Editor weiterbearbeiten.
+   *  Projekt-Chip ausgeblendet (die Unteraufgabe erbt das Projekt der Hauptaufgabe), der
+   *  Eltern-Link läuft über den Basename (Dateiname) – der Titel kann davon abweichen und
+   *  würde als Wikilink nicht auflösen. */
+  private openSubtaskEditor(title: string): void {
+    if (!this.existing) return;
     const parent = this.existing;
-    const parentProject = parent.project ? parent.project.split("/").pop()!.replace(/\.md$/, "") : undefined;
-    // Eltern-Link über den Basename (Dateiname), NICHT den Titel – der Titel (Überschrift)
-    // kann vom Dateinamen abweichen und würde als Wikilink sonst nicht auflösen.
-    const parentBase = parent.path.split("/").pop()!.replace(/\.md$/, "");
-    this.close();
-    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase }).open();
+    const parentProject = parent.project ? baseName(parent.project) : undefined;
+    const parentBase = baseName(parent.path);
+    // Elternmodal bleibt offen (stacked): nach dem Anlegen steht man wieder in der Hauptaufgabe,
+    // und deren Liste zeigt die neue Unteraufgabe sofort.
+    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase, defaultTitle: title, stacked: true }).open();
   }
 
   // ── Details: Kommentar-Log (gemeinsame Komponente DetailLogView) ──
@@ -535,6 +607,12 @@ export class TaskModal extends Modal {
   /** Explizites Speichern (Button/Enter): bei leerem Titel Hinweis + offen bleiben. */
   private async save(): Promise<void> {
     if (!this.titleValue()) { new Notice(t("err_enter_taskname")); return; }
+    // Entwürfe VOR persist(): Bei einer neuen Aufgabe schreibt persist() den Kommentar-Puffer
+    // in die frisch angelegte Notiz. Käme der Entwurf erst über onClose dazu, wäre dieser
+    // Zug bereits gefahren und der Text verloren. Beide flushDraft() sind mehrfach aufrufbar
+    // (sie leeren ihr Feld), der zweite Aufruf aus onClose läuft also ins Leere.
+    this.subs?.flushDraft();
+    this.log?.flushDraft();
     await this.persist();
     this.close();
   }
@@ -577,11 +655,21 @@ export class TaskModal extends Modal {
     }
   }
 
-  private async remove(): Promise<void> {
-    if (!this.existing) return;
-    this.discarding = true;   // Löschen ist kein Bearbeiten -> onClose darf nicht auto-speichern
-    // Kaskade: Aufgabe UND alle Unteraufgaben in den Papierkorb (sonst verwaisen Kinder).
-    await this.plugin.cancelTask(this.existing);
-    this.close();
+  /** Löschen = Aufgabe UND alle Unteraufgaben in den Papierkorb (sonst verwaisen Kinder).
+   *  Weil die Kaskade mehr trifft als die eine sichtbare Aufgabe, fragt das Modal vorher nach –
+   *  ohne die Kinder aufzuzählen, aber mit dem Hinweis, dass sie mitgehen und wiederherstellbar
+   *  sind. Bestätigt wird immer, auch ohne Unteraufgaben: dieselbe Rückfrage an derselben
+   *  Stelle ist verlässlicher als eine, die je nach Aufgabe erscheint oder nicht. */
+  private remove(): void {
+    const task = this.existing;
+    if (!task) return;
+    new ConfirmModal(this.app, {
+      title: t("confirm_delete_title", task.title),
+      message: t("confirm_delete_cascade"),
+    }, () => {
+      this.discarding = true;   // Löschen ist kein Bearbeiten -> onClose darf nicht auto-speichern
+      void this.plugin.cancelTask(task);
+      this.close();
+    }).open();
   }
 }
