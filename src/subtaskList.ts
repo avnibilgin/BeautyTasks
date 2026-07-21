@@ -109,18 +109,18 @@ export class SubtaskList {
     const done = kids.filter((k) => isDone(k.status)).length;
 
     // ── Kopfzeile: Chevron + Titel + Fortschritt, rechts der Erledigt-Schalter ──
-    const head = wrap.createDiv({ cls: "bt-st-head" });
+    const head = wrap.createDiv({ cls: "bt-sec-head" });
     const toggleBtn = head.createEl("button", {
-      cls: "bt-st-toggle",
+      cls: "bt-sec-toggle",
       attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("subtasks") },
     });
-    setIcon(toggleBtn.createSpan({ cls: "bt-st-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
-    toggleBtn.createSpan({ cls: "bt-st-title", text: t("subtasks") });
-    if (kids.length) toggleBtn.createSpan({ cls: "bt-st-count", text: done + "/" + kids.length });
+    setIcon(toggleBtn.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
+    toggleBtn.createSpan({ cls: "bt-sec-title", text: t("subtasks") });
+    if (kids.length) toggleBtn.createSpan({ cls: "bt-sec-count", text: done + "/" + kids.length });
     toggleBtn.onclick = () => { this.collapsed = !this.collapsed; this.render(); };
 
     if (done) {
-      const sw = head.createEl("button", { cls: "bt-st-donetog", text: this.hideDone ? t("panel_show_done") : t("subs_hide_done") });
+      const sw = head.createEl("button", { cls: "bt-sec-act", text: this.hideDone ? t("panel_show_done") : t("subs_hide_done") });
       sw.onclick = () => { this.hideDone = !this.hideDone; this.render(); };
     }
 

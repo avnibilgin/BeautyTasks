@@ -22,24 +22,42 @@ export class DetailLogView {
   private input: HTMLTextAreaElement | null = null;
   private chain: Promise<void> = Promise.resolve();
   private wrap!: HTMLElement;
+  private collapsed = false;   // Sektion zugeklappt (nur für die Lebensdauer des Modals)
 
   constructor(private app: App, private plugin: BeautyTasksPlugin, private host: DetailLogHost) {}
 
   mount(wrap: HTMLElement): void { this.wrap = wrap; this.render(); }
   setEntries(entries: LogEntry[]): void { this.entries = entries; }
   hasEntries(): boolean { return this.entries.length > 0; }
-  focusComposer(): void { this.input?.focus(); }
+  focusComposer(): void {
+    if (this.collapsed) { this.collapsed = false; this.render(); }
+    this.input?.focus();
+  }
   unload(): void { this.comp?.unload(); }
 
   /** Beim Anlegen einer neuen Aufgabe: gepufferte Einträge in die frische Datei schreiben. */
   async flush(file: TFile): Promise<void> { if (this.entries.length) await writeLog(this.app, file, this.entries); }
 
-  /** Timeline der Einträge (Zeitstempel + Markdown + Bearbeiten/Löschen) + Composer. */
+  /** Kopfzeile + Timeline der Einträge (Zeitstempel + Markdown + Bearbeiten/Löschen) + Composer. */
   render(): void {
     const wrap = this.wrap; wrap.empty();
     this.comp?.unload();
     this.comp = new Component(); this.comp.load();
     const src = this.host.srcPath();
+
+    // Kopfzeile wie in der Unteraufgaben-Sektion (gemeinsame .bt-sec-*-Klassen): Chevron zum
+    // Ein-/Ausklappen, Titel, Anzahl. Zugeklappt bleibt nur die Zeile stehen.
+    const head = wrap.createDiv({ cls: "bt-sec-head" });
+    const toggle = head.createEl("button", {
+      cls: "bt-sec-toggle",
+      attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("comments") },
+    });
+    setIcon(toggle.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
+    toggle.createSpan({ cls: "bt-sec-title", text: t("comments") });
+    if (this.entries.length) toggle.createSpan({ cls: "bt-sec-count", text: String(this.entries.length) });
+    toggle.onclick = () => { this.collapsed = !this.collapsed; this.render(); };
+    if (this.collapsed) { this.input = null; return; }
+
     const list = wrap.createDiv({ cls: "bt-log-list" });
     // Klicks in den gerenderten Kommentaren: Bilder öffnen die Lightbox, interne
     // Links (Notizen/PDF) öffnen im Tab. MarkdownRenderer verdrahtet im Modal keine
@@ -173,6 +191,7 @@ export class DetailLogView {
     const v = (this.input?.value || "").trim();
     if (!v) return;
     this.entries.push({ ts: nowLogTs(), body: v });
+    this.collapsed = false;   // ein neuer Kommentar landet nie in einer zugeklappten Sektion
     this.host.reveal();
     this.render();
     void this.persistLog();

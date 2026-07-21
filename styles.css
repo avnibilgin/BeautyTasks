@@ -445,28 +445,32 @@ body {
 
 /* ── Unteraufgaben-Sektion (oberster Teil des Detailbereichs) ── */
 .bt-task-modal .bt-st { margin-top: 8px; }
-/* Trennlinie unter der Ueberschrift – bewusst dieselbe wie zwischen den Unteraufgaben
-   (.bt-st-row), damit die Kopfzeile als erste Zeile derselben Liste liest. */
-.bt-task-modal .bt-st-head {
+/* ── Sektions-Kopfzeile (Unteraufgaben UND Kommentare) ──────────────────────────────────
+   EINE Regel fuer beide Sektionen des Detailbereichs: Chevron zum Ein-/Ausklappen, Titel,
+   Zaehler, optional eine Aktion rechts. Wer eine dritte Sektion baut, nimmt dieselben
+   Klassen und ist automatisch stimmig.
+   Trennlinie bewusst dieselbe wie zwischen den Unteraufgaben-Zeilen (.bt-st-row), damit die
+   Kopfzeile als erste Zeile derselben Liste liest. */
+.bt-task-modal .bt-sec-head {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding-bottom: 5px; border-bottom: 1px solid var(--bt-line-faint);
 }
 /* Schriftgroesse an BEIDEN Buttons, nicht an den Beschriftungen darin: `em` rechnet gegen
    den Elternwert, und der ist fuer einen Span IM Button Obsidians Button-Schrift (13px),
-   fuer den Schalter-Button dagegen die Modal-Schrift der Kopfzeile (15px). Dieselbe Zahl
-   ergaebe so zwei verschiedene Pixelwerte. Hier haengt sie an derselben Ebene (.bt-st-head)
+   fuer den Aktions-Button dagegen die Modal-Schrift der Kopfzeile (15px). Dieselbe Zahl
+   ergaebe so zwei verschiedene Pixelwerte. Hier haengt sie an derselben Ebene (.bt-sec-head)
    -> beide 0.88em = 13.2px; Titel und Zaehler erben sie. */
-.bt-task-modal .bt-st-toggle,
-.bt-task-modal .bt-st-donetog {
+.bt-task-modal .bt-sec-toggle,
+.bt-task-modal .bt-sec-act {
   display: inline-flex; align-items: center; gap: 5px; padding: 2px 5px;
   background: transparent; box-shadow: none; border-radius: 5px; cursor: pointer;
   height: auto; min-height: 0; line-height: 1.4;
   font-size: 0.88em; color: var(--text-normal); font-weight: 600;
 }
-.bt-task-modal .bt-st-toggle:hover, .bt-task-modal .bt-st-donetog:hover { background: var(--background-modifier-hover); }
-.bt-task-modal .bt-st-caret { display: inline-flex; color: var(--text-muted); }
-.bt-task-modal .bt-st-caret svg { width: 18px; height: 18px; }
-.bt-task-modal .bt-st-count { color: var(--text-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.bt-task-modal .bt-sec-toggle:hover, .bt-task-modal .bt-sec-act:hover { background: var(--background-modifier-hover); }
+.bt-task-modal .bt-sec-caret { display: inline-flex; color: var(--text-muted); }
+.bt-task-modal .bt-sec-caret svg { width: 18px; height: 18px; }
+.bt-task-modal .bt-sec-count { color: var(--text-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 
 .bt-task-modal .bt-st-body { margin-top: 2px; }
 .bt-task-modal .bt-st-row {
