@@ -443,8 +443,15 @@ body {
 /* Details = Unteraufgaben + Notiz-Link + Kommentar-Log (Timeline + Composer). */
 .bt-task-modal .bt-details { margin: 0 0 12px; }
 
-/* ── Unteraufgaben-Sektion (oberster Teil des Detailbereichs) ── */
-.bt-task-modal .bt-st { margin-top: 8px; }
+/* ── Unteraufgaben-Sektion (oberster Teil des Detailbereichs) ──
+   Luft zwischen der Trennlinie unter der Chip-Leiste und der Ueberschrift „Unteraufgaben".
+   Bewusst PADDING: .bt-st ist erstes Kind von .bt-details, und das hat weder Padding noch
+   Border – ein margin-top kollabierte durch den Elternteil hindurch und traefe dann auf das
+   margin-bottom der Chip-Leiste. Kollabierende Margins ADDIEREN sich nicht, es gewinnt der
+   groessere: aus 12px + 8px wurden nie 20px, sondern 12px. Padding kollabiert nie.
+   Gesamtabstand = 12px (margin-bottom der Chip-Leiste) + dieser Wert.
+   -> aktuell 12 + 97 = 109px (Testwert, hier justieren). */
+.bt-task-modal .bt-st { padding-top: 97px; }
 /* ── Sektions-Kopfzeile (Unteraufgaben UND Kommentare) ──────────────────────────────────
    EINE Regel fuer beide Sektionen des Detailbereichs: Chevron zum Ein-/Ausklappen, Titel,
    Zaehler, optional eine Aktion rechts. Wer eine dritte Sektion baut, nimmt dieselben
