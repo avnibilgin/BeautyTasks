@@ -450,8 +450,8 @@ body {
    margin-bottom der Chip-Leiste. Kollabierende Margins ADDIEREN sich nicht, es gewinnt der
    groessere: aus 12px + 8px wurden nie 20px, sondern 12px. Padding kollabiert nie.
    Gesamtabstand = 12px (margin-bottom der Chip-Leiste) + dieser Wert.
-   -> aktuell 12 + 97 = 109px (Testwert, hier justieren). */
-.bt-task-modal .bt-st { padding-top: 97px; }
+   -> 12 + 18 = 30px (hier justieren). */
+.bt-task-modal .bt-st { padding-top: 18px; }
 /* ── Sektions-Kopfzeile (Unteraufgaben UND Kommentare) ──────────────────────────────────
    EINE Regel fuer beide Sektionen des Detailbereichs: Chevron zum Ein-/Ausklappen, Titel,
    Zaehler, optional eine Aktion rechts. Wer eine dritte Sektion baut, nimmt dieselben
