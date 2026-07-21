@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, FilterGroup, PageLayout, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, FilterGroup, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -459,11 +459,19 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
 }
 
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
-/** Innerhalb einer Spalte sortieren: „erledigt" nach Abschlusszeit (neueste oben),
- *  offene Spalten datiert zuerst (aufsteigend), Datumlose ans Ende. */
-function sortColumn(list: Task[], kind: StatusKind): Task[] {
-  if (kind === "done") return list.sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
-  return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
+/**
+ * Innerhalb einer Spalte sortieren – nach derselben Wahl wie die Liste (Anzeige-Panel).
+ * Vorher war das hier fest auf „Datum, dann Titel" verdrahtet: die Spalten stammen aus 1.2.0,
+ * die Sortierrichtung kam erst mit 1.13.0 dazu und wurde nie nachgezogen. Sortieren/Richtung
+ * standen im Board also im Panel, ohne etwas zu bewirken.
+ *
+ * Ausnahme bleibt die „erledigt"-Spalte: zuletzt Abgehaktes oben – wie die „Erledigt"-Sektion
+ * der Liste. Eine Spalte aus fertigen Aufgaben beantwortet „was ist zuletzt passiert?", nicht
+ * „was kommt als Nächstes?"; eine Sortierung nach Fälligkeit hilft dort niemandem.
+ */
+function sortColumn(list: Task[], kind: StatusKind, sort: FilterSort, dir: SortDir): Task[] {
+  if (kind === "done") return [...list].sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  return sortTasks(list, sort, dir);
 }
 
 // ── Generisches Spalten-Modell: das Board folgt der Gruppierung ──
@@ -719,7 +727,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
-    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind);
+    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });

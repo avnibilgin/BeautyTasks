@@ -1,6 +1,6 @@
 import { App, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
-import { combineDT } from "./format";
+import { combineDT, localStamp } from "./format";
 import { firstOpenStatus } from "./statuses";
 
 export const slugify = (s: string): string =>
@@ -26,7 +26,7 @@ export const todayIso = (): string => {
  *  hält die Identität über Umbenennen und GCal-Sync stabil. `status`/`project` bleiben unberührt. */
 export function ensureCanonicalFm(fm: Record<string, unknown>): void {
   if (fm.id == null || fm.id === "") fm.id = newId("t");
-  if (typeof fm.created !== "string" || !fm.created) fm.created = todayIso();
+  if (typeof fm.created !== "string" || !fm.created) fm.created = localStamp();
 }
 
 /** Frontmatter-Block – nur gesetzte Felder. */
@@ -88,7 +88,10 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     recurrence: f.recurrence ?? null,
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
     reminders: f.reminders ?? [],
-    created: todayIso(),
+    // Mit Uhrzeit (wie `completed`): sonst sind alle Aufgaben eines Tages beim Sortieren nach
+    // „Erstellt" gleichwertig und die Richtung bleibt ohne sichtbare Wirkung. Ältere Notizen
+    // behalten ihr reines Datum – der Vergleich in sortTasks kommt mit beidem zurecht.
+    created: localStamp(),
     description: (f.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
   return app.vault.create(dest, fm + "\n# " + f.title + "\n");

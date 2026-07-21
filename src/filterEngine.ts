@@ -157,7 +157,14 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc"):
   if (sort === "priority") return arr.sort((a, b) => byPrio(a, b) || byDue(a, b));
   // „Aufsteigend" = ältestes zuerst. (Vorher war Erstellt fest auf „neueste zuerst" – das ist
   // jetzt „absteigend" und damit wählbar statt eingebaut.)
-  if (sort === "created") return arr.sort((a, b) => s * (a.created ?? "").localeCompare(b.created ?? ""));
+  //
+  // Der Titel-Tiebreaker ist hier NICHT Kosmetik: `created` war lange ein reines Datum ohne
+  // Uhrzeit (taskService.todayIso), Altbestände sind es weiterhin. Ohne ihn sind alle am selben
+  // Tag angelegten Aufgaben gleichwertig, die stabile Sortierung lässt sie in Indexreihenfolge
+  // stehen – und „aufsteigend"/„absteigend" sehen für den ganzen Block identisch aus. Neue
+  // Aufgaben tragen einen vollen Zeitstempel; gemischt verglichen wird trotzdem richtig, weil
+  // "2026-07-21" lexikografisch vor "2026-07-21T..." liegt (Datum-only = früher am selben Tag).
+  if (sort === "created") return arr.sort((a, b) => s * (a.created ?? "").localeCompare(b.created ?? "") || byTitle(a, b));
   if (sort === "title") return arr.sort((a, b) => s * byTitle(a, b));
   // „smart" ist richtungsfrei – hier NICHT byDue/byPrio verwenden, die tragen bereits das
   // Vorzeichen. Sonst würde eine gespeicherte Richtung die Semantik doch noch umdrehen.

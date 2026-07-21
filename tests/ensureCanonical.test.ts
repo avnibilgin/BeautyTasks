@@ -7,7 +7,7 @@ describe("ensureCanonicalFm – Kanon-Felder für handgeschriebene Aufgaben", ()
     ensureCanonicalFm(fm);
     expect(typeof fm.id).toBe("string");
     expect((fm.id as string).length).toBeGreaterThan(0);
-    expect(fm.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(fm.created).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);   // mit Uhrzeit: nach „Erstellt" sortierbar
   });
 
   it("ist idempotent: vorhandene id und created bleiben unangetastet", () => {
@@ -28,6 +28,6 @@ describe("ensureCanonicalFm – Kanon-Felder für handgeschriebene Aufgaben", ()
     const fm: Record<string, unknown> = { type: "task", id: "", created: "" };
     ensureCanonicalFm(fm);
     expect(fm.id).not.toBe("");
-    expect(fm.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(fm.created).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);   // mit Uhrzeit: nach „Erstellt" sortierbar
   });
 });
