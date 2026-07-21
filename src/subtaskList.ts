@@ -26,8 +26,6 @@ export interface SubtaskHost {
   openTask(task: Task): void;
   /** Getippten Titel im vollen Editor weiterbearbeiten (⤢). */
   openFullEditor(title: string): void;
-  /** Zählerstand hat sich geändert – Modal aktualisiert das Badge am Details-Chip. */
-  changed(): void;
 }
 
 export class SubtaskList {
@@ -56,12 +54,6 @@ export class SubtaskList {
   unload(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
-  }
-
-  /** Erledigt/gesamt der direkten Kinder – für das Badge am Details-Chip. */
-  progress(): { done: number; total: number } {
-    const kids = this.children();
-    return { done: kids.filter((k) => isDone(k.status)).length, total: kids.length };
   }
 
   /** Eingabefeld fokussieren (Menüpunkt „Unteraufgabe erstellen"). */
@@ -109,22 +101,27 @@ export class SubtaskList {
     const done = kids.filter((k) => isDone(k.status)).length;
 
     // ── Kopfzeile: Chevron + Titel + Fortschritt, rechts der Erledigt-Schalter ──
-    const head = wrap.createDiv({ cls: "bt-sec-head" });
-    const toggleBtn = head.createEl("button", {
-      cls: "bt-sec-toggle",
-      attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("subtasks") },
-    });
-    setIcon(toggleBtn.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
-    toggleBtn.createSpan({ cls: "bt-sec-title", text: t("subtasks") });
-    if (kids.length) toggleBtn.createSpan({ cls: "bt-sec-count", text: done + "/" + kids.length });
-    toggleBtn.onclick = () => { this.collapsed = !this.collapsed; this.render(); };
+    // Ohne Unteraufgaben bleibt sie WEG: dann steht hier nur die leise Erfassungszeile, statt
+    // jede Aufgabe mit einer Überschrift und einer Trennlinie über einer leeren Liste zu belasten.
+    // Ab der ersten Unteraufgabe kommt sie dazu.
+    if (kids.length) {
+      const head = wrap.createDiv({ cls: "bt-sec-head" });
+      const toggleBtn = head.createEl("button", {
+        cls: "bt-sec-toggle",
+        attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("subtasks") },
+      });
+      setIcon(toggleBtn.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
+      toggleBtn.createSpan({ cls: "bt-sec-title", text: t("subtasks") });
+      toggleBtn.createSpan({ cls: "bt-sec-count", text: done + "/" + kids.length });
+      toggleBtn.onclick = () => { this.collapsed = !this.collapsed; this.render(); };
 
-    if (done) {
-      const sw = head.createEl("button", { cls: "bt-sec-act", text: this.hideDone ? t("panel_show_done") : t("subs_hide_done") });
-      sw.onclick = () => { this.hideDone = !this.hideDone; this.render(); };
+      if (done) {
+        const sw = head.createEl("button", { cls: "bt-sec-act", text: this.hideDone ? t("panel_show_done") : t("subs_hide_done") });
+        sw.onclick = () => { this.hideDone = !this.hideDone; this.render(); };
+      }
+
+      if (this.collapsed) { this.input = null; return; }
     }
-
-    if (this.collapsed) { this.input = null; this.host.changed(); return; }
 
     const body = wrap.createDiv({ cls: "bt-st-body" });
     for (const kid of kids) {
@@ -132,7 +129,6 @@ export class SubtaskList {
       this.renderRow(body, kid);
     }
     this.renderComposer(body, draft, hadFocus);
-    this.host.changed();
   }
 
   /** Eine Unteraufgabe: Status-Kreis · Titel · Meta · ✕ (in den Papierkorb). */

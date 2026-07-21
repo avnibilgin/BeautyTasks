@@ -564,10 +564,6 @@ body {
 }
 .bt-task-modal .bt-st-full:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
 
-/* Zähler am Details-Chip (Büroklammer): erledigt/gesamt der Unteraufgaben. */
-.bt-task-modal .bt-chip-badge { font-size: 0.85em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.bt-task-modal .bt-chip-details.is-open .bt-chip-badge { color: inherit; }
-
 .bt-task-modal .bt-log { margin-top: 8px; }
 .bt-task-modal .bt-log-list { max-height: 260px; overflow-y: auto; padding: 2px 2px 2px 16px; position: relative; }
 .bt-task-modal .bt-log-list::before {            /* durchgehende Timeline-Linie */
@@ -728,7 +724,14 @@ body {
 /* margin-top 24px (statt 8): schafft ober- UND unterhalb der Linie je 12px – die Linie sitzt
    damit mittig zwischen Eingabefeld und Fußzeile (unten 12px zu den Buttons wie im Modal ohne
    Details, oben 12px zum Eingabefeld). Nur bei offenem Detailbereich. */
+/* Die Linie gehoert dorthin, wo zwischen Chip-Leiste und Fusszeile UEBERHAUPT etwas steht –
+   nicht nur bei offenem Detailbereich. Seit die Unteraufgaben eine eigene, immer sichtbare
+   Sektion sind, gibt es den Fall „Kommentare zu, Unteraufgaben da": ohne diese zweite Bedingung
+   klebten die Buttons an der Erfassungszeile. `~` statt `+`, weil .bt-st nicht direkter
+   Vorgaenger der Fusszeile ist (der Detailbereich liegt dazwischen). */
+.bt-task-modal .bt-st:not(.bt-hidden) ~ .bt-foot,
 .bt-task-modal .bt-details:not(.bt-hidden) + .bt-foot { position: relative; margin-top: 24px; }
+.bt-task-modal .bt-st:not(.bt-hidden) ~ .bt-foot::before,
 .bt-task-modal .bt-details:not(.bt-hidden) + .bt-foot::before {
   content: ""; position: absolute; top: -12px;   /* mittig: 12px zum Eingabefeld, 12px zu den Buttons */
   left: calc(-1 * var(--size-4-4) - 4px); right: calc(-1 * var(--size-4-4) - 4px);

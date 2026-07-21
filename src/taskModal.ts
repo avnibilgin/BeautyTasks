@@ -9,7 +9,7 @@ import { readLog } from "./detailLog";
 import { DetailLogView } from "./detailLogView";
 import { SubtaskList } from "./subtaskList";
 import { ConfirmModal } from "./confirmModal";
-import { firstOpenStatus, isTrashed } from "./statuses";
+import { firstOpenStatus } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
@@ -113,10 +113,13 @@ export class TaskModal extends Modal {
     // Büroklammer-Chip in der Chip-Leiste (statt der früheren "+ Details"-Zeile). Der Log
     // lebt im Body der Aufgaben-Notiz. Vor renderChips() anlegen, damit der Details-Chip
     // seinen Offen/Zu-Zustand aus logWrap lesen kann.
+    // Unteraufgaben sind STRUKTUR der Aufgabe, keine Beilage: eigene Sektion auf Titel-Ebene,
+    // immer sichtbar, NICHT hinter dem Details-Chip. Die Büroklammer bedeutet im ganzen Plugin
+    // „Kommentare/Anhänge" (siehe die Zeilen-Indikatoren in heuteView) – sie darf nicht zugleich
+    // der einzige Weg zu den Unteraufgaben sein.
+    this.subsWrap = contentEl.createDiv({ cls: "bt-st" });
+    // Detailbereich = Kommentare + Notiz-Link. Das ist es, was der Details-Chip schaltet.
     this.detailsWrap = contentEl.createDiv({ cls: "bt-details" });
-    // Unteraufgaben stehen im Detailbereich GANZ OBEN, darunter die Kommentare. Der Link zur
-    // Aufgabennotiz hängt rechts in der Kommentar-Kopfzeile (siehe renderNotesLink).
-    this.subsWrap = this.detailsWrap.createDiv({ cls: "bt-st" });
 
     this.logWrap = this.detailsWrap.createDiv({ cls: "bt-log bt-hidden" });
     this.log = new DetailLogView(this.app, this.plugin, {
@@ -132,7 +135,6 @@ export class TaskModal extends Modal {
       projectBase: () => this.f.project ?? null,
       openTask: (task) => { this.close(); this.plugin.openEditTask(task); },
       openFullEditor: (title) => this.openSubtaskEditor(title),
-      changed: () => this.renderChips(),   // Badge am Details-Chip nachziehen
     });
 
     this.applyParse();
@@ -140,9 +142,6 @@ export class TaskModal extends Modal {
     this.subs.mount(this.subsWrap);
     this.log.mount(this.logWrap);
     this.syncDetails();
-    // Hat die Aufgabe Unteraufgaben, ist der Detailbereich beim Öffnen direkt aufgeklappt –
-    // sonst wären sie (wie bisher) unsichtbar. Gleiche Regel wie bei vorhandenen Kommentaren.
-    if (this.hasSubtasks()) { this.logWrap.removeClass("bt-hidden"); this.syncDetails(); }
     // Bestehende Aufgabe: Log aus dem Notiz-Body laden, bei Inhalt direkt aufgeklappt.
     // (Die Beschreibung kommt bereits aus dem Frontmatter über this.f.description.)
     if (this.existing) {
@@ -196,12 +195,6 @@ export class TaskModal extends Modal {
     const el = this.descInput; if (!el) return;
     el.setCssStyles({ height: "auto" });
     el.setCssStyles({ height: Math.min(el.scrollHeight, 200) + "px" });
-  }
-
-  /** Hat diese Aufgabe (nicht gelöschte) Unteraufgaben? */
-  private hasSubtasks(): boolean {
-    if (!this.existing) return false;
-    return this.plugin.index.children(this.existing.path).some((k) => !isTrashed(k.status));
   }
 
   /** Breadcrumb über dem Titel: „↰ Hauptaufgabe". Nur bei einer Unteraufgabe, deren Eltern-
@@ -348,10 +341,9 @@ export class TaskModal extends Modal {
     if (chipsCompact(this.plugin.settings)) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
     const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
-    // Unteraufgaben-Stand direkt am Chip: bei zugeklapptem Detailbereich der einzige Hinweis,
-    // dass es überhaupt welche gibt.
-    const p = this.subs?.progress();
-    if (p?.total) chip.createSpan({ cls: "bt-chip-badge", text: p.done + "/" + p.total, attr: { "aria-label": t("subtasks_progress", p.done, p.total) } });
+    // Bewusst KEIN Zähler am Chip: Der Detailbereich enthält nur noch Kommentare, und deren
+    // Anzahl steht in der Sektionsüberschrift. Die Chip-Leiste ist die dichteste Zone des
+    // Modals – eine Zahl, die zwei Zeilen tiefer nochmal steht, verdient dort keinen Platz.
     chip.onclick = (e) => { e.stopPropagation(); this.toggleDetails(); };
     this.detailsChip = chip;
   }
@@ -555,9 +547,7 @@ export class TaskModal extends Modal {
    *  und ein zweites geöffnet – der Kontext (Hauptaufgabe) ging dabei verloren. */
   private addSubtask(): void {
     if (!this.existing) return;
-    this.logWrap.removeClass("bt-hidden");
-    this.syncDetails();
-    this.subs.focusComposer();
+    this.subs.focusComposer();   // Sektion ist immer sichtbar – nur noch Cursor setzen
   }
 
   /** ⤢ aus der Inline-Erfassung: den getippten Titel im vollen Editor weiterbearbeiten.
