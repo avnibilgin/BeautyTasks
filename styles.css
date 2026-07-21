@@ -527,11 +527,15 @@ body {
    `.bt-log { margin-top: 8px }` verrechnen statt zu addieren. Padding kollabiert nie und ist hier
    optisch identisch (die Zeile hat weder Hintergrund noch Rahmen).
    Unten 12px + die 8px des Kommentar-Blocks -> 20px bis zur Kommentar-Ueberschrift. */
-.bt-task-modal .bt-st-add { display: flex; align-items: center; gap: 8px; padding: 4px 4px 12px 6px; }
-.bt-task-modal .bt-st-add-ic { display: inline-flex; color: var(--text-faint); }
-.bt-task-modal .bt-st-add-ic svg { width: 14px; height: 14px; }
+/* EINE Textkante fuer die ganze Sektion (28px vom linken Rand): Zeilen-Padding (6) + Icon (13,
+   genau die Breite der Checkbox in den Zeilen darueber) + gap (3) + Feld-Padding (6). Der
+   Fokus-Kasten beginnt 6px links davon – wie der Hover-Kasten der Zeilen, der auch ueber den
+   Text hinausreicht. */
+.bt-task-modal .bt-st-add { display: flex; align-items: center; gap: 3px; padding: 4px 4px 12px 6px; }
+.bt-task-modal .bt-st-add-ic { display: inline-flex; color: var(--text-faint); flex: 0 0 auto; }
+.bt-task-modal .bt-st-add-ic svg { width: 13px; height: 13px; }
 .bt-task-modal .bt-st-input {
-  flex: 1; min-width: 0; height: 28px; font-size: 0.9em;
+  flex: 1; min-width: 0; height: 30px; font-size: 0.9em;
   background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px;
 }
 .bt-task-modal .bt-st-input::placeholder { color: var(--text-faint); }
@@ -540,10 +544,13 @@ body {
   border-color: var(--interactive-accent); box-shadow: none; outline: none;
 }
 .bt-task-modal .bt-st-add:focus-within .bt-st-add-ic { color: var(--interactive-accent); }
+/* Nachgestellte Aktion – gleiche Groesse und Optik wie die Aktionen der Kommentar-Zeile
+   (.bt-log-attach/.bt-log-add), damit beide Erfassungszeilen rechts gleich enden. */
 .bt-task-modal .bt-st-full {
-  flex: 0 0 auto; padding: 3px; border-radius: 5px; cursor: pointer; color: var(--text-muted);
-  background: transparent; box-shadow: none; display: inline-flex; align-items: center;
-  height: auto; min-height: 0; line-height: 1;
+  flex: 0 0 auto; margin-left: 3px; cursor: pointer; color: var(--text-muted);
+  background: transparent; box-shadow: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; min-height: 0; border-radius: 6px; line-height: 1;
 }
 .bt-task-modal .bt-st-full:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
 .bt-task-modal .bt-st-full .svg-icon { width: 14px; height: 14px; }
@@ -582,33 +589,63 @@ body {
 .bt-task-modal .bt-log-edit { width: 100%; resize: vertical; min-height: 48px; font-size: 0.9em; }
 .bt-task-modal .bt-log-edit-acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
 .bt-task-modal .bt-log-edit-btn { font-size: 0.82em; padding: 3px 10px; }
+/* Erfassungszeile der Kommentare – baugleich zur Unteraufgaben-Erfassung (.bt-st-add):
+   dieselbe Anatomie [Icon] [Feld] [Aktion], dieselbe Textkante (28px, s. u.) und derselbe
+   leise Ruhezustand. Der einzige bewusste Unterschied bleibt textarea statt input: ein
+   Kommentar ist Fliesstext, ein Unteraufgaben-Titel einzeilig (er wird Dateiname + Ueberschrift). */
 .bt-task-modal .bt-log-composer {
-  display: flex; align-items: flex-end; gap: 6px; margin-top: 8px;
+  display: flex; align-items: flex-end; gap: 3px; margin-top: 8px; padding-left: 6px;
 }
+/* Das „+" markiert die ERSTE Textzeile, nicht die letzte: bei einem mehrzeilig gewachsenen
+   Feld saesse es sonst unten neben dem Senden-Button. 10px = Feld-Padding (6) + Rahmen (1)
+   plus die halbe Zeilenhoehe abzueglich des halben Icons. */
+.bt-task-modal .bt-log-composer-ic {
+  display: inline-flex; align-self: flex-start; margin-top: 10px;
+  color: var(--text-faint); flex: 0 0 auto;
+}
+.bt-task-modal .bt-log-composer-ic svg { width: 13px; height: 13px; }
+.bt-task-modal .bt-log-composer:focus-within .bt-log-composer-ic { color: var(--interactive-accent); }
 /* KEINE Trennlinie mehr zwischen Kommentaren und Eingabefeld – die Trennung zur Fußzeile
    liegt jetzt UNTER dem Eingabefeld (siehe .bt-foot::before weiter unten). */
 .bt-task-modal .bt-log-list:empty { display: none; }
 .bt-task-modal .bt-log-list:empty + .bt-log-composer { margin-top: 0; }
+/* Ruhezustand leise wie .bt-st-input: kein Kasten, solange nichts passiert. padding-left 6px
+   ergibt zusammen mit Icon (13) + gap (3) + Zeilen-Padding (6) die 28px Textkante der
+   Unteraufgaben-Zeilen. */
 .bt-task-modal .bt-log-input {
-  flex: 1; resize: none; min-height: 34px; max-height: 220px; font-size: 0.9em; line-height: 1.4;
-  /* Als Eingabefeld erkennbar – gleiche Form-Field-Optik wie die übrigen Inputs im Plugin
-     (statt Obsidians flachem Textarea-Default). Fokus-/Drop-Rahmen greifen darauf auf (s. u.). */
-  background: var(--background-modifier-form-field);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px; padding: 6px 10px;
+  flex: 1; resize: none; min-height: 30px; max-height: 220px; font-size: 0.9em; line-height: 1.4;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 6px; padding: 6px;
 }
-/* Dezenter Fokus statt Obsidians grellem Akzent-Glow – wie die übrigen Felder. */
-.bt-task-modal .bt-log-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
-.bt-task-modal .bt-log-input.bt-drop { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px var(--interactive-accent) inset; }
-.bt-task-modal .bt-log-composer-actions { display: flex; gap: 4px; }
+.bt-task-modal .bt-log-input::placeholder { color: var(--text-faint); }
+/* Traegt das Feld Text, ist es ein Kasten – aber ein ruhiger (neutraler Rahmen). */
+.bt-task-modal .bt-log-composer.has-text .bt-log-input {
+  background: var(--background-modifier-form-field); border-color: var(--background-modifier-border);
+}
+/* Fokus/Drop gewinnen (gleiche Spezifitaet, deshalb bewusst DANACH): Akzentrahmen, kein Glow. */
+.bt-task-modal .bt-log-composer:focus-within .bt-log-input,
+.bt-task-modal .bt-log-input.bt-drop {
+  background: var(--background-modifier-form-field); border-color: var(--interactive-accent);
+  box-shadow: none; outline: none;
+}
+.bt-task-modal .bt-log-input.bt-drop { box-shadow: 0 0 0 2px var(--interactive-accent) inset; }
+.bt-task-modal .bt-log-composer-actions { display: flex; gap: 4px; margin-left: 3px; }
 .bt-task-modal .bt-log-attach, .bt-task-modal .bt-log-add {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+  background: transparent; box-shadow: none; color: var(--text-muted);
 }
-.bt-task-modal .bt-log-add { background: var(--interactive-accent); color: var(--text-on-accent); }
-.bt-task-modal .bt-log-add:hover { background: var(--interactive-accent-hover); }
-.bt-task-modal .bt-log-attach { color: var(--text-muted); }
-.bt-task-modal .bt-log-attach:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.bt-task-modal .bt-log-attach:hover, .bt-task-modal .bt-log-add:hover {
+  color: var(--text-normal); background: var(--background-modifier-hover);
+}
+/* Senden faerbt sich erst, wenn es etwas zu senden gibt (Fokus oder Text) – vorher ist es ein
+   stilles Icon wie die beiden daneben. */
+.bt-task-modal .bt-log-composer:focus-within .bt-log-add,
+.bt-task-modal .bt-log-composer.has-text .bt-log-add {
+  background: var(--interactive-accent); color: var(--text-on-accent);
+}
+.bt-task-modal .bt-log-composer:focus-within .bt-log-add:hover,
+.bt-task-modal .bt-log-composer.has-text .bt-log-add:hover { background: var(--interactive-accent-hover); }
 
 .bt-task-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 /* Bei offenem Detailbereich: volle Trennlinie ÜBER der Fußzeile (unter dem Eingabefeld),

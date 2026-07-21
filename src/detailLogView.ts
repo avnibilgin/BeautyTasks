@@ -97,10 +97,16 @@ export class DetailLogView {
       del.onclick = () => { this.entries.splice(idx, 1); this.render(); void this.persistLog(); };
     });
     const comp = wrap.createDiv({ cls: "bt-log-composer" });
+    // Fuehrendes „+" wie bei der Unteraufgaben-Erfassung: beide Zeilen haben dieselbe Anatomie
+    // [Icon] [Feld] [Aktion] und beginnen auf derselben Textkante.
+    setIcon(comp.createSpan({ cls: "bt-log-composer-ic" }), "plus");
     const inp = comp.createEl("textarea", { cls: "bt-log-input", attr: { placeholder: t("log_placeholder"), rows: "1" } });
     this.input = inp;
     const grow = () => { inp.setCssStyles({ height: "auto" }); inp.setCssStyles({ height: Math.min(inp.scrollHeight, 220) + "px" }); };
-    inp.oninput = grow;
+    // Ruhezustand ist leise (transparent). Gefuellt wird das Feld – und der Senden-Button
+    // akzentuiert – sobald es Fokus hat (per CSS :focus-within) ODER Text traegt (diese Klasse).
+    const syncState = (): void => comp.toggleClass("has-text", inp.value.trim().length > 0);
+    inp.oninput = () => { grow(); syncState(); };
     inp.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.addEntry(); } };
     inp.onpaste = (ev) => { const f = ev.clipboardData?.files; if (f && f.length) { ev.preventDefault(); void this.handleFiles(f); } };
     inp.ondragover = (ev) => { ev.preventDefault(); inp.addClass("bt-drop"); };
