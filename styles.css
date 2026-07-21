@@ -520,12 +520,14 @@ body {
 .bt-task-modal .bt-st-del .svg-icon { width: 14px; height: 14px; }
 
 /* Inline-Erfassung: sieht wie eine Zeile aus, ist aber immer eingabebereit.
-   Luft ober- und unterhalb bewusst als PADDING, nicht als margin: die Zeile ist das letzte Kind
-   eines Blocks ohne eigenes Padding/Border, ein margin-bottom wuerde also nach aussen kollabieren
-   und sich mit `.bt-log { margin-top: 8px }` verrechnen statt zu addieren. Padding kollabiert nie
-   und ist hier optisch identisch (die Zeile hat weder Hintergrund noch Rahmen).
-   Unten 12px, weil die 8px margin-top des Kommentar-Blocks dazukommen -> beidseitig 20px. */
-.bt-task-modal .bt-st-add { display: flex; align-items: center; gap: 8px; padding: 20px 4px 12px 6px; }
+   Sie gehoert zur Unteraufgaben-Sektion und bleibt darum oben dicht an der Liste (4px). Die Luft
+   liegt UNTER ihr und trennt die ganze Sektion von den Kommentaren.
+   Bewusst PADDING, nicht margin: die Zeile ist das letzte Kind eines Blocks ohne eigenes
+   Padding/Border, ein margin-bottom wuerde also nach aussen kollabieren und sich mit
+   `.bt-log { margin-top: 8px }` verrechnen statt zu addieren. Padding kollabiert nie und ist hier
+   optisch identisch (die Zeile hat weder Hintergrund noch Rahmen).
+   Unten 12px + die 8px des Kommentar-Blocks -> 20px bis zur Kommentar-Ueberschrift. */
+.bt-task-modal .bt-st-add { display: flex; align-items: center; gap: 8px; padding: 4px 4px 12px 6px; }
 .bt-task-modal .bt-st-add-ic { display: inline-flex; color: var(--text-faint); }
 .bt-task-modal .bt-st-add-ic svg { width: 14px; height: 14px; }
 .bt-task-modal .bt-st-input {
