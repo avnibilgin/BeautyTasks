@@ -463,8 +463,8 @@ body {
    zusammen als EINE Ebene. */
 .bt-task-modal .bt-st-caret { display: inline-flex; color: var(--text-muted); }
 .bt-task-modal .bt-st-caret svg { width: 18px; height: 18px; }
-.bt-task-modal .bt-st-title { font-size: 1em; font-weight: 600; color: var(--text-normal); }
-.bt-task-modal .bt-st-count { font-size: 0.92em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bt-task-modal .bt-st-title { font-size: 0.88em; font-weight: 600; color: var(--text-normal); }
+.bt-task-modal .bt-st-count { font-size: 0.85em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .bt-task-modal .bt-st-donetog { font-size: 0.88em; color: var(--text-muted); font-weight: 600; }
 .bt-task-modal .bt-st-donetog:hover { color: var(--text-normal); }
 
