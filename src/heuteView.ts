@@ -658,38 +658,68 @@ function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLEl
   });
 }
 
+/** Alle Einfüge-Markierungen einer Liste entfernen. */
+function clearDropTarget(list: HTMLElement): void {
+  for (const el of Array.from(list.querySelectorAll<HTMLElement>(".bt-task"))) {
+    el.removeClass("is-drop-before"); el.removeClass("is-drop-after");
+  }
+}
+
 /**
- * Vor WELCHE Karte würde hier losgelassen? Liefert den Pfad der Karte, vor der eingefügt wird,
- * oder null für „ans Ende". Es zählen nur GESCHWISTER der gezogenen Aufgabe: eine Position gilt
- * unter Geschwistern, also sind die Kanten dazwischen die einzigen sinnvollen Einfügestellen.
- * Steht kein Geschwister in dieser Spalte, gibt es nichts einzusortieren (undefined).
+ * Vor WELCHE Zeile würde auf Höhe `y` losgelassen? Markiert die Stelle und gibt den Pfad zurück,
+ * vor dem eingefügt wird – null für „ans Ende", undefined für „hier ist nichts einzusortieren".
+ *
+ * Es zählen nur GESCHWISTER der gezogenen Aufgabe: eine Position gilt unter Geschwistern, also
+ * sind die Kanten dazwischen die einzigen sinnvollen Einfügestellen. Eine Unteraufgabe lässt sich
+ * damit nicht zwischen fremde Aufgaben ziehen – sie bliebe ohnehin im Slot ihres Elters.
+ *
+ * Dieselbe Funktion für Board und Liste. In beiden ist `list` der Container der Zeilen/Karten;
+ * berechnen und markieren gehören zusammen, weil beides dieselbe Geschwister-Auswahl braucht.
  */
-function dropTargetPath(colEl: HTMLElement, dragged: Task, plugin: BeautyTasksPlugin, y: number): string | null | undefined {
-  const list = colEl.querySelector<HTMLElement>(".bt-kanban-list");
-  if (!list) return undefined;
-  const cards = Array.from(list.children).filter((el): el is HTMLElement => el.instanceOf(HTMLElement) && el.hasClass("bt-task"));
-  const siblings = cards.filter((el) => {
+function showDropTarget(list: HTMLElement, dragged: Task, plugin: BeautyTasksPlugin, y: number): string | null | undefined {
+  const rows = Array.from(list.querySelectorAll<HTMLElement>(".bt-task"));
+  for (const el of rows) { el.removeClass("is-drop-before"); el.removeClass("is-drop-after"); }
+  const siblings = rows.filter((el) => {
     const tk = el.dataset.path ? plugin.index.get(el.dataset.path) : undefined;
     return !!tk && tk.path !== dragged.path && tk.parent === dragged.parent;
   });
   if (!siblings.length) return undefined;
   for (const el of siblings) {
     const r = el.getBoundingClientRect();
-    if (y < r.top + r.height / 2) return el.dataset.path ?? null;
+    if (y < r.top + r.height / 2) { el.addClass("is-drop-before"); return el.dataset.path ?? null; }
   }
+  siblings[siblings.length - 1].addClass("is-drop-after");
   return null;   // unterhalb aller Geschwister -> ans Ende
 }
 
-/** Einfüge-Markierung setzen bzw. aufräumen (Linie ober-/unterhalb einer Karte). */
-function markDrop(colEl: HTMLElement, beforePath: string | null | undefined): void {
-  for (const el of Array.from(colEl.querySelectorAll<HTMLElement>(".bt-task"))) {
-    el.removeClass("is-drop-before"); el.removeClass("is-drop-after");
-  }
-  if (beforePath === undefined) return;
-  const list = colEl.querySelector<HTMLElement>(".bt-kanban-list");
-  const cards = list ? Array.from(list.querySelectorAll<HTMLElement>(".bt-task")) : [];
-  if (beforePath === null) cards[cards.length - 1]?.addClass("is-drop-after");
-  else cards.find((el) => el.dataset.path === beforePath)?.addClass("is-drop-before");
+/**
+ * Zeile in der LISTE von Hand einsortieren – per Griff, nur bei Sortierung „Manuell".
+ *
+ * Bewusst NICHT attachRowDrag (ListManager): das ordnet das DOM live um und kennt keine
+ * Hierarchie. In „Eingerückt" bliebe der Teilbaum einer gezogenen Hauptaufgabe zurück, und jede
+ * Zeile wäre ein Ziel – auch eine, die kein Geschwister ist, worauf die Zeile nach dem Loslassen
+ * zurückspränge. Hier bewegt sich stattdessen nur eine Markierung, wie im Board; die Zeile selbst
+ * wandert erst beim Neuzeichnen. Damit stellt sich die Frage nach dem Teilbaum gar nicht.
+ */
+function attachTaskReorder(row: HTMLElement, grip: HTMLElement, list: HTMLElement, task: Task, plugin: BeautyTasksPlugin): void {
+  grip.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();          // nicht die Zeile anklicken (öffnet sonst das Modal)
+    const doc = list.ownerDocument;   // Ziel-Fenster einmal festhalten (Popout-sicher)
+    row.addClass("is-dragging");
+    let before: string | null | undefined;
+    const onMove = (me: PointerEvent): void => { before = showDropTarget(list, task, plugin, me.clientY); };
+    const onUp = (): void => {
+      row.removeClass("is-dragging");
+      clearDropTarget(list);
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      if (before === undefined) return;   // kein Geschwister getroffen -> nichts tun
+      void plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null);
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
 }
 
 /**
@@ -699,6 +729,7 @@ function markDrop(colEl: HTMLElement, beforePath: string | null | undefined): vo
  * nächste Neuzeichnung würde die Handarbeit sofort wieder überschreiben.
  */
 function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin, manual: boolean): void {
+  const listEl = (): HTMLElement | null => colEl.querySelector<HTMLElement>(".bt-kanban-list");
   const dragged = (): Task | undefined => (dragPath ? plugin.index.get(dragPath) : undefined);
   colEl.addEventListener("dragover", (e) => {
     if (!dragPath) return;                       // nur eigene Karten (kein Vault-Drag)
@@ -706,10 +737,14 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     colEl.addClass("is-drop");
     const tk = manual ? dragged() : undefined;
-    markDrop(colEl, tk ? dropTargetPath(colEl, tk, plugin, e.clientY) : undefined);
+    const l = listEl();
+    if (l) { if (tk) showDropTarget(l, tk, plugin, e.clientY); else clearDropTarget(l); }
   });
   colEl.addEventListener("dragleave", (e) => {
-    if (!colEl.contains(e.relatedTarget as Node | null)) { colEl.removeClass("is-drop"); markDrop(colEl, undefined); }
+    if (!colEl.contains(e.relatedTarget as Node | null)) {
+      colEl.removeClass("is-drop");
+      const l = listEl(); if (l) clearDropTarget(l);
+    }
   });
   colEl.addEventListener("drop", (e) => {
     e.preventDefault();
@@ -717,9 +752,9 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
     const path = e.dataTransfer?.getData("text/plain") || dragPath;
     const fromCol = dragFromCol;
     const task = path ? plugin.index.get(path) : undefined;
-    // Ziel VOR dem Aufräumen bestimmen – markDrop entfernt die Klassen, die wir noch lesen.
-    const before = manual && task ? dropTargetPath(colEl, task, plugin, e.clientY) : undefined;
-    markDrop(colEl, undefined);
+    const l = listEl();
+    const before = manual && task && l ? showDropTarget(l, task, plugin, e.clientY) : undefined;
+    if (l) clearDropTarget(l);
     dragPath = null; dragFromCol = null;
     if (!task) return;
     // Position zuerst und abgewartet, dann die Facette: zwei processFrontMatter auf dieselbe Datei
@@ -917,8 +952,10 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
   // EINMAL pro Section lesen (statt pro Zeile) und an renderTask durchreichen.
-  const subs = effectiveSubtasks(plugin.pageViewOptions());
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs });
+  const o = plugin.pageViewOptions();
+  const subs = effectiveSubtasks(o);
+  const manual = o.sort === "manual";
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -996,7 +1033,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1006,6 +1043,15 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   if (isDone(task.status)) row.addClass("is-done");
   if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);   // aus der Suche angesprungen? -> hervorheben + ins Bild scrollen
+
+  // Griff zum Einsortieren – nur bei Sortierung „Manuell" und nur in der Liste (die Karte im Board
+  // wird per HTML5-Drag bewegt, der Papierkorb kennt keine Reihenfolge). Eigener Griff statt
+  // Ganzzeilen-Drag, weil ein Klick auf die Zeile das Aufgaben-Modal öffnet.
+  if (opts.manual && !opts.flat && !trash) {
+    const grip = row.createSpan({ cls: "bt-row-grip", attr: { "aria-label": t("sort_manual") } });
+    setIcon(grip, "grip-vertical");
+    attachTaskReorder(row, grip, list, task, plugin);
+  }
 
   // Kanban-Karte: per HTML5-Drag zwischen Status-Spalten verschiebbar (Desktop).
   if (opts.draggable && !trash) {
@@ -1124,7 +1170,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const showKids = !trash && !opts.flat
     && (subs === "indented" || (subs === "compact" && subtasksExpanded.has(task.path)));
   if (showKids) for (const kid of plugin.index.children(task.path)) {
-    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs });
+    // Griff auch an verschachtelten Zeilen: ihre Geschwister stehen direkt darunter, also lassen
+    // sie sich untereinander genauso einsortieren wie Hauptaufgaben.
+    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual });
   }
 }
 
