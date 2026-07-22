@@ -658,10 +658,10 @@ function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLEl
   });
 }
 
-/** Alle Einfüge-Markierungen einer Liste entfernen. */
+/** Alle Zieh-Markierungen einer Liste entfernen (Einfügekante und Ausgrauen). */
 function clearDropTarget(list: HTMLElement): void {
   for (const el of Array.from(list.querySelectorAll<HTMLElement>(".bt-task"))) {
-    el.removeClass("is-drop-before"); el.removeClass("is-drop-after");
+    el.removeClass("is-drop-before"); el.removeClass("is-drop-after"); el.removeClass("is-drop-inert");
   }
 }
 
@@ -673,17 +673,27 @@ function clearDropTarget(list: HTMLElement): void {
  * sind die Kanten dazwischen die einzigen sinnvollen Einfügestellen. Eine Unteraufgabe lässt sich
  * damit nicht zwischen fremde Aufgaben ziehen – sie bliebe ohnehin im Slot ihres Elters.
  *
+ * Damit das SICHTBAR ist, werden alle übrigen Zeilen währenddessen ausgegraut. Ohne das sieht eine
+ * gemischte Spalte gleichförmig aus, und die Markierung springt scheinbar grundlos über Karten
+ * hinweg – das wirkt wie eine Sperre statt wie „gehört nicht zu dieser Ordnung". Der Fall tritt
+ * real auf: Unteraufgaben einer ERLEDIGTEN Hauptaufgabe stehen als eigene Karten in der Spalte,
+ * sortieren aber an der Position ihres unsichtbaren Elters.
+ *
  * Dieselbe Funktion für Board und Liste. In beiden ist `list` der Container der Zeilen/Karten;
  * berechnen und markieren gehören zusammen, weil beides dieselbe Geschwister-Auswahl braucht.
  */
 function showDropTarget(list: HTMLElement, dragged: Task, plugin: BeautyTasksPlugin, y: number): string | null | undefined {
   const rows = Array.from(list.querySelectorAll<HTMLElement>(".bt-task"));
   for (const el of rows) { el.removeClass("is-drop-before"); el.removeClass("is-drop-after"); }
-  const siblings = rows.filter((el) => {
+  /** Gehört diese Zeile zur selben Geschwistergruppe? (Die gezogene selbst zählt dazu – sie soll
+   *  nicht ausgegraut werden, sie trägt bereits `is-dragging`.) */
+  const related = (el: HTMLElement): boolean => {
     const tk = el.dataset.path ? plugin.index.get(el.dataset.path) : undefined;
-    return !!tk && tk.path !== dragged.path && tk.parent === dragged.parent;
-  });
-  if (!siblings.length) return undefined;
+    return !!tk && tk.parent === dragged.parent;
+  };
+  for (const el of rows) el.toggleClass("is-drop-inert", !related(el));
+  const siblings = rows.filter((el) => related(el) && el.dataset.path !== dragged.path);
+  if (!siblings.length) return undefined;   // nichts einzusortieren – alles andere ist bereits grau
   for (const el of siblings) {
     const r = el.getBoundingClientRect();
     if (y < r.top + r.height / 2) { el.addClass("is-drop-before"); return el.dataset.path ?? null; }
@@ -1063,7 +1073,13 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       e.dataTransfer?.setData("text/plain", task.path);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     });
-    row.addEventListener("dragend", () => { dragPath = null; dragFromCol = null; row.removeClass("is-dragging"); });
+    // Auch aufräumen, wenn der Zug ohne Drop endet (Escape, Loslassen außerhalb des Boards) –
+    // sonst bliebe die Spalte ausgegraut, bis sie das nächste Mal neu gezeichnet wird.
+    row.addEventListener("dragend", () => {
+      dragPath = null; dragFromCol = null;
+      row.removeClass("is-dragging");
+      clearDropTarget(list);
+    });
   }
 
   renderCheck(row, plugin, task, { trash });
