@@ -227,8 +227,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       section(root, plugin, t("nav_trash"), items, today, false, true);
     } else {
       const done = idx.done();
-      if (!done.length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
-      else section(root, plugin, t("sec_done"), done, today);
+      // `present` mitgeben: sonst nimmt die Liste an, JEDE Unteraufgabe hänge schon unter ihrer
+      // Hauptaufgabe – und lässt sie weg. Ist die Hauptaufgabe noch offen, steht sie hier aber
+      // gar nicht, und die abgehakte Unteraufgabe war nirgends auffindbar. Mit `present` bekommt
+      // sie eine eigene Zeile; nur wenn ihre Hauptaufgabe ebenfalls hier steht, bleibt sie unter
+      // ihr eingeklappt (erreichbar über deren Fortschritts-Badge).
+      const present = renderedPaths(plugin, done);
+      if (!visibleRows(done, present).length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
+      else section(root, plugin, t("sec_done"), done, today, false, false, present);
     }
   }
 }
@@ -252,12 +258,18 @@ function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: st
     const key = recurKey(tk.recurrence ?? "");
     const arr = groups.get(key); if (arr) arr.push(tk); else groups.set(key, [tk]);
   }
+  // Wie in der Erledigt-Ansicht: ohne `present` fiele jede wiederkehrende Unteraufgabe heraus,
+  // deren Hauptaufgabe nicht selbst wiederkehrend ist (sie steht dann nicht in dieser Liste).
+  const present = renderedPaths(plugin, recs);
+  const recurSection = (title: string, items: Task[]): void => {
+    if (visibleRows(items, present).length) section(root, plugin, title, items.sort(byDue), today, false, false, present);
+  };
   for (const key of RECUR_ORDER) {
     const items = groups.get(key);
-    if (items?.length) section(root, plugin, t(key), items.sort(byDue), today);
+    if (items) recurSection(t(key), items);
   }
   for (const [key, items] of groups) {
-    if (key.startsWith("raw:")) section(root, plugin, key.slice(4), items.sort(byDue), today);
+    if (key.startsWith("raw:")) recurSection(key.slice(4), items);
   }
 }
 

@@ -138,6 +138,16 @@ describe("visibleRows – Wächter und Sektion müssen dieselbe Regel benutzen",
     expect(visibleRows(nodate.tasks, present)).toHaveLength(0);   // … zeichnet aber nichts
   });
 
+  it("abgehakte Unteraufgabe mit noch offener Hauptaufgabe bekommt eine eigene Zeile", () => {
+    // Der Fall aus der Erledigt-Ansicht: „Collect Q2 figures" ist erledigt, „Finish quarterly
+    // report" nicht – die Hauptaufgabe steht also gar nicht in der Liste. `present` wird dort
+    // aus den erledigten Aufgaben gebaut und enthält sie deshalb nicht; ohne dieses Wissen
+    // wurde die Unteraufgabe als „hängt schon woanders" weggelassen und war unauffindbar.
+    const doneList = [mk({ id: "kind", path: "Items/kind.md", parent: "Items/offen.md" })];
+    const present = new Set(doneList.map((x) => x.path));   // nur Erledigte, Parent fehlt
+    expect(visibleRows(doneList, present).map((x) => x.id)).toEqual(["kind"]);
+  });
+
   it("bleibt sichtbar, sobald die Gruppe eine echte undatierte Aufgabe enthält", () => {
     const eltern = mk({ id: "eltern", path: "Items/eltern.md", due: "2026-07-22" });
     const kind = mk({ id: "kind", path: "Items/kind.md", parent: "Items/eltern.md", due: null });
