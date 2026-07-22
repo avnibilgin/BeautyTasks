@@ -134,18 +134,18 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
         if (visibleRows(overdue, present).length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present);
           rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
         if (visibleRows(dueToday, present).length || todayEv.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin)), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
           .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
@@ -390,7 +390,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
     renderCalendar(root, plugin, calSource, today, opts, () => plugin.renderMain(), add);
     return;
   }
-  const sorted = sortTasks(open, opts.sort, opts.sortDir);
+  const sorted = sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin));
   const present = nestingHosts(plugin, opts.showDone ? [...open, ...done] : open, effectiveSubtasks(opts));
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
     if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
@@ -442,6 +442,11 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
   anzeigeButton(actions, plugin);
 }
 
+/** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter
+ *  braucht – der in der zu sortierenden Liste gar nicht vorkommen muss. Wird an JEDEN
+ *  sortTasks-Aufruf gereicht, damit „Manuell" in Liste und Board dieselbe Ordnung ergibt. */
+const orderKey = (plugin: BeautyTasksPlugin) => (t: Task): number[] => plugin.index.orderKey(t);
+
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
 /**
  * Innerhalb einer Spalte sortieren – nach derselben Wahl wie die Liste (Anzeige-Panel).
@@ -453,9 +458,10 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
  * der Liste. Eine Spalte aus fertigen Aufgaben beantwortet „was ist zuletzt passiert?", nicht
  * „was kommt als Nächstes?"; eine Sortierung nach Fälligkeit hilft dort niemandem.
  */
-function sortColumn(list: Task[], kind: StatusKind, sort: FilterSort, dir: SortDir): Task[] {
+function sortColumn(list: Task[], kind: StatusKind, sort: FilterSort, dir: SortDir,
+  key: (t: Task) => number[]): Task[] {
   if (kind === "done") return [...list].sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
-  return sortTasks(list, sort, dir);
+  return sortTasks(list, sort, dir, key);
 }
 
 // ── Generisches Spalten-Modell: das Board folgt der Gruppierung ──
@@ -652,26 +658,123 @@ function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLEl
   });
 }
 
-/** Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation. */
-function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin): void {
+/** Alle Zieh-Markierungen einer Liste entfernen (Einfügekante und Ausgrauen). */
+function clearDropTarget(list: HTMLElement): void {
+  for (const el of Array.from(list.querySelectorAll<HTMLElement>(".bt-task"))) {
+    el.removeClass("is-drop-before"); el.removeClass("is-drop-after"); el.removeClass("is-drop-inert");
+  }
+}
+
+/**
+ * Vor WELCHE Zeile würde auf Höhe `y` losgelassen? Markiert die Stelle und gibt den Pfad zurück,
+ * vor dem eingefügt wird – null für „ans Ende", undefined für „hier ist nichts einzusortieren".
+ *
+ * Es zählen nur GESCHWISTER der gezogenen Aufgabe: eine Position gilt unter Geschwistern, also
+ * sind die Kanten dazwischen die einzigen sinnvollen Einfügestellen. Eine Unteraufgabe lässt sich
+ * damit nicht zwischen fremde Aufgaben ziehen – sie bliebe ohnehin im Slot ihres Elters.
+ *
+ * Damit das SICHTBAR ist, werden alle übrigen Zeilen währenddessen ausgegraut. Ohne das sieht eine
+ * gemischte Spalte gleichförmig aus, und die Markierung springt scheinbar grundlos über Karten
+ * hinweg – das wirkt wie eine Sperre statt wie „gehört nicht zu dieser Ordnung". Der Fall tritt
+ * real auf: Unteraufgaben einer ERLEDIGTEN Hauptaufgabe stehen als eigene Karten in der Spalte,
+ * sortieren aber an der Position ihres unsichtbaren Elters.
+ *
+ * Dieselbe Funktion für Board und Liste. In beiden ist `list` der Container der Zeilen/Karten;
+ * berechnen und markieren gehören zusammen, weil beides dieselbe Geschwister-Auswahl braucht.
+ */
+function showDropTarget(list: HTMLElement, dragged: Task, plugin: BeautyTasksPlugin, y: number): string | null | undefined {
+  const rows = Array.from(list.querySelectorAll<HTMLElement>(".bt-task"));
+  for (const el of rows) { el.removeClass("is-drop-before"); el.removeClass("is-drop-after"); }
+  /** Gehört diese Zeile zur selben Geschwistergruppe? (Die gezogene selbst zählt dazu – sie soll
+   *  nicht ausgegraut werden, sie trägt bereits `is-dragging`.) */
+  const related = (el: HTMLElement): boolean => {
+    const tk = el.dataset.path ? plugin.index.get(el.dataset.path) : undefined;
+    return !!tk && tk.parent === dragged.parent;
+  };
+  for (const el of rows) el.toggleClass("is-drop-inert", !related(el));
+  const siblings = rows.filter((el) => related(el) && el.dataset.path !== dragged.path);
+  if (!siblings.length) return undefined;   // nichts einzusortieren – alles andere ist bereits grau
+  for (const el of siblings) {
+    const r = el.getBoundingClientRect();
+    if (y < r.top + r.height / 2) { el.addClass("is-drop-before"); return el.dataset.path ?? null; }
+  }
+  siblings[siblings.length - 1].addClass("is-drop-after");
+  return null;   // unterhalb aller Geschwister -> ans Ende
+}
+
+/**
+ * Zeile in der LISTE von Hand einsortieren – per Griff, nur bei Sortierung „Manuell".
+ *
+ * Bewusst NICHT attachRowDrag (ListManager): das ordnet das DOM live um und kennt keine
+ * Hierarchie. In „Eingerückt" bliebe der Teilbaum einer gezogenen Hauptaufgabe zurück, und jede
+ * Zeile wäre ein Ziel – auch eine, die kein Geschwister ist, worauf die Zeile nach dem Loslassen
+ * zurückspränge. Hier bewegt sich stattdessen nur eine Markierung, wie im Board; die Zeile selbst
+ * wandert erst beim Neuzeichnen. Damit stellt sich die Frage nach dem Teilbaum gar nicht.
+ */
+function attachTaskReorder(row: HTMLElement, grip: HTMLElement, list: HTMLElement, task: Task, plugin: BeautyTasksPlugin): void {
+  grip.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();          // nicht die Zeile anklicken (öffnet sonst das Modal)
+    const doc = list.ownerDocument;   // Ziel-Fenster einmal festhalten (Popout-sicher)
+    row.addClass("is-dragging");
+    let before: string | null | undefined;
+    const onMove = (me: PointerEvent): void => { before = showDropTarget(list, task, plugin, me.clientY); };
+    const onUp = (): void => {
+      row.removeClass("is-dragging");
+      clearDropTarget(list);
+      doc.removeEventListener("pointermove", onMove);
+      doc.removeEventListener("pointerup", onUp);
+      if (before === undefined) return;   // kein Geschwister getroffen -> nichts tun
+      void plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null);
+    };
+    doc.addEventListener("pointermove", onMove);
+    doc.addEventListener("pointerup", onUp);
+  });
+}
+
+/**
+ * Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation.
+ * Bei Sortierung „Manuell" kommt die Einfügeposition dazu – dann bestimmt der Zug nicht nur die
+ * Spalte, sondern auch den Platz darin. Bei jeder anderen Sortierung wäre das sinnlos: die
+ * nächste Neuzeichnung würde die Handarbeit sofort wieder überschreiben.
+ */
+function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin, manual: boolean): void {
+  const listEl = (): HTMLElement | null => colEl.querySelector<HTMLElement>(".bt-kanban-list");
+  const dragged = (): Task | undefined => (dragPath ? plugin.index.get(dragPath) : undefined);
   colEl.addEventListener("dragover", (e) => {
     if (!dragPath) return;                       // nur eigene Karten (kein Vault-Drag)
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     colEl.addClass("is-drop");
+    const tk = manual ? dragged() : undefined;
+    const l = listEl();
+    if (l) { if (tk) showDropTarget(l, tk, plugin, e.clientY); else clearDropTarget(l); }
   });
   colEl.addEventListener("dragleave", (e) => {
-    if (!colEl.contains(e.relatedTarget as Node | null)) colEl.removeClass("is-drop");
+    if (!colEl.contains(e.relatedTarget as Node | null)) {
+      colEl.removeClass("is-drop");
+      const l = listEl(); if (l) clearDropTarget(l);
+    }
   });
   colEl.addEventListener("drop", (e) => {
     e.preventDefault();
     colEl.removeClass("is-drop");
     const path = e.dataTransfer?.getData("text/plain") || dragPath;
     const fromCol = dragFromCol;
+    const task = path ? plugin.index.get(path) : undefined;
+    const l = listEl();
+    const before = manual && task && l ? showDropTarget(l, task, plugin, e.clientY) : undefined;
+    if (l) clearDropTarget(l);
     dragPath = null; dragFromCol = null;
-    if (!path) return;
-    const task = plugin.index.get(path);
-    if (task) col.onDrop(task, fromCol ?? "");
+    if (!task) return;
+    // Position zuerst und abgewartet, dann die Facette: zwei processFrontMatter auf dieselbe Datei
+    // dürfen sich nicht überholen, sonst geht einer der beiden Schreibvorgänge verloren.
+    if (before !== undefined) {
+      void plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null)
+        .then(() => col.onDrop(task, fromCol ?? ""));
+      return;
+    }
+    col.onDrop(task, fromCol ?? "");
   });
 }
 
@@ -708,7 +811,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     colEl.dataset.col = col.id;
     const sentinel = isSentinelCol(col.id);
     if (sentinel) colEl.dataset.pin = "1";
-    setupColumnDnd(colEl, col, plugin);
+    setupColumnDnd(colEl, col, plugin, opts.sort === "manual");
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
     // Der ganze Spaltenkopf ist der Ziehgriff zum Umsortieren (nicht bei Priorität/Sentinel).
@@ -720,7 +823,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
-    const colTasks = sortColumn(cards.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
+    const colTasks = sortColumn(cards.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir, orderKey(plugin));
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
@@ -859,8 +962,10 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
   // EINMAL pro Section lesen (statt pro Zeile) und an renderTask durchreichen.
-  const subs = effectiveSubtasks(plugin.pageViewOptions());
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs });
+  const o = plugin.pageViewOptions();
+  const subs = effectiveSubtasks(o);
+  const manual = o.sort === "manual";
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -938,7 +1043,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -948,6 +1053,15 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   if (isDone(task.status)) row.addClass("is-done");
   if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);   // aus der Suche angesprungen? -> hervorheben + ins Bild scrollen
+
+  // Griff zum Einsortieren – nur bei Sortierung „Manuell" und nur in der Liste (die Karte im Board
+  // wird per HTML5-Drag bewegt, der Papierkorb kennt keine Reihenfolge). Eigener Griff statt
+  // Ganzzeilen-Drag, weil ein Klick auf die Zeile das Aufgaben-Modal öffnet.
+  if (opts.manual && !opts.flat && !trash) {
+    const grip = row.createSpan({ cls: "bt-row-grip", attr: { "aria-label": t("sort_manual") } });
+    setIcon(grip, "grip-vertical");
+    attachTaskReorder(row, grip, list, task, plugin);
+  }
 
   // Kanban-Karte: per HTML5-Drag zwischen Status-Spalten verschiebbar (Desktop).
   if (opts.draggable && !trash) {
@@ -959,7 +1073,13 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       e.dataTransfer?.setData("text/plain", task.path);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     });
-    row.addEventListener("dragend", () => { dragPath = null; dragFromCol = null; row.removeClass("is-dragging"); });
+    // Auch aufräumen, wenn der Zug ohne Drop endet (Escape, Loslassen außerhalb des Boards) –
+    // sonst bliebe die Spalte ausgegraut, bis sie das nächste Mal neu gezeichnet wird.
+    row.addEventListener("dragend", () => {
+      dragPath = null; dragFromCol = null;
+      row.removeClass("is-dragging");
+      clearDropTarget(list);
+    });
   }
 
   renderCheck(row, plugin, task, { trash });
@@ -1066,7 +1186,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const showKids = !trash && !opts.flat
     && (subs === "indented" || (subs === "compact" && subtasksExpanded.has(task.path)));
   if (showKids) for (const kid of plugin.index.children(task.path)) {
-    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs });
+    // Griff auch an verschachtelten Zeilen: ihre Geschwister stehen direkt darunter, also lassen
+    // sie sich untereinander genauso einsortieren wie Hauptaufgaben.
+    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual });
   }
 }
 

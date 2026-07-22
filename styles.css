@@ -1234,6 +1234,27 @@ body {
   color: var(--text-muted); font-size: 0.85em;
   padding: 1px 5px; border-radius: 5px; cursor: pointer;
 }
+/* Einfüge-Markierung beim Umsortieren (nur bei Sortierung „Manuell"): eine Linie an der Kante, an
+   der die Zeile bzw. Karte landen würde. Inset-Schatten statt Border – verschiebt kein Layout.
+   Gilt für Board UND Liste; beide benutzen dieselbe Geste. */
+.bt-task.is-drop-before { box-shadow: inset 0 2px 0 0 var(--interactive-accent); }
+.bt-task.is-drop-after { box-shadow: inset 0 -2px 0 0 var(--interactive-accent); }
+.bt-task.is-dragging { opacity: 0.5; }
+/* Während des Ziehens: Zeilen, die nicht zur Geschwistergruppe der gezogenen Aufgabe gehören.
+   Sie sind keine gültigen Einfügestellen – ausgegraut sagt „gehört nicht dazu" statt „gesperrt". */
+.bt-task.is-drop-inert { opacity: 0.35; }
+
+/* Griff zum Einsortieren: links außerhalb der Zeile, erscheint beim Überfahren. Absolut
+   positioniert, damit die Zeile ohne Griff exakt gleich aussieht (kein Layout-Sprung). */
+.bt-row-grip {
+  position: absolute; left: -18px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center;
+  opacity: 0; cursor: grab; color: var(--text-faint); touch-action: none;
+}
+.bt-row-grip svg { width: 14px; height: 14px; }
+.bt-task:hover .bt-row-grip { opacity: 0.8; }
+.bt-task.is-dragging .bt-row-grip { cursor: grabbing; opacity: 1; }
+
 .bt-subs.is-open { color: var(--text-accent); }
 /* Auf einer Kanban-Karte ist das Badge reine Anzeige (aufklappen ginge dort nicht) – es darf
    deshalb auch nicht klickbar aussehen. Der Zeiger bleibt der der Karte selbst. */

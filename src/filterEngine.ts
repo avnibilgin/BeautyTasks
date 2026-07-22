@@ -1,5 +1,7 @@
 import { Task, Priority } from "./types";
-import { TaskIndex } from "./taskIndex";
+// Nur als Typ: taskIndex holt sich umgekehrt orderChain von hier. Ein `import type` wird beim
+// Kompilieren entfernt und schließt den Zyklus, bevor er zur Laufzeit einer wird.
+import type { TaskIndex } from "./taskIndex";
 import { isInboxLink, isInboxName } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { groupLabel } from "./format";
@@ -14,7 +16,7 @@ import { CalMode } from "./calendarModel";
 export type { CalMode };
 
 export type FilterRange = "any" | "today" | "overdue" | "next7" | "nodate";
-export type FilterSort = "smart" | "due" | "deadline" | "priority" | "created" | "title";
+export type FilterSort = "smart" | "manual" | "due" | "deadline" | "priority" | "created" | "title";
 export type FilterGroup = "none" | "date" | "deadline" | "priority" | "label" | "project";
 export type PageLayout = "list" | "board" | "calendar";
 /** Sortierrichtung. Gilt für die Aufgaben UND die Reihenfolge der Gruppen (eine Entscheidung).
@@ -75,7 +77,8 @@ export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", gro
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
-export const SORTS: FilterSort[] = ["smart", "due", "deadline", "priority", "created", "title"];
+// „manual" steht neben „smart": beides sind Ordnungen ohne Feldvergleich, danach die Feld-Sortierungen.
+export const SORTS: FilterSort[] = ["smart", "manual", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
 export const SORT_DIRS: SortDir[] = ["asc", "desc"];
 /** Reihenfolge im Dropdown = zunehmende Eigenständigkeit der Unteraufgabe. */
@@ -112,14 +115,87 @@ export function effectiveSubtasks(o: { layout: PageLayout; subtasks?: SubtaskDis
   return o.subtasks ?? "compact";
 }
 /** „smart" ist eine Semantik (datiert zuerst, Datumlose ans Ende), keine Ordnung – rückwärts
- *  ergibt sie keinen Sinn. Deshalb kennt sie keine Richtung. */
-export const hasSortDir = (sort: FilterSort): boolean => sort !== "smart";
+ *  ergibt sie keinen Sinn. „manual" ebenso: eine von Hand gelegte Reihenfolge umzudrehen ist
+ *  keine Sortierung, sondern verwirft die Handarbeit. Beide kennen deshalb keine Richtung. */
+export const hasSortDir = (sort: FilterSort): boolean => sort !== "smart" && sort !== "manual";
 export const LAYOUTS: PageLayout[] = ["list", "board", "calendar"];
 /** Prioritäten wie im Aufgaben-Picker (4 Stufen). */
 export const FILTER_PRIORITIES: Priority[] = ["highest", "high", "medium", "normal"];
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO_RANK: Record<Priority, number> = { highest: 0, high: 1, medium: 2, normal: 3, low: 4, lowest: 5 };
+
+/**
+ * Positionskette einer Aufgabe von der Wurzel abwärts – der Sortierschlüssel für „Manuell".
+ *
+ *   Umzug planen      -> [3]
+ *     Kartons kaufen  -> [3, 1]
+ *   Steuer machen     -> [4]
+ *
+ * `sortOrder = null` (nie von Hand einsortiert) wird zu +Infinity: solche Aufgaben stehen hinten,
+ * damit neu Angelegtes unten landet, ohne dass beim Anlegen etwas geschrieben werden muss.
+ *
+ * Der Zyklus-Schutz ist kein Zierrat: `parent` ist ein Wikilink in einer Notiz, den man von Hand
+ * auf einen Nachfahren zeigen lassen kann. Ohne ihn liefe der Aufstieg endlos.
+ *
+ * Hier statt im Index, damit Index UND Tests dieselbe Regel benutzen – eine nachgebaute Kette im
+ * Test würde genau die Abweichung nicht finden, für die er da ist.
+ */
+export function orderChain(task: Task, parentOf: (path: string) => Task | undefined): number[] {
+  const chain: number[] = [];
+  const seen = new Set<string>();
+  let cur: Task | undefined = task;
+  while (cur && !seen.has(cur.path)) {
+    seen.add(cur.path);
+    chain.unshift(cur.sortOrder ?? Infinity);
+    cur = cur.parent ? parentOf(cur.parent) : undefined;
+  }
+  return chain;
+}
+
+/** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
+export const ORDER_GAP = 10;
+/** Ein zu schreibender Positionswert. */
+export interface OrderWrite { path: string; order: number; }
+
+/**
+ * Plant die Schreibvorgänge für einen Zug: `moved` soll VOR `beforePath` stehen (null = ans Ende).
+ * `ordered` sind die Geschwister in ihrer AKTUELLEN Reihenfolge, `moved` eingeschlossen.
+ *
+ * Normalfall: **eine** Notiz – der neue Wert ist die Mitte zwischen den Nachbarn.
+ *
+ * Hat aber noch niemand in der Gruppe eine Position, gibt es keine Mitte zu bilden. Dann wird die
+ * Gruppe einmal durchnummeriert (10, 20, 30 …) – der Preis dafür, dass beim Anlegen einer Aufgabe
+ * nichts geschrieben werden muss. Das passiert genau einmal je Geschwistergruppe, ausgelöst vom
+ * ersten Zug, nicht vom Update.
+ *
+ * Nur die Spalte zu nummerieren wäre falsch: Geschwister stehen auch in anderen Spalten (anderer
+ * Status). Blieben die auf `null`, rutschten sie in der Listenansicht ans Ende – ein Zug im Board
+ * würde die Liste umwerfen. Deshalb bekommt der Aufrufer die GANZE Gruppe herein.
+ *
+ * Dritter Fall: die Lücke ist aufgebraucht (Mitte gleich einem Nachbarn – nach ~50 Zügen auf
+ * dieselbe Stelle). Dann wird ebenfalls neu nummeriert, mit frischen Lücken.
+ */
+export function planReorder(ordered: Task[], moved: Task, beforePath: string | null): OrderWrite[] {
+  const rest = ordered.filter((t) => t.path !== moved.path);
+  const found = beforePath ? rest.findIndex((t) => t.path === beforePath) : -1;
+  const at = beforePath && found >= 0 ? found : rest.length;
+  /** Endgültige Reihenfolge durchnummerieren – gibt ALLE Positionen zurück. */
+  const renumber = (): OrderWrite[] => {
+    const seq = [...rest.slice(0, at), moved, ...rest.slice(at)];
+    return seq.map((t, i) => ({ path: t.path, order: (i + 1) * ORDER_GAP }));
+  };
+  if (ordered.some((t) => t.sortOrder == null)) return renumber();
+
+  const prev = at > 0 ? rest[at - 1].sortOrder! : null;
+  const next = at < rest.length ? rest[at].sortOrder! : null;
+  if (prev === null && next === null) return [{ path: moved.path, order: ORDER_GAP }];
+  if (prev === null) return [{ path: moved.path, order: next! / 2 }];
+  if (next === null) return [{ path: moved.path, order: prev + ORDER_GAP }];
+  const mid = (prev + next) / 2;
+  if (mid === prev || mid === next) return renumber();   // Lücke erschöpft
+  return [{ path: moved.path, order: mid }];
+}
 
 /** Lokales Datum + n Tage als ISO (YYYY-MM-DD), ohne UTC-Drift. */
 export function addDays(iso: string, n: number): string {
@@ -183,8 +259,14 @@ export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean 
  * nur aufsteigend – umgedreht wären alle undatierten Aufgaben nach oben gerutscht. Die Trennung
  * „hat einen Wert?" vor dem eigentlichen Vergleich ist deshalb keine Kosmetik, sondern die
  * Voraussetzung dafür, dass „absteigend" überhaupt brauchbar ist.
+ *
+ * `orderKey` liefert für „manual" die Positionskette einer Aufgabe (TaskIndex.orderKey). Sie
+ * hängt an anderen Aufgaben – dem Elter – und kann deshalb nicht aus `list` allein berechnet
+ * werden: der Elter muss dort gar nicht vorkommen. Fehlt der Schlüssel, fällt „manual" auf
+ * `created` zurück, statt eine unbrauchbare Reihenfolge zu liefern.
  */
-export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc"): Task[] {
+export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc",
+  orderKey?: (t: Task) => number[]): Task[] {
   const arr = [...list];
   const s = dir === "desc" ? -1 : 1;
   /**
@@ -205,6 +287,20 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc"):
   const byPrio = (a: Task, b: Task): number => s * (PRIO_RANK[a.priority] - PRIO_RANK[b.priority]);
   const byTitle = (a: Task, b: Task): number => a.title.localeCompare(b.title);   // Gleichstand: stabil, ohne Richtung
 
+  // Handreihenfolge: Positionsketten lexikografisch. Eine kürzere Kette gewinnt bei Gleichstand,
+  // damit der Elter vor seinen Kindern steht ([3] vor [3,1]). Ohne Schlüssel: Rückfall auf created.
+  if (sort === "manual") {
+    if (!orderKey) return arr.sort((a, b) => (a.created ?? "").localeCompare(b.created ?? "") || byTitle(a, b));
+    const byChain = (a: Task, b: Task): number => {
+      const ka = orderKey(a), kb = orderKey(b);
+      for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+        const va = ka[i] ?? -Infinity, vb = kb[i] ?? -Infinity;   // fehlende Ebene = weiter oben
+        if (va !== vb) return va < vb ? -1 : 1;
+      }
+      return 0;
+    };
+    return arr.sort((a, b) => byChain(a, b) || (a.created ?? "").localeCompare(b.created ?? "") || byTitle(a, b));
+  }
   if (sort === "due") return arr.sort((a, b) => byDue(a, b) || byTitle(a, b));
   if (sort === "deadline") return arr.sort((a, b) => byDate(key(a.scheduled, a.scheduledTime), key(b.scheduled, b.scheduledTime)) || byPrio(a, b));
   if (sort === "priority") return arr.sort((a, b) => byPrio(a, b) || byDue(a, b));
@@ -331,5 +427,5 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
  *  erledigte); mit showDone kommen erledigte hinzu. Nav-Zähler UND Board nutzen dies. */
 export function applyFilter(idx: TaskIndex, c: FilterCriteria, opts: ViewOptions, today: string): Task[] {
   const base = opts.showDone ? [...idx.open(), ...idx.done()] : idx.open();
-  return sortTasks(base.filter((t) => matchesTask(t, c, today)), opts.sort, opts.sortDir);
+  return sortTasks(base.filter((t) => matchesTask(t, c, today)), opts.sort, opts.sortDir, (t) => idx.orderKey(t));
 }

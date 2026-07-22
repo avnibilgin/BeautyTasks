@@ -2,6 +2,7 @@ import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
 import { archivedProjectNames, isInboxName } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
+import { orderChain } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -33,12 +34,14 @@ export class TaskIndex extends Component {
   private openCache: Task[] | null = null;
   private projectCache: Map<string, Task[]> | null = null;   // Projekt-Basename -> offene Aufgaben
   private labelCache: Map<string, Task[]> | null = null;     // Label -> offene Aufgaben
+  private orderKeyCache: Map<string, number[]> | null = null;   // Pfad -> Positionskette (s. orderKey)
 
   /** Alle abgeleiteten Abfragen verwerfen. Aufrufen, wenn sich Aufgaben ODER Archiv-Status ändern. */
   private invalidate(): void {
     this.openCache = null;
     this.projectCache = null;
     this.labelCache = null;
+    this.orderKeyCache = null;
   }
 
   constructor(private app: App, private getSettings: () => BeautyTasksSettings) { super(); }
@@ -172,6 +175,7 @@ export class TaskIndex extends Component {
       scheduled: asDate(fm.scheduled),
       scheduledTime: asTime(fm.scheduled),
       duration: asNum(fm.duration),
+      sortOrder: asNum(fm.sort_order),
       start: asDate(fm.start),
       project: link(fm.project),
       parent: link(fm.parent),
@@ -272,6 +276,25 @@ export class TaskIndex extends Component {
     return m;
   }
   byLabel(label: string): Task[] { return this.byLabelMap().get(label) ?? []; }
+  /**
+   * Sortierschlüssel der Handreihenfolge (s. filterEngine.orderChain), gecacht je Pfad.
+   *
+   * Lexikografisch verglichen ergibt die Kette in JEDER Darstellung dieselbe Ordnung: Kinder
+   * folgen ihrem Elter und stehen untereinander in der gewählten Reihenfolge. Auch dann, wenn der
+   * Elter gar nicht in der sortierten Liste vorkommt (Label-Gruppe ohne ihn) – die Unteraufgabe
+   * sortiert an der Stelle, an der ihr Elter stünde, statt willkürlich. Deshalb lebt der Schlüssel
+   * hier und nicht in sortTasks: er braucht den ganzen Bestand, nicht nur die übergebene Liste.
+   */
+  orderKey(task: Task): number[] {
+    if (!this.orderKeyCache) this.orderKeyCache = new Map<string, number[]>();
+    const cache: Map<string, number[]> = this.orderKeyCache;
+    const hit = cache.get(task.path);
+    if (hit) return hit;
+    const chain = orderChain(task, (p) => this.byPath.get(p));
+    cache.set(task.path, chain);
+    return chain;
+  }
+
   children(parentPath: string): Task[] { return this.all().filter((t) => t.parent === parentPath); }
   /** Alle Nachfahren (rekursiv, jeder Status) einer Aufgabe – z. B. für Kaskaden-Aktionen. */
   descendants(path: string): Task[] {
