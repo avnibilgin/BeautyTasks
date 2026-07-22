@@ -13,7 +13,7 @@ import { PRIO_KEY } from "./taskModal";
 import { allStatuses, statusLabel } from "./statuses";
 import {
   FilterCriteria, ViewOptions, MatchMode, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
-  RANGES, FILTER_PRIORITIES, applyFilter, activeFacetCount,
+  RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter, applyFilter, activeFacetCount,
 } from "./filterEngine";
 import { readFilter } from "./filterService";
 import { buildSwatchRow } from "./colorSwatches";
@@ -143,6 +143,11 @@ export class FilterModal extends Modal {
       clear: () => { this.c.projects = []; this.c.projectsNot = []; },
       pens: ["any", "none"],
     });
+
+    // Unteraufgaben: dieselbe Frage, die Todoist mit subtask / !subtask beantwortet.
+    this.select(contentEl, t("filter_subtasks"),
+      SUBTASK_FILTERS.map((v) => ({ key: v, label: t("filter_subtasks_" + v) })),
+      () => this.c.subtaskMode, (v) => { this.c.subtaskMode = v as SubtaskFilter; this.refresh(); });
 
     new Setting(contentEl).setName(t("filter_search")).addText((tx) =>
       tx.setPlaceholder(t("filter_search_ph")).setValue(this.c.search).onChange((v) => { this.c.search = v; this.refresh(); }));

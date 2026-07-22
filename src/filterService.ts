@@ -3,7 +3,7 @@ import { BeautyTasksSettings, Priority } from "./types";
 import { buildFrontmatter, ensureFolder, newId, todayIso, slugify } from "./taskService";
 import {
   FilterCriteria, ViewOptions, FilterRange,
-  DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES,
+  DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter,
 } from "./filterEngine";
 import { readViewOptions, writeViewOptions } from "./pageOptions";
 import { isKnownStatus } from "./statuses";
@@ -28,6 +28,7 @@ function readCriteria(fm: Record<string, unknown>): FilterCriteria {
     priorities: prio(fm.priorities), prioritiesNot: prio(fm.priorities_not),
     labels: asStrArr(fm.labels), labelsAll: asStrArr(fm.labels_all), labelsNot: asStrArr(fm.labels_not),
     projects: asStrArr(fm.projects), projectsNot: asStrArr(fm.projects_not),
+    subtaskMode: oneOf<SubtaskFilter>(fm.subtask_mode, SUBTASK_FILTERS, DEFAULT_CRITERIA.subtaskMode),
     search: typeof fm.search === "string" ? fm.search : "",
   };
 }
@@ -77,6 +78,7 @@ function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: V
   setOrDel("labels_not", c.labelsNot.length ? c.labelsNot : null);
   setOrDel("projects", c.projects.length ? c.projects : null);
   setOrDel("projects_not", c.projectsNot.length ? c.projectsNot : null);
+  setOrDel("subtask_mode", c.subtaskMode === "any" ? null : c.subtaskMode);
   setOrDel("search", c.search.trim() || null);
   writeViewOptions(fm, o);   // layout/sort/group/showDone (Defaults werden entfernt)
   setOrDel("color", color);

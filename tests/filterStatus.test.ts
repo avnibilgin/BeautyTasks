@@ -101,6 +101,31 @@ describe("matchesTask – Deadline-Zeitraum", () => {
   });
 });
 
+describe("matchesTask – Unteraufgaben", () => {
+  const haupt = mk("haupt", "todo");
+  const unter: Task = { ...mk("unter", "todo"), parent: "Items/haupt.md" };
+
+  it("„Einbeziehen“ (Vorgabe) lässt beide durch", () => {
+    expect(matchesTask(haupt, DEFAULT_CRITERIA, TODAY)).toBe(true);
+    expect(matchesTask(unter, DEFAULT_CRITERIA, TODAY)).toBe(true);
+  });
+
+  it("„Ausschließen“ lässt nur Hauptaufgaben durch", () => {
+    expect(matchesTask(haupt, crit({ subtaskMode: "none" }), TODAY)).toBe(true);
+    expect(matchesTask(unter, crit({ subtaskMode: "none" }), TODAY)).toBe(false);
+  });
+
+  it("„Nur Unteraufgaben“ kehrt es um", () => {
+    expect(matchesTask(haupt, crit({ subtaskMode: "only" }), TODAY)).toBe(false);
+    expect(matchesTask(unter, crit({ subtaskMode: "only" }), TODAY)).toBe(true);
+  });
+
+  it("zählt als aktive Facette, „Einbeziehen“ nicht", () => {
+    expect(activeFacetCount(DEFAULT_CRITERIA)).toBe(0);
+    expect(activeFacetCount(crit({ subtaskMode: "none" }))).toBe(1);
+  });
+});
+
 describe("applyFilter – Grundmenge", () => {
   it("ohne Status-Kriterium wie bisher: nur offene", () => {
     expect(ids(applyFilter(idx, DEFAULT_CRITERIA, DEFAULT_OPTIONS, TODAY))).toEqual(["doing", "todo"]);

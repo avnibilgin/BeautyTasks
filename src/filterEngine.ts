@@ -39,6 +39,9 @@ export type SubtaskDisplay = "compact" | "indented" | "standalone";
  *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
  *  EINE Priorität, dort gibt es nur any/none. */
 export type MatchMode = "any" | "all" | "none";
+/** Unteraufgaben in einem Filter: alle · nur Unteraufgaben · nur Hauptaufgaben.
+ *  Entspricht dem, was Todoist mit den Operatoren subtask / !subtask anbietet. */
+export type SubtaskFilter = "any" | "only" | "none";
 
 export interface FilterCriteria {
   range: FilterRange;         // Zeitraum der Faelligkeit (Default „any" = alle)
@@ -49,7 +52,8 @@ export interface FilterCriteria {
   priorities: Priority[];  prioritiesNot: Priority[];              // ✓ / −
   labels: string[];        labelsAll: string[]; labelsNot: string[];  // ✓ / + / −
   projects: string[];      projectsNot: string[];                 // ✓ / −  (Basenamen)
-  search: string;          // Freitext im Titel ("" = keiner)
+  subtaskMode: SubtaskFilter; // Unteraufgaben einbeziehen / nur sie / keine
+  search: string;          // Freitext in Titel und Beschreibung ("" = keiner)
 }
 
 export interface ViewOptions {
@@ -72,6 +76,7 @@ export const DEFAULT_CRITERIA: FilterCriteria = {
   priorities: [], prioritiesNot: [],
   labels: [], labelsAll: [], labelsNot: [],
   projects: [], projectsNot: [],
+  subtaskMode: "any",
   search: "",
 };
 // `subtasks` fehlt bewusst: „nie gewählt" IST der Standard, und was daraus folgt, entscheidet
@@ -80,6 +85,7 @@ export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", gro
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
+export const SUBTASK_FILTERS: SubtaskFilter[] = ["any", "none", "only"];
 // „manual" steht neben „smart": beides sind Ordnungen ohne Feldvergleich, danach die Feld-Sortierungen.
 export const SORTS: FilterSort[] = ["smart", "manual", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
@@ -217,6 +223,7 @@ export function activeFacetCount(c: FilterCriteria): number {
   if (c.priorities.length || c.prioritiesNot.length) n++;
   if (c.labels.length || c.labelsAll.length || c.labelsNot.length) n++;
   if (c.projects.length || c.projectsNot.length) n++;
+  if (c.subtaskMode !== "any") n++;
   if (c.search.trim()) n++;
   return n;
 }
@@ -255,6 +262,9 @@ export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean 
   const inList = (list: string[]): boolean => inbox ? list.some(isInboxName) : (pb !== null && list.includes(pb));
   if (c.projects.length && !inList(c.projects)) return false;
   if (inList(c.projectsNot)) return false;
+  // Unteraufgaben: eine Aufgabe MIT parent ist eine Unteraufgabe.
+  if (c.subtaskMode === "only" && !t.parent) return false;
+  if (c.subtaskMode === "none" && t.parent) return false;
   // Suche: Titel UND Beschreibung. Die Beschreibung steht in der Liste unter dem Titel – ein Wort
   // dort zu sehen, es aber nicht zu finden, wäre die überraschendere Variante.
   const q = c.search.trim().toLowerCase();
