@@ -74,6 +74,33 @@ describe("planReorder – danach nur noch eine Notiz", () => {
   });
 });
 
+describe("planReorder – eine frisch angelegte (null) Aufgabe stört die Gruppe nicht", () => {
+  it("zwischen zwei nummerierte Nachbarn gezogen: nur EINE Notiz, kein Durchlauf", () => {
+    // Regression: früher löste JEDES null-Mitglied einen Voll-Durchlauf (+ Hinweis) aus.
+    const a = mk("a", 10), b = mk("b", 20), c = mk("c", 30), neu = mk("neu");
+    const list = [a, b, c, neu];           // neu hängt als null hinten
+    const w = planReorder(list, neu, p("b"));   // neu zwischen a und b
+    expect(w).toEqual([{ path: p("neu"), order: 15 }]);
+    expect(apply(list, w)).toEqual(["a", "neu", "b", "c"]);
+  });
+
+  it("ein unbeteiligtes null-Mitglied am Ende bleibt unberührt", () => {
+    const a = mk("a", 10), b = mk("b", 20), neu = mk("neu");
+    const list = [a, b, neu];
+    const w = planReorder(list, b, p("a"));   // b vor a; neu nicht betroffen
+    expect(w).toEqual([{ path: p("b"), order: 5 }]);
+    expect(apply(list, w)).toEqual(["b", "a", "neu"]);
+  });
+
+  it("direkt VOR ein noch nicht nummeriertes Geschwister gezogen: dann doch Durchlauf", () => {
+    // Hier ist der leere Nachbar der DIREKTE Nachbar an der Zielstelle – ohne Zahl keine Mitte.
+    const a = mk("a", 10), b = mk("b", 20), neu = mk("neu");
+    const list = [a, b, neu];
+    const w = planReorder(list, a, p("neu"));   // a ans Ende, direkt vor neu
+    expect(w).toHaveLength(3);
+  });
+});
+
 describe("planReorder – erschöpfte Lücke", () => {
   it("nummeriert neu, statt eine Position doppelt zu vergeben", () => {
     // Zwei Nachbarn so dicht, dass die Mitte auf einen von beiden fällt.
