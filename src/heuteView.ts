@@ -145,7 +145,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts.sortDir)
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts)
           .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
@@ -382,7 +382,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
-  for (const g of groupTasks(sorted, opts.group, today, opts.sortDir)) {
+  for (const g of groupTasks(sorted, opts.group, today, opts)) {
     if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
   if (opts.showDone && visibleRows(done, present).length) section(root, plugin, t("sec_done"), done, today, true, false, present);

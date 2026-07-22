@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Task, Priority } from "../src/types";
-import { groupTasks, visibleRows } from "../src/filterEngine";
+import { groupTasks, visibleRows, FilterSort, SortDir } from "../src/filterEngine";
 import { groupLabel } from "../src/format";
 import { t } from "../src/i18n";
 
@@ -16,6 +16,9 @@ function mk(p: Partial<Task>): Task {
 }
 /** Nur die Überschriften – die Gruppen-Reihenfolge ist das, was hier geprüft wird. */
 const titles = (g: { title: string }[]): string[] => g.map((x) => x.title);
+/** Sortierung + Richtung als Paar. „due" als Träger, weil es eine Richtung kennt (im
+ *  Gegensatz zu „smart") – damit prüfen diese Fälle wirklich die Richtung. */
+const ord = (sortDir: SortDir, sort: FilterSort = "due"): { sort: FilterSort; sortDir: SortDir } => ({ sort, sortDir });
 
 describe("groupTasks – Datum: ein Tag = eine Gruppe", () => {
   it("legt für jeden Zukunftstag eine eigene Gruppe an (statt eines Sammel-Eimers)", () => {
@@ -75,7 +78,7 @@ describe("groupTasks – Datum: ein Tag = eine Gruppe", () => {
 describe("groupTasks – Richtung", () => {
   it("absteigend dreht die Tages-Gruppen um", () => {
     const list = [mk({ due: "2026-07-22" }), mk({ due: "2026-07-27" }), mk({ due: "2026-08-03" })];
-    expect(titles(groupTasks(list, "date", TODAY, "desc"))).toEqual([
+    expect(titles(groupTasks(list, "date", TODAY, ord("desc")))).toEqual([
       groupLabel("2026-08-03", TODAY),
       groupLabel("2026-07-27", TODAY),
       groupLabel("2026-07-22", TODAY),
@@ -86,7 +89,7 @@ describe("groupTasks – Richtung", () => {
     // Bewusste Entscheidung: streng nach Skala gehörte Überfälliges bei „absteigend" ans Ende –
     // ein Alarmzustand, den man wegscrollen muss, ist aber die schlechtere Voreinstellung.
     const list = [mk({ due: null }), mk({ due: "2026-07-01" }), mk({ due: "2026-07-22" }), mk({ due: "2026-07-27" })];
-    expect(titles(groupTasks(list, "date", TODAY, "desc"))).toEqual([
+    expect(titles(groupTasks(list, "date", TODAY, ord("desc")))).toEqual([
       t("sec_overdue"),
       groupLabel("2026-07-27", TODAY),
       groupLabel("2026-07-22", TODAY),
@@ -94,19 +97,31 @@ describe("groupTasks – Richtung", () => {
     ]);
   });
 
+  it("„smart“ ignoriert eine gespeicherte Richtung auch bei den GRUPPEN", () => {
+    // Gemeldeter Ablauf: erst „Datum + absteigend" eingestellt, dann auf „smart" gewechselt.
+    // Die Richtung bleibt gespeichert (nicht destruktiv), das Panel blendet die Zeile aber aus –
+    // und sortTasks ignoriert sie bei smart ohnehin. Die Gruppen taten es nicht: „Morgen" stand
+    // vor „Heute", während die Zeilen darin aufsteigend liefen. Beides muss dieselbe Regel haben.
+    const list = [mk({ due: "2026-07-23" }), mk({ due: TODAY })];
+    const aufsteigend = [groupLabel(TODAY, TODAY), groupLabel("2026-07-23", TODAY)];
+    expect(titles(groupTasks(list, "date", TODAY, ord("desc", "smart")))).toEqual(aufsteigend);
+    // Gegenprobe: mit einer Sortierung, die eine Richtung KENNT, dreht es weiterhin.
+    expect(titles(groupTasks(list, "date", TODAY, ord("desc", "due")))).toEqual([...aufsteigend].reverse());
+  });
+
   it("Priorität ignoriert die Richtung (Semantik, keine Skala)", () => {
     const prios: Priority[] = ["normal", "highest", "medium"];
     const list = prios.map((p, i) => mk({ id: String(i), priority: p }));
-    const asc = titles(groupTasks(list, "priority", TODAY, "asc"));
+    const asc = titles(groupTasks(list, "priority", TODAY, ord("asc")));
     expect(asc).toEqual([t("prio_1"), t("prio_3"), t("prio_4")]);
-    expect(titles(groupTasks(list, "priority", TODAY, "desc"))).toEqual(asc);
+    expect(titles(groupTasks(list, "priority", TODAY, ord("desc")))).toEqual(asc);
   });
 
   it("Label ignoriert die Richtung, „ohne Label“ bleibt am Ende", () => {
     const list = [mk({ labels: [] }), mk({ labels: ["zebra"] }), mk({ labels: ["apfel"] })];
-    const asc = titles(groupTasks(list, "label", TODAY, "asc"));
+    const asc = titles(groupTasks(list, "label", TODAY, ord("asc")));
     expect(asc).toEqual(["#apfel", "#zebra", t("no_label")]);
-    expect(titles(groupTasks(list, "label", TODAY, "desc"))).toEqual(asc);
+    expect(titles(groupTasks(list, "label", TODAY, ord("desc")))).toEqual(asc);
   });
 });
 

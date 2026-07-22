@@ -128,8 +128,12 @@ export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): voi
   setIcon(btn.createSpan({ cls: "bt-anzeige-ic" }), "sliders-horizontal");
   btn.createSpan({ cls: "bt-anzeige-lbl", text: t("view_display") });
   const o = plugin.pageViewOptions();
+  // Die Richtung zählt nur mit, wenn sie überhaupt gilt – bei „smart" gibt es keine, und ein
+  // gespeicherter Wert von einer früheren Sortierung darf den Punkt nicht setzen (das Panel
+  // zeigt die Zeile dort ja auch nicht: derselbe hasSortDir-Vorbehalt).
   const modified = o.layout !== DEFAULT_OPTIONS.layout || o.sort !== DEFAULT_OPTIONS.sort || o.group !== DEFAULT_OPTIONS.group
-    || o.showDone !== DEFAULT_OPTIONS.showDone || o.showSubtasks !== DEFAULT_OPTIONS.showSubtasks || o.sortDir !== DEFAULT_OPTIONS.sortDir;
+    || o.showDone !== DEFAULT_OPTIONS.showDone || o.showSubtasks !== DEFAULT_OPTIONS.showSubtasks
+    || (hasSortDir(o.sort) && o.sortDir !== DEFAULT_OPTIONS.sortDir);
   if (modified) btn.createSpan({ cls: "bt-anzeige-dot" });
   btn.onclick = () => openViewPanel(btn, plugin);
 }
