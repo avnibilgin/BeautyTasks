@@ -1,11 +1,11 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, monthShort } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, FilterGroup, PageLayout, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -133,11 +133,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
-        if (overdue.length) {
+        if (visibleRows(overdue, present).length) {
           const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
-          rescheduleButton(overdueHead, plugin, overdue);
+          rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
-        if (dueToday.length || todayEv.length) {
+        if (visibleRows(dueToday, present).length || todayEv.length) {
           section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
         }
       } else {
@@ -145,7 +145,8 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = filterGroups(plugin, sortTasks(open, opts.sort, opts.sortDir), opts.group, today).filter((g) => g.tasks.length);
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts.sortDir)
+          .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
         const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today); };
@@ -161,7 +162,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
-      if (opts.showDone && doneToday.length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
+      if (opts.showDone && visibleRows(doneToday, present).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
     }
   } else if (view === "demnaechst") {
     // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
@@ -185,8 +186,13 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
       // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
       const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
-      for (const date of dates)
-        section(root, plugin, groupLabel(date, today), tasksByDate.get(date) ?? [], today, false, false, present, evByDate.get(date) ?? [], date);
+      for (const date of dates) {
+        const dayTasks = tasksByDate.get(date) ?? [], dayEv = evByDate.get(date) ?? [];
+        // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
+        // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
+        if (visibleRows(dayTasks, present).length || dayEv.length)
+          section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+      }
     }
   } else if (view === "wiederkehrend") {
     renderRecurring(root, plugin, today);
@@ -221,8 +227,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       section(root, plugin, t("nav_trash"), items, today, false, true);
     } else {
       const done = idx.done();
-      if (!done.length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
-      else section(root, plugin, t("sec_done"), done, today);
+      // `present` mitgeben: sonst nimmt die Liste an, JEDE Unteraufgabe hänge schon unter ihrer
+      // Hauptaufgabe – und lässt sie weg. Ist die Hauptaufgabe noch offen, steht sie hier aber
+      // gar nicht, und die abgehakte Unteraufgabe war nirgends auffindbar. Mit `present` bekommt
+      // sie eine eigene Zeile; nur wenn ihre Hauptaufgabe ebenfalls hier steht, bleibt sie unter
+      // ihr eingeklappt (erreichbar über deren Fortschritts-Badge).
+      const present = renderedPaths(plugin, done);
+      if (!visibleRows(done, present).length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
+      else section(root, plugin, t("sec_done"), done, today, false, false, present);
     }
   }
 }
@@ -246,12 +258,18 @@ function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: st
     const key = recurKey(tk.recurrence ?? "");
     const arr = groups.get(key); if (arr) arr.push(tk); else groups.set(key, [tk]);
   }
+  // Wie in der Erledigt-Ansicht: ohne `present` fiele jede wiederkehrende Unteraufgabe heraus,
+  // deren Hauptaufgabe nicht selbst wiederkehrend ist (sie steht dann nicht in dieser Liste).
+  const present = renderedPaths(plugin, recs);
+  const recurSection = (title: string, items: Task[]): void => {
+    if (visibleRows(items, present).length) section(root, plugin, title, items.sort(byDue), today, false, false, present);
+  };
   for (const key of RECUR_ORDER) {
     const items = groups.get(key);
-    if (items?.length) section(root, plugin, t(key), items.sort(byDue), today);
+    if (items) recurSection(t(key), items);
   }
   for (const [key, items] of groups) {
-    if (key.startsWith("raw:")) section(root, plugin, key.slice(4), items.sort(byDue), today);
+    if (key.startsWith("raw:")) recurSection(key.slice(4), items);
   }
 }
 
@@ -338,50 +356,6 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { label });
 }
 
-/**
- * Aufgaben eines Filter-Boards in Abschnitte gruppieren. Die Reihenfolge INNERHALB einer Gruppe
- * bringt bereits sortTasks() mit (inkl. Richtung).
- *
- * Die Reihenfolge der GRUPPEN ist dagegen fest und richtungsunabhängig: „Überfällig → Heute →
- * Demnächst → Kein Datum" ist eine Semantik (dringend zuerst), keine Skala – umgedreht ergäbe sie
- * keinen Sinn. Ebenso Priorität (P1→P4) und Label/Projekt (alphabetisch). Die Sortierrichtung
- * betrifft nur die Aufgaben unter den Überschriften.
- */
-function filterGroups(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup, today: string): { title: string; tasks: Task[] }[] {
-  if (group === "none") return [{ title: t("sec_tasks"), tasks }];
-  const buckets = new Map<string, { key: string; title: string; tasks: Task[]; order: number }>();
-  const push = (key: string, title: string, order: number, tk: Task): void => {
-    let b = buckets.get(key);
-    if (!b) { b = { key, title, tasks: [], order }; buckets.set(key, b); }
-    b.tasks.push(tk);
-  };
-  const prioKey = (p: string): string => p === "highest" ? "prio_1" : p === "high" ? "prio_2" : p === "medium" ? "prio_3" : "prio_4";
-  const prioOrder = (p: string): number => p === "highest" ? 0 : p === "high" ? 1 : p === "medium" ? 2 : 3;
-  for (const tk of tasks) {
-    if (group === "date" || group === "deadline") {
-      const d = group === "date" ? tk.due : tk.scheduled;   // „Datum" = due, „Deadline" = scheduled
-      if (d && d < today) push("overdue", t("sec_overdue"), 0, tk);
-      else if (d === today) push("today", groupLabel(today, today), 1, tk);   // „18. Jul · Heute · Samstag" – konsistent zu Gruppierung „Keine"
-      else if (d && d > today) push("upcoming", t("sec_upcoming"), 2, tk);
-      else push("nodate", t("sec_no_date"), 3, tk);
-    } else if (group === "priority") {
-      const k = prioKey(tk.priority);
-      push(k, t(k), prioOrder(tk.priority), tk);
-    } else if (group === "label") {
-      if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, tk);
-      else push("nolabel", t("no_label"), 0, tk);
-    } else {   // project – „nicht einsortiert" (kein Projekt ODER Inbox-Verweis) in EINEN Eingang-Bucket
-      if (tk.project && !isInboxLink(tk.project)) { const nm = projectName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, tk); }
-      else push("noproject", t("nav_inbox"), 0, tk);
-    }
-  }
-  // „Kein Datum" / „Kein Label" / „Kein Projekt" immer ans Ende – kein Wert auf der Skala,
-  // sondern dessen Abwesenheit (wie undatierte Aufgaben in sortTasks()).
-  const isRest = (k: string): number => (k === "nodate" || k === "nolabel" || k === "noproject" ? 1 : 0);
-  return [...buckets.values()].sort((a, b) =>
-    isRest(a.key) - isRest(b.key) || a.order - b.order || a.title.localeCompare(b.title));
-}
-
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
@@ -408,10 +382,10 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
-  for (const g of filterGroups(plugin, sorted, opts.group, today)) {
-    if (g.tasks.length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+  for (const g of groupTasks(sorted, opts.group, today, opts.sortDir)) {
+    if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
-  if (opts.showDone && done.length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+  if (opts.showDone && visibleRows(done, present).length) section(root, plugin, t("sec_done"), done, today, true, false, present);
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
@@ -459,11 +433,19 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
 }
 
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
-/** Innerhalb einer Spalte sortieren: „erledigt" nach Abschlusszeit (neueste oben),
- *  offene Spalten datiert zuerst (aufsteigend), Datumlose ans Ende. */
-function sortColumn(list: Task[], kind: StatusKind): Task[] {
-  if (kind === "done") return list.sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
-  return list.sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99") || a.title.localeCompare(b.title));
+/**
+ * Innerhalb einer Spalte sortieren – nach derselben Wahl wie die Liste (Anzeige-Panel).
+ * Vorher war das hier fest auf „Datum, dann Titel" verdrahtet: die Spalten stammen aus 1.2.0,
+ * die Sortierrichtung kam erst mit 1.13.0 dazu und wurde nie nachgezogen. Sortieren/Richtung
+ * standen im Board also im Panel, ohne etwas zu bewirken.
+ *
+ * Ausnahme bleibt die „erledigt"-Spalte: zuletzt Abgehaktes oben – wie die „Erledigt"-Sektion
+ * der Liste. Eine Spalte aus fertigen Aufgaben beantwortet „was ist zuletzt passiert?", nicht
+ * „was kommt als Nächstes?"; eine Sortierung nach Fälligkeit hilft dort niemandem.
+ */
+function sortColumn(list: Task[], kind: StatusKind, sort: FilterSort, dir: SortDir): Task[] {
+  if (kind === "done") return [...list].sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+  return sortTasks(list, sort, dir);
 }
 
 // ── Generisches Spalten-Modell: das Board folgt der Gruppierung ──
@@ -719,7 +701,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
-    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind);
+    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
@@ -745,18 +727,6 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   if (savedLeft) board.scrollLeft = savedLeft;
 }
 
-/** Datums-Überschrift: „18. Jul · Heute · Samstag" / „19. Jul · Morgen · Sonntag" /
- *  „17. Jul · Gestern · Freitag", für sonstige Tage „20. Jul · Montag" (Datum · [rel ·] Wochentag). */
-function groupLabel(dateISO: string, today: string): string {
-  const d = new Date(dateOf(dateISO) + "T00:00");
-  const tn = new Date(dateOf(today) + "T00:00");
-  const diff = Math.round((d.getTime() - tn.getTime()) / 86400000);
-  const sameYear = d.getFullYear() === tn.getFullYear();
-  const datePart = `${d.getDate()}. ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
-  const weekday = new Intl.DateTimeFormat(getLocale(), { weekday: "long" }).format(d);
-  const rel = diff === 0 ? t("date_today") : diff === 1 ? t("date_tomorrow") : diff === -1 ? t("date_yesterday") : null;
-  return [datePart, rel, weekday].filter(Boolean).join(" · ");
-}
 
 /** Alle Pfade, die in dieser Ansicht real gerendert werden: die Anker-Aufgaben plus ihre
  *  (nicht abgebrochenen) Nachfahren, die renderTask verschachtelt zeichnet. Basis für
@@ -848,11 +818,7 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
 function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): HTMLElement {
-  // Variante A: Unteraufgaben werden verschachtelt unter ihrem Parent gezeigt, WENN dieser
-  // in der Ansicht vorkommt (present). Fehlt der Parent in der Ansicht, erscheint die
-  // Unteraufgabe eigenständig als eigene Zeile – statt ganz zu verschwinden.
-  // Ohne present (z. B. Papierkorb/Wiederkehrend/Erledigt): altes Verhalten (nur verschachtelt).
-  const top = trash ? tasks : tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)));
+  const top = trash ? tasks : visibleRows(tasks, present);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });

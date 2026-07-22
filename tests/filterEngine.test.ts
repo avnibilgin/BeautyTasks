@@ -190,6 +190,20 @@ describe("sortTasks: Richtung", () => {
     expect(sortTasks(list, "created", "asc").map((t) => t.title)).toEqual(["alt", "neu"]);
     expect(sortTasks(list, "created", "desc").map((t) => t.title)).toEqual(["neu", "alt"]);
   });
+  it("Erstellt am selben Tag: Titel als Tiebreaker, Richtung wirkt", () => {
+    // Altbestand trägt ein reines Datum ohne Uhrzeit. Ohne Tiebreaker wären alle Aufgaben eines
+    // Tages gleichwertig – die stabile Sortierung ließe sie stehen und die Richtung liefe leer.
+    const list = [mkT("Zebra", null, "2026-06-27"), mkT("Apfel", null, "2026-06-27")];
+    expect(sortTasks(list, "created", "asc").map((t) => t.title)).toEqual(["Apfel", "Zebra"]);
+    expect(sortTasks(list, "created", "desc").map((t) => t.title)).toEqual(["Apfel", "Zebra"]);
+  });
+  it("Erstellt: Datum-only und Zeitstempel mischen sich chronologisch", () => {
+    // Neue Aufgaben tragen „…T10:30:00", ältere nur das Datum. Lexikografisch liegt das reine
+    // Datum vor jedem Zeitstempel desselben Tages – also gilt es als früher, was stimmt.
+    const list = [mkT("mitZeit", null, "2026-06-27T10:30:00"), mkT("nurDatum", null, "2026-06-27")];
+    expect(sortTasks(list, "created", "asc").map((t) => t.title)).toEqual(["nurDatum", "mitZeit"]);
+    expect(sortTasks(list, "created", "desc").map((t) => t.title)).toEqual(["mitZeit", "nurDatum"]);
+  });
   it("smart ignoriert die Richtung (hat keine)", () => {
     const list = [mkT("b", "2026-07-20"), mkT("a", "2026-07-10")];
     expect(sortTasks(list, "smart", "desc").map((t) => t.title)).toEqual(["a", "b"]);

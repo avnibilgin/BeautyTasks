@@ -1,6 +1,8 @@
 import { Task, Priority } from "./types";
 import { TaskIndex } from "./taskIndex";
 import { isInboxLink, isInboxName } from "./taskService";
+import { t, projectDisplayName } from "./i18n";
+import { groupLabel } from "./format";
 
 // ── Kriterien & Optionen ────────────────────────────────────────────
 // Ein flaches Kriterien-Objekt (Vorschlag 3 „Smart Lists"): verschiedene Facetten sind
@@ -157,7 +159,14 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc"):
   if (sort === "priority") return arr.sort((a, b) => byPrio(a, b) || byDue(a, b));
   // „Aufsteigend" = ältestes zuerst. (Vorher war Erstellt fest auf „neueste zuerst" – das ist
   // jetzt „absteigend" und damit wählbar statt eingebaut.)
-  if (sort === "created") return arr.sort((a, b) => s * (a.created ?? "").localeCompare(b.created ?? ""));
+  //
+  // Der Titel-Tiebreaker ist hier NICHT Kosmetik: `created` war lange ein reines Datum ohne
+  // Uhrzeit (taskService.todayIso), Altbestände sind es weiterhin. Ohne ihn sind alle am selben
+  // Tag angelegten Aufgaben gleichwertig, die stabile Sortierung lässt sie in Indexreihenfolge
+  // stehen – und „aufsteigend"/„absteigend" sehen für den ganzen Block identisch aus. Neue
+  // Aufgaben tragen einen vollen Zeitstempel; gemischt verglichen wird trotzdem richtig, weil
+  // "2026-07-21" lexikografisch vor "2026-07-21T..." liegt (Datum-only = früher am selben Tag).
+  if (sort === "created") return arr.sort((a, b) => s * (a.created ?? "").localeCompare(b.created ?? "") || byTitle(a, b));
   if (sort === "title") return arr.sort((a, b) => s * byTitle(a, b));
   // „smart" ist richtungsfrei – hier NICHT byDue/byPrio verwenden, die tragen bereits das
   // Vorzeichen. Sonst würde eine gespeicherte Richtung die Semantik doch noch umdrehen.
@@ -169,6 +178,76 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc"):
     return ka.localeCompare(kb);
   };
   return arr.sort((a, b) => dueAsc(a, b) || (PRIO_RANK[a.priority] - PRIO_RANK[b.priority]));
+}
+
+/**
+ * Die Zeilen, die eine Liste WIRKLICH als eigene Zeile zeichnet (Variante A): Unteraufgaben,
+ * deren Parent in derselben Ansicht vorkommt (`present`), erscheinen verschachtelt unter ihm.
+ * Fehlt der Parent dort, steht die Unteraufgabe eigenständig da – statt zu verschwinden.
+ * Ohne `present` (Papierkorb/Wiederkehrend/Erledigt): altes Verhalten, nur verschachtelt.
+ *
+ * Eigene Funktion, weil ZWEI Stellen dieselbe Regel brauchen: die Sektion beim Zeichnen – und
+ * jeder Aufrufer, der vorher entscheidet, OB die Sektion überhaupt kommt. Liefen die auseinander,
+ * stünde dort ein Kopf mit „· 0" und nichts darunter. Genau das war der Fall bei „Kein Datum":
+ * undatierte Unteraufgaben datierter Aufgaben landen alle in dieser einen Gruppe, gezeichnet
+ * werden sie aber unter ihrem Parent.
+ */
+export function visibleRows(tasks: Task[], present?: Set<string>): Task[] {
+  return tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)));
+}
+
+export interface TaskGroup { title: string; tasks: Task[]; }
+
+/**
+ * Aufgaben in Abschnitte gruppieren. Die Reihenfolge INNERHALB einer Gruppe bringt bereits
+ * sortTasks() mit (inkl. Richtung).
+ *
+ * DATUM/DEADLINE: eine Gruppe pro Tag („22. Jul · Mittwoch"), wie in „Demnächst". Vorher lag
+ * alles ab morgen in EINEM Sammel-Eimer – auf einer Liste, die über Wochen streut, sah die
+ * Gruppierung damit aus, als täte sie nichts. Zwei Ränder bleiben bewusst Sammel-Gruppen:
+ *   • „Überfällig" – ein Block, nicht pro Tag. Das ist ein Alarmzustand, kein Punkt auf der
+ *     Skala; außerdem hängt das Sammel-„Verschieben" der Heute-Ansicht an dieser EINEN Gruppe.
+ *   • „Kein Datum" – die Abwesenheit eines Werts, immer ganz ans Ende (wie in sortTasks).
+ *
+ * RICHTUNG: nur die Tages-Gruppen sind eine Skala und drehen mit `dir`. „Überfällig" bleibt
+ * dabei oben angepinnt – Überfälliges ans Listenende zu schieben wäre eine schlechte
+ * Voreinstellung, auch wenn es „streng nach Skala" dorthin gehörte. Priorität/Label/Projekt
+ * sind Semantik bzw. Alphabet: deren Gruppen-Reihenfolge bleibt richtungsunabhängig fest.
+ */
+export function groupTasks(tasks: Task[], group: FilterGroup, today: string, dir: SortDir = "asc"): TaskGroup[] {
+  if (group === "none") return [{ title: t("sec_tasks"), tasks }];
+  // pin: -1 = immer zuoberst · +1 = immer zuunterst · 0 = folgt `order`
+  const buckets = new Map<string, { pin: number; order: number; title: string; tasks: Task[] }>();
+  const push = (key: string, title: string, order: number, pin: number, tk: Task): void => {
+    let b = buckets.get(key);
+    if (!b) { b = { pin, order, title, tasks: [] }; buckets.set(key, b); }
+    b.tasks.push(tk);
+  };
+  const prioKey = (p: string): string => p === "highest" ? "prio_1" : p === "high" ? "prio_2" : p === "medium" ? "prio_3" : "prio_4";
+  const prioOrder = (p: string): number => p === "highest" ? 0 : p === "high" ? 1 : p === "medium" ? 2 : 3;
+  for (const tk of tasks) {
+    if (group === "date" || group === "deadline") {
+      const d = group === "date" ? tk.due : tk.scheduled;   // „Datum" = due, „Deadline" = scheduled
+      if (!d) push("nodate", t("sec_no_date"), 0, 1, tk);
+      else if (d < today) push("overdue", t("sec_overdue"), 0, -1, tk);
+      // Ein Tag = eine Gruppe. Sortierschlüssel ist das Datum selbst (20260722): so stehen die
+      // Gruppen ohne Zusatzwissen chronologisch und lassen sich mit `dir` sauber umdrehen.
+      else push("d:" + d, groupLabel(d, today), Number(d.replace(/-/g, "")), 0, tk);
+    } else if (group === "priority") {
+      const k = prioKey(tk.priority);
+      push(k, t(k), prioOrder(tk.priority), 0, tk);
+    } else if (group === "label") {
+      if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, 0, tk);
+      else push("nolabel", t("no_label"), 0, 1, tk);
+    } else {   // project – „nicht einsortiert" (kein Projekt ODER Inbox-Verweis) in EINEN Eingang-Bucket
+      if (tk.project && !isInboxLink(tk.project)) { const nm = baseName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, 0, tk); }
+      else push("noproject", t("nav_inbox"), 0, 1, tk);
+    }
+  }
+  const s = (group === "date" || group === "deadline") && dir === "desc" ? -1 : 1;
+  return [...buckets.values()]
+    .sort((a, b) => a.pin - b.pin || s * (a.order - b.order) || a.title.localeCompare(b.title))
+    .map((b) => ({ title: b.title, tasks: b.tasks }));
 }
 
 /** Basis-Menge → Facetten-Filter → Sortierung. Basis ist `open()` (ohne archivierte/

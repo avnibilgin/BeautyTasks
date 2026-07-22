@@ -18,6 +18,21 @@ export function monthShort(monthIndex: number): string {
   return new Intl.DateTimeFormat(getLocale(), { month: "short" }).format(new Date(2020, monthIndex, 1)).replace(/\.$/, "");
 }
 
+/** Datums-Überschrift: „18. Jul · Heute · Samstag" / „19. Jul · Morgen · Sonntag" /
+ *  „17. Jul · Gestern · Freitag", für sonstige Tage „20. Jul · Montag" (Datum · [rel ·] Wochentag).
+ *  Liegt hier statt in der View, weil außer den Listen auch die Gruppierung (filterEngine)
+ *  ihre Tages-Überschriften daraus baut – beide müssen wortgleich sein. */
+export function groupLabel(dateISO: string, today: string): string {
+  const d = new Date(dateOf(dateISO) + "T00:00");
+  const tn = new Date(dateOf(today) + "T00:00");
+  const diff = Math.round((d.getTime() - tn.getTime()) / 86400000);
+  const sameYear = d.getFullYear() === tn.getFullYear();
+  const datePart = `${d.getDate()}. ${monthShort(d.getMonth())}${sameYear ? "" : " " + d.getFullYear()}`;
+  const weekday = new Intl.DateTimeFormat(getLocale(), { weekday: "long" }).format(d);
+  const rel = diff === 0 ? t("date_today") : diff === 1 ? t("date_tomorrow") : diff === -1 ? t("date_yesterday") : null;
+  return [datePart, rel, weekday].filter(Boolean).join(" · ");
+}
+
 // ── Datum/Zeit-Helfer (due/scheduled können "YYYY-MM-DD" ODER "YYYY-MM-DDTHH:mm" sein) ──
 export const dateOf = (iso: string): string => iso.slice(0, 10);
 export const timeOf = (iso: string): string | null => { const m = iso.match(/T(\d{2}:\d{2})/); return m ? m[1] : null; };
