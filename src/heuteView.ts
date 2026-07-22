@@ -134,18 +134,18 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
         if (visibleRows(overdue, present).length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir), today, false, false, present);
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present);
           rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
         if (visibleRows(dueToday, present).length || todayEv.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir), today, false, false, present, todayEv, today);
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin)), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
           .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
@@ -390,7 +390,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
     renderCalendar(root, plugin, calSource, today, opts, () => plugin.renderMain(), add);
     return;
   }
-  const sorted = sortTasks(open, opts.sort, opts.sortDir);
+  const sorted = sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin));
   const present = nestingHosts(plugin, opts.showDone ? [...open, ...done] : open, effectiveSubtasks(opts));
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
     if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
@@ -442,6 +442,11 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
   anzeigeButton(actions, plugin);
 }
 
+/** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter
+ *  braucht – der in der zu sortierenden Liste gar nicht vorkommen muss. Wird an JEDEN
+ *  sortTasks-Aufruf gereicht, damit „Manuell" in Liste und Board dieselbe Ordnung ergibt. */
+const orderKey = (plugin: BeautyTasksPlugin) => (t: Task): number[] => plugin.index.orderKey(t);
+
 // ── Kanban-Board (Spalten = Status, Karten per Drag-and-Drop verschiebbar) ──
 /**
  * Innerhalb einer Spalte sortieren – nach derselben Wahl wie die Liste (Anzeige-Panel).
@@ -453,9 +458,10 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
  * der Liste. Eine Spalte aus fertigen Aufgaben beantwortet „was ist zuletzt passiert?", nicht
  * „was kommt als Nächstes?"; eine Sortierung nach Fälligkeit hilft dort niemandem.
  */
-function sortColumn(list: Task[], kind: StatusKind, sort: FilterSort, dir: SortDir): Task[] {
+function sortColumn(list: Task[], kind: StatusKind, sort: FilterSort, dir: SortDir,
+  key: (t: Task) => number[]): Task[] {
   if (kind === "done") return [...list].sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
-  return sortTasks(list, sort, dir);
+  return sortTasks(list, sort, dir, key);
 }
 
 // ── Generisches Spalten-Modell: das Board folgt der Gruppierung ──
@@ -720,7 +726,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
-    const colTasks = sortColumn(cards.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
+    const colTasks = sortColumn(cards.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir, orderKey(plugin));
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });

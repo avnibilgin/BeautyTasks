@@ -58,6 +58,10 @@ export interface Task {
   recurrence: string | null;
   recurBasis: "due" | "done";   // Wiederholung ab Fälligkeit (due) oder Erledigung (done)
   reminders: string[];          // rohe Erinnerungs-Strings, siehe reminders.ts ("-30m" | ISO)
+  /** Handreihenfolge unter den GESCHWISTERN (gleicher Parent bzw. beide ohne). `null` = noch nie
+   *  von Hand einsortiert; solche Aufgaben stehen hinten, damit neu Angelegtes unten landet.
+   *  Verglichen wird nie diese Zahl allein, sondern die Kette von der Wurzel – s. TaskIndex.orderKey. */
+  sortOrder: number | null;
   created: string;
   completed: string | null;
   cancelled: string | null;
