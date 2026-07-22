@@ -1620,8 +1620,18 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    (spezifischer als 0,3,0) ohne !important. Nur vertikal, damit die Zeilen bündig zu den
    Sektionsköpfen bleiben. */
 .modal.bt-filter-modal .setting-item.setting-item {
-  border: 0; box-shadow: none; padding: 2px 0; align-items: center;
+  border: 0; box-shadow: none; padding: 3px 0; align-items: center;
 }
+/* Keine Trennlinien zwischen den Facetten. Acht Striche auf engem Raum zerschneiden das Modal,
+   statt es zu ordnen – die Beschriftung links und das Bedienelement rechts geben schon genug
+   Struktur. `border: 0` oben reicht dafür nicht: Themes zeichnen die Linie häufig über ein
+   Pseudo-Element, das keine Border ist. Deshalb hier zusätzlich `content: none`, eng begrenzt auf
+   die Zeilen DIESES Modals, damit nichts anderes im Plugin davon berührt wird. */
+.modal.bt-filter-modal .setting-item.setting-item::before,
+.modal.bt-filter-modal .setting-item.setting-item::after,
+.modal.bt-filter-modal .setting-item.setting-item > .setting-item-info::after,
+.modal.bt-filter-modal .setting-item.setting-item > .setting-item-control::after { content: none; }
+.modal.bt-filter-modal .setting-item.setting-item > * { border: 0; }
 .bt-filter-modal .setting-item-name { font-size: var(--font-ui-small); }
 /* Alle Steuerelemente im Modal flach (kein Schatten) UND mit sichtbarem Rand –
    native Dropdowns haben von Haus aus keinen Rand, daher hier angleichen. WICHTIG:
