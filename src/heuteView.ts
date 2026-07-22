@@ -125,7 +125,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Termine haben hier keine Spalte (kein Tages-Board) → sie erscheinen im Listen-/Kalender-Layout.
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
-      const present = nestingHosts(plugin, opts.showDone ? [...open, ...doneToday] : open, effectiveSubtasks(opts));
+      // Wie in renderPageBody: jede Sektion bestimmt ihre Wirte aus ihrer eigenen Menge, sonst
+      // fallen Unteraufgaben zwischen offen und erledigt hindurch (s. dort).
+      const subs = effectiveSubtasks(opts);
+      const present = nestingHosts(plugin, open, subs);
+      const doneHosts = nestingHosts(plugin, doneToday, subs);
       if (opts.group === "none") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
@@ -162,7 +166,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
-      if (opts.showDone && visibleRows(doneToday, present).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, present);
+      if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, doneHosts);
     }
   } else if (view === "demnaechst") {
     // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
@@ -391,11 +395,18 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
     return;
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin));
-  const present = nestingHosts(plugin, opts.showDone ? [...open, ...done] : open, effectiveSubtasks(opts));
+  // JEDE Sektion bestimmt ihre Wirte aus IHRER eigenen Menge. Eine gemeinsame Menge liess beide
+  // Richtungen verschwinden: eine erledigte Unteraufgabe mit offenem Parent fiel aus „Erledigt"
+  // (der Parent galt als Wirt, stand aber in einer anderen Sektion), und umgekehrt rutschte eine
+  // offene Unteraufgabe mit erledigtem Parent in die eingeklappte Erledigt-Sektion hinein.
+  // Die Erledigt-ANSICHT macht es seit 1.20.3 schon so – hier war es uebersehen.
+  const subs = effectiveSubtasks(opts);
+  const openHosts = nestingHosts(plugin, open, subs);
+  const doneHosts = nestingHosts(plugin, done, subs);
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
-    if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
+    if (visibleRows(g.tasks, openHosts).length) section(root, plugin, g.title, g.tasks, today, false, false, openHosts);
   }
-  if (opts.showDone && visibleRows(done, present).length) section(root, plugin, t("sec_done"), done, today, true, false, present);
+  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, plugin, t("sec_done"), done, today, true, false, doneHosts);
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen

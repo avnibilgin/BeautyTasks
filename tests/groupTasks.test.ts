@@ -228,6 +228,41 @@ describe("visibleRows – Wächter und Sektion müssen dieselbe Regel benutzen",
   });
 });
 
+describe("visibleRows – offene und erledigte Sektion trennen ihre Wirte", () => {
+  // Eine gemeinsame Wirtsmenge liess Aufgaben in BEIDE Richtungen verschwinden. Deshalb baut
+  // jede Sektion ihre Wirte aus ihrer eigenen Menge – hier nachgestellt.
+  const offenerParent = mk({ id: "callPlumber", path: "Items/callPlumber.md" });
+  const erledigtesKind = mk({ id: "subtask1", path: "Items/subtask1.md", parent: "Items/callPlumber.md", status: "done" });
+  const erledigterParent = mk({ id: "launchMail", path: "Items/launchMail.md", status: "done" });
+  const offenesKind = mk({ id: "comming", path: "Items/comming.md", parent: "Items/launchMail.md" });
+
+  const open = [offenerParent, offenesKind];
+  const done = [erledigtesKind, erledigterParent];
+  const hosts = (l: Task[]): Set<string> => new Set(l.map((t) => t.path));   // wie nestingHosts, ohne Index
+
+  it("erledigte Unteraufgabe eines OFFENEN Parents steht in der Erledigt-Sektion", () => {
+    // Der gemeldete Fall: „Subtask 1" war abgehakt und tauchte unter „Erledigt · 1" nicht auf.
+    expect(visibleRows(done, hosts(done)).map((t) => t.id)).toContain("subtask1");
+  });
+
+  it("offene Unteraufgabe eines ERLEDIGTEN Parents steht bei den offenen", () => {
+    // Der Spiegelfall: sonst rutscht eine offene Aufgabe in die eingeklappte Erledigt-Sektion.
+    expect(visibleRows(open, hosts(open)).map((t) => t.id)).toContain("comming");
+  });
+
+  it("mit gemeinsamer Wirtsmenge fielen beide heraus – das war der Fehler", () => {
+    const gemeinsam = hosts([...open, ...done]);
+    expect(visibleRows(done, gemeinsam).map((t) => t.id)).not.toContain("subtask1");
+    expect(visibleRows(open, gemeinsam).map((t) => t.id)).not.toContain("comming");
+  });
+
+  it("gleicher Status: Kind bleibt unter seinem Parent verschachtelt", () => {
+    const p = mk({ id: "p", path: "Items/p.md" });
+    const k = mk({ id: "k", path: "Items/k.md", parent: "Items/p.md" });
+    expect(visibleRows([p, k], hosts([p, k])).map((t) => t.id)).toEqual(["p"]);
+  });
+});
+
 describe("groupTasks – unverändertes Verhalten", () => {
   it("„keine“ liefert genau eine Gruppe mit allen Aufgaben", () => {
     const list = [mk({ id: "a" }), mk({ id: "b" })];
