@@ -1642,8 +1642,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   border: 1px solid var(--background-modifier-border);
   background-color: var(--background-modifier-form-field);
 }
+/* margin-bottom 14px: zusammen mit dem 3px-Padding der ersten Zeile ergibt das 17px unter der
+   Linie – genau so viel, wie unten zwischen der letzten Zeile und der Linie über dem Zähler
+   steht (dort 14px margin-top + 3px padding-bottom). Die Facetten sitzen damit symmetrisch
+   zwischen ihren beiden Trennlinien. */
 .bt-filter-modal .bt-filter-h {
-  margin: 6px 0 1px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
+  margin: 6px 0 14px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
   border-bottom: 1px solid var(--background-modifier-border);
 }
