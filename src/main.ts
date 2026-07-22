@@ -12,7 +12,7 @@ import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem } from "./taskService";
 import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
-import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter } from "./filterEngine";
+import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder } from "./filterEngine";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp, dateOf, timeOf, combineDT } from "./format";
@@ -1194,6 +1194,31 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   /** Aufgabe einem Projekt/Bereich zuordnen (Kanban „nach Projekt"). null = kein Projekt.
    *  Referenz als `[[Basename]]` – wie im Task-Modal; der Index löst den Basename auf. */
+  /**
+   * Aufgabe von Hand einsortieren: sie soll VOR `before` stehen (null = ans Ende ihrer Gruppe).
+   *
+   * Die Gruppe sind ALLE Geschwister – gleicher Parent, quer über Spalten, Status und Seiten. Nur
+   * die sichtbaren zu nummerieren würde die übrigen auf `null` lassen; die rutschten dann in jeder
+   * anderen Ansicht ans Ende. Abgebrochene bleiben draußen, die stehen im Papierkorb.
+   *
+   * Im Normalfall schreibt das EINE Notiz. Nur der allererste Zug in einer Gruppe nummeriert sie
+   * einmal durch (s. planReorder) – dann können es viele sein, deshalb der Hinweis.
+   */
+  async moveTaskBefore(task: Task, before: Task | null): Promise<void> {
+    const siblings = this.index.all().filter((t) => t.parent === task.parent && !isTrashed(t.status));
+    const ordered = sortTasks(siblings, "manual", "asc", (t) => this.index.orderKey(t));
+    const writes = planReorder(ordered, task, before?.path ?? null);
+    if (writes.length > 1) new Notice(t("notice_order_materialize", writes.length));
+    for (const w of writes) {
+      const f = this.app.vault.getAbstractFileByPath(w.path);
+      if (!(f instanceof TFile)) continue;
+      await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        this.ensureCanonical(fm);
+        fm.sort_order = w.order;
+      });
+    }
+  }
+
   async setTaskProject(task: Task, project: string | null): Promise<void> {
     const f = this.app.vault.getAbstractFileByPath(task.path);
     if (!(f instanceof TFile)) return;

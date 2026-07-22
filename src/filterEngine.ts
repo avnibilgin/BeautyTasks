@@ -153,6 +153,50 @@ export function orderChain(task: Task, parentOf: (path: string) => Task | undefi
   return chain;
 }
 
+/** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
+export const ORDER_GAP = 10;
+/** Ein zu schreibender Positionswert. */
+export interface OrderWrite { path: string; order: number; }
+
+/**
+ * Plant die Schreibvorgänge für einen Zug: `moved` soll VOR `beforePath` stehen (null = ans Ende).
+ * `ordered` sind die Geschwister in ihrer AKTUELLEN Reihenfolge, `moved` eingeschlossen.
+ *
+ * Normalfall: **eine** Notiz – der neue Wert ist die Mitte zwischen den Nachbarn.
+ *
+ * Hat aber noch niemand in der Gruppe eine Position, gibt es keine Mitte zu bilden. Dann wird die
+ * Gruppe einmal durchnummeriert (10, 20, 30 …) – der Preis dafür, dass beim Anlegen einer Aufgabe
+ * nichts geschrieben werden muss. Das passiert genau einmal je Geschwistergruppe, ausgelöst vom
+ * ersten Zug, nicht vom Update.
+ *
+ * Nur die Spalte zu nummerieren wäre falsch: Geschwister stehen auch in anderen Spalten (anderer
+ * Status). Blieben die auf `null`, rutschten sie in der Listenansicht ans Ende – ein Zug im Board
+ * würde die Liste umwerfen. Deshalb bekommt der Aufrufer die GANZE Gruppe herein.
+ *
+ * Dritter Fall: die Lücke ist aufgebraucht (Mitte gleich einem Nachbarn – nach ~50 Zügen auf
+ * dieselbe Stelle). Dann wird ebenfalls neu nummeriert, mit frischen Lücken.
+ */
+export function planReorder(ordered: Task[], moved: Task, beforePath: string | null): OrderWrite[] {
+  const rest = ordered.filter((t) => t.path !== moved.path);
+  const found = beforePath ? rest.findIndex((t) => t.path === beforePath) : -1;
+  const at = beforePath && found >= 0 ? found : rest.length;
+  /** Endgültige Reihenfolge durchnummerieren – gibt ALLE Positionen zurück. */
+  const renumber = (): OrderWrite[] => {
+    const seq = [...rest.slice(0, at), moved, ...rest.slice(at)];
+    return seq.map((t, i) => ({ path: t.path, order: (i + 1) * ORDER_GAP }));
+  };
+  if (ordered.some((t) => t.sortOrder == null)) return renumber();
+
+  const prev = at > 0 ? rest[at - 1].sortOrder! : null;
+  const next = at < rest.length ? rest[at].sortOrder! : null;
+  if (prev === null && next === null) return [{ path: moved.path, order: ORDER_GAP }];
+  if (prev === null) return [{ path: moved.path, order: next! / 2 }];
+  if (next === null) return [{ path: moved.path, order: prev + ORDER_GAP }];
+  const mid = (prev + next) / 2;
+  if (mid === prev || mid === next) return renumber();   // Lücke erschöpft
+  return [{ path: moved.path, order: mid }];
+}
+
 /** Lokales Datum + n Tage als ISO (YYYY-MM-DD), ohne UTC-Drift. */
 export function addDays(iso: string, n: number): string {
   const d = new Date(iso + "T00:00:00");

@@ -658,26 +658,78 @@ function attachColumnDrag(colEl: HTMLElement, handle: HTMLElement, board: HTMLEl
   });
 }
 
-/** Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation. */
-function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin): void {
+/**
+ * Vor WELCHE Karte würde hier losgelassen? Liefert den Pfad der Karte, vor der eingefügt wird,
+ * oder null für „ans Ende". Es zählen nur GESCHWISTER der gezogenen Aufgabe: eine Position gilt
+ * unter Geschwistern, also sind die Kanten dazwischen die einzigen sinnvollen Einfügestellen.
+ * Steht kein Geschwister in dieser Spalte, gibt es nichts einzusortieren (undefined).
+ */
+function dropTargetPath(colEl: HTMLElement, dragged: Task, plugin: BeautyTasksPlugin, y: number): string | null | undefined {
+  const list = colEl.querySelector<HTMLElement>(".bt-kanban-list");
+  if (!list) return undefined;
+  const cards = Array.from(list.children).filter((el): el is HTMLElement => el.instanceOf(HTMLElement) && el.hasClass("bt-task"));
+  const siblings = cards.filter((el) => {
+    const tk = el.dataset.path ? plugin.index.get(el.dataset.path) : undefined;
+    return !!tk && tk.path !== dragged.path && tk.parent === dragged.parent;
+  });
+  if (!siblings.length) return undefined;
+  for (const el of siblings) {
+    const r = el.getBoundingClientRect();
+    if (y < r.top + r.height / 2) return el.dataset.path ?? null;
+  }
+  return null;   // unterhalb aller Geschwister -> ans Ende
+}
+
+/** Einfüge-Markierung setzen bzw. aufräumen (Linie ober-/unterhalb einer Karte). */
+function markDrop(colEl: HTMLElement, beforePath: string | null | undefined): void {
+  for (const el of Array.from(colEl.querySelectorAll<HTMLElement>(".bt-task"))) {
+    el.removeClass("is-drop-before"); el.removeClass("is-drop-after");
+  }
+  if (beforePath === undefined) return;
+  const list = colEl.querySelector<HTMLElement>(".bt-kanban-list");
+  const cards = list ? Array.from(list.querySelectorAll<HTMLElement>(".bt-task")) : [];
+  if (beforePath === null) cards[cards.length - 1]?.addClass("is-drop-after");
+  else cards.find((el) => el.dataset.path === beforePath)?.addClass("is-drop-before");
+}
+
+/**
+ * Eine Spalte als Drop-Ziel verdrahten: Loslassen ruft die spaltenspezifische Mutation.
+ * Bei Sortierung „Manuell" kommt die Einfügeposition dazu – dann bestimmt der Zug nicht nur die
+ * Spalte, sondern auch den Platz darin. Bei jeder anderen Sortierung wäre das sinnlos: die
+ * nächste Neuzeichnung würde die Handarbeit sofort wieder überschreiben.
+ */
+function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin, manual: boolean): void {
+  const dragged = (): Task | undefined => (dragPath ? plugin.index.get(dragPath) : undefined);
   colEl.addEventListener("dragover", (e) => {
     if (!dragPath) return;                       // nur eigene Karten (kein Vault-Drag)
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     colEl.addClass("is-drop");
+    const tk = manual ? dragged() : undefined;
+    markDrop(colEl, tk ? dropTargetPath(colEl, tk, plugin, e.clientY) : undefined);
   });
   colEl.addEventListener("dragleave", (e) => {
-    if (!colEl.contains(e.relatedTarget as Node | null)) colEl.removeClass("is-drop");
+    if (!colEl.contains(e.relatedTarget as Node | null)) { colEl.removeClass("is-drop"); markDrop(colEl, undefined); }
   });
   colEl.addEventListener("drop", (e) => {
     e.preventDefault();
     colEl.removeClass("is-drop");
     const path = e.dataTransfer?.getData("text/plain") || dragPath;
     const fromCol = dragFromCol;
+    const task = path ? plugin.index.get(path) : undefined;
+    // Ziel VOR dem Aufräumen bestimmen – markDrop entfernt die Klassen, die wir noch lesen.
+    const before = manual && task ? dropTargetPath(colEl, task, plugin, e.clientY) : undefined;
+    markDrop(colEl, undefined);
     dragPath = null; dragFromCol = null;
-    if (!path) return;
-    const task = plugin.index.get(path);
-    if (task) col.onDrop(task, fromCol ?? "");
+    if (!task) return;
+    // Position zuerst und abgewartet, dann die Facette: zwei processFrontMatter auf dieselbe Datei
+    // dürfen sich nicht überholen, sonst geht einer der beiden Schreibvorgänge verloren.
+    if (before !== undefined) {
+      void plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null)
+        .then(() => col.onDrop(task, fromCol ?? ""));
+      return;
+    }
+    col.onDrop(task, fromCol ?? "");
   });
 }
 
@@ -714,7 +766,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     colEl.dataset.col = col.id;
     const sentinel = isSentinelCol(col.id);
     if (sentinel) colEl.dataset.pin = "1";
-    setupColumnDnd(colEl, col, plugin);
+    setupColumnDnd(colEl, col, plugin, opts.sort === "manual");
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
     // Der ganze Spaltenkopf ist der Ziehgriff zum Umsortieren (nicht bei Priorität/Sentinel).

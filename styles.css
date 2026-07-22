@@ -1234,6 +1234,11 @@ body {
   color: var(--text-muted); font-size: 0.85em;
   padding: 1px 5px; border-radius: 5px; cursor: pointer;
 }
+/* Einfüge-Markierung beim Umsortieren im Board (nur bei Sortierung „Manuell"): eine Linie an der
+   Kante, an der die Karte landen würde. Inset-Schatten statt Border – der verschiebt kein Layout. */
+.bt-kanban-list .bt-task.is-drop-before { box-shadow: inset 0 2px 0 0 var(--interactive-accent); }
+.bt-kanban-list .bt-task.is-drop-after { box-shadow: inset 0 -2px 0 0 var(--interactive-accent); }
+
 .bt-subs.is-open { color: var(--text-accent); }
 /* Auf einer Kanban-Karte ist das Badge reine Anzeige (aufklappen ginge dort nicht) – es darf
    deshalb auch nicht klickbar aussehen. Der Zeiger bleibt der der Karte selbst. */
