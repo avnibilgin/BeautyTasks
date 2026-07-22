@@ -53,7 +53,10 @@ export interface ViewOptions {
   sort: FilterSort;
   group: FilterGroup;
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
-  subtasks: SubtaskDisplay;   // wie Unteraufgaben in der Liste erscheinen (s. SubtaskDisplay)
+  /** Wie Unteraufgaben erscheinen. `undefined` = NIE GEWÄHLT und damit etwas anderes als jeder
+   *  konkrete Wert: die Vorgabe hängt am Layout (s. effectiveSubtasks) und darf deshalb nicht
+   *  vorzeitig auf einen Wert festgelegt werden. */
+  subtasks?: SubtaskDisplay;
   sortDir: SortDir;        // Richtung von Sortierung + Gruppen-Reihenfolge
   calMode: CalMode;        // nur im Kalender-Layout: Jahr/Monat/Woche/Tag
   calPanel: boolean;       // nur im Kalender-Layout: Seitenleiste „Undatiert" offen?
@@ -66,7 +69,9 @@ export const DEFAULT_CRITERIA: FilterCriteria = {
   projects: [], projectsNot: [],
   search: "",
 };
-export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, subtasks: "compact", sortDir: "asc", calMode: "month", calPanel: true };
+// `subtasks` fehlt bewusst: „nie gewählt" IST der Standard, und was daraus folgt, entscheidet
+// erst das Layout (effectiveSubtasks).
+export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, sortDir: "asc", calMode: "month", calPanel: true };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
@@ -87,6 +92,25 @@ export const BOARD_SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "standalone"
  * dann weder Karte noch Badge, also verschwunden.
  */
 export const boardSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "compact" ? "compact" : "standalone");
+
+/**
+ * Der tatsächlich wirksame Modus – die EINE Stelle, die „nie gewählt" auflöst.
+ *
+ * Die Vorgabe hängt am Layout, weil beide Flächen vor dieser Einstellung unterschiedlich
+ * arbeiteten: die Liste zeigte ein Fortschritts-Badge, das Board immer eigene Karten. Eine
+ * gemeinsame Vorgabe würde eine der beiden beim Update stillschweigend umstellen – im Board sogar
+ * mit Funktionsverlust, weil sich eine Unteraufgabe ohne Karte nicht mehr in eine andere
+ * Status-Spalte ziehen lässt.
+ *
+ * WICHTIG: erst hier auflösen, nicht schon beim Lesen. setPageViewOption speichert das ganze
+ * aufgelöste Objekt; ein vorzeitig gesetzter Wert würde beim Umschalten auf Board mit dem ALTEN
+ * Layout aufgelöst und dauerhaft festgeschrieben. Als `undefined` fällt das Feld beim Speichern
+ * weg und wird jedes Mal frisch zum aktuellen Layout bestimmt.
+ */
+export function effectiveSubtasks(o: { layout: PageLayout; subtasks?: SubtaskDisplay }): SubtaskDisplay {
+  if (o.layout === "board") return boardSubtasks(o.subtasks ?? "standalone");
+  return o.subtasks ?? "compact";
+}
 /** „smart" ist eine Semantik (datiert zuerst, Datumlose ans Ende), keine Ordnung – rückwärts
  *  ergibt sie keinen Sinn. Deshalb kennt sie keine Richtung. */
 export const hasSortDir = (sort: FilterSort): boolean => sort !== "smart";

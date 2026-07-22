@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, visibleRows, boardSubtasks, DEFAULT_OPTIONS, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -125,7 +125,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Termine haben hier keine Spalte (kein Tages-Board) → sie erscheinen im Listen-/Kalender-Layout.
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
-      const present = nestingHosts(plugin, opts.showDone ? [...open, ...doneToday] : open, opts.subtasks);
+      const present = nestingHosts(plugin, opts.showDone ? [...open, ...doneToday] : open, effectiveSubtasks(opts));
       if (opts.group === "none") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
@@ -182,7 +182,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Termine haben im Board keine Spalte (keine Tages-Spalten) → nur Aufgaben.
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
-      const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), opts.subtasks);
+      const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), effectiveSubtasks(opts));
       const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
       // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
       const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
@@ -232,7 +232,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // gar nicht, und die abgehakte Unteraufgabe war nirgends auffindbar. Mit `present` bekommt
       // sie eine eigene Zeile; nur wenn ihre Hauptaufgabe ebenfalls hier steht, bleibt sie unter
       // ihr eingeklappt (erreichbar über deren Fortschritts-Badge).
-      const present = nestingHosts(plugin, done, plugin.pageViewOptions().subtasks);
+      const present = nestingHosts(plugin, done, effectiveSubtasks(plugin.pageViewOptions()));
       if (!visibleRows(done, present).length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
       else section(root, plugin, t("sec_done"), done, today, false, false, present);
     }
@@ -260,7 +260,7 @@ function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: st
   }
   // Wie in der Erledigt-Ansicht: ohne `present` fiele jede wiederkehrende Unteraufgabe heraus,
   // deren Hauptaufgabe nicht selbst wiederkehrend ist (sie steht dann nicht in dieser Liste).
-  const present = nestingHosts(plugin, recs, plugin.pageViewOptions().subtasks);
+  const present = nestingHosts(plugin, recs, effectiveSubtasks(plugin.pageViewOptions()));
   const recurSection = (title: string, items: Task[]): void => {
     if (visibleRows(items, present).length) section(root, plugin, title, items.sort(byDue), today, false, false, present);
   };
@@ -391,7 +391,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
     return;
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
-  const present = nestingHosts(plugin, opts.showDone ? [...open, ...done] : open, opts.subtasks);
+  const present = nestingHosts(plugin, opts.showDone ? [...open, ...done] : open, effectiveSubtasks(opts));
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
     if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
@@ -685,7 +685,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   // stehen – nur so lässt sie sich einzeln in eine andere Status-Spalte ziehen.
   // Hat eine Unteraufgabe keine Hauptaufgabe auf diesem Board, bleibt sie auch im kompakten
   // Modus als Karte stehen (nestingHosts/visibleRows) – sonst wäre sie hier unerreichbar.
-  const subs = boardSubtasks(opts.subtasks);
+  const subs = effectiveSubtasks(opts);   // im Board-Layout schliesst das boardSubtasks() ein
   const cards = visibleRows(tasks, nestingHosts(plugin, tasks, subs));
   // Gruppierungs-Schlüssel (stabil) für die board-eigene Spalten-Reihenfolge. Priorität bleibt fest.
   const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project" : "status";
@@ -859,7 +859,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
   // EINMAL pro Section lesen (statt pro Zeile) und an renderTask durchreichen.
-  const subs = plugin.pageViewOptions().subtasks;
+  const subs = effectiveSubtasks(plugin.pageViewOptions());
   for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs });
   annotateSubtaskTree(list);
 
@@ -941,7 +941,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
-  const subs = opts.subs ?? DEFAULT_OPTIONS.subtasks;
+  const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;

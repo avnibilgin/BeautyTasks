@@ -16,12 +16,16 @@ const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T)
  * Unteraufgaben-Darstellung lesen – mit Rückfall auf den alten Boolean `showSubtasks`.
  * Bis 1.20.3 gab es nur „verschachtelt ja/nein"; wer damals eingeschaltet hatte, meinte das,
  * was heute „indented" heißt. Deshalb wird der alte Wert übersetzt statt ignoriert – sonst
- * spränge die Ansicht beim Update wortlos auf den Default zurück. Eine eigene Migration braucht
- * es nicht: Default-Werte landen ohnehin nie in der Notiz (s. writeViewOptions).
+ * spränge die Ansicht beim Update wortlos zurück.
+ *
+ * `undefined` = nie gewählt. Bewusst NICHT hier auf einen Wert auflösen: die Vorgabe hängt am
+ * Layout (s. effectiveSubtasks), und ein früh gesetzter Wert würde von setPageViewOption
+ * dauerhaft festgeschrieben. `showSubtasks: false` war der damalige Standard und zählt deshalb
+ * ebenfalls als „nie gewählt" – im Board bedeutete er ohnehin nichts.
  */
-function readSubtasks(o: Record<string, unknown>): SubtaskDisplay {
+function readSubtasks(o: Record<string, unknown>): SubtaskDisplay | undefined {
   if (typeof o.subtasks === "string" && (SUBTASK_DISPLAYS as readonly string[]).includes(o.subtasks)) return o.subtasks as SubtaskDisplay;
-  return o.showSubtasks === true ? "indented" : DEFAULT_OPTIONS.subtasks;
+  return o.showSubtasks === true ? "indented" : undefined;
 }
 
 /** Frontmatter/Settings-Objekt -> vollständige ViewOptions (fehlende Felder = Default). */
@@ -46,7 +50,7 @@ export function writeViewOptions(fm: Record<string, unknown>, o: ViewOptions): v
   setOrDel("sort", o.sort, DEFAULT_OPTIONS.sort);
   setOrDel("group", o.group, DEFAULT_OPTIONS.group);
   setOrDel("showDone", o.showDone, false);
-  setOrDel("subtasks", o.subtasks, DEFAULT_OPTIONS.subtasks);
+  setOrDel("subtasks", o.subtasks, undefined);   // nie gewählt -> Schlüssel raus
   delete fm.showSubtasks;   // abgelöst durch `subtasks` – beim nächsten Schreiben aus der Notiz nehmen
   setOrDel("sortDir", o.sortDir, DEFAULT_OPTIONS.sortDir);
   setOrDel("calMode", o.calMode, DEFAULT_OPTIONS.calMode);

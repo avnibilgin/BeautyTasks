@@ -4,7 +4,7 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { openPopover } from "./popover";
-import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, boardSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
+import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, effectiveSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
 import { t } from "./i18n";
 
 /** Kontextabhängige Gruppierungs-Optionen: die auf dieser Seite redundante ausblenden
@@ -57,9 +57,8 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       // gespeicherte Wert bleibt unangetastet und wirkt in der Liste weiter (nicht destruktiv,
       // wie bei den Gruppierungen, die das Board nicht anbietet).
       if (o.layout !== "calendar") {
-        const board = o.layout === "board";
-        ddRow(pop, t("panel_subtasks"), board ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS,
-          board ? boardSubtasks(o.subtasks) : o.subtasks, "panel_subs_",
+        ddRow(pop, t("panel_subtasks"), o.layout === "board" ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS,
+          effectiveSubtasks(o), "panel_subs_",
           (v) => apply({ subtasks: v as SubtaskDisplay }));
       }
 
@@ -142,7 +141,11 @@ export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): voi
   // gespeicherter Wert von einer früheren Sortierung darf den Punkt nicht setzen (das Panel
   // zeigt die Zeile dort ja auch nicht: derselbe hasSortDir-Vorbehalt).
   const modified = o.layout !== DEFAULT_OPTIONS.layout || o.sort !== DEFAULT_OPTIONS.sort || o.group !== DEFAULT_OPTIONS.group
-    || o.showDone !== DEFAULT_OPTIONS.showDone || o.subtasks !== DEFAULT_OPTIONS.subtasks
+    // Unteraufgaben: die WIRKSAMEN Werte vergleichen. Wer im Board ausdrücklich „Einzeln" wählt,
+    // hat damit nichts verändert – dort ist es ohnehin die Vorgabe. Ein Punkt behauptete sonst
+    // eine Abweichung, die man nicht sieht (wie zuvor bei der Richtung unter „smart").
+    || o.showDone !== DEFAULT_OPTIONS.showDone
+    || effectiveSubtasks(o) !== effectiveSubtasks({ layout: o.layout })
     || (hasSortDir(o.sort) && o.sortDir !== DEFAULT_OPTIONS.sortDir);
   if (modified) btn.createSpan({ cls: "bt-anzeige-dot" });
   btn.onclick = () => openViewPanel(btn, plugin);
