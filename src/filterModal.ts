@@ -10,6 +10,7 @@ import { listProjectsAndAreas } from "./taskService";
 import { openPopover } from "./popover";
 import { projectDisplayName, t } from "./i18n";
 import { PRIO_KEY } from "./taskModal";
+import { allStatuses, statusLabel } from "./statuses";
 import {
   FilterCriteria, ViewOptions, MatchMode, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
   RANGES, FILTER_PRIORITIES, applyFilter, activeFacetCount,
@@ -76,6 +77,22 @@ export class FilterModal extends Modal {
     this.select(contentEl, t("filter_range"),
       RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
       () => this.c.range, (v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
+
+    // Status: einwertig wie Priorität, also nur ✓ und − (kein „alle"). Nimmt ALLE Status – auch
+    // erledigte und abgebrochene –, denn genau das macht diese Facette möglich: eine Ansicht auf
+    // „was ist gerade in Arbeit", „was habe ich abgebrochen" oder einen selbst angelegten Status.
+    this.facet(contentEl, t("filter_statuses"),
+      allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })), {
+        modeOf: (k) => this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null,
+        toggle: (k, pen) => {
+          const was = this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null;
+          this.c.statuses = this.c.statuses.filter((x) => x !== k);
+          this.c.statusesNot = this.c.statusesNot.filter((x) => x !== k);
+          if (was !== pen) (pen === "none" ? this.c.statusesNot : this.c.statuses).push(k);
+        },
+        clear: () => { this.c.statuses = []; this.c.statusesNot = []; },
+        pens: ["any", "none"],
+      });
 
     this.facet(contentEl, t("filter_priorities"),
       FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })), {

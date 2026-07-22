@@ -6,6 +6,7 @@ import {
   DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES,
 } from "./filterEngine";
 import { readViewOptions, writeViewOptions } from "./pageOptions";
+import { isKnownStatus } from "./statuses";
 
 /** Ein gespeicherter Filter (`type: filter`-Notiz im Vault). */
 export interface FilterItem {
@@ -22,6 +23,7 @@ function readCriteria(fm: Record<string, unknown>): FilterCriteria {
     asStrArr(v).filter((p): p is Priority => (FILTER_PRIORITIES as string[]).includes(p));
   return {
     range: oneOf<FilterRange>(fm.range, RANGES, DEFAULT_CRITERIA.range),
+    statuses: asStrArr(fm.statuses).filter(isKnownStatus), statusesNot: asStrArr(fm.statuses_not).filter(isKnownStatus),
     priorities: prio(fm.priorities), prioritiesNot: prio(fm.priorities_not),
     labels: asStrArr(fm.labels), labelsAll: asStrArr(fm.labels_all), labelsNot: asStrArr(fm.labels_not),
     projects: asStrArr(fm.projects), projectsNot: asStrArr(fm.projects_not),
@@ -64,6 +66,8 @@ export function readFilter(app: App, path: string): FilterItem | null {
 function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: ViewOptions, color: string | null): void {
   const setOrDel = (k: string, v: unknown): void => { if (v == null) delete fm[k]; else fm[k] = v; };
   setOrDel("range", c.range === "any" ? null : c.range);
+  setOrDel("statuses", c.statuses.length ? c.statuses : null);
+  setOrDel("statuses_not", c.statusesNot.length ? c.statusesNot : null);
   setOrDel("priorities", c.priorities.length ? c.priorities : null);
   setOrDel("priorities_not", c.prioritiesNot.length ? c.prioritiesNot : null);
   setOrDel("labels", c.labels.length ? c.labels : null);

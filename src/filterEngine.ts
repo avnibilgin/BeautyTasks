@@ -44,6 +44,7 @@ export interface FilterCriteria {
   range: FilterRange;      // Zeitraum-Facette (Default „any" = alle)
   // Jede Auswahl-Facette führt ihre Werte pro Marker getrennt: ✓ (irgendeines/ODER),
   // + (alle/UND, nur bei mehrwertigen Labels sinnvoll), − (keines/NICHT).
+  statuses: string[];      statusesNot: string[];                  // ✓ / −  (Status-Ids)
   priorities: Priority[];  prioritiesNot: Priority[];              // ✓ / −
   labels: string[];        labelsAll: string[]; labelsNot: string[];  // ✓ / + / −
   projects: string[];      projectsNot: string[];                 // ✓ / −  (Basenamen)
@@ -66,6 +67,7 @@ export interface ViewOptions {
 
 export const DEFAULT_CRITERIA: FilterCriteria = {
   range: "any",
+  statuses: [], statusesNot: [],
   priorities: [], prioritiesNot: [],
   labels: [], labelsAll: [], labelsNot: [],
   projects: [], projectsNot: [],
@@ -209,6 +211,7 @@ export function addDays(iso: string, n: number): string {
 export function activeFacetCount(c: FilterCriteria): number {
   let n = 0;
   if (c.range !== "any") n++;
+  if (c.statuses.length || c.statusesNot.length) n++;
   if (c.priorities.length || c.prioritiesNot.length) n++;
   if (c.labels.length || c.labelsAll.length || c.labelsNot.length) n++;
   if (c.projects.length || c.projectsNot.length) n++;
@@ -230,6 +233,9 @@ function inRange(t: Task, range: FilterRange, today: string): boolean {
  *  ✓ (irgendeines muss zutreffen) UND + (alle müssen zutreffen) UND − (keines darf zutreffen). */
 export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean {
   if (!inRange(t, c.range, today)) return false;
+  // Status (einwertig): ✓ irgendeiner / − keiner
+  if (c.statuses.length && !c.statuses.includes(t.status)) return false;
+  if (c.statusesNot.includes(t.status)) return false;
   // Prioritäten (einwertig): ✓ irgendeine / − keine
   if (c.priorities.length && !c.priorities.includes(t.priority)) return false;
   if (c.prioritiesNot.includes(t.priority)) return false;
@@ -423,9 +429,22 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
     .map((b) => ({ title: b.title, tasks: b.tasks }));
 }
 
-/** Basis-Menge → Facetten-Filter → Sortierung. Basis ist `open()` (ohne archivierte/
- *  erledigte); mit showDone kommen erledigte hinzu. Nav-Zähler UND Board nutzen dies. */
+/**
+ * Basis-Menge → Facetten-Filter → Sortierung. Nav-Zähler UND Board nutzen dies.
+ *
+ * Ohne Status-Kriterium wie bisher: Basis ist `open()` (ohne archivierte, ohne erledigte), mit
+ * `showDone` kommen erledigte hinzu. Abgebrochene bleiben draußen, die stehen im Papierkorb.
+ *
+ * Sind dagegen Status ausdrücklich gewählt, bestimmen SIE die Basis – inklusive erledigter und
+ * abgebrochener –, und `showDone` tritt zurück. Sonst käme ein Filter auf „erledigt" auf null
+ * Treffer, weil die Aufgaben schon vor den Kriterien aussortiert wären: eine getroffene Wahl
+ * schlägt eine Vorgabe (dasselbe Prinzip wie bei der Unteraufgaben-Darstellung). Nebenbei wird so
+ * ein Filter auf abgebrochene Aufgaben überhaupt erst möglich.
+ */
 export function applyFilter(idx: TaskIndex, c: FilterCriteria, opts: ViewOptions, today: string): Task[] {
-  const base = opts.showDone ? [...idx.open(), ...idx.done()] : idx.open();
+  const byStatus = c.statuses.length > 0 || c.statusesNot.length > 0;
+  const base = byStatus ? idx.unarchived()
+    : opts.showDone ? [...idx.open(), ...idx.done()]
+      : idx.open();
   return sortTasks(base.filter((t) => matchesTask(t, c, today)), opts.sort, opts.sortDir, (t) => idx.orderKey(t));
 }
