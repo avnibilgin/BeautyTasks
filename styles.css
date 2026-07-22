@@ -1616,22 +1616,22 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    mal border-bottom setzen. */
 .bt-filter-modal { width: 440px; max-width: 92vw; }
 .bt-filter-modal h3 { margin: 0 0 4px; }
-/* .setting-item doppelt = (0,4,0); schlägt Obsidians/Theme-Regel für den Zeilenrahmen
-   (spezifischer als 0,3,0) ohne !important. Nur vertikal, damit die Zeilen bündig zu den
-   Sektionsköpfen bleiben. */
-.modal.bt-filter-modal .setting-item.setting-item {
-  border: 0; box-shadow: none; padding: 3px 0; align-items: center;
+/* Zeilen des Filter-Modals – eigenes Markup (s. filterModal.filterRow), NICHT Obsidians
+   .setting-item. Damit gehören Abstände und Trennlinien uns: kein Standard-Padding, das wir von
+   außen wegräumen müssten, und keine Linie, die wir per Spezifität bekämpfen. */
+.bt-filter-modal .bt-filter-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 3px 0;
 }
-/* Keine Trennlinien zwischen den Facetten. Acht Striche auf engem Raum zerschneiden das Modal,
-   statt es zu ordnen – die Beschriftung links und das Bedienelement rechts geben schon genug
-   Struktur. `border: 0` oben reicht dafür nicht: Themes zeichnen die Linie häufig über ein
-   Pseudo-Element, das keine Border ist. Deshalb hier zusätzlich `content: none`, eng begrenzt auf
-   die Zeilen DIESES Modals, damit nichts anderes im Plugin davon berührt wird. */
-.modal.bt-filter-modal .setting-item.setting-item::before,
-.modal.bt-filter-modal .setting-item.setting-item::after,
-.modal.bt-filter-modal .setting-item.setting-item > .setting-item-info::after,
-.modal.bt-filter-modal .setting-item.setting-item > .setting-item-control::after { content: none; }
-.modal.bt-filter-modal .setting-item.setting-item > * { border: 0; }
+.bt-filter-modal .bt-filter-k { font-size: var(--font-ui-small); color: var(--text-normal); }
+.bt-filter-modal .bt-filter-ctl { display: flex; align-items: center; flex: 0 0 auto; }
+/* Text-Eingaben (Name, Suche) auf dieselbe Breite wie die Facetten-Knöpfe. */
+.bt-filter-modal .bt-filter-input {
+  width: 200px; font-size: var(--font-ui-small);
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-modifier-form-field);
+  box-shadow: none;
+}
 .bt-filter-modal .setting-item-name { font-size: var(--font-ui-small); }
 /* Alle Steuerelemente im Modal flach (kein Schatten) UND mit sichtbarem Rand –
    native Dropdowns haben von Haus aus keinen Rand, daher hier angleichen. WICHTIG:
