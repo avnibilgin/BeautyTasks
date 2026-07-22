@@ -209,12 +209,19 @@ export interface TaskGroup { title: string; tasks: Task[]; }
  *     Skala; außerdem hängt das Sammel-„Verschieben" der Heute-Ansicht an dieser EINEN Gruppe.
  *   • „Kein Datum" – die Abwesenheit eines Werts, immer ganz ans Ende (wie in sortTasks).
  *
- * RICHTUNG: nur die Tages-Gruppen sind eine Skala und drehen mit `dir`. „Überfällig" bleibt
- * dabei oben angepinnt – Überfälliges ans Listenende zu schieben wäre eine schlechte
+ * RICHTUNG: nur die Tages-Gruppen sind eine Skala und drehen mit der Richtung. „Überfällig"
+ * bleibt dabei oben angepinnt – Überfälliges ans Listenende zu schieben wäre eine schlechte
  * Voreinstellung, auch wenn es „streng nach Skala" dorthin gehörte. Priorität/Label/Projekt
  * sind Semantik bzw. Alphabet: deren Gruppen-Reihenfolge bleibt richtungsunabhängig fest.
+ *
+ * `order` ist bewusst das PAAR aus Sortierung UND Richtung, nicht die Richtung allein: ob eine
+ * Richtung überhaupt gilt, hängt am Sortiermodus (bei „smart" gibt es keine, s. hasSortDir).
+ * Nahm die Funktion nur die Richtung entgegen, gehorchte sie einer gespeicherten „absteigend",
+ * die im Panel längst ausgeblendet war – die Tage standen rückwärts, obwohl „smart" gewählt war.
+ * ViewOptions erfüllt die Form direkt, Aufrufer reichen einfach ihre Optionen durch.
  */
-export function groupTasks(tasks: Task[], group: FilterGroup, today: string, dir: SortDir = "asc"): TaskGroup[] {
+export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
+  order?: { sort: FilterSort; sortDir: SortDir }): TaskGroup[] {
   if (group === "none") return [{ title: t("sec_tasks"), tasks }];
   // pin: -1 = immer zuoberst · +1 = immer zuunterst · 0 = folgt `order`
   const buckets = new Map<string, { pin: number; order: number; title: string; tasks: Task[] }>();
@@ -244,7 +251,10 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string, dir
       else push("noproject", t("nav_inbox"), 0, 1, tk);
     }
   }
-  const s = (group === "date" || group === "deadline") && dir === "desc" ? -1 : 1;
+  // Absteigend nur, wenn die gewählte Sortierung überhaupt eine Richtung kennt – dieselbe
+  // Bedingung, unter der das Panel die Richtungs-Zeile zeigt (hasSortDir).
+  const desc = !!order && hasSortDir(order.sort) && order.sortDir === "desc";
+  const s = (group === "date" || group === "deadline") && desc ? -1 : 1;
   return [...buckets.values()]
     .sort((a, b) => a.pin - b.pin || s * (a.order - b.order) || a.title.localeCompare(b.title))
     .map((b) => ({ title: b.title, tasks: b.tasks }));
