@@ -4,7 +4,7 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { openPopover } from "./popover";
-import { ViewOptions, FilterSort, FilterGroup, SortDir, LAYOUTS, SORTS, SORT_DIRS, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
+import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, effectiveSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
 import { t } from "./i18n";
 
 /** Kontextabhängige Gruppierungs-Optionen: die auf dieser Seite redundante ausblenden
@@ -44,13 +44,22 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         sw.onclick = () => apply({ showDone: !o.showDone });
       }
 
-      // Unteraufgaben anzeigen: nur in der Liste sinnvoll (Kanban ist ohnehin flach, der Kalender
-      // verschachtelt nicht). Aus (Default) = Parent zeigt ein Fortschritts-Badge statt der Zeilen.
-      if (o.layout === "list") {
-        const subRow = pop.createDiv({ cls: "bt-panel-row" });
-        subRow.createSpan({ cls: "bt-panel-k", text: t("panel_show_subtasks") });
-        const sw = subRow.createDiv({ cls: "bt-panel-switch" + (o.showSubtasks ? " is-on" : "") });
-        sw.onclick = () => apply({ showSubtasks: !o.showSubtasks });
+      // Unteraufgaben: in Liste UND Board wählbar (nur der Kalender kennt keine Unteraufgaben-
+      // Darstellung). Bewusst NICHT an eine aktive Gruppierung gekoppelt – „Einzeln" wirkt auch
+      // ungruppiert, weil eine Unteraufgabe dann ihre eigene Position in der Sortierung bekommt
+      // statt der ihrer Hauptaufgabe. Ein Bedienelement, das beim Umstellen eines ANDEREN Feldes
+      // auftaucht, verwirrt mehr, als das Ausblenden spart; ausgeblendet wird hier nur, was
+      // wirklich wirkungslos ist (vgl. Richtung bei „smart").
+      // Steht oberhalb des Anordnen-Blocks, weil es den auf „Demnächst" gar nicht gibt – dort
+      // bliebe die Auswahl sonst unerreichbar.
+      // Im Board fehlt „Eingerückt" (keine Karte in einer Karte). Ein gespeichertes „Eingerückt"
+      // wird dort als „Einzeln" gezeigt – genau das, was boardSubtasks() tatsächlich tut. Der
+      // gespeicherte Wert bleibt unangetastet und wirkt in der Liste weiter (nicht destruktiv,
+      // wie bei den Gruppierungen, die das Board nicht anbietet).
+      if (o.layout !== "calendar") {
+        ddRow(pop, t("panel_subtasks"), o.layout === "board" ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS,
+          effectiveSubtasks(o), "panel_subs_",
+          (v) => apply({ subtasks: v as SubtaskDisplay }));
       }
 
       // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
@@ -132,7 +141,11 @@ export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): voi
   // gespeicherter Wert von einer früheren Sortierung darf den Punkt nicht setzen (das Panel
   // zeigt die Zeile dort ja auch nicht: derselbe hasSortDir-Vorbehalt).
   const modified = o.layout !== DEFAULT_OPTIONS.layout || o.sort !== DEFAULT_OPTIONS.sort || o.group !== DEFAULT_OPTIONS.group
-    || o.showDone !== DEFAULT_OPTIONS.showDone || o.showSubtasks !== DEFAULT_OPTIONS.showSubtasks
+    // Unteraufgaben: die WIRKSAMEN Werte vergleichen. Wer im Board ausdrücklich „Einzeln" wählt,
+    // hat damit nichts verändert – dort ist es ohnehin die Vorgabe. Ein Punkt behauptete sonst
+    // eine Abweichung, die man nicht sieht (wie zuvor bei der Richtung unter „smart").
+    || o.showDone !== DEFAULT_OPTIONS.showDone
+    || effectiveSubtasks(o) !== effectiveSubtasks({ layout: o.layout })
     || (hasSortDir(o.sort) && o.sortDir !== DEFAULT_OPTIONS.sortDir);
   if (modified) btn.createSpan({ cls: "bt-anzeige-dot" });
   btn.onclick = () => openViewPanel(btn, plugin);

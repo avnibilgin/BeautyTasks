@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, visibleRows, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -125,7 +125,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Termine haben hier keine Spalte (kein Tages-Board) → sie erscheinen im Listen-/Kalender-Layout.
       renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
-      const present = renderedPaths(plugin, opts.showDone ? [...open, ...doneToday] : open);
+      const present = nestingHosts(plugin, opts.showDone ? [...open, ...doneToday] : open, effectiveSubtasks(opts));
       if (opts.group === "none") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
@@ -145,7 +145,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts)
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
           .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
@@ -182,7 +182,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Termine haben im Board keine Spalte (keine Tages-Spalten) → nur Aufgaben.
       renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
     } else {
-      const present = renderedPaths(plugin, groups.flatMap((g) => g.tasks));
+      const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), effectiveSubtasks(opts));
       const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
       // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
       const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
@@ -232,7 +232,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // gar nicht, und die abgehakte Unteraufgabe war nirgends auffindbar. Mit `present` bekommt
       // sie eine eigene Zeile; nur wenn ihre Hauptaufgabe ebenfalls hier steht, bleibt sie unter
       // ihr eingeklappt (erreichbar über deren Fortschritts-Badge).
-      const present = renderedPaths(plugin, done);
+      const present = nestingHosts(plugin, done, effectiveSubtasks(plugin.pageViewOptions()));
       if (!visibleRows(done, present).length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
       else section(root, plugin, t("sec_done"), done, today, false, false, present);
     }
@@ -260,7 +260,7 @@ function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: st
   }
   // Wie in der Erledigt-Ansicht: ohne `present` fiele jede wiederkehrende Unteraufgabe heraus,
   // deren Hauptaufgabe nicht selbst wiederkehrend ist (sie steht dann nicht in dieser Liste).
-  const present = renderedPaths(plugin, recs);
+  const present = nestingHosts(plugin, recs, effectiveSubtasks(plugin.pageViewOptions()));
   const recurSection = (title: string, items: Task[]): void => {
     if (visibleRows(items, present).length) section(root, plugin, title, items.sort(byDue), today, false, false, present);
   };
@@ -356,6 +356,16 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { label });
 }
 
+/** Reihenfolge der Label-Gruppen = die der Seitenleiste (Name · Anzahl · manuell), damit Liste
+ *  und Board dieselbe Ordnung zeigen. Vorher sortierte die Liste stur alphabetisch, das Board
+ *  dagegen über plugin.sortLabels – eine manuell sortierte Label-Leiste schlug sich also nur
+ *  im Board nieder. Berücksichtigt nur Labels, die in dieser Menge überhaupt vorkommen. */
+function labelOrderOf(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup): string[] | undefined {
+  if (group !== "label") return undefined;
+  const names = [...new Set(tasks.flatMap((tk) => tk.labels))];
+  return plugin.sortLabels(names.map((name) => ({ name }))).map((x) => x.name);
+}
+
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
@@ -381,8 +391,8 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
     return;
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
-  const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
-  for (const g of groupTasks(sorted, opts.group, today, opts)) {
+  const present = nestingHosts(plugin, opts.showDone ? [...open, ...done] : open, effectiveSubtasks(opts));
+  for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
     if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
   if (opts.showDone && visibleRows(done, present).length) section(root, plugin, t("sec_done"), done, today, true, false, present);
@@ -670,12 +680,21 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
 function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], today: string,
   opts: ViewOptions, add: BoardAdd): void {
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
+  // Unteraufgaben: „Kompakt" nimmt ihre Karten heraus, die Hauptaufgabe trägt stattdessen das
+  // Fortschritts-Badge. „Einzeln" (Vorgabe, bisheriges Verhalten) lässt jede als eigene Karte
+  // stehen – nur so lässt sie sich einzeln in eine andere Status-Spalte ziehen.
+  // Hat eine Unteraufgabe keine Hauptaufgabe auf diesem Board, bleibt sie auch im kompakten
+  // Modus als Karte stehen (nestingHosts/visibleRows) – sonst wäre sie hier unerreichbar.
+  const subs = effectiveSubtasks(opts);   // im Board-Layout schliesst das boardSubtasks() ein
+  const cards = visibleRows(tasks, nestingHosts(plugin, tasks, subs));
   // Gruppierungs-Schlüssel (stabil) für die board-eigene Spalten-Reihenfolge. Priorität bleibt fest.
   const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project" : "status";
   const reorderable = groupKey !== "priority";
-  const baseCols = opts.group === "label" ? labelColumns(plugin, tasks, add)
+  // Spalten aus den SICHTBAREN Karten ableiten: sonst entstünde eine Label-/Projekt-Spalte für
+  // eine Unteraufgabe, die im kompakten Modus gar keine Karte hat – eine leere Spalte ohne Grund.
+  const baseCols = opts.group === "label" ? labelColumns(plugin, cards, add)
     : opts.group === "priority" ? priorityColumns(plugin, add)
-      : opts.group === "project" ? projectColumns(plugin, tasks, add)
+      : opts.group === "project" ? projectColumns(plugin, cards, add)
         : statusColumns(plugin, add);
   const cols = reorderable ? applyColumnOrder(baseCols, plugin.settings.boardColumnOrder?.[groupKey]) : baseCols;
   const board = root.createDiv({ cls: "bt-kanban" });
@@ -701,7 +720,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
-    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
+    const colTasks = sortColumn(cards.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
@@ -710,7 +729,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // müsste nach jeder einzelnen erneut hinunterscrollen.
     const colKey = scrollKey + "|" + col.id;
     listEl.addEventListener("scroll", () => colScroll.set(colKey, listEl.scrollTop));
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -732,6 +751,19 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
  *  (nicht abgebrochenen) Nachfahren, die renderTask verschachtelt zeichnet. Basis für
  *  Variante A – eine Unteraufgabe gilt als „im Parent aufgehoben", wenn ihr Parent hier
  *  gerendert wird; ist er es nicht, wird die Unteraufgabe eigenständig angezeigt. */
+/**
+ * Die Menge, unter der verschachtelt gezeichnet wird – EINZIGE Stelle, an der die gewählte
+ * Unteraufgaben-Darstellung über die Verschachtelung entscheidet.
+ *
+ * Bei „Einzeln" ist sie bewusst LEER: dann gilt keine Hauptaufgabe als Wirt, also hängt keine
+ * Unteraufgabe an ihr und jede bekommt ihre eigene Zeile – in ihrer eigenen Gruppe, an ihrer
+ * eigenen Position in der Sortierung. Wichtig ist die leere Menge statt `undefined`: `undefined`
+ * bedeutet in visibleRows das GEGENTEIL (alle Unteraufgaben weglassen, s. Papierkorb).
+ */
+function nestingHosts(plugin: BeautyTasksPlugin, anchors: Task[], mode: SubtaskDisplay): Set<string> {
+  return mode === "standalone" ? new Set<string>() : renderedPaths(plugin, anchors);
+}
+
 function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> {
   const present = new Set<string>();
   const walk = (tk: Task): void => {
@@ -827,8 +859,8 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
   // EINMAL pro Section lesen (statt pro Zeile) und an renderTask durchreichen.
-  const showSubs = plugin.pageViewOptions().showSubtasks;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { showSubs });
+  const subs = effectiveSubtasks(plugin.pageViewOptions());
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -906,11 +938,10 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; showSubs?: boolean } = {}): void {
-  // „Unteraufgaben anzeigen": vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay } = {}): void {
+  // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
-  // Default (undefined) = AUS = verschachtelte Zeilen versteckt, Fortschritts-Badge am Parent.
-  const showSubs = opts.showSubs ?? false;
+  const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
@@ -977,21 +1008,31 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // (nicht-abgebrochene) Kinder hat. list-checks + „erledigt/gesamt". Klick klappt DIESE eine
   // Aufgabe auf/zu (Pro-Aufgabe-Ausnahme, ohne den globalen Schalter zu ändern) – sonst wären
   // die Unteraufgaben bei ausgeblendeter Anzeige gar nicht erreichbar (das Modal listet sie nicht).
-  if (!showSubs && !opts.flat && !trash) {
+  // Badge nur im kompakten Modus: „Eingerückt" zeigt die Zeilen ohnehin, und bei „Einzeln" stehen
+  // die Unteraufgaben als eigene Zeilen bzw. Karten – dort wäre er doppelte Auskunft.
+  // Auf einer Karte (flat) erscheint er ebenfalls, bleibt dort aber reine ANZEIGE: aufklappen
+  // ginge nicht, weil eine Karte keine verschachtelten Zeilen aufnimmt. Er ist dann kein
+  // Bedienelement und bekommt deshalb weder role/tabindex noch einen Klick-Handler.
+  if (subs === "compact" && !trash) {
     const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
     if (kids.length) {
       const done = kids.filter((k) => isDone(k.status)).length;
-      const open = subtasksExpanded.has(task.path);
-      const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : ""), attr: { role: "button", tabindex: "0", "aria-label": t("subtasks_progress", done, kids.length) } });
+      const open = !opts.flat && subtasksExpanded.has(task.path);
+      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, kids.length) };
+      if (opts.flat) attr["data-tooltip-position"] = "top";
+      else { attr.role = "button"; attr.tabindex = "0"; }
+      const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : "") + (opts.flat ? " is-static" : ""), attr });
       setIcon(badge.createSpan({ cls: "bt-subs-ic" }), "list-checks");
       badge.createSpan({ cls: "bt-subs-n", text: done + "/" + kids.length });
-      const toggle = (e: Event): void => {
-        e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
-        if (open) subtasksExpanded.delete(task.path); else subtasksExpanded.add(task.path);
-        plugin.renderMain();
-      };
-      badge.onclick = toggle;
-      badge.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); } };
+      if (!opts.flat) {
+        const toggle = (e: Event): void => {
+          e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
+          if (open) subtasksExpanded.delete(task.path); else subtasksExpanded.add(task.path);
+          plugin.renderMain();
+        };
+        badge.onclick = toggle;
+        badge.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); } };
+      }
     }
   }
 
@@ -1021,9 +1062,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
   // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
   // wenn diese Aufgabe per Badge-Klick aufgeklappt wurde (subtasksExpanded).
-  const showKids = !trash && !opts.flat && (showSubs || subtasksExpanded.has(task.path));
+  // „Eingerückt" immer · „Kompakt" nur nach Klick aufs Badge · „Einzeln" nie (eigene Zeilen).
+  const showKids = !trash && !opts.flat
+    && (subs === "indented" || (subs === "compact" && subtasksExpanded.has(task.path)));
   if (showKids) for (const kid of plugin.index.children(task.path)) {
-    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { showSubs });
+    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs });
   }
 }
 

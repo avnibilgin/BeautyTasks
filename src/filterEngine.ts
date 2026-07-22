@@ -20,6 +20,19 @@ export type PageLayout = "list" | "board" | "calendar";
 /** Sortierrichtung. Gilt für die Aufgaben UND die Reihenfolge der Gruppen (eine Entscheidung).
  *  Bei „smart" bedeutungslos – dort wird sie im UI gar nicht erst angeboten. */
 export type SortDir = "asc" | "desc";
+/**
+ * Wie Unteraufgaben in der Liste erscheinen – die drei Antworten auf EINE Frage: wie eng hängt
+ * eine Unteraufgabe an ihrer Hauptaufgabe?
+ *   compact    – zusammengefasst AN ihr (Fortschritts-Badge „2/3", per Klick aufklappbar)
+ *   indented   – sichtbar UNTER ihr (eingerückt)
+ *   standalone – UNABHÄNGIG von ihr: eigene Zeile, eigene Gruppe, eigene Position in der Sortierung
+ *
+ * Der dritte Zustand ist die ausdrückliche Nutzer-Entscheidung in einem Konflikt, den die Liste
+ * sonst raten müsste: Gruppieren/Sortieren ordnet nach Attributen, Verschachteln nach Herkunft.
+ * Trägt eine Unteraufgabe eigene Labels oder ein eigenes Datum, widersprechen sich beide – dann
+ * bestimmt dieser Schalter, welche Ordnung gewinnt, statt dass wir es festlegen.
+ */
+export type SubtaskDisplay = "compact" | "indented" | "standalone";
 /** Verknüpfungs-Modus einer Auswahl-Facette: irgendeines (ODER) / alle (UND) / keines (NICHT).
  *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
  *  EINE Priorität, dort gibt es nur any/none. */
@@ -40,7 +53,10 @@ export interface ViewOptions {
   sort: FilterSort;
   group: FilterGroup;
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
-  showSubtasks: boolean;   // Unteraufgaben in der Liste verschachtelt zeigen (aus = Fortschritts-Badge am Parent)
+  /** Wie Unteraufgaben erscheinen. `undefined` = NIE GEWÄHLT und damit etwas anderes als jeder
+   *  konkrete Wert: die Vorgabe hängt am Layout (s. effectiveSubtasks) und darf deshalb nicht
+   *  vorzeitig auf einen Wert festgelegt werden. */
+  subtasks?: SubtaskDisplay;
   sortDir: SortDir;        // Richtung von Sortierung + Gruppen-Reihenfolge
   calMode: CalMode;        // nur im Kalender-Layout: Jahr/Monat/Woche/Tag
   calPanel: boolean;       // nur im Kalender-Layout: Seitenleiste „Undatiert" offen?
@@ -53,13 +69,48 @@ export const DEFAULT_CRITERIA: FilterCriteria = {
   projects: [], projectsNot: [],
   search: "",
 };
-export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, showSubtasks: false, sortDir: "asc", calMode: "month", calPanel: true };
+// `subtasks` fehlt bewusst: „nie gewählt" IST der Standard, und was daraus folgt, entscheidet
+// erst das Layout (effectiveSubtasks).
+export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, sortDir: "asc", calMode: "month", calPanel: true };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
 export const SORTS: FilterSort[] = ["smart", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
 export const SORT_DIRS: SortDir[] = ["asc", "desc"];
+/** Reihenfolge im Dropdown = zunehmende Eigenständigkeit der Unteraufgabe. */
+export const SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "indented", "standalone"];
+/** Im Board fehlt „Eingerückt": in eine Karte lässt sich keine Karte einrücken. */
+export const BOARD_SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "standalone"];
+/**
+ * Der im Board wirksame Modus. „Eingerückt" fällt auf „Einzeln" zurück – sichtbar bleiben die
+ * Unteraufgaben in beiden Fällen, nur eben als eigene Karten. Nicht destruktiv: der gespeicherte
+ * Wert bleibt „indented" und wirkt in der Liste weiter.
+ *
+ * Muss die EINE Abbildung sein, die Panel und Board benutzen. Liefen sie auseinander, böte das
+ * Panel „Einzeln" an, während das Board nach „Kompakt"-Regeln filtert – die Unteraufgaben wären
+ * dann weder Karte noch Badge, also verschwunden.
+ */
+export const boardSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "compact" ? "compact" : "standalone");
+
+/**
+ * Der tatsächlich wirksame Modus – die EINE Stelle, die „nie gewählt" auflöst.
+ *
+ * Die Vorgabe hängt am Layout, weil beide Flächen vor dieser Einstellung unterschiedlich
+ * arbeiteten: die Liste zeigte ein Fortschritts-Badge, das Board immer eigene Karten. Eine
+ * gemeinsame Vorgabe würde eine der beiden beim Update stillschweigend umstellen – im Board sogar
+ * mit Funktionsverlust, weil sich eine Unteraufgabe ohne Karte nicht mehr in eine andere
+ * Status-Spalte ziehen lässt.
+ *
+ * WICHTIG: erst hier auflösen, nicht schon beim Lesen. setPageViewOption speichert das ganze
+ * aufgelöste Objekt; ein vorzeitig gesetzter Wert würde beim Umschalten auf Board mit dem ALTEN
+ * Layout aufgelöst und dauerhaft festgeschrieben. Als `undefined` fällt das Feld beim Speichern
+ * weg und wird jedes Mal frisch zum aktuellen Layout bestimmt.
+ */
+export function effectiveSubtasks(o: { layout: PageLayout; subtasks?: SubtaskDisplay }): SubtaskDisplay {
+  if (o.layout === "board") return boardSubtasks(o.subtasks ?? "standalone");
+  return o.subtasks ?? "compact";
+}
 /** „smart" ist eine Semantik (datiert zuerst, Datumlose ans Ende), keine Ordnung – rückwärts
  *  ergibt sie keinen Sinn. Deshalb kennt sie keine Richtung. */
 export const hasSortDir = (sort: FilterSort): boolean => sort !== "smart";
@@ -219,10 +270,20 @@ export interface TaskGroup { title: string; tasks: Task[]; }
  * Nahm die Funktion nur die Richtung entgegen, gehorchte sie einer gespeicherten „absteigend",
  * die im Panel längst ausgeblendet war – die Tage standen rückwärts, obwohl „smart" gewählt war.
  * ViewOptions erfüllt die Form direkt, Aufrufer reichen einfach ihre Optionen durch.
+ *
+ * LABEL: eine Aufgabe erscheint unter JEDEM ihrer Labels (mehrwertige Facette, s. u.). Die
+ * Summe der Gruppen-Zähler ist damit größer als die Aufgabenzahl – im Board ist das seit jeher
+ * so, und es ist die ehrlichere Anzeige: „#finance · 1" heißt „ein Treffer", nicht „ein Achtel
+ * deiner Aufgaben". `labelOrder` gibt die Gruppen-Reihenfolge vor (s. u.).
  */
 export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
-  order?: { sort: FilterSort; sortDir: SortDir }): TaskGroup[] {
+  order?: { sort: FilterSort; sortDir: SortDir }, labelOrder?: string[]): TaskGroup[] {
   if (group === "none") return [{ title: t("sec_tasks"), tasks }];
+  // Reihenfolge der Label-Gruppen: die der Seitenleiste (Name/Anzahl/manuell), vom Aufrufer
+  // fertig gereicht – sie hängt an Plugin-Zustand, den diese Engine bewusst nicht kennt.
+  // Ohne Vorgabe bleibt es beim alphabetischen Tiebreaker über den Titel (alle Ränge gleich).
+  const labelRank = new Map((labelOrder ?? []).map((n, i) => [n, i] as const));
+  const rankOf = (name: string): number => labelRank.get(name) ?? labelRank.size;   // Unbekannte hinter die Bekannten
   // pin: -1 = immer zuoberst · +1 = immer zuunterst · 0 = folgt `order`
   const buckets = new Map<string, { pin: number; order: number; title: string; tasks: Task[] }>();
   const push = (key: string, title: string, order: number, pin: number, tk: Task): void => {
@@ -244,7 +305,13 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
       const k = prioKey(tk.priority);
       push(k, t(k), prioOrder(tk.priority), 0, tk);
     } else if (group === "label") {
-      if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, 0, tk);
+      // Labels sind die EINZIGE mehrwertige Facette (Projekt/Priorität hat eine Aufgabe genau
+      // einmal). Sie erscheint deshalb unter JEDEM ihrer Labels – wie die Spalten im Board, die
+      // pro Spalte `tk.labels.includes(name)` fragen. Vorher zählte nur labels[0], also die
+      // Reihenfolge im Frontmatter: eine Aufgabe mit #urgent #finance fehlte unter #finance
+      // stillschweigend, und welches Label „gewinnt", war für den Nutzer nirgends sichtbar.
+      // Die Doppelung erklärt sich von selbst – die Zeile zeigt ohnehin alle ihre Labels.
+      if (tk.labels.length) for (const name of tk.labels) push("l:" + name, "#" + name, rankOf(name), 0, tk);
       else push("nolabel", t("no_label"), 0, 1, tk);
     } else {   // project – „nicht einsortiert" (kein Projekt ODER Inbox-Verweis) in EINEN Eingang-Bucket
       if (tk.project && !isInboxLink(tk.project)) { const nm = baseName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, 0, tk); }
