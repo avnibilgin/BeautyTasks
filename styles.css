@@ -1753,7 +1753,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-anzeige-ic svg, .bt-anzeige-ic .svg-icon { width: 15px; height: 15px; }
 .bt-anzeige-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent); }
 
-.bt-pop.bt-view-panel { min-width: 240px; padding: 10px 12px; }
+/* Eigene Höhe statt der 320px, die für Zeilenlisten gedacht sind: das Panel hat im Board mit
+   Richtungs-Zeile rund 350px Inhalt und wurde sonst gekappt – sichtbar wurde das an einem halb
+   abgeschnittenen „Zurücksetzen". Passt der Bildschirm nicht, klemmt openPopover zusätzlich auf
+   den tatsächlich freien Platz (nur nach unten, diese Grenze bleibt die Obergrenze). */
+.bt-pop.bt-view-panel { min-width: 240px; padding: 10px 12px; max-height: 480px; }
 /* Layout-Segmentierung: das Popover hängt an body (nicht in .bt-view), daher hier eigene
    Tab-Styles. Buttons füllen gleichmäßig die Breite; aktiv = Akzentfarbe (wie im ListManager). */
 .bt-view-panel .bt-tabs { display: flex; gap: 6px; margin: 2px 0 0; }

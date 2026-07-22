@@ -100,6 +100,17 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   }
   pop.setCssStyles({ left: `${left - org.left}px`, top: `${top - org.top}px` });
 
+  // Höhe an den Platz klemmen, der ab `top` bis zum unteren Rand noch da ist. Ohne das kann ein
+  // Popover, das für keinen der vier Zweige ganz passt, unten aus dem Bild laufen – erreichbar
+  // wäre der letzte Eintrag dann nicht mehr.
+  //
+  // Nur VERKLEINERN, nie vergrößern: jedes Popover behält seine eigene Obergrenze aus dem
+  // Stylesheet (Zeilenlisten 320px, Datumswähler 560px, Anzeige-Panel 480px). Die Klemmung greift
+  // erst, wenn der Bildschirm weniger hergibt als diese Grenze. Deshalb wird die berechnete Grenze
+  // hier ausgelesen statt überschrieben.
+  const cap = parseFloat(win.getComputedStyle(pop).maxHeight) || Infinity;
+  pop.setCssStyles({ maxHeight: `${Math.min(cap, win.innerHeight - top - 8)}px` });
+
   win.setTimeout(() => doc.addEventListener("mousedown", onDoc, true), 0);
   win.addEventListener("resize", close);
 }
