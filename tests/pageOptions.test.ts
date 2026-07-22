@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readViewOptions, writeViewOptions } from "../src/pageOptions";
-import { DEFAULT_OPTIONS } from "../src/filterEngine";
+import { DEFAULT_OPTIONS, boardSubtasks, BOARD_SUBTASK_DISPLAYS, SUBTASK_DISPLAYS } from "../src/filterEngine";
 
 describe("readViewOptions – Unteraufgaben-Darstellung", () => {
   it("ohne Angabe: kompakt (Fortschritts-Badge)", () => {
@@ -30,6 +30,28 @@ describe("readViewOptions – Unteraufgaben-Darstellung", () => {
 
   it("ein neuer Wert schlägt den alten Boolean", () => {
     expect(readViewOptions({ showSubtasks: true, subtasks: "standalone" }).subtasks).toBe("standalone");
+  });
+});
+
+describe("boardSubtasks – „Eingerückt“ gibt es auf Karten nicht", () => {
+  it("Kompakt bleibt Kompakt, Einzeln bleibt Einzeln", () => {
+    expect(boardSubtasks("compact")).toBe("compact");
+    expect(boardSubtasks("standalone")).toBe("standalone");
+  });
+
+  it("Eingerückt fällt auf Einzeln zurück – nicht auf Kompakt", () => {
+    // Entscheidend: NICHT "compact". Sonst filterte das Board die Unteraufgaben-Karten heraus,
+    // während das Panel „Einzeln" anzeigt – die Unteraufgaben wären weder Karte noch Badge.
+    expect(boardSubtasks("indented")).toBe("standalone");
+  });
+
+  it("liefert immer einen im Board anbietbaren Wert", () => {
+    // Panel und Board müssen sich einig sein: was boardSubtasks liefert, muss im Dropdown stehen.
+    for (const m of SUBTASK_DISPLAYS) expect(BOARD_SUBTASK_DISPLAYS).toContain(boardSubtasks(m));
+  });
+
+  it("ist idempotent (zweimal anwenden ändert nichts)", () => {
+    for (const m of SUBTASK_DISPLAYS) expect(boardSubtasks(boardSubtasks(m))).toBe(boardSubtasks(m));
   });
 });
 

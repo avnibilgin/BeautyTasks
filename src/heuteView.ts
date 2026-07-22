@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, visibleRows, DEFAULT_OPTIONS, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, boardSubtasks, DEFAULT_OPTIONS, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -680,12 +680,21 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
 function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], today: string,
   opts: ViewOptions, add: BoardAdd): void {
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
+  // Unteraufgaben: „Kompakt" nimmt ihre Karten heraus, die Hauptaufgabe trägt stattdessen das
+  // Fortschritts-Badge. „Einzeln" (Vorgabe, bisheriges Verhalten) lässt jede als eigene Karte
+  // stehen – nur so lässt sie sich einzeln in eine andere Status-Spalte ziehen.
+  // Hat eine Unteraufgabe keine Hauptaufgabe auf diesem Board, bleibt sie auch im kompakten
+  // Modus als Karte stehen (nestingHosts/visibleRows) – sonst wäre sie hier unerreichbar.
+  const subs = boardSubtasks(opts.subtasks);
+  const cards = visibleRows(tasks, nestingHosts(plugin, tasks, subs));
   // Gruppierungs-Schlüssel (stabil) für die board-eigene Spalten-Reihenfolge. Priorität bleibt fest.
   const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project" : "status";
   const reorderable = groupKey !== "priority";
-  const baseCols = opts.group === "label" ? labelColumns(plugin, tasks, add)
+  // Spalten aus den SICHTBAREN Karten ableiten: sonst entstünde eine Label-/Projekt-Spalte für
+  // eine Unteraufgabe, die im kompakten Modus gar keine Karte hat – eine leere Spalte ohne Grund.
+  const baseCols = opts.group === "label" ? labelColumns(plugin, cards, add)
     : opts.group === "priority" ? priorityColumns(plugin, add)
-      : opts.group === "project" ? projectColumns(plugin, tasks, add)
+      : opts.group === "project" ? projectColumns(plugin, cards, add)
         : statusColumns(plugin, add);
   const cols = reorderable ? applyColumnOrder(baseCols, plugin.settings.boardColumnOrder?.[groupKey]) : baseCols;
   const board = root.createDiv({ cls: "bt-kanban" });
@@ -711,7 +720,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     }
     head.createSpan({ cls: "bt-kanban-dot" }).style.background = col.tint;
     head.createSpan({ cls: "bt-kanban-title", text: col.title });
-    const colTasks = sortColumn(tasks.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
+    const colTasks = sortColumn(cards.filter((tk) => col.has(tk)), col.kind, opts.sort, opts.sortDir);
     head.createSpan({ cls: "bt-kanban-count", text: String(colTasks.length) });
 
     const listEl = colEl.createDiv({ cls: "bt-kanban-list" });
@@ -720,7 +729,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // müsste nach jeder einzelnen erneut hinunterscrollen.
     const colKey = scrollKey + "|" + col.id;
     listEl.addEventListener("scroll", () => colScroll.set(colKey, listEl.scrollTop));
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1000,22 +1009,30 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Aufgabe auf/zu (Pro-Aufgabe-Ausnahme, ohne den globalen Schalter zu ändern) – sonst wären
   // die Unteraufgaben bei ausgeblendeter Anzeige gar nicht erreichbar (das Modal listet sie nicht).
   // Badge nur im kompakten Modus: „Eingerückt" zeigt die Zeilen ohnehin, und bei „Einzeln" stehen
-  // die Unteraufgaben als eigene Zeilen in ihren eigenen Gruppen – dort wäre er doppelte Auskunft.
-  if (subs === "compact" && !opts.flat && !trash) {
+  // die Unteraufgaben als eigene Zeilen bzw. Karten – dort wäre er doppelte Auskunft.
+  // Auf einer Karte (flat) erscheint er ebenfalls, bleibt dort aber reine ANZEIGE: aufklappen
+  // ginge nicht, weil eine Karte keine verschachtelten Zeilen aufnimmt. Er ist dann kein
+  // Bedienelement und bekommt deshalb weder role/tabindex noch einen Klick-Handler.
+  if (subs === "compact" && !trash) {
     const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
     if (kids.length) {
       const done = kids.filter((k) => isDone(k.status)).length;
-      const open = subtasksExpanded.has(task.path);
-      const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : ""), attr: { role: "button", tabindex: "0", "aria-label": t("subtasks_progress", done, kids.length) } });
+      const open = !opts.flat && subtasksExpanded.has(task.path);
+      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, kids.length) };
+      if (opts.flat) attr["data-tooltip-position"] = "top";
+      else { attr.role = "button"; attr.tabindex = "0"; }
+      const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : "") + (opts.flat ? " is-static" : ""), attr });
       setIcon(badge.createSpan({ cls: "bt-subs-ic" }), "list-checks");
       badge.createSpan({ cls: "bt-subs-n", text: done + "/" + kids.length });
-      const toggle = (e: Event): void => {
-        e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
-        if (open) subtasksExpanded.delete(task.path); else subtasksExpanded.add(task.path);
-        plugin.renderMain();
-      };
-      badge.onclick = toggle;
-      badge.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); } };
+      if (!opts.flat) {
+        const toggle = (e: Event): void => {
+          e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
+          if (open) subtasksExpanded.delete(task.path); else subtasksExpanded.add(task.path);
+          plugin.renderMain();
+        };
+        badge.onclick = toggle;
+        badge.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); } };
+      }
     }
   }
 

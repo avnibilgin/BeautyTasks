@@ -75,6 +75,18 @@ export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "l
 export const SORT_DIRS: SortDir[] = ["asc", "desc"];
 /** Reihenfolge im Dropdown = zunehmende Eigenständigkeit der Unteraufgabe. */
 export const SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "indented", "standalone"];
+/** Im Board fehlt „Eingerückt": in eine Karte lässt sich keine Karte einrücken. */
+export const BOARD_SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "standalone"];
+/**
+ * Der im Board wirksame Modus. „Eingerückt" fällt auf „Einzeln" zurück – sichtbar bleiben die
+ * Unteraufgaben in beiden Fällen, nur eben als eigene Karten. Nicht destruktiv: der gespeicherte
+ * Wert bleibt „indented" und wirkt in der Liste weiter.
+ *
+ * Muss die EINE Abbildung sein, die Panel und Board benutzen. Liefen sie auseinander, böte das
+ * Panel „Einzeln" an, während das Board nach „Kompakt"-Regeln filtert – die Unteraufgaben wären
+ * dann weder Karte noch Badge, also verschwunden.
+ */
+export const boardSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "compact" ? "compact" : "standalone");
 /** „smart" ist eine Semantik (datiert zuerst, Datumlose ans Ende), keine Ordnung – rückwärts
  *  ergibt sie keinen Sinn. Deshalb kennt sie keine Richtung. */
 export const hasSortDir = (sort: FilterSort): boolean => sort !== "smart";

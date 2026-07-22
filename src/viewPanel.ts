@@ -4,7 +4,7 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { openPopover } from "./popover";
-import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
+import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, boardSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
 import { t } from "./i18n";
 
 /** Kontextabhängige Gruppierungs-Optionen: die auf dieser Seite redundante ausblenden
@@ -44,16 +44,22 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         sw.onclick = () => apply({ showDone: !o.showDone });
       }
 
-      // Unteraufgaben: nur in der Liste sinnvoll (Kanban ist ohnehin flach, der Kalender
-      // verschachtelt nicht). Bewusst NICHT an eine aktive Gruppierung gekoppelt – „Einzeln"
-      // wirkt auch ungruppiert, weil eine Unteraufgabe dann ihre eigene Position in der
-      // Sortierung bekommt statt der ihrer Hauptaufgabe. Ein Bedienelement, das beim Umstellen
-      // eines ANDEREN Feldes auftaucht, verwirrt mehr, als das Ausblenden spart; ausgeblendet
-      // wird hier nur, was wirklich wirkungslos ist (vgl. Richtung bei „smart").
+      // Unteraufgaben: in Liste UND Board wählbar (nur der Kalender kennt keine Unteraufgaben-
+      // Darstellung). Bewusst NICHT an eine aktive Gruppierung gekoppelt – „Einzeln" wirkt auch
+      // ungruppiert, weil eine Unteraufgabe dann ihre eigene Position in der Sortierung bekommt
+      // statt der ihrer Hauptaufgabe. Ein Bedienelement, das beim Umstellen eines ANDEREN Feldes
+      // auftaucht, verwirrt mehr, als das Ausblenden spart; ausgeblendet wird hier nur, was
+      // wirklich wirkungslos ist (vgl. Richtung bei „smart").
       // Steht oberhalb des Anordnen-Blocks, weil es den auf „Demnächst" gar nicht gibt – dort
       // bliebe die Auswahl sonst unerreichbar.
-      if (o.layout === "list") {
-        ddRow(pop, t("panel_subtasks"), SUBTASK_DISPLAYS, o.subtasks, "panel_subs_",
+      // Im Board fehlt „Eingerückt" (keine Karte in einer Karte). Ein gespeichertes „Eingerückt"
+      // wird dort als „Einzeln" gezeigt – genau das, was boardSubtasks() tatsächlich tut. Der
+      // gespeicherte Wert bleibt unangetastet und wirkt in der Liste weiter (nicht destruktiv,
+      // wie bei den Gruppierungen, die das Board nicht anbietet).
+      if (o.layout !== "calendar") {
+        const board = o.layout === "board";
+        ddRow(pop, t("panel_subtasks"), board ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS,
+          board ? boardSubtasks(o.subtasks) : o.subtasks, "panel_subs_",
           (v) => apply({ subtasks: v as SubtaskDisplay }));
       }
 
