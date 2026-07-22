@@ -78,6 +78,12 @@ export class FilterModal extends Modal {
       RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
       () => this.c.range, (v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
 
+    // Deadline hat dieselben Stufen wie die Faelligkeit, aber ein eigenes Feld: „Deadline diese
+    // Woche" ist eine andere Frage als „faellig diese Woche".
+    this.select(contentEl, t("filter_deadline_range"),
+      RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
+      () => this.c.deadlineRange, (v) => { this.c.deadlineRange = v as FilterCriteria["deadlineRange"]; this.refresh(); });
+
     // Status: einwertig wie Priorität, also nur ✓ und − (kein „alle"). Nimmt ALLE Status – auch
     // erledigte und abgebrochene –, denn genau das macht diese Facette möglich: eine Ansicht auf
     // „was ist gerade in Arbeit", „was habe ich abgebrochen" oder einen selbst angelegten Status.

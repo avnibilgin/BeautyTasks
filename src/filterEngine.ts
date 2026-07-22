@@ -41,7 +41,8 @@ export type SubtaskDisplay = "compact" | "indented" | "standalone";
 export type MatchMode = "any" | "all" | "none";
 
 export interface FilterCriteria {
-  range: FilterRange;      // Zeitraum-Facette (Default „any" = alle)
+  range: FilterRange;         // Zeitraum der Faelligkeit (Default „any" = alle)
+  deadlineRange: FilterRange; // Zeitraum der Deadline – dieselben Stufen, eigenes Feld
   // Jede Auswahl-Facette führt ihre Werte pro Marker getrennt: ✓ (irgendeines/ODER),
   // + (alle/UND, nur bei mehrwertigen Labels sinnvoll), − (keines/NICHT).
   statuses: string[];      statusesNot: string[];                  // ✓ / −  (Status-Ids)
@@ -66,7 +67,7 @@ export interface ViewOptions {
 }
 
 export const DEFAULT_CRITERIA: FilterCriteria = {
-  range: "any",
+  range: "any", deadlineRange: "any",
   statuses: [], statusesNot: [],
   priorities: [], prioritiesNot: [],
   labels: [], labelsAll: [], labelsNot: [],
@@ -211,6 +212,7 @@ export function addDays(iso: string, n: number): string {
 export function activeFacetCount(c: FilterCriteria): number {
   let n = 0;
   if (c.range !== "any") n++;
+  if (c.deadlineRange !== "any") n++;
   if (c.statuses.length || c.statusesNot.length) n++;
   if (c.priorities.length || c.prioritiesNot.length) n++;
   if (c.labels.length || c.labelsAll.length || c.labelsNot.length) n++;
@@ -219,20 +221,23 @@ export function activeFacetCount(c: FilterCriteria): number {
   return n;
 }
 
-function inRange(t: Task, range: FilterRange, today: string): boolean {
+/** Zeitraum-Pruefung fuer EIN Datumsfeld. Bewusst ueber den Wert statt ueber die Aufgabe:
+ *  dieselbe Regel gilt fuer Faelligkeit (due) und Deadline (scheduled). */
+function inRange(date: string | null, range: FilterRange, today: string): boolean {
   if (range === "any") return true;
-  if (range === "nodate") return !t.due;
-  if (!t.due) return false;
-  if (range === "overdue") return t.due < today;
-  if (range === "today") return t.due <= today;             // überfällig + heute
-  if (range === "next7") return t.due >= today && t.due <= addDays(today, 7);
+  if (range === "nodate") return !date;
+  if (!date) return false;
+  if (range === "overdue") return date < today;
+  if (range === "today") return date <= today;             // überfällig + heute
+  if (range === "next7") return date >= today && date <= addDays(today, 7);
   return true;
 }
 
 /** Reine Prädikat-Auswertung einer Aufgabe gegen die Kriterien. Je Facette:
  *  ✓ (irgendeines muss zutreffen) UND + (alle müssen zutreffen) UND − (keines darf zutreffen). */
 export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean {
-  if (!inRange(t, c.range, today)) return false;
+  if (!inRange(t.due, c.range, today)) return false;
+  if (!inRange(t.scheduled, c.deadlineRange, today)) return false;
   // Status (einwertig): ✓ irgendeiner / − keiner
   if (c.statuses.length && !c.statuses.includes(t.status)) return false;
   if (c.statusesNot.includes(t.status)) return false;

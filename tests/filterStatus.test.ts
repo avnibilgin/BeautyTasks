@@ -73,6 +73,34 @@ describe("matchesTask – Suche", () => {
   });
 });
 
+describe("matchesTask – Deadline-Zeitraum", () => {
+  const withDates = (due: string | null, scheduled: string | null): Task => ({ ...mk("x", "todo"), due, scheduled });
+
+  it("prüft `scheduled`, nicht `due`", () => {
+    // Der Kern: „Deadline diese Woche" ist eine andere Frage als „fällig diese Woche".
+    const t1 = withDates("2030-01-01", "2026-07-20");   // Deadline überfällig, Fälligkeit fern
+    expect(matchesTask(t1, crit({ deadlineRange: "overdue" }), TODAY)).toBe(true);
+    expect(matchesTask(t1, crit({ range: "overdue" }), TODAY)).toBe(false);
+  });
+
+  it("ohne Deadline: nur „ohne Datum“ trifft", () => {
+    const t1 = withDates("2026-07-20", null);
+    expect(matchesTask(t1, crit({ deadlineRange: "nodate" }), TODAY)).toBe(true);
+    expect(matchesTask(t1, crit({ deadlineRange: "next7" }), TODAY)).toBe(false);
+  });
+
+  it("wirkt UND-verknüpft mit dem Fälligkeits-Zeitraum", () => {
+    const t1 = withDates("2026-07-20", "2026-07-24");   // überfällig fällig, Deadline in 2 Tagen
+    expect(matchesTask(t1, crit({ range: "overdue", deadlineRange: "next7" }), TODAY)).toBe(true);
+    expect(matchesTask(t1, crit({ range: "next7", deadlineRange: "next7" }), TODAY)).toBe(false);
+  });
+
+  it("zählt als eigene aktive Facette", () => {
+    expect(activeFacetCount(crit({ deadlineRange: "today" }))).toBe(1);
+    expect(activeFacetCount(crit({ range: "today", deadlineRange: "today" }))).toBe(2);
+  });
+});
+
 describe("applyFilter – Grundmenge", () => {
   it("ohne Status-Kriterium wie bisher: nur offene", () => {
     expect(ids(applyFilter(idx, DEFAULT_CRITERIA, DEFAULT_OPTIONS, TODAY))).toEqual(["doing", "todo"]);
