@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
 import {
-  ViewOptions, PageLayout, FilterSort, FilterGroup, SortDir,
-  SORTS, GROUPS, LAYOUTS, SORT_DIRS, DEFAULT_OPTIONS,
+  ViewOptions, PageLayout, FilterSort, FilterGroup, SortDir, SubtaskDisplay,
+  SORTS, GROUPS, LAYOUTS, SORT_DIRS, SUBTASK_DISPLAYS, DEFAULT_OPTIONS,
 } from "./filterEngine";
 import { CalMode, CAL_MODES } from "./calendarModel";
 
@@ -12,6 +12,18 @@ import { CalMode, CAL_MODES } from "./calendarModel";
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 
+/**
+ * Unteraufgaben-Darstellung lesen – mit Rückfall auf den alten Boolean `showSubtasks`.
+ * Bis 1.20.3 gab es nur „verschachtelt ja/nein"; wer damals eingeschaltet hatte, meinte das,
+ * was heute „indented" heißt. Deshalb wird der alte Wert übersetzt statt ignoriert – sonst
+ * spränge die Ansicht beim Update wortlos auf den Default zurück. Eine eigene Migration braucht
+ * es nicht: Default-Werte landen ohnehin nie in der Notiz (s. writeViewOptions).
+ */
+function readSubtasks(o: Record<string, unknown>): SubtaskDisplay {
+  if (typeof o.subtasks === "string" && (SUBTASK_DISPLAYS as readonly string[]).includes(o.subtasks)) return o.subtasks as SubtaskDisplay;
+  return o.showSubtasks === true ? "indented" : DEFAULT_OPTIONS.subtasks;
+}
+
 /** Frontmatter/Settings-Objekt -> vollständige ViewOptions (fehlende Felder = Default). */
 export function readViewOptions(fm: Record<string, unknown> | Partial<ViewOptions> | undefined): ViewOptions {
   const o = (fm ?? {}) as Record<string, unknown>;
@@ -20,7 +32,7 @@ export function readViewOptions(fm: Record<string, unknown> | Partial<ViewOption
     sort: oneOf<FilterSort>(o.sort, SORTS, DEFAULT_OPTIONS.sort),
     group: oneOf<FilterGroup>(o.group, GROUPS, DEFAULT_OPTIONS.group),
     showDone: o.showDone === true,
-    showSubtasks: o.showSubtasks === true,
+    subtasks: readSubtasks(o),
     sortDir: oneOf<SortDir>(o.sortDir, SORT_DIRS, DEFAULT_OPTIONS.sortDir),
     calMode: oneOf<CalMode>(o.calMode, CAL_MODES, DEFAULT_OPTIONS.calMode),
     calPanel: o.calPanel !== false,   // Default: offen
@@ -34,7 +46,8 @@ export function writeViewOptions(fm: Record<string, unknown>, o: ViewOptions): v
   setOrDel("sort", o.sort, DEFAULT_OPTIONS.sort);
   setOrDel("group", o.group, DEFAULT_OPTIONS.group);
   setOrDel("showDone", o.showDone, false);
-  setOrDel("showSubtasks", o.showSubtasks, false);
+  setOrDel("subtasks", o.subtasks, DEFAULT_OPTIONS.subtasks);
+  delete fm.showSubtasks;   // abgelöst durch `subtasks` – beim nächsten Schreiben aus der Notiz nehmen
   setOrDel("sortDir", o.sortDir, DEFAULT_OPTIONS.sortDir);
   setOrDel("calMode", o.calMode, DEFAULT_OPTIONS.calMode);
   setOrDel("calPanel", o.calPanel, DEFAULT_OPTIONS.calPanel);

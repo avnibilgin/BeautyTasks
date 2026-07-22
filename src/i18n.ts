@@ -261,7 +261,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Smart", filter_sort_due: "Date", filter_sort_deadline: "Deadline", filter_sort_priority: "Priority",
     filter_sort_created: "Created", filter_sort_title: "Name",
     filter_group_none: "None", filter_group_status: "Status", filter_group_date: "Date", filter_group_deadline: "Deadline", filter_group_priority: "Priority", filter_group_label: "Label", filter_group_project: "Projects",
-    view_display: "Display", panel_layout: "Layout", panel_show_done: "Show completed", panel_show_subtasks: "Show subtasks", subtasks_progress: "{0} of {1} done", no_label: "No label", more_actions: "More",
+    view_display: "Display", panel_layout: "Layout", panel_show_done: "Show completed", panel_subtasks: "Sub-tasks", panel_subs_compact: "Compact", panel_subs_indented: "Indented", panel_subs_standalone: "Standalone", subtasks_progress: "{0} of {1} done", no_label: "No label", more_actions: "More",
   },
   de: {
     view_today: "Heute", view_upcoming: "Demnächst", view_recurring: "Wiederkehrend", view_done: "Erledigt",
@@ -519,7 +519,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Smart", filter_sort_due: "Datum", filter_sort_deadline: "Deadline", filter_sort_priority: "Priorität",
     filter_sort_created: "Erstellt", filter_sort_title: "Name",
     filter_group_none: "Keine", filter_group_status: "Status", filter_group_date: "Datum", filter_group_deadline: "Deadline", filter_group_priority: "Priorität", filter_group_label: "Label", filter_group_project: "Projekte",
-    view_display: "Anzeige", panel_layout: "Layout", panel_show_done: "Erledigte anzeigen", panel_show_subtasks: "Unteraufgaben anzeigen", subtasks_progress: "{0} von {1} erledigt", no_label: "Kein Label", more_actions: "Mehr",
+    view_display: "Anzeige", panel_layout: "Layout", panel_show_done: "Erledigte anzeigen", panel_subtasks: "Unteraufgaben", panel_subs_compact: "Kompakt", panel_subs_indented: "Eingerückt", panel_subs_standalone: "Einzeln", subtasks_progress: "{0} von {1} erledigt", no_label: "Kein Label", more_actions: "Mehr",
   },
   es: {
     view_today: "Hoy", view_upcoming: "Próximas", view_recurring: "Recurrentes", view_done: "Completadas",
@@ -777,7 +777,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Inteligente", filter_sort_due: "Fecha", filter_sort_deadline: "Fecha límite", filter_sort_priority: "Prioridad",
     filter_sort_created: "Creación", filter_sort_title: "Nombre",
     filter_group_none: "Ninguna", filter_group_status: "Estado", filter_group_date: "Fecha", filter_group_deadline: "Fecha límite", filter_group_priority: "Prioridad", filter_group_label: "Etiqueta", filter_group_project: "Proyectos",
-    view_display: "Vista", panel_layout: "Diseño", panel_show_done: "Mostrar completadas", panel_show_subtasks: "Mostrar subtareas", subtasks_progress: "{0} de {1} completadas", no_label: "Sin etiqueta", more_actions: "Más",
+    view_display: "Vista", panel_layout: "Diseño", panel_show_done: "Mostrar completadas", panel_subtasks: "Subtareas", panel_subs_compact: "Compacto", panel_subs_indented: "Sangrado", panel_subs_standalone: "Separadas", subtasks_progress: "{0} de {1} completadas", no_label: "Sin etiqueta", more_actions: "Más",
   },
   pt: {
     view_today: "Hoje", view_upcoming: "Próximas", view_recurring: "Recorrentes", view_done: "Concluídas",
@@ -1035,7 +1035,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Inteligente", filter_sort_due: "Data", filter_sort_deadline: "Prazo", filter_sort_priority: "Prioridade",
     filter_sort_created: "Criação", filter_sort_title: "Nome",
     filter_group_none: "Nenhuma", filter_group_status: "Status", filter_group_date: "Data", filter_group_deadline: "Prazo", filter_group_priority: "Prioridade", filter_group_label: "Etiqueta", filter_group_project: "Projetos",
-    view_display: "Exibição", panel_layout: "Layout", panel_show_done: "Mostrar concluídas", panel_show_subtasks: "Mostrar subtarefas", subtasks_progress: "{0} de {1} concluídas", no_label: "Sem etiqueta", more_actions: "Mais",
+    view_display: "Exibição", panel_layout: "Layout", panel_show_done: "Mostrar concluídas", panel_subtasks: "Subtarefas", panel_subs_compact: "Compacto", panel_subs_indented: "Recuado", panel_subs_standalone: "Separadas", subtasks_progress: "{0} de {1} concluídas", no_label: "Sem etiqueta", more_actions: "Mais",
   },
   fr: {
     view_today: "Aujourd'hui", view_upcoming: "À venir", view_recurring: "Récurrentes", view_done: "Terminées",
@@ -1293,7 +1293,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Intelligent", filter_sort_due: "Date", filter_sort_deadline: "Date limite", filter_sort_priority: "Priorité",
     filter_sort_created: "Création", filter_sort_title: "Nom",
     filter_group_none: "Aucun", filter_group_status: "Statut", filter_group_date: "Date", filter_group_deadline: "Date limite", filter_group_priority: "Priorité", filter_group_label: "Étiquette", filter_group_project: "Projets",
-    view_display: "Affichage", panel_layout: "Disposition", panel_show_done: "Afficher les terminées", panel_show_subtasks: "Afficher les sous-tâches", subtasks_progress: "{0} sur {1} terminées", no_label: "Sans étiquette", more_actions: "Plus",
+    view_display: "Affichage", panel_layout: "Disposition", panel_show_done: "Afficher les terminées", panel_subtasks: "Sous-tâches", panel_subs_compact: "Compact", panel_subs_indented: "Indenté", panel_subs_standalone: "Séparées", subtasks_progress: "{0} sur {1} terminées", no_label: "Sans étiquette", more_actions: "Plus",
   },
   tr: {
     view_today: "Bugün", view_upcoming: "Yaklaşan", view_recurring: "Yinelenen", view_done: "Tamamlanan",
@@ -1551,7 +1551,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Akıllı", filter_sort_due: "Tarih", filter_sort_deadline: "Son tarih", filter_sort_priority: "Öncelik",
     filter_sort_created: "Oluşturulma", filter_sort_title: "Ad",
     filter_group_none: "Yok", filter_group_status: "Durum", filter_group_date: "Tarih", filter_group_deadline: "Son tarih", filter_group_priority: "Öncelik", filter_group_label: "Etiket", filter_group_project: "Projeler",
-    view_display: "Görünüm", panel_layout: "Düzen", panel_show_done: "Tamamlananları göster", panel_show_subtasks: "Alt görevleri göster", subtasks_progress: "{1} görevden {0} tamamlandı", no_label: "Etiketsiz", more_actions: "Daha fazla",
+    view_display: "Görünüm", panel_layout: "Düzen", panel_show_done: "Tamamlananları göster", panel_subtasks: "Alt görevler", panel_subs_compact: "Derli toplu", panel_subs_indented: "Girintili", panel_subs_standalone: "Ayrı", subtasks_progress: "{1} görevden {0} tamamlandı", no_label: "Etiketsiz", more_actions: "Daha fazla",
   },
   zh: {
     view_today: "今天", view_upcoming: "即将到来", view_recurring: "重复", view_done: "已完成",
@@ -1809,7 +1809,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "智能", filter_sort_due: "日期", filter_sort_deadline: "最后期限", filter_sort_priority: "优先级",
     filter_sort_created: "创建时间", filter_sort_title: "名称",
     filter_group_none: "无", filter_group_status: "状态", filter_group_date: "日期", filter_group_deadline: "最后期限", filter_group_priority: "优先级", filter_group_label: "标签", filter_group_project: "项目",
-    view_display: "显示", panel_layout: "布局", panel_show_done: "显示已完成", panel_show_subtasks: "显示子任务", subtasks_progress: "已完成 {0}/{1}", no_label: "无标签", more_actions: "更多",
+    view_display: "显示", panel_layout: "布局", panel_show_done: "显示已完成", panel_subtasks: "子任务", panel_subs_compact: "紧凑", panel_subs_indented: "缩进", panel_subs_standalone: "独立", subtasks_progress: "已完成 {0}/{1}", no_label: "无标签", more_actions: "更多",
   },
   ru: {
     view_today: "Сегодня", view_upcoming: "Предстоящие", view_recurring: "Повторяющиеся", view_done: "Выполнено",
@@ -2067,7 +2067,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Умная", filter_sort_due: "Дата", filter_sort_deadline: "Крайний срок", filter_sort_priority: "Приоритет",
     filter_sort_created: "Дата создания", filter_sort_title: "Название",
     filter_group_none: "Нет", filter_group_status: "Статус", filter_group_date: "Дата", filter_group_deadline: "Крайний срок", filter_group_priority: "Приоритет", filter_group_label: "Метка", filter_group_project: "Проекты",
-    view_display: "Вид", panel_layout: "Макет", panel_show_done: "Показывать выполненные", panel_show_subtasks: "Показывать подзадачи", subtasks_progress: "{0} из {1} выполнено", no_label: "Без метки", more_actions: "Ещё",
+    view_display: "Вид", panel_layout: "Макет", panel_show_done: "Показывать выполненные", panel_subtasks: "Подзадачи", panel_subs_compact: "Компактно", panel_subs_indented: "С отступом", panel_subs_standalone: "Отдельно", subtasks_progress: "{0} из {1} выполнено", no_label: "Без метки", more_actions: "Ещё",
   },
   ja: {
     view_today: "今日", view_upcoming: "近日予定", view_recurring: "繰り返し", view_done: "完了",
@@ -2325,7 +2325,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "スマート", filter_sort_due: "日付", filter_sort_deadline: "締め切り", filter_sort_priority: "優先度",
     filter_sort_created: "作成日", filter_sort_title: "名前",
     filter_group_none: "なし", filter_group_status: "ステータス", filter_group_date: "日付", filter_group_deadline: "締め切り", filter_group_priority: "優先度", filter_group_label: "ラベル", filter_group_project: "プロジェクト",
-    view_display: "表示", panel_layout: "レイアウト", panel_show_done: "完了を表示", panel_show_subtasks: "サブタスクを表示", subtasks_progress: "{1} 件中 {0} 件完了", no_label: "ラベルなし", more_actions: "その他",
+    view_display: "表示", panel_layout: "レイアウト", panel_show_done: "完了を表示", panel_subtasks: "サブタスク", panel_subs_compact: "コンパクト", panel_subs_indented: "インデント", panel_subs_standalone: "個別", subtasks_progress: "{1} 件中 {0} 件完了", no_label: "ラベルなし", more_actions: "その他",
   },
   it: {
     view_today: "Oggi", view_upcoming: "Prossime", view_recurring: "Ricorrenti", view_done: "Completate",
@@ -2583,7 +2583,7 @@ const STRINGS: Record<string, Dict> = {
     filter_sort_smart: "Intelligente", filter_sort_due: "Data", filter_sort_deadline: "Termine ultimo", filter_sort_priority: "Priorità",
     filter_sort_created: "Creazione", filter_sort_title: "Nome",
     filter_group_none: "Nessuno", filter_group_status: "Stato", filter_group_date: "Data", filter_group_deadline: "Termine ultimo", filter_group_priority: "Priorità", filter_group_label: "Etichetta", filter_group_project: "Progetti",
-    view_display: "Visualizza", panel_layout: "Layout", panel_show_done: "Mostra completate", panel_show_subtasks: "Mostra sottoattività", subtasks_progress: "{0} di {1} completate", no_label: "Senza etichetta", more_actions: "Altro",
+    view_display: "Visualizza", panel_layout: "Layout", panel_show_done: "Mostra completate", panel_subtasks: "Sottoattività", panel_subs_compact: "Compatto", panel_subs_indented: "Rientrato", panel_subs_standalone: "Separate", subtasks_progress: "{0} di {1} completate", no_label: "Senza etichetta", more_actions: "Altro",
   },
 };
 

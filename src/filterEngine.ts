@@ -20,6 +20,19 @@ export type PageLayout = "list" | "board" | "calendar";
 /** Sortierrichtung. Gilt für die Aufgaben UND die Reihenfolge der Gruppen (eine Entscheidung).
  *  Bei „smart" bedeutungslos – dort wird sie im UI gar nicht erst angeboten. */
 export type SortDir = "asc" | "desc";
+/**
+ * Wie Unteraufgaben in der Liste erscheinen – die drei Antworten auf EINE Frage: wie eng hängt
+ * eine Unteraufgabe an ihrer Hauptaufgabe?
+ *   compact    – zusammengefasst AN ihr (Fortschritts-Badge „2/3", per Klick aufklappbar)
+ *   indented   – sichtbar UNTER ihr (eingerückt)
+ *   standalone – UNABHÄNGIG von ihr: eigene Zeile, eigene Gruppe, eigene Position in der Sortierung
+ *
+ * Der dritte Zustand ist die ausdrückliche Nutzer-Entscheidung in einem Konflikt, den die Liste
+ * sonst raten müsste: Gruppieren/Sortieren ordnet nach Attributen, Verschachteln nach Herkunft.
+ * Trägt eine Unteraufgabe eigene Labels oder ein eigenes Datum, widersprechen sich beide – dann
+ * bestimmt dieser Schalter, welche Ordnung gewinnt, statt dass wir es festlegen.
+ */
+export type SubtaskDisplay = "compact" | "indented" | "standalone";
 /** Verknüpfungs-Modus einer Auswahl-Facette: irgendeines (ODER) / alle (UND) / keines (NICHT).
  *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
  *  EINE Priorität, dort gibt es nur any/none. */
@@ -40,7 +53,7 @@ export interface ViewOptions {
   sort: FilterSort;
   group: FilterGroup;
   showDone: boolean;       // erledigte Aufgaben mit einbeziehen
-  showSubtasks: boolean;   // Unteraufgaben in der Liste verschachtelt zeigen (aus = Fortschritts-Badge am Parent)
+  subtasks: SubtaskDisplay;   // wie Unteraufgaben in der Liste erscheinen (s. SubtaskDisplay)
   sortDir: SortDir;        // Richtung von Sortierung + Gruppen-Reihenfolge
   calMode: CalMode;        // nur im Kalender-Layout: Jahr/Monat/Woche/Tag
   calPanel: boolean;       // nur im Kalender-Layout: Seitenleiste „Undatiert" offen?
@@ -53,13 +66,15 @@ export const DEFAULT_CRITERIA: FilterCriteria = {
   projects: [], projectsNot: [],
   search: "",
 };
-export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, showSubtasks: false, sortDir: "asc", calMode: "month", calPanel: true };
+export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", group: "none", showDone: false, subtasks: "compact", sortDir: "asc", calMode: "month", calPanel: true };
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
 export const SORTS: FilterSort[] = ["smart", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
 export const SORT_DIRS: SortDir[] = ["asc", "desc"];
+/** Reihenfolge im Dropdown = zunehmende Eigenständigkeit der Unteraufgabe. */
+export const SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "indented", "standalone"];
 /** „smart" ist eine Semantik (datiert zuerst, Datumlose ans Ende), keine Ordnung – rückwärts
  *  ergibt sie keinen Sinn. Deshalb kennt sie keine Richtung. */
 export const hasSortDir = (sort: FilterSort): boolean => sort !== "smart";
