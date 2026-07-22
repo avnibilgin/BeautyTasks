@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -1196,7 +1196,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // „Eingerückt" immer · „Kompakt" nur nach Klick aufs Badge · „Einzeln" nie (eigene Zeilen).
   const showKids = !trash && !opts.flat
     && (subs === "indented" || (subs === "compact" && subtasksExpanded.has(task.path)));
-  if (showKids) for (const kid of plugin.index.children(task.path)) {
+  if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
     // Griff auch an verschachtelten Zeilen: ihre Geschwister stehen direkt darunter, also lassen
     // sie sich untereinander genauso einsortieren wie Hauptaufgaben.
     if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual });
