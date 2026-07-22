@@ -51,6 +51,28 @@ describe("matchesTask – Status", () => {
   });
 });
 
+describe("matchesTask – Suche", () => {
+  const withText = (title: string, description: string): Task => ({ ...mk("x", "todo"), title, description });
+
+  it("findet im Titel", () => {
+    expect(matchesTask(withText("Rechnung zahlen", ""), crit({ search: "rechnung" }), TODAY)).toBe(true);
+  });
+
+  it("findet auch in der Beschreibung", () => {
+    // Die Beschreibung steht in der Liste unter dem Titel – sie zu sehen, aber nicht zu finden,
+    // war die ueberraschendere Variante.
+    expect(matchesTask(withText("Anruf", "wegen der Rechnung"), crit({ search: "rechnung" }), TODAY)).toBe(true);
+  });
+
+  it("findet nicht, wenn es in keinem von beiden steht", () => {
+    expect(matchesTask(withText("Anruf", "wegen des Termins"), crit({ search: "rechnung" }), TODAY)).toBe(false);
+  });
+
+  it("ignoriert Gross-/Kleinschreibung und Leerraum um den Suchtext", () => {
+    expect(matchesTask(withText("Anruf", "RECHNUNG"), crit({ search: "  rechnung  " }), TODAY)).toBe(true);
+  });
+});
+
 describe("applyFilter – Grundmenge", () => {
   it("ohne Status-Kriterium wie bisher: nur offene", () => {
     expect(ids(applyFilter(idx, DEFAULT_CRITERIA, DEFAULT_OPTIONS, TODAY))).toEqual(["doing", "todo"]);

@@ -250,9 +250,10 @@ export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean 
   const inList = (list: string[]): boolean => inbox ? list.some(isInboxName) : (pb !== null && list.includes(pb));
   if (c.projects.length && !inList(c.projects)) return false;
   if (inList(c.projectsNot)) return false;
-  // Suche
+  // Suche: Titel UND Beschreibung. Die Beschreibung steht in der Liste unter dem Titel – ein Wort
+  // dort zu sehen, es aber nicht zu finden, wäre die überraschendere Variante.
   const q = c.search.trim().toLowerCase();
-  if (q && !t.title.toLowerCase().includes(q)) return false;
+  if (q && !t.title.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q)) return false;
   return true;
 }
 
