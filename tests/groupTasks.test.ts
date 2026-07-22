@@ -125,6 +125,60 @@ describe("groupTasks – Richtung", () => {
   });
 });
 
+describe("groupTasks – Label ist mehrwertig", () => {
+  it("eine Aufgabe erscheint unter JEDEM ihrer Labels", () => {
+    // Der gemeldete Fall aus dem Demo-Vault: „Send Q3 report" trägt labels: [urgent, finance].
+    // Das Board zeigt sie in beiden Spalten (col.has = labels.includes), die Liste zeigte sie
+    // nur unter labels[0] – also unter #urgent, und unter #finance fehlte sie stillschweigend.
+    const q3 = mk({ id: "q3", labels: ["urgent", "finance"] });
+    const invoice = mk({ id: "invoice", labels: ["urgent"] });
+    const g = groupTasks([q3, invoice], "label", TODAY);
+    expect(titles(g)).toEqual(["#finance", "#urgent"]);
+    expect(g[0].tasks.map((x) => x.id)).toEqual(["q3"]);
+    expect(g[1].tasks.map((x) => x.id)).toEqual(["q3", "invoice"]);
+  });
+
+  it("die Summe der Gruppen-Zähler darf die Aufgabenzahl übersteigen", () => {
+    // Bewusst so: „#finance · 1" heißt „ein Treffer". Im Board ist es seit jeher identisch.
+    const list = [mk({ labels: ["a", "b", "c"] })];
+    const g = groupTasks(list, "label", TODAY);
+    expect(g).toHaveLength(3);
+    expect(g.reduce((n, x) => n + x.tasks.length, 0)).toBe(3);   // 1 Aufgabe, 3 Treffer
+  });
+
+  it("ohne Labels bleibt es bei EINER „ohne Label“-Gruppe", () => {
+    const g = groupTasks([mk({ labels: [] }), mk({ labels: [] })], "label", TODAY);
+    expect(titles(g)).toEqual([t("no_label")]);
+    expect(g[0].tasks).toHaveLength(2);
+  });
+});
+
+describe("groupTasks – Label-Reihenfolge folgt der Vorgabe (wie im Board)", () => {
+  it("labelOrder bestimmt die Gruppen-Reihenfolge statt des Alphabets", () => {
+    const list = [mk({ labels: ["apfel"] }), mk({ labels: ["zebra"] }), mk({ labels: ["mango"] })];
+    // Manuell sortierte Seitenleiste: zebra vor apfel vor mango.
+    expect(titles(groupTasks(list, "label", TODAY, undefined, ["zebra", "apfel", "mango"])))
+      .toEqual(["#zebra", "#apfel", "#mango"]);
+  });
+
+  it("ohne Vorgabe bleibt es alphabetisch (bisheriges Verhalten)", () => {
+    const list = [mk({ labels: ["zebra"] }), mk({ labels: ["apfel"] })];
+    expect(titles(groupTasks(list, "label", TODAY))).toEqual(["#apfel", "#zebra"]);
+  });
+
+  it("Labels ausserhalb der Vorgabe landen dahinter, alphabetisch", () => {
+    const list = [mk({ labels: ["neu"] }), mk({ labels: ["zebra"] }), mk({ labels: ["alt"] })];
+    expect(titles(groupTasks(list, "label", TODAY, undefined, ["zebra"])))
+      .toEqual(["#zebra", "#alt", "#neu"]);
+  });
+
+  it("„ohne Label“ bleibt trotz Vorgabe ganz am Ende", () => {
+    const list = [mk({ labels: [] }), mk({ labels: ["zebra"] })];
+    expect(titles(groupTasks(list, "label", TODAY, undefined, ["zebra"])))
+      .toEqual(["#zebra", t("no_label")]);
+  });
+});
+
 describe("visibleRows – Wächter und Sektion müssen dieselbe Regel benutzen", () => {
   it("Unteraufgabe mit sichtbarem Parent zählt nicht als eigene Zeile", () => {
     const present = new Set(["Items/eltern.md"]);

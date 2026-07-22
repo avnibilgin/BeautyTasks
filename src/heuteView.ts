@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, visibleRows, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, visibleRows, FilterGroup, FilterSort, PageLayout, SortDir, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -145,7 +145,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // in die Heute-Gruppe hinein, sonst als eigene „Heute"-Box direkt NACH „Überfällig"
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
-        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts)
+        const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
           .filter((g) => visibleRows(g.tasks, present).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
@@ -356,6 +356,16 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { label });
 }
 
+/** Reihenfolge der Label-Gruppen = die der Seitenleiste (Name · Anzahl · manuell), damit Liste
+ *  und Board dieselbe Ordnung zeigen. Vorher sortierte die Liste stur alphabetisch, das Board
+ *  dagegen über plugin.sortLabels – eine manuell sortierte Label-Leiste schlug sich also nur
+ *  im Board nieder. Berücksichtigt nur Labels, die in dieser Menge überhaupt vorkommen. */
+function labelOrderOf(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGroup): string[] | undefined {
+  if (group !== "label") return undefined;
+  const names = [...new Set(tasks.flatMap((tk) => tk.labels))];
+  return plugin.sortLabels(names.map((name) => ({ name }))).map((x) => x.name);
+}
+
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
@@ -382,7 +392,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir);
   const present = renderedPaths(plugin, opts.showDone ? [...open, ...done] : open);
-  for (const g of groupTasks(sorted, opts.group, today, opts)) {
+  for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
     if (visibleRows(g.tasks, present).length) section(root, plugin, g.title, g.tasks, today, false, false, present);
   }
   if (opts.showDone && visibleRows(done, present).length) section(root, plugin, t("sec_done"), done, today, true, false, present);

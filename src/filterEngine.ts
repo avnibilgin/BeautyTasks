@@ -219,10 +219,20 @@ export interface TaskGroup { title: string; tasks: Task[]; }
  * Nahm die Funktion nur die Richtung entgegen, gehorchte sie einer gespeicherten „absteigend",
  * die im Panel längst ausgeblendet war – die Tage standen rückwärts, obwohl „smart" gewählt war.
  * ViewOptions erfüllt die Form direkt, Aufrufer reichen einfach ihre Optionen durch.
+ *
+ * LABEL: eine Aufgabe erscheint unter JEDEM ihrer Labels (mehrwertige Facette, s. u.). Die
+ * Summe der Gruppen-Zähler ist damit größer als die Aufgabenzahl – im Board ist das seit jeher
+ * so, und es ist die ehrlichere Anzeige: „#finance · 1" heißt „ein Treffer", nicht „ein Achtel
+ * deiner Aufgaben". `labelOrder` gibt die Gruppen-Reihenfolge vor (s. u.).
  */
 export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
-  order?: { sort: FilterSort; sortDir: SortDir }): TaskGroup[] {
+  order?: { sort: FilterSort; sortDir: SortDir }, labelOrder?: string[]): TaskGroup[] {
   if (group === "none") return [{ title: t("sec_tasks"), tasks }];
+  // Reihenfolge der Label-Gruppen: die der Seitenleiste (Name/Anzahl/manuell), vom Aufrufer
+  // fertig gereicht – sie hängt an Plugin-Zustand, den diese Engine bewusst nicht kennt.
+  // Ohne Vorgabe bleibt es beim alphabetischen Tiebreaker über den Titel (alle Ränge gleich).
+  const labelRank = new Map((labelOrder ?? []).map((n, i) => [n, i] as const));
+  const rankOf = (name: string): number => labelRank.get(name) ?? labelRank.size;   // Unbekannte hinter die Bekannten
   // pin: -1 = immer zuoberst · +1 = immer zuunterst · 0 = folgt `order`
   const buckets = new Map<string, { pin: number; order: number; title: string; tasks: Task[] }>();
   const push = (key: string, title: string, order: number, pin: number, tk: Task): void => {
@@ -244,7 +254,13 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
       const k = prioKey(tk.priority);
       push(k, t(k), prioOrder(tk.priority), 0, tk);
     } else if (group === "label") {
-      if (tk.labels.length) push("l:" + tk.labels[0], "#" + tk.labels[0], 1, 0, tk);
+      // Labels sind die EINZIGE mehrwertige Facette (Projekt/Priorität hat eine Aufgabe genau
+      // einmal). Sie erscheint deshalb unter JEDEM ihrer Labels – wie die Spalten im Board, die
+      // pro Spalte `tk.labels.includes(name)` fragen. Vorher zählte nur labels[0], also die
+      // Reihenfolge im Frontmatter: eine Aufgabe mit #urgent #finance fehlte unter #finance
+      // stillschweigend, und welches Label „gewinnt", war für den Nutzer nirgends sichtbar.
+      // Die Doppelung erklärt sich von selbst – die Zeile zeigt ohnehin alle ihre Labels.
+      if (tk.labels.length) for (const name of tk.labels) push("l:" + name, "#" + name, rankOf(name), 0, tk);
       else push("nolabel", t("no_label"), 0, 1, tk);
     } else {   // project – „nicht einsortiert" (kein Projekt ODER Inbox-Verweis) in EINEN Eingang-Bucket
       if (tk.project && !isInboxLink(tk.project)) { const nm = baseName(tk.project); push("p:" + nm, "@" + projectDisplayName(nm), 1, 0, tk); }
