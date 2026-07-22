@@ -39,15 +39,21 @@ export type SubtaskDisplay = "compact" | "indented" | "standalone";
  *  „all" ist nur bei mehrwertigen Facetten (Labels) sinnvoll – ein Task hat genau EIN Projekt/
  *  EINE Priorität, dort gibt es nur any/none. */
 export type MatchMode = "any" | "all" | "none";
+/** Unteraufgaben in einem Filter: alle · nur Unteraufgaben · nur Hauptaufgaben.
+ *  Entspricht dem, was Todoist mit den Operatoren subtask / !subtask anbietet. */
+export type SubtaskFilter = "any" | "only" | "none";
 
 export interface FilterCriteria {
-  range: FilterRange;      // Zeitraum-Facette (Default „any" = alle)
+  range: FilterRange;         // Zeitraum der Faelligkeit (Default „any" = alle)
+  deadlineRange: FilterRange; // Zeitraum der Deadline – dieselben Stufen, eigenes Feld
   // Jede Auswahl-Facette führt ihre Werte pro Marker getrennt: ✓ (irgendeines/ODER),
   // + (alle/UND, nur bei mehrwertigen Labels sinnvoll), − (keines/NICHT).
+  statuses: string[];      statusesNot: string[];                  // ✓ / −  (Status-Ids)
   priorities: Priority[];  prioritiesNot: Priority[];              // ✓ / −
   labels: string[];        labelsAll: string[]; labelsNot: string[];  // ✓ / + / −
   projects: string[];      projectsNot: string[];                 // ✓ / −  (Basenamen)
-  search: string;          // Freitext im Titel ("" = keiner)
+  subtaskMode: SubtaskFilter; // Unteraufgaben einbeziehen / nur sie / keine
+  search: string;          // Freitext in Titel und Beschreibung ("" = keiner)
 }
 
 export interface ViewOptions {
@@ -65,10 +71,12 @@ export interface ViewOptions {
 }
 
 export const DEFAULT_CRITERIA: FilterCriteria = {
-  range: "any",
+  range: "any", deadlineRange: "any",
+  statuses: [], statusesNot: [],
   priorities: [], prioritiesNot: [],
   labels: [], labelsAll: [], labelsNot: [],
   projects: [], projectsNot: [],
+  subtaskMode: "any",
   search: "",
 };
 // `subtasks` fehlt bewusst: „nie gewählt" IST der Standard, und was daraus folgt, entscheidet
@@ -77,6 +85,7 @@ export const DEFAULT_OPTIONS: ViewOptions = { layout: "list", sort: "smart", gro
 
 /** Im UI wählbare Zeiträume/Sortierungen/Gruppierungen (Reihenfolge = Anzeige). */
 export const RANGES: FilterRange[] = ["any", "overdue", "today", "next7", "nodate"];
+export const SUBTASK_FILTERS: SubtaskFilter[] = ["any", "none", "only"];
 // „manual" steht neben „smart": beides sind Ordnungen ohne Feldvergleich, danach die Feld-Sortierungen.
 export const SORTS: FilterSort[] = ["smart", "manual", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
@@ -209,27 +218,36 @@ export function addDays(iso: string, n: number): string {
 export function activeFacetCount(c: FilterCriteria): number {
   let n = 0;
   if (c.range !== "any") n++;
+  if (c.deadlineRange !== "any") n++;
+  if (c.statuses.length || c.statusesNot.length) n++;
   if (c.priorities.length || c.prioritiesNot.length) n++;
   if (c.labels.length || c.labelsAll.length || c.labelsNot.length) n++;
   if (c.projects.length || c.projectsNot.length) n++;
+  if (c.subtaskMode !== "any") n++;
   if (c.search.trim()) n++;
   return n;
 }
 
-function inRange(t: Task, range: FilterRange, today: string): boolean {
+/** Zeitraum-Pruefung fuer EIN Datumsfeld. Bewusst ueber den Wert statt ueber die Aufgabe:
+ *  dieselbe Regel gilt fuer Faelligkeit (due) und Deadline (scheduled). */
+function inRange(date: string | null, range: FilterRange, today: string): boolean {
   if (range === "any") return true;
-  if (range === "nodate") return !t.due;
-  if (!t.due) return false;
-  if (range === "overdue") return t.due < today;
-  if (range === "today") return t.due <= today;             // überfällig + heute
-  if (range === "next7") return t.due >= today && t.due <= addDays(today, 7);
+  if (range === "nodate") return !date;
+  if (!date) return false;
+  if (range === "overdue") return date < today;
+  if (range === "today") return date <= today;             // überfällig + heute
+  if (range === "next7") return date >= today && date <= addDays(today, 7);
   return true;
 }
 
 /** Reine Prädikat-Auswertung einer Aufgabe gegen die Kriterien. Je Facette:
  *  ✓ (irgendeines muss zutreffen) UND + (alle müssen zutreffen) UND − (keines darf zutreffen). */
 export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean {
-  if (!inRange(t, c.range, today)) return false;
+  if (!inRange(t.due, c.range, today)) return false;
+  if (!inRange(t.scheduled, c.deadlineRange, today)) return false;
+  // Status (einwertig): ✓ irgendeiner / − keiner
+  if (c.statuses.length && !c.statuses.includes(t.status)) return false;
+  if (c.statusesNot.includes(t.status)) return false;
   // Prioritäten (einwertig): ✓ irgendeine / − keine
   if (c.priorities.length && !c.priorities.includes(t.priority)) return false;
   if (c.prioritiesNot.includes(t.priority)) return false;
@@ -244,9 +262,13 @@ export function matchesTask(t: Task, c: FilterCriteria, today: string): boolean 
   const inList = (list: string[]): boolean => inbox ? list.some(isInboxName) : (pb !== null && list.includes(pb));
   if (c.projects.length && !inList(c.projects)) return false;
   if (inList(c.projectsNot)) return false;
-  // Suche
+  // Unteraufgaben: eine Aufgabe MIT parent ist eine Unteraufgabe.
+  if (c.subtaskMode === "only" && !t.parent) return false;
+  if (c.subtaskMode === "none" && t.parent) return false;
+  // Suche: Titel UND Beschreibung. Die Beschreibung steht in der Liste unter dem Titel – ein Wort
+  // dort zu sehen, es aber nicht zu finden, wäre die überraschendere Variante.
   const q = c.search.trim().toLowerCase();
-  if (q && !t.title.toLowerCase().includes(q)) return false;
+  if (q && !t.title.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q)) return false;
   return true;
 }
 
@@ -423,9 +445,22 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
     .map((b) => ({ title: b.title, tasks: b.tasks }));
 }
 
-/** Basis-Menge → Facetten-Filter → Sortierung. Basis ist `open()` (ohne archivierte/
- *  erledigte); mit showDone kommen erledigte hinzu. Nav-Zähler UND Board nutzen dies. */
+/**
+ * Basis-Menge → Facetten-Filter → Sortierung. Nav-Zähler UND Board nutzen dies.
+ *
+ * Ohne Status-Kriterium wie bisher: Basis ist `open()` (ohne archivierte, ohne erledigte), mit
+ * `showDone` kommen erledigte hinzu. Abgebrochene bleiben draußen, die stehen im Papierkorb.
+ *
+ * Sind dagegen Status ausdrücklich gewählt, bestimmen SIE die Basis – inklusive erledigter und
+ * abgebrochener –, und `showDone` tritt zurück. Sonst käme ein Filter auf „erledigt" auf null
+ * Treffer, weil die Aufgaben schon vor den Kriterien aussortiert wären: eine getroffene Wahl
+ * schlägt eine Vorgabe (dasselbe Prinzip wie bei der Unteraufgaben-Darstellung). Nebenbei wird so
+ * ein Filter auf abgebrochene Aufgaben überhaupt erst möglich.
+ */
 export function applyFilter(idx: TaskIndex, c: FilterCriteria, opts: ViewOptions, today: string): Task[] {
-  const base = opts.showDone ? [...idx.open(), ...idx.done()] : idx.open();
+  const byStatus = c.statuses.length > 0 || c.statusesNot.length > 0;
+  const base = byStatus ? idx.unarchived()
+    : opts.showDone ? [...idx.open(), ...idx.done()]
+      : idx.open();
   return sortTasks(base.filter((t) => matchesTask(t, c, today)), opts.sort, opts.sortDir, (t) => idx.orderKey(t));
 }

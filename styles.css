@@ -1616,11 +1616,21 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    mal border-bottom setzen. */
 .bt-filter-modal { width: 440px; max-width: 92vw; }
 .bt-filter-modal h3 { margin: 0 0 4px; }
-/* .setting-item doppelt = (0,4,0); schlägt Obsidians/Theme-Regel für den Zeilenrahmen
-   (spezifischer als 0,3,0) ohne !important. Nur vertikal, damit die Zeilen bündig zu den
-   Sektionsköpfen bleiben. */
-.modal.bt-filter-modal .setting-item.setting-item {
-  border: 0; box-shadow: none; padding: 6px 0; align-items: center;
+/* Zeilen des Filter-Modals – eigenes Markup (s. filterModal.filterRow), NICHT Obsidians
+   .setting-item. Damit gehören Abstände und Trennlinien uns: kein Standard-Padding, das wir von
+   außen wegräumen müssten, und keine Linie, die wir per Spezifität bekämpfen. */
+.bt-filter-modal .bt-filter-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 3px 0;
+}
+.bt-filter-modal .bt-filter-k { font-size: var(--font-ui-small); color: var(--text-normal); }
+.bt-filter-modal .bt-filter-ctl { display: flex; align-items: center; flex: 0 0 auto; }
+/* Text-Eingaben (Name, Suche) auf dieselbe Breite wie die Facetten-Knöpfe. */
+.bt-filter-modal .bt-filter-input {
+  width: 200px; font-size: var(--font-ui-small);
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-modifier-form-field);
+  box-shadow: none;
 }
 .bt-filter-modal .setting-item-name { font-size: var(--font-ui-small); }
 /* Alle Steuerelemente im Modal flach (kein Schatten) UND mit sichtbarem Rand –
@@ -1632,8 +1642,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   border: 1px solid var(--background-modifier-border);
   background-color: var(--background-modifier-form-field);
 }
+/* margin-bottom 14px: zusammen mit dem 3px-Padding der ersten Zeile ergibt das 17px unter der
+   Linie – genau so viel, wie unten zwischen der letzten Zeile und der Linie über dem Zähler
+   steht (dort 14px margin-top + 3px padding-bottom). Die Facetten sitzen damit symmetrisch
+   zwischen ihren beiden Trennlinien. */
 .bt-filter-modal .bt-filter-h {
-  margin: 8px 0 1px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
+  margin: 6px 0 14px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
   border-bottom: 1px solid var(--background-modifier-border);
 }
@@ -1700,7 +1714,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   border: 1px solid var(--background-modifier-border); border-radius: 10px;
   background: var(--background-secondary);
 }
-.bt-filter-modal .bt-filter-color { margin-top: 16px; margin-bottom: 24px; }
+.bt-filter-modal .bt-filter-color { margin-top: 14px; margin-bottom: 14px; }
 /* Live-Vorschau des Eintrags (Icon in der gewählten Farbe + Name). */
 /* Sichtbarkeits-Zeile im Neu/Bearbeiten-Modal: Label links, größerer Schalter rechts, mehr Luft. */
 .bt-new-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0; }
@@ -1739,7 +1753,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-anzeige-ic svg, .bt-anzeige-ic .svg-icon { width: 15px; height: 15px; }
 .bt-anzeige-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent); }
 
-.bt-pop.bt-view-panel { min-width: 240px; padding: 10px 12px; }
+/* Eigene Höhe statt der 320px, die für Zeilenlisten gedacht sind: das Panel hat im Board mit
+   Richtungs-Zeile rund 350px Inhalt und wurde sonst gekappt – sichtbar wurde das an einem halb
+   abgeschnittenen „Zurücksetzen". Passt der Bildschirm nicht, klemmt openPopover zusätzlich auf
+   den tatsächlich freien Platz (nur nach unten, diese Grenze bleibt die Obergrenze). */
+.bt-pop.bt-view-panel { min-width: 240px; padding: 10px 12px; max-height: 480px; }
 /* Layout-Segmentierung: das Popover hängt an body (nicht in .bt-view), daher hier eigene
    Tab-Styles. Buttons füllen gleichmäßig die Breite; aktiv = Akzentfarbe (wie im ListManager). */
 .bt-view-panel .bt-tabs { display: flex; gap: 6px; margin: 2px 0 0; }

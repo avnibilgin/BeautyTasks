@@ -10,7 +10,8 @@ function mk(p: Partial<Task>): Task {
   return {
     id: "t1", path: "Items/t1.md", title: "Task", status: "todo", priority: "normal",
     due: null, dueTime: null, scheduled: null, scheduledTime: null, duration: null, start: null,
-    project: null, parent: null, labels: [], recurrence: null, recurBasis: "due", reminders: [],
+    sortOrder: null, project: null, parent: null, labels: [], description: "",
+    recurrence: null, recurBasis: "due", reminders: [],
     created: "2026-07-01", completed: null, cancelled: null, externalId: null, ...p,
   };
 }

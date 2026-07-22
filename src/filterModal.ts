@@ -2,7 +2,7 @@
 // Kopie aus FilterCriteria + ViewOptions und zeigt live die Trefferzahl. Anlegen = neue
 // type:filter-Notiz, Bearbeiten = bestehende aktualisieren. Facetten sind implizit UND;
 // mehrere Werte je Facette ODER (kein Bool-Operator im UI, bewusste Vereinfachung).
-import { Modal, Setting, Notice, setIcon } from "obsidian";
+import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority } from "./types";
 import { todayStr } from "./format";
@@ -10,13 +10,29 @@ import { listProjectsAndAreas } from "./taskService";
 import { openPopover } from "./popover";
 import { projectDisplayName, t } from "./i18n";
 import { PRIO_KEY } from "./taskModal";
+import { allStatuses, statusLabel } from "./statuses";
 import {
   FilterCriteria, ViewOptions, MatchMode, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
-  RANGES, FILTER_PRIORITIES, applyFilter, activeFacetCount,
+  RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter, applyFilter, activeFacetCount,
 } from "./filterEngine";
 import { readFilter } from "./filterService";
 import { buildSwatchRow } from "./colorSwatches";
 import { ConfirmModal } from "./confirmModal";
+
+/**
+ * Eine Zeile des Filter-Modals: Beschriftung links, Bedienelement rechts – gibt den Container
+ * fuer das Bedienelement zurueck.
+ *
+ * Bewusst EIGENES Markup statt Obsidians `Setting`: dessen Zeilen bringen Standard-Padding und
+ * eine Trennlinie mit, die sich von aussen nur ueber Spezifitaets-Wettbewerb bekaempfen liessen –
+ * und genau das ist zweimal fehlgeschlagen. Mit eigenen Elementen bestimmt das Plugin die
+ * Abstaende selbst. Dasselbe Muster benutzt das Anzeige-Panel (viewPanel.ddRow) bereits.
+ */
+function filterRow(parent: HTMLElement, label: string): HTMLElement {
+  const row = parent.createDiv({ cls: "bt-filter-row" });
+  row.createSpan({ cls: "bt-filter-k", text: label });
+  return row.createDiv({ cls: "bt-filter-ctl" });
+}
 
 export class FilterModal extends Modal {
   private name: string;
@@ -52,8 +68,10 @@ export class FilterModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h3", { text: this.editPath ? t("filter_edit") : t("filter_new") });
 
-    new Setting(contentEl).setName(t("filter_name")).addText((tx) =>
-      tx.setPlaceholder(t("filter_name_ph")).setValue(this.name).onChange((v) => { this.name = v; }));
+    const nameIn = filterRow(contentEl, t("filter_name")).createEl("input", { type: "text", cls: "bt-filter-input" });
+    nameIn.placeholder = t("filter_name_ph");
+    nameIn.value = this.name;
+    nameIn.oninput = () => { this.name = nameIn.value; };
 
     // Farbe direkt unter dem Namen (gleiche Swatch-Reihe wie im Neu-Modal).
     const colorField = contentEl.createDiv({ cls: "bt-new-field bt-filter-color" });
@@ -76,6 +94,28 @@ export class FilterModal extends Modal {
     this.select(contentEl, t("filter_range"),
       RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
       () => this.c.range, (v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
+
+    // Deadline hat dieselben Stufen wie die Faelligkeit, aber ein eigenes Feld: „Deadline diese
+    // Woche" ist eine andere Frage als „faellig diese Woche".
+    this.select(contentEl, t("filter_deadline_range"),
+      RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
+      () => this.c.deadlineRange, (v) => { this.c.deadlineRange = v as FilterCriteria["deadlineRange"]; this.refresh(); });
+
+    // Status: einwertig wie Priorität, also nur ✓ und − (kein „alle"). Nimmt ALLE Status – auch
+    // erledigte und abgebrochene –, denn genau das macht diese Facette möglich: eine Ansicht auf
+    // „was ist gerade in Arbeit", „was habe ich abgebrochen" oder einen selbst angelegten Status.
+    this.facet(contentEl, t("filter_statuses"),
+      allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })), {
+        modeOf: (k) => this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null,
+        toggle: (k, pen) => {
+          const was = this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null;
+          this.c.statuses = this.c.statuses.filter((x) => x !== k);
+          this.c.statusesNot = this.c.statusesNot.filter((x) => x !== k);
+          if (was !== pen) (pen === "none" ? this.c.statusesNot : this.c.statuses).push(k);
+        },
+        clear: () => { this.c.statuses = []; this.c.statusesNot = []; },
+        pens: ["any", "none"],
+      });
 
     this.facet(contentEl, t("filter_priorities"),
       FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })), {
@@ -121,8 +161,15 @@ export class FilterModal extends Modal {
       pens: ["any", "none"],
     });
 
-    new Setting(contentEl).setName(t("filter_search")).addText((tx) =>
-      tx.setPlaceholder(t("filter_search_ph")).setValue(this.c.search).onChange((v) => { this.c.search = v; this.refresh(); }));
+    // Unteraufgaben: dieselbe Frage, die Todoist mit subtask / !subtask beantwortet.
+    this.select(contentEl, t("filter_subtasks"),
+      SUBTASK_FILTERS.map((v) => ({ key: v, label: t("filter_subtasks_" + v) })),
+      () => this.c.subtaskMode, (v) => { this.c.subtaskMode = v as SubtaskFilter; this.refresh(); });
+
+    const searchIn = filterRow(contentEl, t("filter_search")).createEl("input", { type: "text", cls: "bt-filter-input" });
+    searchIn.placeholder = t("filter_search_ph");
+    searchIn.value = this.c.search;
+    searchIn.oninput = () => { this.c.search = searchIn.value; this.refresh(); };
 
     // ── Fuß: Live-Zähler + Aktionen (gleiche Struktur/Buttons wie das TaskModal) ──
     this.countEl = contentEl.createDiv({ cls: "bt-filter-count" });
@@ -149,7 +196,7 @@ export class FilterModal extends Modal {
     clear: () => void;
     pens: MatchMode[];
   }): void {
-    const btn = new Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
+    const btn = filterRow(parent, label).createEl("button", { cls: "bt-facet-dd" });
     const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
     setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
     const iconOf = (m: MatchMode): string => (m === "all" ? "plus" : m === "none" ? "minus" : "check");
@@ -197,7 +244,7 @@ export class FilterModal extends Modal {
    *  zu den Mehrfach-Facetten, aber genau EIN Wert; Klick wählt und schließt. */
   private select(parent: HTMLElement, label: string, opts: { key: string; label: string }[],
     get: () => string, set: (v: string) => void): void {
-    const btn = new Setting(parent).setName(label).controlEl.createEl("button", { cls: "bt-facet-dd" });
+    const btn = filterRow(parent, label).createEl("button", { cls: "bt-facet-dd" });
     const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
     setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
     const syncLbl = (): void => lbl.setText(opts.find((o) => o.key === get())?.label ?? "");

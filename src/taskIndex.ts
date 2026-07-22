@@ -213,6 +213,13 @@ export class TaskIndex extends Component {
       && !(t.project && archived.has(baseName(t.project).toLowerCase())));
     return this.openCache;
   }
+  /** Alle Aufgaben außer denen aus archivierten Projekten – JEDEN Status, auch erledigte und
+   *  abgebrochene. Basis für Filter mit ausdrücklichem Status-Kriterium: dort entscheiden die
+   *  gewählten Status, was sichtbar ist, nicht eine vorgelagerte Auswahl (s. applyFilter). */
+  unarchived(): Task[] {
+    const archived = this.archivedProjects();
+    return this.all().filter((t) => !(t.project && archived.has(baseName(t.project).toLowerCase())));
+  }
   /** True, wenn das Projekt (Basename) archiviert ist – für Ansichten/Zähler, die all() nutzen. */
   isProjectArchived(project: string | null | undefined): boolean {
     return !!project && this.archivedProjects().has(baseName(project).toLowerCase());
