@@ -14,6 +14,7 @@ import { formatDateTime, combineDT, dueWhen, todayStr } from "./format";
 import { applyQuickEntry, emptyQuickEntryState } from "./quickEntry";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { isDone, isTrashed } from "./statuses";
+import { sortSubtasks } from "./filterEngine";
 import { t } from "./i18n";
 
 /** Callbacks, die das Modal beisteuert. */
@@ -81,8 +82,7 @@ export class SubtaskList {
   private children(): Task[] {
     const parent = this.host.parent();
     if (!parent) return [];
-    const kids = this.plugin.index.children(parent.path).filter((k) => !isTrashed(k.status));
-    return kids.sort((a, b) => Number(isDone(a.status)) - Number(isDone(b.status)));
+    return sortSubtasks(this.plugin.index.children(parent.path).filter((k) => !isTrashed(k.status)));
   }
 
   /** Nur neu zeichnen, wenn sich an den Kindern wirklich etwas geändert hat: Der Index meldet

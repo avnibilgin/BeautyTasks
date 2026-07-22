@@ -5,6 +5,7 @@ import type { TaskIndex } from "./taskIndex";
 import { isInboxLink, isInboxName } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { groupLabel } from "./format";
+import { isDone } from "./statuses";   // statuses importiert nur types+i18n -> kein Zyklus
 
 // ── Kriterien & Optionen ────────────────────────────────────────────
 // Ein flaches Kriterien-Objekt (Vorschlag 3 „Smart Lists"): verschiedene Facetten sind
@@ -160,6 +161,37 @@ export function orderChain(task: Task, parentOf: (path: string) => Task | undefi
     cur = cur.parent ? parentOf(cur.parent) : undefined;
   }
   return chain;
+}
+
+/**
+ * Reihenfolge der Unteraufgaben UNTER einer Hauptaufgabe – für die Liste wie für das Modal.
+ *
+ *   1. Erledigte nach unten
+ *   2. danach die Reihenfolge der Geschwister: sort_order, sonst created, sonst Titel
+ *
+ * Bewusst EINE Funktion für beide Oberflächen: vorher sortierte die Liste gar nicht und das Modal
+ * nur nach „erledigt", der Rest war in beiden die Einfügereihenfolge des Index. Die hängt daran,
+ * in welcher Folge Obsidian die Dateien gefunden hat, und ist nach einem Neustart eine andere –
+ * die Unteraufgaben sprangen also scheinbar willkürlich umher, und Liste und Modal zeigten
+ * Verschiedenes.
+ *
+ * Die Positionskette (orderChain) braucht es hier nicht: Geschwister teilen sich denselben
+ * Präfix, es zählt also nur ihr eigener Wert.
+ *
+ * Erledigte behalten ihre Geschwister-Reihenfolge, statt nach Abschlusszeit zu stehen. Die großen
+ * Erledigt-Listen (Sektion, Spalte, Ansicht) tun Letzteres – die sind ein Protokoll, in dem
+ * „zuletzt erledigt" zählt. Eine Checkliste unter einer Aufgabe hat drei bis sechs Zeilen; dort
+ * ist es nützlicher, dass jede Zeile ihren Platz behält und Aufhaken exakt zurückführt.
+ */
+export function sortSubtasks(kids: Task[]): Task[] {
+  // MAX_SAFE_INTEGER statt Infinity: zwei Aufgaben ohne Position ergäben sonst Infinity-Infinity
+  // = NaN, und ein NaN-Vergleich macht die Sortierung unvorhersagbar.
+  const pos = (t: Task): number => t.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  return [...kids].sort((a, b) =>
+    Number(isDone(a.status)) - Number(isDone(b.status))
+    || pos(a) - pos(b)
+    || (a.created ?? "").localeCompare(b.created ?? "")
+    || a.title.localeCompare(b.title));
 }
 
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
