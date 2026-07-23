@@ -11,6 +11,7 @@ import { SubtaskList } from "./subtaskList";
 import { ConfirmModal } from "./confirmModal";
 import { firstOpenStatus } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
+import { sortSubtasks, ORDER_GAP } from "./filterEngine";
 import { t, projectDisplayName } from "./i18n";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
@@ -404,7 +405,8 @@ export class TaskModal extends Modal {
     });
   }
 
-  /** Aufgabe duplizieren: aktuellen Stand sichern und als neue Aufgabe („(Kopie)") anlegen. */
+  /** Aufgabe duplizieren: aktuellen Stand sichern und als neue Aufgabe („(Kopie)") anlegen.
+   *  Der ganze Unterbaum kommt mit – jede Ebene re-parentet auf die frisch erzeugte Kopie. */
   private async duplicate(): Promise<void> {
     const title = this.titleValue();
     if (!title) { new Notice(t("err_enter_taskname")); return; }
@@ -414,8 +416,43 @@ export class TaskModal extends Modal {
       parent: this.f.parent ?? this.opts.parent ?? null,
     });
     await this.log.flush(file);
+    // Unteraufgaben (rekursiv) mitkopieren, verankert an der neuen Hauptkopie.
+    if (this.existing) await this.duplicateSubtree(this.existing.path, file.basename);
     new Notice(t("msg_duplicated"));
     this.close();
+  }
+
+  /**
+   * Alle Unteraufgaben unter `srcParentPath` als Kopien unter `newParentBase` neu anlegen, rekursiv
+   * über die ganze Tiefe. Wie die Hauptkopie startet jede Kopie auf „offen".
+   *
+   * Reihenfolge: die Kopien bekommen frische `sort_order`-Lücken (10, 20, 30 …) in der Reihenfolge
+   * der Originale. Das ist sicher – sie bilden unter der neuen Hauptkopie eine eigene, isolierte
+   * Geschwistergruppe; `sort_order` wird nur INNERHALB einer Gruppe verglichen. Es wird kein
+   * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
+   */
+  private async duplicateSubtree(srcParentPath: string, newParentBase: string): Promise<void> {
+    const kids = sortSubtasks(this.plugin.index.children(srcParentPath));
+    let order = ORDER_GAP;
+    for (const kid of kids) {
+      const copy = await createTaskNote(this.app, this.plugin.settings, {
+        title: kid.title,
+        description: kid.description,
+        status: firstOpenStatus(),
+        due: kid.due, dueTime: kid.dueTime,
+        scheduled: kid.scheduled, scheduledTime: kid.scheduledTime,
+        duration: kid.duration,
+        priority: kid.priority,
+        project: kid.project ? baseName(kid.project) : null,
+        labels: [...kid.labels],
+        recurrence: kid.recurrence, recurBasis: kid.recurBasis,
+        reminders: [...(kid.reminders ?? [])],
+        parent: newParentBase,
+        sortOrder: order,
+      });
+      order += ORDER_GAP;
+      await this.duplicateSubtree(kid.path, copy.basename);   // Enkel & tiefer
+    }
   }
 
   /** Obsidian-Deeplink (obsidian://) zur Aufgabe in die Zwischenablage kopieren. */

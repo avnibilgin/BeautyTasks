@@ -62,6 +62,9 @@ export interface TaskFields {
   recurBasis?: "due" | "done";
   parent?: string | null;    // Basename der Eltern-Aufgabe
   reminders?: string[];      // rohe Erinnerungs-Strings (siehe reminders.ts)
+  sortOrder?: number | null; // manuelle Position (sort_order). Normalfall: weglassen -> lazy, kein
+                             // Feld. Nur gesetzt, wenn eine Reihenfolge bewusst materialisiert wird
+                             // (z. B. beim Duplizieren eines Unterbaums), s. filterEngine.planReorder.
 }
 
 /** Neue Aufgaben-Notiz anlegen (kollisionssicherer Dateiname). */
@@ -88,6 +91,7 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     recurrence: f.recurrence ?? null,
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
     reminders: f.reminders ?? [],
+    sort_order: f.sortOrder ?? null,   // null -> von buildFrontmatter verworfen (lazy, kein Feld)
     // Mit Uhrzeit (wie `completed`): sonst sind alle Aufgaben eines Tages beim Sortieren nach
     // „Erstellt" gleichwertig und die Richtung bleibt ohne sichtbare Wirkung. Ältere Notizen
     // behalten ihr reines Datum – der Vergleich in sortTasks kommt mit beidem zurecht.
