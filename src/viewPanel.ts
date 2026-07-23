@@ -67,22 +67,26 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       // Der Kalender hat seine Achse (das Datum) fest vorgegeben – Sortieren/Gruppieren wäre dort
       // wirkungslos und wird deshalb gar nicht erst angeboten. Gespeicherte Werte bleiben erhalten
       // (nicht destruktiv: zurück in Liste/Board wirken sie wieder).
-      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute")) {
+      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute" || page.key === "demnaechst")) {
         cap(t("filter_arrange"));
         // Sortieren · Gruppieren · Richtung stehen als EIN Block enger beieinander (wie die Zeilen
         // im Filter-Modal) – sie beantworten zusammen eine Frage: in welcher Ordnung erscheint was.
         const box = pop.createDiv({ cls: "bt-panel-tight" });
         ddRow(box, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
-        // Im Board-Layout nur die spaltenfähigen Gruppierungen anbieten – Datum/Deadline passen nicht
-        // auf ein Kanban (offene Achse, mehrdeutige Bereichs-Buckets). Steht eine davon noch gespeichert,
-        // in der Auswahl als „Keine" zeigen (nicht destruktiv: in der Liste bleibt sie erhalten).
-        const groups = o.layout === "board"
-          ? groupOptions(page.kind).filter((g) => g !== "date" && g !== "deadline")
-          : groupOptions(page.kind);
-        const shownGroup = groups.includes(o.group) ? o.group : "none";
-        // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
-        const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
-        ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
+        // „Demnächst" ist im Listen-/Kalender-Layout FEST nach Datum gruppiert -> keine Gruppieren-Zeile
+        // (sie täte dort nichts). Nur im Board-Layout gruppiert es wie die vollen Seiten -> Zeile zeigen.
+        if (page.key !== "demnaechst" || o.layout === "board") {
+          // Im Board-Layout nur die spaltenfähigen Gruppierungen anbieten – Datum/Deadline passen nicht
+          // auf ein Kanban (offene Achse, mehrdeutige Bereichs-Buckets). Steht eine davon noch gespeichert,
+          // in der Auswahl als „Keine" zeigen (nicht destruktiv: in der Liste bleibt sie erhalten).
+          const groups = o.layout === "board"
+            ? groupOptions(page.kind).filter((g) => g !== "date" && g !== "deadline")
+            : groupOptions(page.kind);
+          const shownGroup = groups.includes(o.group) ? o.group : "none";
+          // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
+          const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
+          ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
+        }
         // Richtung gilt für Sortierung UND Gruppen. Bei „smart" gibt es keine – die Zeile entfällt
         // dann ganz (statt sie auszugrauen: ein totes Bedienelement erklärt sich nicht von selbst).
         if (hasSortDir(o.sort)) {
