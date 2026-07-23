@@ -241,7 +241,7 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
   const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "pencil", t("btn_rename"), () => startRename(row, plugin, it, redraw));
   iconBtn(actions, "archive", t("btn_archive"), () => void plugin.archiveProject(it.path, true));
-  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteProject(it.path), redraw));
+  iconBtn(actions, "trash-2", t("btn_delete"), () => plugin.confirmDeleteProject(it.path, it.name, redraw));
   rowMenu(actions, plugin, it);
 
   row.createSpan({ cls: "bt-manage-count", text: String(plugin.index.byProject(it.path).length) });
@@ -255,7 +255,7 @@ function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, 
   name.onclick = () => void plugin.activateProject(it.path);
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   iconBtn(actions, "archive-restore", t("btn_restore"), () => void plugin.archiveProject(it.path, false));
-  iconBtn(actions, "trash-2", t("btn_delete_forever"), () => confirmInline(actions, t("confirm_delete_forever_q"), () => void plugin.deleteProject(it.path), redraw));
+  iconBtn(actions, "trash-2", t("btn_delete_forever"), () => plugin.confirmDeleteProject(it.path, it.name, redraw));
 }
 
 function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void, reorderSec?: NavSection): void {

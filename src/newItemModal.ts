@@ -109,13 +109,15 @@ export class NewItemModal extends Modal {
   /** Löschen mit Sicherheitsabfrage (nur im Bearbeiten-Modus). */
   private confirmDelete(): void {
     const e = this.edit!;
-    new ConfirmModal(this.app,
-      { title: t("confirm_delete_title", e.name), message: t("confirm_delete_body") },
-      () => {
-        if (this.kind === "label") void this.plugin.deleteLabel(e.key);
-        else void this.plugin.deleteProject(e.key);
-        this.close();
-      }).open();
+    if (this.kind === "label") {
+      new ConfirmModal(this.app,
+        { title: t("confirm_delete_title", e.name), message: t("confirm_delete_body") },
+        () => { void this.plugin.deleteLabel(e.key); this.close(); }).open();
+    } else {
+      // Projekt/Bereich: Zwei-Optionen-Abfrage (Aufgaben in den Papierkorb vs. Eingang). Das
+      // Bearbeiten-Modal schließt erst nach bestätigtem Löschen (onAfter), nicht bei Abbruch.
+      this.plugin.confirmDeleteProject(e.key, e.name, () => this.close());
+    }
   }
 
   private async submit(): Promise<void> {

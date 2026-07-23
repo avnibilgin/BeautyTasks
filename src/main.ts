@@ -12,7 +12,8 @@ import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem } from "./taskService";
 import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
-import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder } from "./filterEngine";
+import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets } from "./filterEngine";
+import { ConfirmModal } from "./confirmModal";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp, dateOf, timeOf, combineDT } from "./format";
@@ -468,6 +469,39 @@ export default class BeautyTasksPlugin extends Plugin {
     // zur Startansicht wechseln (sonst bliebe ein leeres Board des gelöschten Eintrags stehen).
     if (this.currentProject === path) { await this.goToStartView(); return; }
     this.renderAll();
+  }
+
+  /** Die (nicht schon im Papierkorb liegenden) Aufgaben eines Projekts/Bereichs – inkl. Unterbäume,
+   *  dedupliziert. Basis für Zähler UND Kaskade, damit beide dieselbe Zahl sehen. */
+  private projectTrashTargets(path: string): Task[] {
+    return collectTrashTargets(this.index.byProject(path), (p) => this.index.descendants(p));
+  }
+
+  /** Projekt/Bereich löschen UND seine Aufgaben (rekursiv) in den plugin-Papierkorb verschieben.
+   *  Das Projekt selbst wandert wie immer in Obsidians Papierkorb. */
+  async deleteProjectWithTasks(path: string): Promise<void> {
+    await this.trashTasks(this.index.byProject(path));
+    await this.deleteProject(path);
+  }
+
+  /** Löschen-Abfrage für ein Projekt/Bereich mit Zwei-Optionen-Wahl: Häkchen an = Aufgaben in den
+   *  Papierkorb (Kaskade), Häkchen aus (Default) = nur das Projekt löschen, die Aufgaben landen über
+   *  den ungültig gewordenen Verweis im Eingang (s. severReferences/Einheit B). Der Zähler zeigt die
+   *  EHRLICHE Gesamtzahl inkl. Unteraufgaben. Ohne Aufgaben entfällt das Häkchen. `onAfter` läuft nur
+   *  nach tatsächlichem Löschen (nicht bei Abbruch) – z. B. um die Verwalten-Ansicht neu zu zeichnen. */
+  confirmDeleteProject(path: string, name: string, onAfter?: () => void): void {
+    const count = this.projectTrashTargets(path).length;
+    new ConfirmModal(this.app, {
+      title: t("confirm_delete_title", name),
+      message: t("confirm_delete_body"),
+      checkbox: count > 0 ? { label: t("confirm_delete_with_tasks", count) } : undefined,
+    }, (withTasks) => {
+      void (async () => {
+        if (withTasks) await this.deleteProjectWithTasks(path);
+        else await this.deleteProject(path);
+        onAfter?.();
+      })();
+    }).open();
   }
 
   // ── Import / Export (JSON, verlustfrei) ──
@@ -1264,12 +1298,18 @@ export default class BeautyTasksPlugin extends Plugin {
    *  (Kaskade). Sonst blieben Kinder ohne sichtbaren Parent zurück und wären nur noch
    *  über die Suche, nicht mehr in den Boards erreichbar. */
   async cancelTask(task: Task): Promise<void> {
-    // Voller lokaler Zeitstempel (mit Uhrzeit/Sekunden), NICHT nur Datum: sonst hätten alle
-    // am selben Tag gelöschten Aufgaben denselben Sortierwert und der Papierkorb fiele bei
-    // Gleichstand auf die Datei-Reihenfolge zurück. Für die Kaskade EIN Stempel (Gruppe bleibt zusammen).
+    await this.trashTasks([task]);
+  }
+
+  /** Aufgaben in den Papierkorb – jede inkl. ihres Unteraufgaben-Baums (collectTrashTargets: Dedup
+   *  bei überlappenden Bäumen, bereits abgebrochene ausgelassen). EIN gemeinsamer Zeitstempel (mit
+   *  Uhrzeit/Sekunden, NICHT nur Datum: sonst hätten alle am selben Tag gelöschten denselben
+   *  Sortierwert und der Papierkorb fiele bei Gleichstand auf die Datei-Reihenfolge zurück). Das
+   *  `project`-Feld bleibt unberührt (wie beim Einzel-Abbrechen). */
+  private async trashTasks(roots: Task[]): Promise<void> {
     const stamp = localStamp();
     const cancelId = firstCancelledStatus();   // definierter Abgebrochen-Status oder Sentinel "cancelled"
-    const targets = [task, ...this.index.descendants(task.path)].filter((t) => !isTrashed(t.status));
+    const targets = collectTrashTargets(roots, (p) => this.index.descendants(p));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = cancelId; fm.cancelled = stamp; });

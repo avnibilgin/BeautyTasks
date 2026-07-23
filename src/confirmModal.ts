@@ -8,10 +8,13 @@ interface ConfirmOpts {
   message?: string;
   confirmText?: string;   // Default: t("btn_delete")
   destructive?: boolean;  // Default: true -> roter Bestätigen-Button
+  // Optionales Häkchen (Default aus). Sein Zustand geht an onConfirm – so bleibt die EINE Abfrage
+  // ein Zwei-Optionen-Dialog (z. B. „Projekt löschen“ mit/ohne Aufgaben), ohne zweiten Button.
+  checkbox?: { label: string; checked?: boolean };
 }
 
 export class ConfirmModal extends Modal {
-  constructor(app: App, private opts: ConfirmOpts, private onConfirm: () => void) {
+  constructor(app: App, private opts: ConfirmOpts, private onConfirm: (checked: boolean) => void) {
     super(app);
   }
 
@@ -20,6 +23,15 @@ export class ConfirmModal extends Modal {
     modalEl.addClass("bt-confirm-modal");
     contentEl.createEl("h3", { text: this.opts.title });
     if (this.opts.message) contentEl.createEl("p", { cls: "bt-confirm-msg", text: this.opts.message });
+
+    let checked = this.opts.checkbox?.checked ?? false;
+    if (this.opts.checkbox) {
+      const row = contentEl.createEl("label", { cls: "bt-confirm-check" });
+      const cb = row.createEl("input", { attr: { type: "checkbox" } });
+      cb.checked = checked;
+      cb.onchange = () => { checked = cb.checked; };
+      row.createSpan({ text: this.opts.checkbox.label });
+    }
 
     const foot = contentEl.createDiv({ cls: "bt-foot" });
     foot.createDiv();
@@ -30,7 +42,7 @@ export class ConfirmModal extends Modal {
       cls: "mod-cta" + (this.opts.destructive === false ? "" : " mod-warning"),
       text: this.opts.confirmText ?? t("btn_delete"),
     });
-    confirm.onclick = () => { this.close(); this.onConfirm(); };
+    confirm.onclick = () => { this.close(); this.onConfirm(checked); };
 
     window.setTimeout(() => confirm.focus(), 0);
   }

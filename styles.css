@@ -1802,6 +1802,8 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-confirm-modal { width: 360px; max-width: 92vw; }
 .bt-confirm-modal h3 { margin: 0 0 10px; font-size: 17px; letter-spacing: -0.01em; }
 .bt-confirm-modal .bt-confirm-msg { margin: 0 0 14px; color: var(--text-muted); }
+.bt-confirm-modal .bt-confirm-check { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; cursor: pointer; color: var(--text-normal); }
+.bt-confirm-modal .bt-confirm-check input { margin: 0; }
 .bt-confirm-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .bt-confirm-modal .bt-actions { display: inline-flex; gap: 8px; }
 

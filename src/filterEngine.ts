@@ -218,6 +218,19 @@ export function severReferences(tasks: Task[], deletedPath: string): Task[] {
   return out;
 }
 
+/** Welche Aufgaben ein Papierkorb-Zug tatsächlich erfasst: jede Wurzel inkl. ihres Unteraufgaben-
+ *  Baums, dedupliziert (überlappende Bäume, z. B. Projektaufgabe + eigene Unteraufgabe), bereits
+ *  im Papierkorb liegende ausgelassen. Die EINE Wahrheit für den Zähler im Löschdialog UND die
+ *  eigentliche Papierkorb-Aktion. `descendantsOf` injiziert (index.descendants) -> rein/testbar. */
+export function collectTrashTargets(roots: Task[], descendantsOf: (path: string) => Task[]): Task[] {
+  const seen = new Set<string>();
+  const out: Task[] = [];
+  for (const root of roots)
+    for (const t of [root, ...descendantsOf(root.path)])
+      if (!seen.has(t.path) && !isTrashed(t.status)) { seen.add(t.path); out.push(t); }
+  return out;
+}
+
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
 export const ORDER_GAP = 10;
 /** Ein zu schreibender Positionswert. */
