@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
+import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -326,11 +326,13 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const name = isInbox ? "" : projectName(projectPath);
   // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist eine Systemansicht → kein Menü.
   const isArea = !isInbox && isAreaPath(plugin.app, projectPath);
+  // ALLE (aktiv UND archiviert) durchsuchen: archivierte fehlen in listProjectsAndAreas, hätten also
+  // kein Kebab -> man käme aus einer archivierten Projektseite nicht mehr heraus.
   const meta = isInbox ? null
-    : (() => { const a = listProjectsAndAreas(plugin.app); return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null; })();
+    : (() => { const { active, archived } = listManaged(plugin.app); return [...active, ...archived].find((p) => p.path === projectPath) ?? null; })();
   const top = pageTop(c, plugin.pageViewOptions().layout);
   pageHeader(top, plugin, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
-    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {});
+    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type, archived: meta.archived } } : {});
   // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
   addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
 
