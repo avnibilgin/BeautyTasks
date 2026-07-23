@@ -9,7 +9,7 @@ import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { openPopover } from "./popover";
 import {
-  CalMode, CAL_MODES, monthGrid, weekDays, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
+  CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
   addDays, addMonths, addYears, sameMonth, parseISO, DEFAULT_BLOCK_MIN,
   ChipMetrics, ChipFit, chipsThatFit, shownChips,
   DayEvent, bucketEvents, allDayEventsOf,
@@ -130,7 +130,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   const step = (dir: number): void => go(
     mode === "year" ? addYears(anchor, dir)
       : mode === "month" ? addMonths(anchor, dir)
-        : addDays(anchor, dir * (mode === "week" ? 7 : 1)));
+        : addDays(anchor, dir * timeGridStep(mode)));
 
   // ── Kopf: ‹ › Heute · Titel · [Monat | Woche] ──
   const head = root.createDiv({ cls: "bt-calview-head" });
@@ -179,7 +179,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   // (bucketEvents). Das Jahr zeigt in v1 keine Termine, dort bleibt die Liste leer.
   const gridDays: string[] = mode === "year" ? []
     : mode === "month" ? monthGrid(anchor)
-      : mode === "day" ? [anchor] : weekDays(anchor);
+      : timeGridDays(mode, anchor);   // Tag = 1, 3 Tage = 3, Woche = 7
   // Der Feed holt genau diesen Zeitraum nach (Cache/Snapshot füllt sofort, Rest im Hintergrund).
   if (gridDays.length) plugin.gcalFeed?.setRange(gridDays[0], gridDays[gridDays.length - 1]);
   const feedEvents = (): Map<string, DayEvent[]> => {
@@ -190,10 +190,10 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   // Kalender + Seitenleiste stehen nebeneinander (das Panel schiebt das Raster, überlagert es nicht).
   const body = root.createDiv({ cls: "bt-calview-body" });
   // Jeder Zeichner baut sein GERÜST und liefert eine Funktion zurück, die nur die Aufgaben füllt.
-  // Tag und Woche sind dasselbe Zeitraster – nur mit einer statt sieben Spalten.
+  // Tag, 3 Tage und Woche sind dasselbe Zeitraster – nur mit 1, 3 oder 7 Spalten.
   const fillGrid = mode === "year" ? renderYear(body, plugin, anchor, today, zoom)
     : mode === "month" ? renderMonth(body, plugin, anchor, today, add)
-      : renderTimeGrid(body, plugin, mode === "day" ? [anchor] : weekDays(anchor), today, add);
+      : renderTimeGrid(body, plugin, timeGridDays(mode, anchor), today, add);
   const fillPanel = panelUseful && opts.calPanel ? renderUnscheduled(body, plugin, add) : null;
 
   /** Nur die aufgabenabhängigen Teile neu zeichnen (Gerüst bleibt stehen). Termine werden bei
@@ -220,13 +220,13 @@ function rangeTitle(mode: CalMode, anchor: string): string {
     return new Intl.DateTimeFormat(getLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })
       .format(parseISO(anchor));
   }
-  return weekTitle(anchor);
+  return spanTitle(timeGridDays(mode, anchor));   // Woche + 3 Tage: Spanne „erster – letzter"
 }
 
-/** „13. – 19. Juli 2026“ (Wochenspanne, über Monatsgrenzen hinweg lesbar). */
-function weekTitle(anchor: string): string {
-  const days = weekDays(anchor);
-  const a = parseISO(days[0]), b = parseISO(days[6]);
+/** „13. – 19. Juli 2026“ (Spanne vom ersten zum letzten Tag, über Monatsgrenzen hinweg lesbar).
+ *  Für Woche UND 3 Tage. */
+function spanTitle(days: string[]): string {
+  const a = parseISO(days[0]), b = parseISO(days[days.length - 1]);
   const fmt = (d: Date, withMonth: boolean): string =>
     new Intl.DateTimeFormat(getLocale(), withMonth ? { day: "numeric", month: "long" } : { day: "numeric" }).format(d);
   const year = new Intl.DateTimeFormat(getLocale(), { year: "numeric" }).format(b);

@@ -13,9 +13,10 @@ import { dateOf, timeOf } from "./format";
  * das Datum je nach Zeitzone um einen Tag (dieselbe Falle wie in reminders.ts).
  */
 
-export type CalMode = "year" | "month" | "week" | "day";
-/** Reihenfolge = Anzeige der Umschalter im Kalender-Kopf (grob → fein). */
-export const CAL_MODES: CalMode[] = ["year", "month", "week", "day"];
+export type CalMode = "year" | "month" | "week" | "3day" | "day";
+/** Reihenfolge = Anzeige der Umschalter im Kalender-Kopf (grob → fein). „3day" liegt zwischen
+ *  Woche und Tag – derselbe Zeitraster, nur mit drei Spalten. */
+export const CAL_MODES: CalMode[] = ["year", "month", "week", "3day", "day"];
 
 const z = (n: number) => String(n).padStart(2, "0");
 export const iso = (d: Date): string => d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
@@ -64,6 +65,17 @@ export function weekDays(anchor: string): string[] {
   const start = startOfWeek(anchor);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
+
+/** Sichtbare Tage eines Zeitraster-Modus: Tag = 1 (Anker), 3day = 3 ab Anker, Woche = 7. Die EINE
+ *  Wahrheit, mit der der Kalender-Zeitraster (renderTimeGrid) und der Range-Titel gespeist werden. */
+export function timeGridDays(mode: CalMode, anchor: string): string[] {
+  if (mode === "day") return [anchor];
+  if (mode === "3day") return [anchor, addDays(anchor, 1), addDays(anchor, 2)];
+  return weekDays(anchor);
+}
+
+/** Schrittweite (Tage) beim ‹/›-Blättern im Zeitraster-Modus: Tag 1 · 3 Tage 3 · Woche 7. */
+export const timeGridStep = (mode: CalMode): number => (mode === "week" ? 7 : mode === "3day" ? 3 : 1);
 
 /** Aufgaben auf ihren Fälligkeitstag verteilen. Ohne `due` = nicht im Kalender. */
 export function bucketByDue(tasks: Task[]): Map<string, Task[]> {
