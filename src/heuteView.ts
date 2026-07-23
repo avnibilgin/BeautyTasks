@@ -184,24 +184,34 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
-      // „Demnächst" ist fest nach Datum – auch als Board (Spalte je Datum). Die Gruppieren-Auswahl ist
-      // dafür ausgeblendet; ein evtl. gespeichertes group (z. B. „label") wird hier ignoriert, sonst
-      // klebte die alte Wahl am Board, ohne dass man sie noch ändern könnte.
-      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, { ...opts, group: "date" }, {});
+      // Demnächst gruppiert wie Heute – Default Datum: ein gespeichertes „none" wird zu „date"
+      // (Spalte je Datum), jede andere Wahl (Label/Priorität/Projekt/Deadline) gilt wie sonst.
+      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, { ...opts, group: opts.group === "none" ? "date" : opts.group }, {});
     } else {
+      // Gruppierung wie Heute – Default Datum. „date"/„none": die chronologische Datums-Agenda (mit
+      // Terminen). Jede andere Wahl (Label/Priorität/Projekt/Deadline) gruppiert die Aufgaben wie auf
+      // den vollen Seiten; Termine haben dort keine Gruppe und entfallen (wie im Board).
       const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), effectiveSubtasks(opts));
-      const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
-      // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
-      const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
-      for (const date of dates) {
-        // Innerhalb eines Tages nach der gewählten Sortierung ordnen (wie „Heute" seine Sektionen) –
-        // vorher stand nur die Index-Reihenfolge. Die Tages-REIHENFOLGE bleibt chronologisch (Agenda).
-        const dayTasks = sortTasks(tasksByDate.get(date) ?? [], opts.sort, opts.sortDir, orderKey(plugin));
-        const dayEv = evByDate.get(date) ?? [];
-        // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
-        // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
-        if (visibleRows(dayTasks, present).length || dayEv.length)
-          section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+      const group = opts.group === "none" ? "date" : opts.group;
+      if (group === "date") {
+        const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
+        // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
+        const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
+        for (const date of dates) {
+          // Innerhalb eines Tages nach der gewählten Sortierung ordnen (wie „Heute" seine Sektionen) –
+          // die Tages-REIHENFOLGE bleibt chronologisch (Agenda).
+          const dayTasks = sortTasks(tasksByDate.get(date) ?? [], opts.sort, opts.sortDir, orderKey(plugin));
+          const dayEv = evByDate.get(date) ?? [];
+          // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
+          // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
+          if (visibleRows(dayTasks, present).length || dayEv.length)
+            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+        }
+      } else {
+        const flat = groups.flatMap((g) => g.tasks);
+        const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
+          .filter((g) => visibleRows(g.tasks, present).length);
+        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present);
       }
     }
   } else if (view === "wiederkehrend") {

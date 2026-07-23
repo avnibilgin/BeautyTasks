@@ -73,17 +73,15 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         // im Filter-Modal) – sie beantworten zusammen eine Frage: in welcher Ordnung erscheint was.
         const box = pop.createDiv({ cls: "bt-panel-tight" });
         ddRow(box, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
-        // „Demnächst" ist eine feste, ungruppierte Datums-Agenda -> KEINE Gruppieren-Zeile (in keinem
-        // Layout). Sonst alle Gruppierungen anbieten – das Board bildet auch „Datum"/„Deadline" ab (eine
-        // Spalte je Datum, s. dateColumns; „Überfällig"/„Ohne Datum" als Rand-Buckets). Eine nicht
-        // anbietbare gespeicherte Wahl fiele via shownGroup auf „Keine" zurück (nicht destruktiv).
-        if (page.key !== "demnaechst") {
-          const groups = groupOptions(page.kind);
-          const shownGroup = groups.includes(o.group) ? o.group : "none";
-          // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
-          const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
-          ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
-        }
+        // Gruppieren anbieten. Das Board bildet auch „Datum"/„Deadline" ab (eine Spalte je Datum, s.
+        // dateColumns). „Demnächst" gruppiert IMMER (Default Datum) – dort gibt es kein „Keine", und ein
+        // gespeichertes „none" fällt auf „date" zurück. Sonst normal inkl. „Keine" (nicht destruktiv).
+        const upcoming = page.key === "demnaechst";
+        const groups = upcoming ? groupOptions(page.kind).filter((g) => g !== "none") : groupOptions(page.kind);
+        const shownGroup = groups.includes(o.group) ? o.group : (upcoming ? "date" : "none");
+        // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
+        const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
+        ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
         // Richtung gilt für Sortierung UND Gruppen. Bei „smart" gibt es keine – die Zeile entfällt
         // dann ganz (statt sie auszugrauen: ein totes Bedienelement erklärt sich nicht von selbst).
         if (hasSortDir(o.sort)) {
