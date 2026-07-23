@@ -205,17 +205,21 @@ export interface OrderWrite { path: string; order: number; }
  *
  * Normalfall: **eine** Notiz – der neue Wert ist die Mitte zwischen den Nachbarn.
  *
- * Hat aber noch niemand in der Gruppe eine Position, gibt es keine Mitte zu bilden. Dann wird die
- * Gruppe einmal durchnummeriert (10, 20, 30 …) – der Preis dafür, dass beim Anlegen einer Aufgabe
- * nichts geschrieben werden muss. Das passiert genau einmal je Geschwistergruppe, ausgelöst vom
- * ersten Zug, nicht vom Update.
+ * Entscheidend sind allein die beiden DIREKTEN Nachbarn an der Zielstelle. Ob sonstwo in der Gruppe
+ * eine noch nie einsortierte Aufgabe (`sortOrder == null`) steht, ist egal – die hängt hinten und
+ * ist von diesem Zug nicht betroffen. Das ist der Grund, weshalb eine frisch angelegte Aufgabe die
+ * Gruppe nicht bei jedem Zug neu durchnummerieren lässt.
+ *
+ * Ein voller Durchlauf (10, 20, 30 …) bleibt nur für die echten Fälle:
+ *   1. Kein Nachbar an der Zielstelle hat eine Zahl – z. B. der allererste Zug einer Gruppe, in der
+ *      noch niemand von Hand einsortiert wurde. Dann gibt es keine Mitte zu bilden.
+ *   2. Ein direkter Nachbar ist noch ohne Zahl – auch dann fehlt die Grundlage für einen Mittelwert.
+ *   3. Die Lücke ist aufgebraucht (Mitte gleich einem Nachbarn – nach ~50 Zügen auf dieselbe
+ *      Stelle). Dann wird mit frischen Lücken neu nummeriert.
  *
  * Nur die Spalte zu nummerieren wäre falsch: Geschwister stehen auch in anderen Spalten (anderer
- * Status). Blieben die auf `null`, rutschten sie in der Listenansicht ans Ende – ein Zug im Board
- * würde die Liste umwerfen. Deshalb bekommt der Aufrufer die GANZE Gruppe herein.
- *
- * Dritter Fall: die Lücke ist aufgebraucht (Mitte gleich einem Nachbarn – nach ~50 Zügen auf
- * dieselbe Stelle). Dann wird ebenfalls neu nummeriert, mit frischen Lücken.
+ * Status). Deshalb bekommt der Aufrufer die GANZE Gruppe herein – die Nachbarschaft wird über alle
+ * Spalten hinweg bestimmt.
  */
 export function planReorder(ordered: Task[], moved: Task, beforePath: string | null): OrderWrite[] {
   const rest = ordered.filter((t) => t.path !== moved.path);
@@ -226,14 +230,17 @@ export function planReorder(ordered: Task[], moved: Task, beforePath: string | n
     const seq = [...rest.slice(0, at), moved, ...rest.slice(at)];
     return seq.map((t, i) => ({ path: t.path, order: (i + 1) * ORDER_GAP }));
   };
-  if (ordered.some((t) => t.sortOrder == null)) return renumber();
 
-  const prev = at > 0 ? rest[at - 1].sortOrder! : null;
-  const next = at < rest.length ? rest[at].sortOrder! : null;
-  if (prev === null && next === null) return [{ path: moved.path, order: ORDER_GAP }];
-  if (prev === null) return [{ path: moved.path, order: next! / 2 }];
-  if (next === null) return [{ path: moved.path, order: prev + ORDER_GAP }];
-  const mid = (prev + next) / 2;
+  const hasPrev = at > 0;
+  const hasNext = at < rest.length;
+  const prev = hasPrev ? rest[at - 1].sortOrder : null;
+  const next = hasNext ? rest[at].sortOrder : null;
+  // Ein DIREKTER Nachbar ist da, hat aber keine Zahl: kein Mittelwert bildbar -> neu durchnummerieren.
+  if ((hasPrev && prev === null) || (hasNext && next === null)) return renumber();
+  if (!hasPrev && !hasNext) return [{ path: moved.path, order: ORDER_GAP }];
+  if (!hasPrev) return [{ path: moved.path, order: next! / 2 }];
+  if (!hasNext) return [{ path: moved.path, order: prev! + ORDER_GAP }];
+  const mid = (prev! + next!) / 2;
   if (mid === prev || mid === next) return renumber();   // Lücke erschöpft
   return [{ path: moved.path, order: mid }];
 }

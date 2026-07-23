@@ -1201,14 +1201,13 @@ export default class BeautyTasksPlugin extends Plugin {
    * die sichtbaren zu nummerieren würde die übrigen auf `null` lassen; die rutschten dann in jeder
    * anderen Ansicht ans Ende. Abgebrochene bleiben draußen, die stehen im Papierkorb.
    *
-   * Im Normalfall schreibt das EINE Notiz. Nur der allererste Zug in einer Gruppe nummeriert sie
-   * einmal durch (s. planReorder) – dann können es viele sein, deshalb der Hinweis.
+   * Im Normalfall schreibt das EINE Notiz (Mitte zwischen den Nachbarn). Nur in den Sonderfällen aus
+   * planReorder (kein/leerer Nachbar, erschöpfte Lücke) wird die Gruppe still neu durchnummeriert.
    */
   async moveTaskBefore(task: Task, before: Task | null): Promise<void> {
     const siblings = this.index.all().filter((t) => t.parent === task.parent && !isTrashed(t.status));
     const ordered = sortTasks(siblings, "manual", "asc", (t) => this.index.orderKey(t));
     const writes = planReorder(ordered, task, before?.path ?? null);
-    if (writes.length > 1) new Notice(t("notice_order_materialize", writes.length));
     for (const w of writes) {
       const f = this.app.vault.getAbstractFileByPath(w.path);
       if (!(f instanceof TFile)) continue;
