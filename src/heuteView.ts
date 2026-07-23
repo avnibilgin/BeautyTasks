@@ -131,7 +131,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const subs = effectiveSubtasks(opts);
       const present = nestingHosts(plugin, open, subs);
       const doneHosts = nestingHosts(plugin, doneToday, subs);
-      if (opts.group === "none") {
+      // Heute-Liste-Default = „Datum": „Keine"(none) und „Datum" liefern denselben Überfällig/Heute-Split,
+      // deshalb ist „Keine" hier ausgeblendet (s. viewPanel) und beide Werte laufen über DIESEN einen Pfad.
+      const group = opts.group === "none" ? "date" : opts.group;
+      if (group === "date") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
         // „Heute"-Kopf im Datumsstil „18. Jul · Heute · Samstag" (wie in „Demnächst").
@@ -158,12 +161,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          const gHead = section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
-          // „Verschieben" NUR bei Gruppierung „Datum": dort ist die Überfällig-Gruppe deckungsgleich
-          // mit der ungruppierten Sektion (beide aus `due`). Bei „Deadline" trägt die Gruppe zwar
-          // denselben Titel, stammt aber aus `scheduled` – und eine Deadline ist eine Zusage nach
-          // außen, die man einzeln neu verhandelt, nicht per Sammelklick vereinheitlicht.
-          if (opts.group === "date" && i === overdueIdx) rescheduleButton(gHead, plugin, g.tasks);
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
+          // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
+          // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
+          // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
