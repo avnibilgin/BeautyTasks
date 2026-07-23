@@ -11,6 +11,7 @@ import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
+import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
@@ -205,7 +206,24 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const redraw = () => renderViewInto(c, plugin, view);
     const header = root.createDiv({ cls: "bt-manage-header" });
     header.createEl("h1", { text: plugin.doneTab === "trash" ? t("nav_trash") : viewTitle(view) });
-    const tabs = header.createDiv({ cls: "bt-tabs" });
+    // Kebab + Tabs rechts gruppieren: der Kebab sitzt (wie die Projekt-/Bereichs-Kebabs) links neben
+    // den Tabs und trägt dieselbe Button-/Menü-CSS (bt-manage-btn + natives Obsidian-Menü).
+    const headActions = header.createDiv({ cls: "bt-head-actions" });
+    // Papierkorb-Aktionen im Kebab (nur im Papierkorb-Tab und nur wenn etwas drin ist):
+    // Alle wiederherstellen (reversibel) · Papierkorb leeren (destruktiv -> Bestätigung).
+    if (plugin.doneTab === "trash" && idx.cancelled().length) {
+      const kebab = headActions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+      setIcon(kebab.createSpan(), "more-horizontal");
+      kebab.onclick = (e) => {
+        e.stopPropagation();
+        const m = new Menu();
+        m.addItem((mi) => mi.setTitle(t("trash_restore_all")).setIcon("archive-restore").onClick(() => void plugin.restoreAllCancelled()));
+        m.addItem((mi) => mi.setTitle(t("trash_empty")).setIcon("trash-2").setWarning(true).onClick(() =>
+          new ConfirmModal(plugin.app, { title: t("confirm_empty_trash_q"), confirmText: t("trash_empty") }, () => void plugin.emptyTrash()).open()));
+        m.showAtMouseEvent(e);
+      };
+    }
+    const tabs = headActions.createDiv({ cls: "bt-tabs" });
     const mkTab = (id: "done" | "trash", label: string) => {
       const b = tabs.createEl("button", { cls: "bt-tab" + (plugin.doneTab === id ? " is-active" : ""), text: label });
       b.onclick = () => { plugin.doneTab = id; redraw(); };
@@ -216,17 +234,6 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     if (plugin.doneTab === "trash") {
       const items = idx.cancelled();
       if (!items.length) { emptyState(root, "trash-2", "empty_trash"); return; }
-      // Globale Aktionen rechtsbündig: Alle wiederherstellen (reversibel) / Papierkorb leeren (Bestätigung).
-      const bar = root.createDiv({ cls: "bt-trash-actions" });
-      const rAll = bar.createEl("button", { cls: "bt-trash-btn" });
-      setIcon(rAll.createSpan(), "archive-restore");
-      rAll.createSpan({ text: t("trash_restore_all") });
-      rAll.onclick = () => void plugin.restoreAllCancelled();
-      const emptyWrap = bar.createDiv({ cls: "bt-trash-act" });
-      const emptyBtn = emptyWrap.createEl("button", { cls: "bt-trash-btn is-danger" });
-      setIcon(emptyBtn.createSpan(), "trash-2");
-      emptyBtn.createSpan({ text: t("trash_empty") });
-      emptyBtn.onclick = () => confirmInline(emptyWrap, t("confirm_empty_trash_q"), () => void plugin.emptyTrash(), redraw);
       // Liste identisch zur Erledigt-Liste (dieselben Task-Zeilen), nur im Papierkorb-Modus.
       section(root, plugin, t("nav_trash"), items, today, false, true);
     } else {
