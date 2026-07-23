@@ -491,15 +491,18 @@ export default class BeautyTasksPlugin extends Plugin {
    *  EHRLICHE Gesamtzahl inkl. Unteraufgaben. Ohne Aufgaben entfällt das Häkchen. `onAfter` läuft nur
    *  nach tatsächlichem Löschen (nicht bei Abbruch) – z. B. um die Verwalten-Ansicht neu zu zeichnen. */
   confirmDeleteProject(path: string, name: string, onAfter?: () => void): void {
-    const count = this.projectTrashTargets(path).length;
-    // Präziser Text statt des zu strengen „Kann nicht rückgängig…": bei vorhandenen Aufgaben sagen,
-    // was mit ihnen standardmäßig passiert (bleiben erhalten -> Eingang; das Häkchen ist die
-    // Alternative -> Papierkorb). Ohne Aufgaben kein Text (das Projekt wandert eh in Obsidians
-    // Papierkorb, wiederherstellbar) – keine falsche Endgültigkeits-Behauptung.
+    const targets = this.projectTrashTargets(path);
+    const count = targets.length;
+    // „(inkl. erledigte)" nur, wenn wirklich Erledigte in der Zahl stecken – erklärt die Differenz
+    // zur Übersicht (die nur offene zählt), ohne bei reinen Offen-Projekten fälschlich Erledigte zu
+    // behaupten. Präziser Body statt des zu strengen „Kann nicht rückgängig…": bei Aufgaben sagen,
+    // was standardmäßig passiert (bleiben erhalten -> Eingang; das Häkchen ist die Alternative ->
+    // Papierkorb). Ohne Aufgaben kein Text – keine falsche Endgültigkeits-Behauptung.
+    const hasDone = targets.some((tk) => isDone(tk.status));
     new ConfirmModal(this.app, {
       title: t("confirm_delete_title", name),
       message: count > 0 ? t("confirm_delete_project_body") : undefined,
-      checkbox: count > 0 ? { label: t("confirm_delete_with_tasks", count) } : undefined,
+      checkbox: count > 0 ? { label: t(hasDone ? "confirm_delete_with_tasks_done" : "confirm_delete_with_tasks", count) } : undefined,
     }, (withTasks) => {
       void (async () => {
         if (withTasks) await this.deleteProjectWithTasks(path);
