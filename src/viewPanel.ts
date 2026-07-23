@@ -73,12 +73,10 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
         // im Filter-Modal) – sie beantworten zusammen eine Frage: in welcher Ordnung erscheint was.
         const box = pop.createDiv({ cls: "bt-panel-tight" });
         ddRow(box, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
-        // Im Board-Layout nur die spaltenfähigen Gruppierungen anbieten – Datum/Deadline passen nicht
-        // auf ein Kanban (offene Achse, mehrdeutige Bereichs-Buckets). Steht eine davon noch gespeichert,
-        // in der Auswahl als „Keine" zeigen (nicht destruktiv: in der Liste bleibt sie erhalten).
-        const groups = o.layout === "board"
-          ? groupOptions(page.kind).filter((g) => g !== "date" && g !== "deadline")
-          : groupOptions(page.kind);
+        // Alle Gruppierungen – das Board bildet auch „Datum"/„Deadline" ab (eine Spalte je Datum, s.
+        // dateColumns; „Überfällig"/„Ohne Datum" als Rand-Buckets). Eine nicht anbietbare gespeicherte
+        // Wahl fiele unten via shownGroup auf „Keine" zurück (nicht destruktiv).
+        const groups = groupOptions(page.kind);
         const shownGroup = groups.includes(o.group) ? o.group : "none";
         // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
         const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
