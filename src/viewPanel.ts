@@ -67,20 +67,23 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       // Der Kalender hat seine Achse (das Datum) fest vorgegeben – Sortieren/Gruppieren wäre dort
       // wirkungslos und wird deshalb gar nicht erst angeboten. Gespeicherte Werte bleiben erhalten
       // (nicht destruktiv: zurück in Liste/Board wirken sie wieder).
-      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute")) {
+      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute" || page.key === "demnaechst")) {
         cap(t("filter_arrange"));
         // Sortieren · Gruppieren · Richtung stehen als EIN Block enger beieinander (wie die Zeilen
         // im Filter-Modal) – sie beantworten zusammen eine Frage: in welcher Ordnung erscheint was.
         const box = pop.createDiv({ cls: "bt-panel-tight" });
         ddRow(box, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
-        // Alle Gruppierungen – das Board bildet auch „Datum"/„Deadline" ab (eine Spalte je Datum, s.
-        // dateColumns; „Überfällig"/„Ohne Datum" als Rand-Buckets). Eine nicht anbietbare gespeicherte
-        // Wahl fiele unten via shownGroup auf „Keine" zurück (nicht destruktiv).
-        const groups = groupOptions(page.kind);
-        const shownGroup = groups.includes(o.group) ? o.group : "none";
-        // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
-        const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
-        ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
+        // „Demnächst" ist eine feste, ungruppierte Datums-Agenda -> KEINE Gruppieren-Zeile (in keinem
+        // Layout). Sonst alle Gruppierungen anbieten – das Board bildet auch „Datum"/„Deadline" ab (eine
+        // Spalte je Datum, s. dateColumns; „Überfällig"/„Ohne Datum" als Rand-Buckets). Eine nicht
+        // anbietbare gespeicherte Wahl fiele via shownGroup auf „Keine" zurück (nicht destruktiv).
+        if (page.key !== "demnaechst") {
+          const groups = groupOptions(page.kind);
+          const shownGroup = groups.includes(o.group) ? o.group : "none";
+          // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
+          const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
+          ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);
+        }
         // Richtung gilt für Sortierung UND Gruppen. Bei „smart" gibt es keine – die Zeile entfällt
         // dann ganz (statt sie auszugrauen: ein totes Bedienelement erklärt sich nicht von selbst).
         if (hasSortDir(o.sort)) {

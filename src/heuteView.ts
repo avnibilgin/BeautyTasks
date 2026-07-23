@@ -192,7 +192,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
       const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
       for (const date of dates) {
-        const dayTasks = tasksByDate.get(date) ?? [], dayEv = evByDate.get(date) ?? [];
+        // Innerhalb eines Tages nach der gewählten Sortierung ordnen (wie „Heute" seine Sektionen) –
+        // vorher stand nur die Index-Reihenfolge. Die Tages-REIHENFOLGE bleibt chronologisch (Agenda).
+        const dayTasks = sortTasks(tasksByDate.get(date) ?? [], opts.sort, opts.sortDir, orderKey(plugin));
+        const dayEv = evByDate.get(date) ?? [];
         // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
         // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
         if (visibleRows(dayTasks, present).length || dayEv.length)
