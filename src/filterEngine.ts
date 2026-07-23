@@ -202,6 +202,22 @@ export function subtasksToDuplicate(kids: Task[]): Task[] {
   return sortSubtasks(kids.filter((k) => !isTrashed(k.status)));
 }
 
+/** Verweise auf eine gelöschte Notiz kappen: liefert (als KOPIEN) die Aufgaben, deren aufgelöstes
+ *  `project` ODER `parent` auf `deletedPath` zeigt, mit dem betroffenen Feld auf null gesetzt –
+ *  project=null -> Eingang, parent=null -> Unteraufgabe wird Hauptaufgabe. Gibt NUR die Geänderten
+ *  zurück; Eingabe bleibt unangetastet. Rein/testbar; der Index wendet das Ergebnis auf seinen
+ *  Cache an (s. TaskIndex delete-Handler). */
+export function severReferences(tasks: Task[], deletedPath: string): Task[] {
+  const out: Task[] = [];
+  for (const t of tasks) {
+    let nt = t;
+    if (nt.project === deletedPath) nt = { ...nt, project: null };
+    if (nt.parent === deletedPath) nt = { ...nt, parent: null };
+    if (nt !== t) out.push(nt);
+  }
+  return out;
+}
+
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
 export const ORDER_GAP = 10;
 /** Ein zu schreibender Positionswert. */

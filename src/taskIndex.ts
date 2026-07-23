@@ -2,7 +2,7 @@ import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
 import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
-import { orderChain } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
+import { orderChain, severReferences } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -113,12 +113,17 @@ export class TaskIndex extends Component {
       if (f instanceof TFile && f.extension === "md") window.setTimeout(() => this.upsert(f), 80);
     }));
     this.registerEvent(vault.on("delete", (f) => {
-      if (!(f instanceof TFile)) return;
-      // Gelöschtes Projekt/Bereich -> Auflösungs-Karte neu bauen (Verweise darauf lösen dann auf null
-      // = Eingang, sobald eine Aufgabe neu geparst wird). Das aktive Umhängen bestehender Aufgaben
-      // ist Einheit B; hier bleibt es bei der Karten-Invalidierung (deletion-neutral wie bisher).
-      if (this.isMappedProjectPath(f.path)) { this.projPathDirty = true; this.notify(); }
-      this.remove(f.path);
+      if (!(f instanceof TFile) || f.extension !== "md") return;
+      const wasProject = this.isMappedProjectPath(f.path);
+      if (wasProject) this.projPathDirty = true;   // gelöschtes Projekt -> Auflösungs-Karte neu bauen
+      this.remove(f.path);                          // war es eine Aufgabe: raus + gemeldet
+      // Aufgaben, die auf die gelöschte Notiz zeigten (Projekt ODER Eltern-Aufgabe), SOFORT umhängen:
+      // parse() läuft beim Löschen des Verweisziels nicht von allein, der aufgelöste Pfad bliebe
+      // hängen (Aufgabe weiter im gelöschten Projekt statt im Eingang). Deterministisch kappen,
+      // unabhängig davon, wann der Metadaten-Cache nachzieht.
+      const severed = severReferences([...this.byPath.values()], f.path);
+      for (const t of severed) this.byPath.set(t.path, t);
+      if (wasProject || severed.length) this.notify();
     }));
     this.registerEvent(vault.on("rename", (f, old) => {
       this.remove(old, false);
