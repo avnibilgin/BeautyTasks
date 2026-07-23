@@ -67,19 +67,20 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       // Der Kalender hat seine Achse (das Datum) fest vorgegeben – Sortieren/Gruppieren wäre dort
       // wirkungslos und wird deshalb gar nicht erst angeboten. Gespeicherte Werte bleiben erhalten
       // (nicht destruktiv: zurück in Liste/Board wirken sie wieder).
-      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute")) {
+      if (o.layout !== "calendar" && (page.tier === "full" || page.key === "heute" || page.key === "demnaechst")) {
         cap(t("filter_arrange"));
         // Sortieren · Gruppieren · Richtung stehen als EIN Block enger beieinander (wie die Zeilen
         // im Filter-Modal) – sie beantworten zusammen eine Frage: in welcher Ordnung erscheint was.
         const box = pop.createDiv({ cls: "bt-panel-tight" });
         ddRow(box, t("filter_sort"), SORTS, o.sort, "filter_sort_", (v) => apply({ sort: v as FilterSort }));
-        // Im Board-Layout nur die spaltenfähigen Gruppierungen anbieten – Datum/Deadline passen nicht
-        // auf ein Kanban (offene Achse, mehrdeutige Bereichs-Buckets). Steht eine davon noch gespeichert,
-        // in der Auswahl als „Keine" zeigen (nicht destruktiv: in der Liste bleibt sie erhalten).
-        const groups = o.layout === "board"
-          ? groupOptions(page.kind).filter((g) => g !== "date" && g !== "deadline")
-          : groupOptions(page.kind);
-        const shownGroup = groups.includes(o.group) ? o.group : "none";
+        // Gruppieren anbieten. In den Datums-Agenda-LISTEN (Heute/Demnächst) ist „Keine" deckungsgleich
+        // mit „Datum" (beide = Überfällig/Heute bzw. die Tages-Agenda) -> dort „Keine" verbergen, Default
+        // „Datum". Im BOARD sind „Keine"(=Status-Spalten) und „Datum"(=Spalte je Tag) verschieden, deshalb
+        // bleibt „Keine" im Heute-Board (Status-Default). Das Demnächst-Board ist bewusst Datum-Default
+        // (keine Status-Spalten). Volle Seiten: „Keine" = flache Liste, echt verschieden von „Datum".
+        const hideNone = page.key === "demnaechst" || (page.key === "heute" && o.layout !== "board");
+        const groups = hideNone ? groupOptions(page.kind).filter((g) => g !== "none") : groupOptions(page.kind);
+        const shownGroup = groups.includes(o.group) ? o.group : (hideNone ? "date" : "none");
         // Im Board ist „Keine" faktisch „nach Status" (das Board braucht eine Spalten-Achse) -> so benennen.
         const groupLabelFor = o.layout === "board" ? (v: string) => v === "none" ? t("filter_group_status") : t("filter_group_" + v) : undefined;
         ddRow(box, t("filter_group"), groups, shownGroup, "filter_group_", (v) => apply({ group: v as FilterGroup }), groupLabelFor);

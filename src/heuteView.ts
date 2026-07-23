@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -131,7 +131,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const subs = effectiveSubtasks(opts);
       const present = nestingHosts(plugin, open, subs);
       const doneHosts = nestingHosts(plugin, doneToday, subs);
-      if (opts.group === "none") {
+      // Heute-Liste-Default = „Datum": „Keine"(none) und „Datum" liefern denselben Überfällig/Heute-Split,
+      // deshalb ist „Keine" hier ausgeblendet (s. viewPanel) und beide Werte laufen über DIESEN einen Pfad.
+      const group = opts.group === "none" ? "date" : opts.group;
+      if (group === "date") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
         // „Heute"-Kopf im Datumsstil „18. Jul · Heute · Samstag" (wie in „Demnächst").
@@ -158,12 +161,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          const gHead = section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
-          // „Verschieben" NUR bei Gruppierung „Datum": dort ist die Überfällig-Gruppe deckungsgleich
-          // mit der ungruppierten Sektion (beide aus `due`). Bei „Deadline" trägt die Gruppe zwar
-          // denselben Titel, stammt aber aus `scheduled` – und eine Deadline ist eine Zusage nach
-          // außen, die man einzeln neu verhandelt, nicht per Sammelklick vereinheitlicht.
-          if (opts.group === "date" && i === overdueIdx) rescheduleButton(gHead, plugin, g.tasks);
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
+          // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
+          // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
+          // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
@@ -184,19 +185,34 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
-      // Termine haben im Board keine Spalte (keine Tages-Spalten) → nur Aufgaben.
-      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
+      // Demnächst gruppiert wie Heute – Default Datum: ein gespeichertes „none" wird zu „date"
+      // (Spalte je Datum), jede andere Wahl (Label/Priorität/Projekt/Deadline) gilt wie sonst.
+      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, { ...opts, group: opts.group === "none" ? "date" : opts.group }, {});
     } else {
+      // Gruppierung wie Heute – Default Datum. „date"/„none": die chronologische Datums-Agenda (mit
+      // Terminen). Jede andere Wahl (Label/Priorität/Projekt/Deadline) gruppiert die Aufgaben wie auf
+      // den vollen Seiten; Termine haben dort keine Gruppe und entfallen (wie im Board).
       const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), effectiveSubtasks(opts));
-      const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
-      // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
-      const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
-      for (const date of dates) {
-        const dayTasks = tasksByDate.get(date) ?? [], dayEv = evByDate.get(date) ?? [];
-        // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
-        // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
-        if (visibleRows(dayTasks, present).length || dayEv.length)
-          section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+      const group = opts.group === "none" ? "date" : opts.group;
+      if (group === "date") {
+        const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
+        // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
+        const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
+        for (const date of dates) {
+          // Innerhalb eines Tages nach der gewählten Sortierung ordnen (wie „Heute" seine Sektionen) –
+          // die Tages-REIHENFOLGE bleibt chronologisch (Agenda).
+          const dayTasks = sortTasks(tasksByDate.get(date) ?? [], opts.sort, opts.sortDir, orderKey(plugin));
+          const dayEv = evByDate.get(date) ?? [];
+          // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
+          // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
+          if (visibleRows(dayTasks, present).length || dayEv.length)
+            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+        }
+      } else {
+        const flat = groups.flatMap((g) => g.tasks);
+        const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
+          .filter((g) => visibleRows(g.tasks, present).length);
+        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present);
       }
     }
   } else if (view === "wiederkehrend") {
@@ -494,8 +510,8 @@ interface BoardColumn {
   tint: string;                                 // Kopf-Punkt-Farbe
   kind: StatusKind;                             // steuert sortColumn (Nicht-Status = "open")
   has: (tk: Task) => boolean;                   // gehört die Aufgabe in diese Spalte?
-  onDrop: (tk: Task, fromColId: string) => void; // Loslassen aus Spalte fromColId
-  onAdd: () => void;                            // „+ Aufgabe" in dieser Spalte
+  onDrop?: (tk: Task, fromColId: string) => void; // Loslassen aus Spalte fromColId; fehlt = kein Drop-Ziel
+  onAdd?: () => void;                           // „+ Aufgabe" in dieser Spalte; fehlt = kein „+" (z. B. „Überfällig")
 }
 
 const NO_LABEL = "\u0000nolabel";   // Sentinel-ID der „Ohne Label"-Spalte (kein gültiger Label-Name)
@@ -576,6 +592,35 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
     });
   }
   return cols;
+}
+
+/** Datums-Spalten (Gruppierung „date" = due · „deadline" = scheduled): eine Spalte je exaktem Datum,
+ *  spiegelt die Listen-Datumsgruppierung (dateColumnKeys). „Überfällig" ist ein berechneter Sammel-
+ *  Bucket ohne setzbares Datum -> KEIN Drop-/„+"-Ziel (onDrop/onAdd weggelassen). „Ohne Datum" und die
+ *  konkreten Datumsspalten sind Drop-Ziele: Ziehen setzt bzw. löscht das Datum (setTaskDate). */
+function dateColumns(plugin: BeautyTasksPlugin, cards: Task[], today: string, field: "due" | "scheduled", add: BoardAdd): BoardColumn[] {
+  const dateOfTask = (tk: Task): string | null => field === "due" ? tk.due : tk.scheduled;
+  return dateColumnKeys(cards, today, field).map((key): BoardColumn => {
+    if (key === "overdue") return {
+      id: "overdue", title: t("sec_overdue"), tint: "var(--bt-overdue)", kind: "open",
+      has: (tk: Task) => { const d = dateOfTask(tk); return !!d && d < today; },
+      // kein onDrop/onAdd: „Überfällig" ist berechnet, hat kein einzelnes Zieldatum.
+    };
+    if (key === "nodate") return {
+      id: "nodate", title: t("sec_no_date"), tint: "var(--text-muted)", kind: "open",
+      has: (tk: Task) => !dateOfTask(tk),
+      onDrop: (tk: Task) => { if (dateOfTask(tk)) void plugin.setTaskDate(tk, field, ""); },   // Datum löschen
+      onAdd: () => plugin.openNewTask(add.project ?? undefined, add.label, add.today ?? false),
+    };
+    const d = key.slice(2);   // "d:2026-07-15" -> "2026-07-15"
+    return {
+      id: key, title: groupLabel(d, today), tint: "var(--text-muted)", kind: "open",
+      has: (tk: Task) => dateOfTask(tk) === d,
+      onDrop: (tk: Task) => { if (dateOfTask(tk) !== d) void plugin.setTaskDate(tk, field, d); },
+      onAdd: () => plugin.openNewTask(add.project ?? undefined, add.label, add.today ?? false,
+        undefined, field === "due" ? d : undefined, field === "scheduled" ? d : undefined),
+    };
+  });
 }
 
 /** Horizontales Edge-Autoscroll beim Karten-Drag (natives HTML5-DnD scrollt eigene Container in
@@ -791,10 +836,10 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
     // dürfen sich nicht überholen, sonst geht einer der beiden Schreibvorgänge verloren.
     if (before !== undefined) {
       void plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null)
-        .then(() => col.onDrop(task, fromCol ?? ""));
+        .then(() => col.onDrop?.(task, fromCol ?? ""));
       return;
     }
-    col.onDrop(task, fromCol ?? "");
+    col.onDrop?.(task, fromCol ?? "");
   });
 }
 
@@ -811,14 +856,18 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   const subs = effectiveSubtasks(opts);   // im Board-Layout schliesst das boardSubtasks() ein
   const cards = visibleRows(tasks, nestingHosts(plugin, tasks, subs));
   // Gruppierungs-Schlüssel (stabil) für die board-eigene Spalten-Reihenfolge. Priorität bleibt fest.
-  const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project" : "status";
-  const reorderable = groupKey !== "priority";
+  const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project"
+    : opts.group === "date" || opts.group === "deadline" ? opts.group : "status";
+  // Nicht umsortierbar, wo die Reihenfolge fest ist: Priorität (P1–P4) und Datum (chronologisch).
+  const reorderable = groupKey !== "priority" && groupKey !== "date" && groupKey !== "deadline";
   // Spalten aus den SICHTBAREN Karten ableiten: sonst entstünde eine Label-/Projekt-Spalte für
   // eine Unteraufgabe, die im kompakten Modus gar keine Karte hat – eine leere Spalte ohne Grund.
   const baseCols = opts.group === "label" ? labelColumns(plugin, cards, add)
     : opts.group === "priority" ? priorityColumns(plugin, add)
       : opts.group === "project" ? projectColumns(plugin, cards, add)
-        : statusColumns(plugin, add);
+        : opts.group === "date" ? dateColumns(plugin, cards, today, "due", add)
+          : opts.group === "deadline" ? dateColumns(plugin, cards, today, "scheduled", add)
+            : statusColumns(plugin, add);
   const cols = reorderable ? applyColumnOrder(baseCols, plugin.settings.boardColumnOrder?.[groupKey]) : baseCols;
   const board = root.createDiv({ cls: "bt-kanban" });
   const driveScroll = attachEdgeAutoscroll(board);
@@ -831,7 +880,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     colEl.dataset.col = col.id;
     const sentinel = isSentinelCol(col.id);
     if (sentinel) colEl.dataset.pin = "1";
-    setupColumnDnd(colEl, col, plugin, opts.sort === "manual");
+    if (col.onDrop) setupColumnDnd(colEl, col, plugin, opts.sort === "manual");   // kein Drop-Ziel -> kein DnD (z. B. „Überfällig")
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
     // Der ganze Spaltenkopf ist der Ziehgriff zum Umsortieren (nicht bei Priorität/Sentinel).
@@ -859,10 +908,12 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     const savedTop = colScroll.get(colKey);
     if (savedTop) listEl.scrollTop = savedTop;
 
-    const addEl = colEl.createDiv({ cls: "bt-kanban-add" });
-    addEl.createSpan({ cls: "bt-add-icon" });
-    addEl.createSpan({ text: t("btn_add_task") });
-    addEl.onclick = () => col.onAdd();
+    if (col.onAdd) {
+      const addEl = colEl.createDiv({ cls: "bt-kanban-add" });
+      addEl.createSpan({ cls: "bt-add-icon" });
+      addEl.createSpan({ text: t("btn_add_task") });
+      addEl.onclick = () => col.onAdd?.();
+    }
   }
   // Board ist jetzt aufgebaut (Breite steht) -> gemerkte Scroll-Position wiederherstellen.
   const savedLeft = boardScroll.get(scrollKey);

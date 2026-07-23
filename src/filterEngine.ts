@@ -521,6 +521,27 @@ export function groupTasks(tasks: Task[], group: FilterGroup, today: string,
     .map((b) => ({ title: b.title, tasks: b.tasks }));
 }
 
+/** Board-Datumsspalten (Gruppierung „date"/„deadline") in Anzeige-Reihenfolge, abgeleitet aus den
+ *  Karten – spiegelt die Listen-Datumsgruppierung: „overdue" (falls überfällige) · „d:<Datum>" je
+ *  exaktem künftigen Datum (aufsteigend) · „nodate" (falls undatierte). `field` = geprüftes
+ *  Datumsfeld (due = „Datum", scheduled = „Deadline"). Rein/testbar; der Board-Provider (dateColumns)
+ *  macht daraus BoardColumns mit has/onDrop/onAdd. */
+export function dateColumnKeys(cards: Task[], today: string, field: "due" | "scheduled"): string[] {
+  let overdue = false, nodate = false;
+  const dates = new Set<string>();
+  for (const tk of cards) {
+    const d = field === "due" ? tk.due : tk.scheduled;
+    if (!d) nodate = true;
+    else if (d < today) overdue = true;
+    else dates.add(d);
+  }
+  const keys: string[] = [];
+  if (overdue) keys.push("overdue");
+  for (const d of [...dates].sort()) keys.push("d:" + d);
+  if (nodate) keys.push("nodate");
+  return keys;
+}
+
 /**
  * Basis-Menge → Facetten-Filter → Sortierung. Nav-Zähler UND Board nutzen dies.
  *

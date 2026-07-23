@@ -972,10 +972,10 @@ export default class BeautyTasksPlugin extends Plugin {
 
   // ── Aufgaben-Aktionen ──
   /** `due` (optional) schlägt `today`: der Kalender kann damit den angezeigten Tag vorgeben. */
-  openNewTask(project?: string, label?: string, today = false, status?: TaskStatus, due?: string | null): void {
+  openNewTask(project?: string, label?: string, today = false, status?: TaskStatus, due?: string | null, scheduled?: string | null): void {
     new TaskModal(this, undefined, project, {
       defaultLabel: label, defaultToday: today, defaultStatus: status,
-      seed: due ? { due } : undefined,
+      seed: (due || scheduled) ? { due: due ?? undefined, scheduled: scheduled ?? undefined } : undefined,
     }).open();
   }
   openEditTask(task: Task): void { new TaskModal(this, task).open(); }
