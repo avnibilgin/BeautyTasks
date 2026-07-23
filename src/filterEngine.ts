@@ -5,7 +5,7 @@ import type { TaskIndex } from "./taskIndex";
 import { isInboxLink, isInboxName } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { groupLabel } from "./format";
-import { isDone } from "./statuses";   // statuses importiert nur types+i18n -> kein Zyklus
+import { isDone, isTrashed } from "./statuses";   // statuses importiert nur types+i18n -> kein Zyklus
 
 // ── Kriterien & Optionen ────────────────────────────────────────────
 // Ein flaches Kriterien-Objekt (Vorschlag 3 „Smart Lists"): verschiedene Facetten sind
@@ -192,6 +192,14 @@ export function sortSubtasks(kids: Task[]): Task[] {
     || pos(a) - pos(b)
     || (a.created ?? "").localeCompare(b.created ?? "")
     || a.title.localeCompare(b.title));
+}
+
+/** Welche Unteraufgaben ein Duplizieren übernimmt: nur die SICHTBAREN (nicht im Papierkorb), in
+ *  Anzeige-Reihenfolge – exakt wie die Unteraufgaben-Liste (subtaskList). Ohne den Papierkorb-Filter
+ *  würden abgebrochene Unteraufgaben mitkopiert und als offen wiederbelebt; die Kopie hätte dann mehr
+ *  Kinder, als das Original sichtbar zeigt. */
+export function subtasksToDuplicate(kids: Task[]): Task[] {
+  return sortSubtasks(kids.filter((k) => !isTrashed(k.status)));
 }
 
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */

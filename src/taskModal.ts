@@ -11,7 +11,7 @@ import { SubtaskList } from "./subtaskList";
 import { ConfirmModal } from "./confirmModal";
 import { firstOpenStatus } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
-import { sortSubtasks, ORDER_GAP } from "./filterEngine";
+import { subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { t, projectDisplayName } from "./i18n";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
@@ -423,8 +423,9 @@ export class TaskModal extends Modal {
   }
 
   /**
-   * Alle Unteraufgaben unter `srcParentPath` als Kopien unter `newParentBase` neu anlegen, rekursiv
-   * über die ganze Tiefe. Wie die Hauptkopie startet jede Kopie auf „offen".
+   * Die SICHTBAREN Unteraufgaben unter `srcParentPath` (nicht die im Papierkorb, s.
+   * subtasksToDuplicate) als Kopien unter `newParentBase` neu anlegen, rekursiv über die ganze
+   * Tiefe. Wie die Hauptkopie startet jede Kopie auf „offen".
    *
    * Reihenfolge: die Kopien bekommen frische `sort_order`-Lücken (10, 20, 30 …) in der Reihenfolge
    * der Originale. Das ist sicher – sie bilden unter der neuen Hauptkopie eine eigene, isolierte
@@ -432,7 +433,7 @@ export class TaskModal extends Modal {
    * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
    */
   private async duplicateSubtree(srcParentPath: string, newParentBase: string): Promise<void> {
-    const kids = sortSubtasks(this.plugin.index.children(srcParentPath));
+    const kids = subtasksToDuplicate(this.plugin.index.children(srcParentPath));
     let order = ORDER_GAP;
     for (const kid of kids) {
       const copy = await createTaskNote(this.app, this.plugin.settings, {
