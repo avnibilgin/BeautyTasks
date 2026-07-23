@@ -155,3 +155,19 @@ describe("applyFilter – Grundmenge", () => {
     expect(r).toEqual(["doing", "gone", "todo"]);
   });
 });
+
+describe("applyFilter – Sidebar-Badge zählt offene, unabhängig von showDone", () => {
+  // Regression: der Filter-Badge in der Seitenleiste zählte bei „Erledigte anzeigen" die Erledigten
+  // mit. Der Badge nutzt deshalb applyFilter mit showDone:false (heuteView.filterBadgeCount), damit er
+  // wie Eingang/Projekte/Labels stabil nur die OFFENEN zählt. Ohne Status-Kriterium steuert showDone
+  // die Grundmenge (open vs. open+done).
+  it("showDone:false zählt nur offene (todo/doing) – der Badge-Wert", () => {
+    const r = ids(applyFilter(idx, DEFAULT_CRITERIA, { ...DEFAULT_OPTIONS, showDone: false }, TODAY));
+    expect(r).toEqual(["doing", "todo"]);   // „done" NICHT mitgezählt
+  });
+
+  it("showDone:true nimmt Erledigte hinein – das ist die Filterseite, nicht der Badge", () => {
+    const r = ids(applyFilter(idx, DEFAULT_CRITERIA, { ...DEFAULT_OPTIONS, showDone: true }, TODAY));
+    expect(r).toEqual(["doing", "done", "todo"]);
+  });
+});

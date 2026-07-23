@@ -4,7 +4,7 @@ import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
-import { listFilters, readFilter } from "./filterService";
+import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
@@ -1336,6 +1336,15 @@ const navMounts = new WeakMap<HTMLElement, NavMount>();
 let navBadges: Map<string, HTMLElement> | null = null;   // aktive Sammlung während renderNavInto
 
 /** Alle Zähler der Seitenleiste – dieselben Werte, die renderNavInto einsetzt. */
+/** Sidebar-Badge eines Filters: nur OFFENE Treffer – wie Eingang/Projekte/Labels, die alle offene
+ *  zählen. Der `showDone`-Schalter ist eine ANZEIGE-Option der Filterseite, kein Zähl-Kriterium;
+ *  ohne dieses Überschreiben zählte der Badge bei „Erledigte anzeigen" die Erledigten mit. Filter mit
+ *  ausdrücklichem Status-Kriterium zählen weiter ihre Treffer (applyFilter -> byStatus ignoriert
+ *  showDone ohnehin, s. filterEngine). */
+function filterBadgeCount(plugin: BeautyTasksPlugin, fl: FilterItem, today: string): number {
+  return applyFilter(plugin.index, fl.criteria, { ...fl.options, showDone: false }, today).length;
+}
+
 function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   const m = new Map<string, number>();
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
@@ -1343,7 +1352,7 @@ function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
-  for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, applyFilter(plugin.index, fl.criteria, fl.options, today).length);
+  for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, filterBadgeCount(plugin, fl, today));
   for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
   return m;
 }
@@ -1446,7 +1455,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
       navItem(c, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
-        count: applyFilter(plugin.index, fl.criteria, fl.options, today).length, countKey: "f:" + fl.path,
+        count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
         active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });
