@@ -184,8 +184,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
-      // Termine haben im Board keine Spalte (keine Tages-Spalten) → nur Aufgaben.
-      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, opts, {});
+      // „Demnächst" ist fest nach Datum – auch als Board (Spalte je Datum). Die Gruppieren-Auswahl ist
+      // dafür ausgeblendet; ein evtl. gespeichertes group (z. B. „label") wird hier ignoriert, sonst
+      // klebte die alte Wahl am Board, ohne dass man sie noch ändern könnte.
+      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, { ...opts, group: "date" }, {});
     } else {
       const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), effectiveSubtasks(opts));
       const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
