@@ -1340,17 +1340,6 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 
 /* Papierkorb: globale Aktionen im Plugin-Idiom (wie .bt-add / Modal-„Löschen") –
    transparent, randlos, gedämpfter Text + Icon; destruktiv in Plugin-Rot. */
-.bt-view .bt-trash-actions { display: flex; align-items: center; gap: 20px; margin: 22px 0 16px; }
-.bt-view .bt-trash-act { display: inline-flex; }
-.bt-view .bt-trash-btn {
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  background: transparent; border: none; box-shadow: none; padding: 0;
-  color: var(--text-muted); font-size: 0.95em;
-}
-.bt-view .bt-trash-btn:hover { color: var(--text-normal); background: transparent; }
-.bt-view .bt-trash-btn .svg-icon { width: 15px; height: 15px; }
-.bt-view .bt-trash-btn.is-danger { color: var(--bt-overdue); }
-.bt-view .bt-trash-btn.is-danger:hover { color: var(--bt-overdue); opacity: 0.8; background: transparent; }
 
 .bt-view .bt-manage-head {
   margin-top: 1.8em;
@@ -1731,16 +1720,22 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-new-modal .bt-actions { display: inline-flex; gap: 8px; }
 
 /* ── Kopf-Aktionsgruppe (Stift · ListManager-Link · Anzeige), rechts gebündelt ── */
-.bt-view .bt-board-head .bt-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-/* Icon-Buttons als eigenständige Buttons – gleiche Höhe/Rand/Radius wie „Anzeige" (nur icon-only, quadratisch). */
-.bt-view .bt-board-head .bt-head-actions .bt-manage-btn {
+.bt-view .bt-board-head .bt-head-actions,
+.bt-view .bt-manage-header .bt-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+/* Icon-Buttons als eigenständige Buttons – gleiche Höhe/Rand/Radius wie „Anzeige" (nur icon-only, quadratisch).
+   Gilt auch für den Papierkorb-Kopf (bt-manage-header), damit sein Kebab identisch zum Board-Kebab ist. */
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn,
+.bt-view .bt-manage-header .bt-head-actions .bt-manage-btn {
   display: grid; place-items: center; line-height: 0;
   width: 32px; height: 32px; padding: 0; border-radius: 8px; color: var(--text-muted);
   border: 1px solid var(--background-modifier-border); background: var(--background-primary);
 }
-.bt-view .bt-board-head .bt-head-actions .bt-manage-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
-.bt-view .bt-board-head .bt-head-actions .bt-manage-btn > span { display: grid; place-items: center; margin: 0; }
-.bt-view .bt-board-head .bt-head-actions .bt-manage-btn svg { display: block; width: 16px; height: 16px; }
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn:hover,
+.bt-view .bt-manage-header .bt-head-actions .bt-manage-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn > span,
+.bt-view .bt-manage-header .bt-head-actions .bt-manage-btn > span { display: grid; place-items: center; margin: 0; }
+.bt-view .bt-board-head .bt-head-actions .bt-manage-btn svg,
+.bt-view .bt-manage-header .bt-head-actions .bt-manage-btn svg { display: block; width: 16px; height: 16px; }
 
 /* ── „Anzeige"-Knopf + Panel (pro Seite, Alternative C) ─────────────── */
 .bt-view .bt-anzeige {

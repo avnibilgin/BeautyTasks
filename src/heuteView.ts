@@ -3,14 +3,15 @@ import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
-import { listFilters, readFilter } from "./filterService";
+import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
+import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
+import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
@@ -205,7 +206,24 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const redraw = () => renderViewInto(c, plugin, view);
     const header = root.createDiv({ cls: "bt-manage-header" });
     header.createEl("h1", { text: plugin.doneTab === "trash" ? t("nav_trash") : viewTitle(view) });
-    const tabs = header.createDiv({ cls: "bt-tabs" });
+    // Kebab + Tabs rechts gruppieren: der Kebab sitzt (wie die Projekt-/Bereichs-Kebabs) links neben
+    // den Tabs und trägt dieselbe Button-/Menü-CSS (bt-manage-btn + natives Obsidian-Menü).
+    const headActions = header.createDiv({ cls: "bt-head-actions" });
+    // Papierkorb-Aktionen im Kebab (nur im Papierkorb-Tab und nur wenn etwas drin ist):
+    // Alle wiederherstellen (reversibel) · Papierkorb leeren (destruktiv -> Bestätigung).
+    if (plugin.doneTab === "trash" && idx.cancelled().length) {
+      const kebab = headActions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+      setIcon(kebab.createSpan(), "more-horizontal");
+      kebab.onclick = (e) => {
+        e.stopPropagation();
+        const m = new Menu();
+        m.addItem((mi) => mi.setTitle(t("trash_restore_all")).setIcon("archive-restore").onClick(() => void plugin.restoreAllCancelled()));
+        m.addItem((mi) => mi.setTitle(t("trash_empty")).setIcon("trash-2").setWarning(true).onClick(() =>
+          new ConfirmModal(plugin.app, { title: t("confirm_empty_trash_q"), confirmText: t("trash_empty") }, () => void plugin.emptyTrash()).open()));
+        m.showAtMouseEvent(e);
+      };
+    }
+    const tabs = headActions.createDiv({ cls: "bt-tabs" });
     const mkTab = (id: "done" | "trash", label: string) => {
       const b = tabs.createEl("button", { cls: "bt-tab" + (plugin.doneTab === id ? " is-active" : ""), text: label });
       b.onclick = () => { plugin.doneTab = id; redraw(); };
@@ -216,17 +234,6 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     if (plugin.doneTab === "trash") {
       const items = idx.cancelled();
       if (!items.length) { emptyState(root, "trash-2", "empty_trash"); return; }
-      // Globale Aktionen rechtsbündig: Alle wiederherstellen (reversibel) / Papierkorb leeren (Bestätigung).
-      const bar = root.createDiv({ cls: "bt-trash-actions" });
-      const rAll = bar.createEl("button", { cls: "bt-trash-btn" });
-      setIcon(rAll.createSpan(), "archive-restore");
-      rAll.createSpan({ text: t("trash_restore_all") });
-      rAll.onclick = () => void plugin.restoreAllCancelled();
-      const emptyWrap = bar.createDiv({ cls: "bt-trash-act" });
-      const emptyBtn = emptyWrap.createEl("button", { cls: "bt-trash-btn is-danger" });
-      setIcon(emptyBtn.createSpan(), "trash-2");
-      emptyBtn.createSpan({ text: t("trash_empty") });
-      emptyBtn.onclick = () => confirmInline(emptyWrap, t("confirm_empty_trash_q"), () => void plugin.emptyTrash(), redraw);
       // Liste identisch zur Erledigt-Liste (dieselben Task-Zeilen), nur im Papierkorb-Modus.
       section(root, plugin, t("nav_trash"), items, today, false, true);
     } else {
@@ -319,11 +326,13 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const name = isInbox ? "" : projectName(projectPath);
   // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist eine Systemansicht → kein Menü.
   const isArea = !isInbox && isAreaPath(plugin.app, projectPath);
+  // ALLE (aktiv UND archiviert) durchsuchen: archivierte fehlen in listProjectsAndAreas, hätten also
+  // kein Kebab -> man käme aus einer archivierten Projektseite nicht mehr heraus.
   const meta = isInbox ? null
-    : (() => { const a = listProjectsAndAreas(plugin.app); return [...a.bereiche, ...a.projekte].find((p) => p.path === projectPath) ?? null; })();
+    : (() => { const { active, archived } = listManaged(plugin.app); return [...active, ...archived].find((p) => p.path === projectPath) ?? null; })();
   const top = pageTop(c, plugin.pageViewOptions().layout);
   pageHeader(top, plugin, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
-    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type } } : {});
+    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type, archived: meta.archived } } : {});
   // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
   addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
 
@@ -1336,6 +1345,15 @@ const navMounts = new WeakMap<HTMLElement, NavMount>();
 let navBadges: Map<string, HTMLElement> | null = null;   // aktive Sammlung während renderNavInto
 
 /** Alle Zähler der Seitenleiste – dieselben Werte, die renderNavInto einsetzt. */
+/** Sidebar-Badge eines Filters: nur OFFENE Treffer – wie Eingang/Projekte/Labels, die alle offene
+ *  zählen. Der `showDone`-Schalter ist eine ANZEIGE-Option der Filterseite, kein Zähl-Kriterium;
+ *  ohne dieses Überschreiben zählte der Badge bei „Erledigte anzeigen" die Erledigten mit. Filter mit
+ *  ausdrücklichem Status-Kriterium zählen weiter ihre Treffer (applyFilter -> byStatus ignoriert
+ *  showDone ohnehin, s. filterEngine). */
+function filterBadgeCount(plugin: BeautyTasksPlugin, fl: FilterItem, today: string): number {
+  return applyFilter(plugin.index, fl.criteria, { ...fl.options, showDone: false }, today).length;
+}
+
 function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   const m = new Map<string, number>();
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
@@ -1343,7 +1361,7 @@ function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
-  for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, applyFilter(plugin.index, fl.criteria, fl.options, today).length);
+  for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, filterBadgeCount(plugin, fl, today));
   for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
   return m;
 }
@@ -1446,7 +1464,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
       navItem(c, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
-        count: applyFilter(plugin.index, fl.criteria, fl.options, today).length, countKey: "f:" + fl.path,
+        count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
         active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });

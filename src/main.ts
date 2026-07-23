@@ -266,13 +266,13 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
   async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels" | "filters"): Promise<void> {
+  async activateManage(section?: "projects" | "areas" | "labels" | "filters", tab: "active" | "archive" = "active"): Promise<void> {
     this.manageOpen = true;
     if (section) this.manageSection = section;
-    // Immer mit „Aktiv" öffnen. Der Aktiv/Archiv-Umschalter ist eine Sicht INNERHALB der Übersicht,
-    // kein Zustand der Anwendung – wer sie neu aufruft, will die aktiven Projekte sehen, nicht das
-    // Archiv, in dem er vor zehn Minuten zufällig zuletzt war.
-    this.manageTab = "active";
+    // Default „Aktiv": Der Aktiv/Archiv-Umschalter ist eine Sicht INNERHALB der Übersicht, kein Zustand
+    // der Anwendung – wer sie neu aufruft, will die aktiven Projekte sehen. Ausnahme: von der Seite
+    // eines ARCHIVIERTEN Projekts „Zur Archivübersicht" landet gezielt im Archiv-Tab (tab="archive").
+    this.manageTab = tab;
     this.currentProject = null;
     this.currentLabel = null;
     this.currentFilter = null;
@@ -491,11 +491,18 @@ export default class BeautyTasksPlugin extends Plugin {
    *  EHRLICHE Gesamtzahl inkl. Unteraufgaben. Ohne Aufgaben entfällt das Häkchen. `onAfter` läuft nur
    *  nach tatsächlichem Löschen (nicht bei Abbruch) – z. B. um die Verwalten-Ansicht neu zu zeichnen. */
   confirmDeleteProject(path: string, name: string, onAfter?: () => void): void {
-    const count = this.projectTrashTargets(path).length;
+    const targets = this.projectTrashTargets(path);
+    const count = targets.length;
+    // „(inkl. erledigte)" nur, wenn wirklich Erledigte in der Zahl stecken – erklärt die Differenz
+    // zur Übersicht (die nur offene zählt), ohne bei reinen Offen-Projekten fälschlich Erledigte zu
+    // behaupten. Präziser Body statt des zu strengen „Kann nicht rückgängig…": bei Aufgaben sagen,
+    // was standardmäßig passiert (bleiben erhalten -> Eingang; das Häkchen ist die Alternative ->
+    // Papierkorb). Ohne Aufgaben kein Text – keine falsche Endgültigkeits-Behauptung.
+    const hasDone = targets.some((tk) => isDone(tk.status));
     new ConfirmModal(this.app, {
       title: t("confirm_delete_title", name),
-      message: t("confirm_delete_body"),
-      checkbox: count > 0 ? { label: t("confirm_delete_with_tasks", count) } : undefined,
+      message: count > 0 ? t("confirm_delete_project_body") : undefined,
+      checkbox: count > 0 ? { label: t(hasDone ? "confirm_delete_with_tasks_done" : "confirm_delete_with_tasks", count) } : undefined,
     }, (withTasks) => {
       void (async () => {
         if (withTasks) await this.deleteProjectWithTasks(path);

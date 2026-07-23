@@ -24,6 +24,7 @@ export interface NavMenuItem {
   hidden: boolean;
   color?: string | null;
   type?: "project" | "area";   // nur für projects/areas
+  archived?: boolean;          // archiviertes Projekt/Bereich -> reduziertes Kebab (nur auf dem Board)
 }
 
 /** Fügt genau den Kalender-Sync-Ein/Ausschalt-Eintrag hinzu – nur wenn mit Google verbunden.
@@ -78,6 +79,19 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
   const isProjLike = item.sec === "projects" || item.sec === "areas";
   const fromSidebar = source === "sidebar";
   const onBoard = source === "board";
+
+  // Archivierte Projekte/Bereiche (nur auf ihrer Einzelseite erreichbar): reduziertes Menü, damit man
+  // wieder rausnavigieren UND wiederherstellen/endgültig löschen kann – dieselben Aktionen wie die
+  // Schnell-Icons in der Archivübersicht. Trennlinie nach „Zur Archivübersicht" (eigene Section).
+  if (item.archived) {
+    menu.addItem((m) => m.setSection("bt-goto").setTitle(t("menu_goto_archive")).setIcon("archive")
+      .onClick(() => void plugin.activateManage(item.sec, "archive")));
+    menu.addItem((m) => m.setSection("bt-archive").setTitle(t("btn_restore")).setIcon("archive-restore")
+      .onClick(() => void plugin.archiveProject(item.key, false)));
+    menu.addItem((m) => m.setSection("bt-archive").setTitle(t("btn_delete_forever")).setIcon("trash-2").setWarning(true)
+      .onClick(() => plugin.confirmDeleteProject(item.key, item.name)));
+    return;
+  }
 
   // — Zur Übersicht — (nur auf der Einzelseite; ersetzt den früheren „list-plus"-Kopf-Button)
   if (onBoard) {
