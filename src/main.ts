@@ -492,9 +492,13 @@ export default class BeautyTasksPlugin extends Plugin {
    *  nach tatsächlichem Löschen (nicht bei Abbruch) – z. B. um die Verwalten-Ansicht neu zu zeichnen. */
   confirmDeleteProject(path: string, name: string, onAfter?: () => void): void {
     const count = this.projectTrashTargets(path).length;
+    // Präziser Text statt des zu strengen „Kann nicht rückgängig…": bei vorhandenen Aufgaben sagen,
+    // was mit ihnen standardmäßig passiert (bleiben erhalten -> Eingang; das Häkchen ist die
+    // Alternative -> Papierkorb). Ohne Aufgaben kein Text (das Projekt wandert eh in Obsidians
+    // Papierkorb, wiederherstellbar) – keine falsche Endgültigkeits-Behauptung.
     new ConfirmModal(this.app, {
       title: t("confirm_delete_title", name),
-      message: t("confirm_delete_body"),
+      message: count > 0 ? t("confirm_delete_project_body") : undefined,
       checkbox: count > 0 ? { label: t("confirm_delete_with_tasks", count) } : undefined,
     }, (withTasks) => {
       void (async () => {
