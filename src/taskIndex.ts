@@ -1,6 +1,6 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { archivedProjectNames, isInboxName } from "./taskService";
+import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { orderChain } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
@@ -24,6 +24,10 @@ export class TaskIndex extends Component {
   private timer: number | null = null;
   private archivedDirty = true;                 // neu berechnen, sobald sich etwas geändert hat
   private archivedSet = new Set<string>();       // Basenamen (lowercase) archivierter Projekte
+  // Auflösungs-Karte für project-Verweise. Bewusst NUR bei Projekt-/Bereichs-Änderungen neu gebaut
+  // (nicht bei jeder Aufgaben-Änderung) -> projectLink ist O(1)-Lookup ohne Vault-Scan pro Bearbeitung.
+  private projPathDirty = true;
+  private projPathSet = new Map<string, string>(); // lowercase Basename -> Pfad der Projekt-/Bereichs-Notiz
 
   // ── Abfrage-Cache ────────────────────────────────────────────────────────────────────────
   // open() filtert über ALLE Aufgaben und schlägt dabei je Aufgabe den Projekt-Basename nach
@@ -62,6 +66,28 @@ export class TaskIndex extends Component {
     return this.archivedSet;
   }
 
+  /** lowercase Basename -> Pfad der Projekt-/Bereichs-Notiz. Neu berechnet NUR wenn projPathDirty
+   *  (gesetzt bei Projekt-/Bereichs-Änderungen), nicht bei Aufgaben-Änderungen. Damit ist die
+   *  project-Auflösung in parse() ein reiner Map-Lookup ohne wiederholten Vault-Scan. */
+  private projectPaths(): Map<string, string> {
+    if (this.projPathDirty) {
+      const m = new Map<string, string>();
+      for (const f of this.app.vault.getMarkdownFiles()) {
+        const ty: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+        if (isProjectType(ty)) m.set(f.basename.toLowerCase(), f.path);
+      }
+      this.projPathSet = m; this.projPathDirty = false;
+    }
+    return this.projPathSet;
+  }
+
+  /** War dieser Pfad zuletzt eine Projekt-/Bereichs-Notiz? Zum Invalidieren der Karte, wenn eine
+   *  solche Notiz gelöscht wird oder aufhört, Projekt zu sein. */
+  private isMappedProjectPath(path: string): boolean {
+    for (const p of this.projPathSet.values()) if (p === path) return true;
+    return false;
+  }
+
   /** NACH onLayoutReady aufrufen – dann sind Wikilinks auflösbar. */
   build(): void {
     this.byPath.clear();
@@ -86,7 +112,14 @@ export class TaskIndex extends Component {
     this.registerEvent(vault.on("create", (f) => {
       if (f instanceof TFile && f.extension === "md") window.setTimeout(() => this.upsert(f), 80);
     }));
-    this.registerEvent(vault.on("delete", (f) => { if (f instanceof TFile) this.remove(f.path); }));
+    this.registerEvent(vault.on("delete", (f) => {
+      if (!(f instanceof TFile)) return;
+      // Gelöschtes Projekt/Bereich -> Auflösungs-Karte neu bauen (Verweise darauf lösen dann auf null
+      // = Eingang, sobald eine Aufgabe neu geparst wird). Das aktive Umhängen bestehender Aufgaben
+      // ist Einheit B; hier bleibt es bei der Karten-Invalidierung (deletion-neutral wie bisher).
+      if (this.isMappedProjectPath(f.path)) { this.projPathDirty = true; this.notify(); }
+      this.remove(f.path);
+    }));
     this.registerEvent(vault.on("rename", (f, old) => {
       this.remove(old, false);
       if (f instanceof TFile) this.upsert(f, false);
@@ -106,7 +139,11 @@ export class TaskIndex extends Component {
       // verwerfen noch melden – der Archiv-Zustand bliebe veraltet, bis zufällig etwas anderes
       // eine Meldung auslöst. Deshalb hier gezielt anstoßen.
       const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
-      if (notify && (type === "project" || type === "area")) this.notify();
+      // Ist die Notiz ein Projekt/Bereich ODER war sie es zuletzt (type gerade entfernt)? Dann
+      // die Auflösungs-Karte neu bauen lassen und die Views anstoßen (Archiv/Zähler/Zuordnung).
+      const proj = isProjectType(type) || this.isMappedProjectPath(f.path);
+      if (proj) this.projPathDirty = true;
+      if (notify && proj) this.notify();
       this.remove(f.path, notify);
       return;
     }
@@ -177,7 +214,9 @@ export class TaskIndex extends Component {
       duration: asNum(fm.duration),
       sortOrder: asNum(fm.sort_order),
       start: asDate(fm.start),
-      project: link(fm.project),
+      // Projekt über den Basenamen gegen echte Projekt-/Bereichs-Notizen (immun gegen gleichnamige
+      // Fremd-Notizen, s. resolveProjectPath). `parent` bleibt beim generischen Link-Resolver.
+      project: resolveProjectPath(fm.project, this.projectPaths()),
       parent: link(fm.parent),
       labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
       description: typeof fm.description === "string" ? fm.description : "",
