@@ -300,6 +300,15 @@ export class TaskIndex extends Component {
     return this.byProjectMap().get(baseName(path)) ?? [];
   }
 
+  /** ALLE Aufgaben eines Projekts/Bereichs – JEDER Status (auch erledigt/abgebrochen) UND auch aus
+   *  archivierten Projekten. Für Lösch-Operationen (Kaskade/Zähler): byProject baut auf open() (nur
+   *  offen, ohne Archiv) und darf hier NICHT verwendet werden, sonst blieben erledigte bzw. alle
+   *  Aufgaben archivierter Projekte beim Löschen unberücksichtigt. */
+  allInProject(path: string): Task[] {
+    const name = baseName(path);
+    return this.all().filter((t) => t.project != null && baseName(t.project) === name);
+  }
+
   /** Eingang, ALLE Status (fürs Board): „nicht einsortiert" = alter `[[Inbox]]`-Verweis ODER
    *  (optional, per Einstellung) gar kein Projekt. Papierkorb bleibt außen vor (globaler Papierkorb). */
   inbox(): Task[] {

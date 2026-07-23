@@ -472,15 +472,16 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   /** Die (nicht schon im Papierkorb liegenden) Aufgaben eines Projekts/Bereichs – inkl. Unterbäume,
-   *  dedupliziert. Basis für Zähler UND Kaskade, damit beide dieselbe Zahl sehen. */
+   *  dedupliziert. Basis für Zähler UND Kaskade, damit beide dieselbe Zahl sehen. Bewusst
+   *  allInProject (jeder Status, auch archiviert), NICHT byProject (nur offen, ohne Archiv). */
   private projectTrashTargets(path: string): Task[] {
-    return collectTrashTargets(this.index.byProject(path), (p) => this.index.descendants(p));
+    return collectTrashTargets(this.index.allInProject(path), (p) => this.index.descendants(p));
   }
 
   /** Projekt/Bereich löschen UND seine Aufgaben (rekursiv) in den plugin-Papierkorb verschieben.
    *  Das Projekt selbst wandert wie immer in Obsidians Papierkorb. */
   async deleteProjectWithTasks(path: string): Promise<void> {
-    await this.trashTasks(this.index.byProject(path));
+    await this.trashTasks(this.index.allInProject(path));
     await this.deleteProject(path);
   }
 
