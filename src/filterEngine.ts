@@ -202,6 +202,35 @@ export function subtasksToDuplicate(kids: Task[]): Task[] {
   return sortSubtasks(kids.filter((k) => !isTrashed(k.status)));
 }
 
+/** Verweise auf eine gelöschte Notiz kappen: liefert (als KOPIEN) die Aufgaben, deren aufgelöstes
+ *  `project` ODER `parent` auf `deletedPath` zeigt, mit dem betroffenen Feld auf null gesetzt –
+ *  project=null -> Eingang, parent=null -> Unteraufgabe wird Hauptaufgabe. Gibt NUR die Geänderten
+ *  zurück; Eingabe bleibt unangetastet. Rein/testbar; der Index wendet das Ergebnis auf seinen
+ *  Cache an (s. TaskIndex delete-Handler). */
+export function severReferences(tasks: Task[], deletedPath: string): Task[] {
+  const out: Task[] = [];
+  for (const t of tasks) {
+    let nt = t;
+    if (nt.project === deletedPath) nt = { ...nt, project: null };
+    if (nt.parent === deletedPath) nt = { ...nt, parent: null };
+    if (nt !== t) out.push(nt);
+  }
+  return out;
+}
+
+/** Welche Aufgaben ein Papierkorb-Zug tatsächlich erfasst: jede Wurzel inkl. ihres Unteraufgaben-
+ *  Baums, dedupliziert (überlappende Bäume, z. B. Projektaufgabe + eigene Unteraufgabe), bereits
+ *  im Papierkorb liegende ausgelassen. Die EINE Wahrheit für den Zähler im Löschdialog UND die
+ *  eigentliche Papierkorb-Aktion. `descendantsOf` injiziert (index.descendants) -> rein/testbar. */
+export function collectTrashTargets(roots: Task[], descendantsOf: (path: string) => Task[]): Task[] {
+  const seen = new Set<string>();
+  const out: Task[] = [];
+  for (const root of roots)
+    for (const t of [root, ...descendantsOf(root.path)])
+      if (!seen.has(t.path) && !isTrashed(t.status)) { seen.add(t.path); out.push(t); }
+  return out;
+}
+
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
 export const ORDER_GAP = 10;
 /** Ein zu schreibender Positionswert. */

@@ -130,9 +130,14 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
       .onClick(() => plugin.archiveWithUndo(item.key, item.name)));
   }
   menu.addItem((m) => m.setSection("bt-danger").setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true)
-    .onClick(() => new ConfirmModal(plugin.app,
-      { title: t("confirm_delete_title", item.name), message: t("confirm_delete_body") },
-      () => void deleteItem(plugin, item)).open()));
+    .onClick(() => {
+      // Projekte/Bereiche haben Aufgaben -> Zwei-Optionen-Abfrage (Papierkorb vs. Eingang).
+      // Labels/Filter haben keine -> schlichte Bestätigung.
+      if (isProjLike) plugin.confirmDeleteProject(item.key, item.name);
+      else new ConfirmModal(plugin.app,
+        { title: t("confirm_delete_title", item.name), message: t("confirm_delete_body") },
+        () => void deleteItem(plugin, item)).open();
+    }));
 }
 
 /** Ausgeblendete Einträge einer Sektion (Schlüssel + Anzeigename). */

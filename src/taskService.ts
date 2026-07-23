@@ -129,6 +129,24 @@ export function inboxNotePath(app: App): string | null {
 /** Ist dieser Projekt-NAME der reservierte Eingang? („Inbox"/„Eingang"). */
 export const isInboxName = (name: string | null | undefined): boolean => !!name && /^(inbox|eingang)$/i.test(name);
 
+/** Frontmatter-`type`-Werte, die eine Notiz zu einer verweisbaren Liste machen (Projekt ODER
+ *  Bereich). Die EINE Wahrheit – nur ein solches Ziel darf ein Aufgaben-`project`-Link auflösen;
+ *  ein Verweis auf irgendeine andere Notiz (z. B. ein altes Fremd-Dashboard) zählt nicht. */
+export const isProjectType = (type: unknown): boolean => type === "project" || type === "area";
+
+/** Projekt-Verweis (`[[Name]]`) über den BASENAMEN gegen die Karte echter Projekt-/Bereichs-Notizen
+ *  auflösen – wie byProject und die ganze basename-zentrierte Projektlogik, NICHT über
+ *  getFirstLinkpathDest: bei gleichnamigen Fremd-Notizen (alte Tasks-Plugin-Dashboards `Tasks/Name.md`
+ *  mit `view: project`) träfe das den falschen Namensvetter. Kein echtes Projekt mit dem Basenamen
+ *  -> null (Aufgabe im Eingang). `projectPaths` ist lowercase-Basename -> Pfad. Rein/ohne App:
+ *  vollständig unit-testbar. */
+export function resolveProjectPath(linkText: unknown, projectPaths: Map<string, string>): string | null {
+  const m = typeof linkText === "string" ? linkText.match(/\[\[([^\]|#]+)/) : null;
+  if (!m) return null;
+  const base = m[1].trim().split("/").pop()!.toLowerCase();   // Basename, auch bei [[Ordner/Name]]
+  return projectPaths.get(base) ?? null;
+}
+
 /** „Nicht einsortiert" = im Eingang: kein Projekt ODER Verweis auf die reservierte Inbox-Notiz.
  *  `project` ist ein aufgelöster Pfad (Task.project) ODER ein Basisname (Editor-Feld). */
 export const isInboxLink = (project: string | null | undefined): boolean =>
