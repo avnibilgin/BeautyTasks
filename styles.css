@@ -1268,6 +1268,7 @@ body {
    Titel per ellipsis gekürzt; Icon farbig, Text gedämpft (leiser Kontext). Klick öffnet die Hauptaufgabe. */
 .bt-view .bt-parent-link {
   display: inline-flex; align-items: center; gap: 3px; max-width: 100%; min-width: 0;
+  min-height: 1.7em;   /* Höhe der Titelzeile – damit der Punkt vertikal auf ihr zentriert (Text ist im Ruhezustand aus) */
   cursor: pointer; font-size: 0.82em;
 }
 /* Ruhezustand: nur das Icon (Akzentfarbe). Bei Hover/Fokus stattdessen den Hauptaufgabentitel –
@@ -1277,7 +1278,7 @@ body {
 .bt-view .bt-parent-link:hover .bt-parent-link-dot,
 .bt-view .bt-parent-link:focus-visible .bt-parent-link-dot { display: none; }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
-.bt-parent-link-dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--interactive-accent); }
+.bt-parent-link-dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--interactive-accent); }
 .bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-faint); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
