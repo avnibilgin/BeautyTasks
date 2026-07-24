@@ -1182,6 +1182,9 @@ body {
 .bt-view .bt-due .bt-meta-txt { transform: translateY(2px); }
 .bt-view .bt-label .bt-meta-txt { transform: translateY(2px); }
 .bt-view .bt-sched .bt-meta-txt { transform: translateY(1px); }
+/* Zahlen bei Dokumente/Anhänge und Unteraufgaben-Badge ebenfalls leicht tiefer (Icons bleiben). */
+.bt-view .bt-comments-n { transform: translateY(1px); }
+.bt-view .bt-subs-n { transform: translateY(1px); }
 
 /* Chips (Basis) – nur in der Liste; Modal-Chips nutzen .bt-task-modal .bt-chip */
 .bt-view .bt-chip {
