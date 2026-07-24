@@ -1274,7 +1274,7 @@ body {
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; flex-shrink: 0; color: var(--interactive-accent); }
 .bt-parent-link-ic svg { width: 13px; height: 13px; }
-.bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-muted); }
+.bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-faint); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
