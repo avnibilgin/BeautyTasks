@@ -32,10 +32,14 @@ const boardScroll = new Map<string, number>();
 // zwangsläufig bei 0. In der Listenansicht stellt sich die Frage nicht: dort ist der Scroller
 // contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
 const colScroll = new Map<string, number>();
-// Bei „Unteraufgaben verstecken": Pfade der Aufgaben, deren Unteraufgaben der Nutzer per Klick auf
-// das Fortschritts-Badge TROTZDEM aufgeklappt hat (Pro-Aufgabe-Ausnahme). Modul-Zustand wie
-// gcalExpanded – überlebt renderMain(); ein Reload startet wieder eingeklappt.
-const subtasksExpanded = new Set<string>();
+// Klappzustand der verschachtelten Unteraufgaben je Hauptaufgabe: EXPLIZITE Nutzer-Klicks aufs
+// Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, „Kompakt"/„Einzeln" zu –,
+// ein Klick überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(),
+// ein Reload startet wieder beim Modus-Default.
+const subtaskToggle = new Map<string, boolean>();
+function subsExpanded(path: string, mode: SubtaskDisplay): boolean {
+  return subtaskToggle.get(path) ?? (mode === "indented");
+}
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
@@ -1195,20 +1199,17 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const ic = chip.createSpan({ cls: "bt-comments-ic" }); setIcon(ic, "paperclip");
     chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
   }
-  // Unteraufgaben-Fortschritt: nur wenn „Unteraufgaben anzeigen" AUS ist und die Aufgabe
-  // (nicht-abgebrochene) Kinder hat. list-checks + „erledigt/gesamt". Klick klappt DIESE eine
-  // Aufgabe auf/zu (Pro-Aufgabe-Ausnahme, ohne den globalen Schalter zu ändern) – sonst wären
-  // die Unteraufgaben bei ausgeblendeter Anzeige gar nicht erreichbar (das Modal listet sie nicht).
-  // Badge nur im kompakten Modus: „Eingerückt" zeigt die Zeilen ohnehin, und bei „Einzeln" stehen
-  // die Unteraufgaben als eigene Zeilen bzw. Karten – dort wäre er doppelte Auskunft.
-  // Auf einer Karte (flat) erscheint er ebenfalls, bleibt dort aber reine ANZEIGE: aufklappen
-  // ginge nicht, weil eine Karte keine verschachtelten Zeilen aufnimmt. Er ist dann kein
-  // Bedienelement und bekommt deshalb weder role/tabindex noch einen Klick-Handler.
-  if (subs === "compact" && !trash) {
+  // Unteraufgaben-Badge: an JEDER Hauptaufgabe mit (nicht-abgebrochenen) Kindern, in ALLEN Modi
+  // (list-checks + „erledigt/gesamt"). Klick klappt DIESE eine Aufgabe auf/zu – der Default kommt
+  // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt"/„Einzeln" zu. In „Einzeln" stehen die
+  // Kinder ohnehin als eigene Zeilen; klappt man hier bewusst auf, kommen sie zusätzlich genestet
+  // dazu (gewollte, standardmäßig zugeklappte Ausnahme). Auf einer Karte (flat) ist es reine ANZEIGE:
+  // aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf), daher ohne role/Klick.
+  if (!trash) {
     const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
     if (kids.length) {
       const done = kids.filter((k) => isDone(k.status)).length;
-      const open = !opts.flat && subtasksExpanded.has(task.path);
+      const open = !opts.flat && subsExpanded(task.path, subs);
       const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, kids.length) };
       if (opts.flat) attr["data-tooltip-position"] = "top";
       else { attr.role = "button"; attr.tabindex = "0"; }
@@ -1218,7 +1219,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       if (!opts.flat) {
         const toggle = (e: Event): void => {
           e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
-          if (open) subtasksExpanded.delete(task.path); else subtasksExpanded.add(task.path);
+          subtaskToggle.set(task.path, !subsExpanded(task.path, subs));
           plugin.renderMain();
         };
         badge.onclick = toggle;
@@ -1233,18 +1234,34 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (!plugin.currentProject && depth === 0) {
-    // In einem Projekt-/Inbox-Board ist die Zuordnung redundant -> ausblenden (currentProject gesetzt);
-    // sonst sichtbar. Bei verschachtelten Unteraufgaben (depth > 0) zeigt der Parent sie schon.
-    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) wird als @Eingang gezeigt.
-    const extras = row.createDiv({ cls: "bt-extras" });
-    if (isInboxLink(task.project)) {
-      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
-    } else {
-      const name = projectName(task.project!);
-      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
-      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+  } else if (depth === 0) {
+    // Rechte Zone als Spalte: Herkunfts-Marker (Icon + gekürzter Hauptaufgabentitel) OBEN, @Projekt-
+    // Backlink UNTEN – der Marker steht damit genau über @Projekt. Herkunft an jeder Unteraufgabe, die
+    // hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent, „Einzeln").
+    // @Projekt nur außerhalb eines Projekt-/Inbox-Boards (dort redundant); „nicht einsortiert" = @Eingang.
+    const parent = task.parent ? plugin.index.get(task.parent) : undefined;
+    const backlink = !plugin.currentProject;
+    if (parent || backlink) {
+      const extras = row.createDiv({ cls: "bt-extras" });
+      if (parent) {
+        const crumb = extras.createSpan({ cls: "bt-parent-link",
+          attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
+        crumb.createSpan({ cls: "bt-parent-link-lbl", text: parent.title });   // bei Hover links vom Dreieck; per CSS gekürzt mit „…"
+        crumb.createSpan({ cls: "bt-parent-link-tri" });   // gefülltes Dreieck – im Ruhezustand allein, bei Hover rechts neben dem Text
+        const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
+        crumb.onclick = openParent;
+        crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
+      }
+      if (backlink) {
+        if (isInboxLink(task.project)) {
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
+          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
+        } else {
+          const name = projectName(task.project!);
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
+          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+        }
+      }
     }
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
@@ -1252,10 +1269,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
 
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
   // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
-  // wenn diese Aufgabe per Badge-Klick aufgeklappt wurde (subtasksExpanded).
-  // „Eingerückt" immer · „Kompakt" nur nach Klick aufs Badge · „Einzeln" nie (eigene Zeilen).
-  const showKids = !trash && !opts.flat
-    && (subs === "indented" || (subs === "compact" && subtasksExpanded.has(task.path)));
+  // wenn das Badge (per Modus-Default oder Klick) aufgeklappt ist – siehe subsExpanded.
+  // „Eingerückt" Default auf · „Kompakt"/„Einzeln" Default zu; ein Klick überschreibt pro Aufgabe.
+  const showKids = !trash && !opts.flat && subsExpanded(task.path, subs);
   if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
     if (isTrashed(kid.status)) continue;
     // Erledigte Unteraufgaben an denselben Schalter koppeln wie die Erledigt-Sektion: „Erledigte
