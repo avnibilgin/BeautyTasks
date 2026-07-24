@@ -1304,10 +1304,15 @@ body.bt-theme-compact .bt-view .bt-backlink { color: var(--text-faint); }
 /* Hauptaufgaben-Link: normales Meta-Icon ganz vorn (corner-left-up), grau, kein Hover-Hintergrund –
    konsistent zu den übrigen Meta-Icons. An Unteraufgaben, die auf Top-Level stehen. Tooltip = Titel,
    Klick öffnet die Hauptaufgabe. */
-.bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--text-faint); cursor: pointer; }
-.bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
+.bt-view .bt-parent-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--text-faint);
+  color: var(--text-faint); cursor: pointer;
+}
+.bt-view .bt-parent-link:hover { color: var(--text-normal); border-color: var(--text-normal); }
+.bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
 .bt-parent-link-ic { display: inline-flex; }
-.bt-parent-link-ic svg { width: 14px; height: 14px; }
+.bt-parent-link-ic svg { width: 10px; height: 10px; }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
