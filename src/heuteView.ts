@@ -1216,7 +1216,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     setIcon(rem, "alarm-clock");
   }
   // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
-  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
+  // Auf einer Label-Seite das GLEICHNAMIGE Label weglassen (redundant – man ist ja in #label), analog
+  // zum @Projekt-Backlink, der im Projekt-Board ausgeblendet wird.
+  for (const l of task.labels) if (l !== plugin.currentLabel) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   if (task.scheduled) {
     const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
     chip.createSpan({ cls: "bt-meta-txt", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
