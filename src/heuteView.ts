@@ -1239,7 +1239,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Backlink UNTEN – der Marker steht damit genau über @Projekt. Herkunft an jeder Unteraufgabe, die
     // hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent, „Einzeln").
     // @Projekt nur außerhalb eines Projekt-/Inbox-Boards (dort redundant); „nicht einsortiert" = @Eingang.
-    const parent = task.parent ? plugin.index.get(task.parent) : undefined;
+    // Herkunfts-Marker NICHT auf Board-Karten (opts.flat): dort ist die Karte zu schmal, der Marker
+    // würde grafisch mit Titel/@Projekt kollidieren. Nur in der Liste.
+    const parent = !opts.flat && task.parent ? plugin.index.get(task.parent) : undefined;
     const backlink = !plugin.currentProject;
     if (parent || backlink) {
       const extras = row.createDiv({ cls: "bt-extras" });
