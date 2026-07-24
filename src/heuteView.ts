@@ -1214,9 +1214,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
     setIcon(rem, "alarm-clock");
   }
-  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label", text: l });
+  // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
+  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   if (task.scheduled) {
-    const chip = meta.createSpan({ cls: "bt-chip bt-sched", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
+    const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
+    chip.createSpan({ cls: "bt-meta-txt", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
     chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
   }
   // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.

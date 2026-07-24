@@ -1178,7 +1178,10 @@ body {
 .bt-meta > * { line-height: 1; padding-top: 1px; padding-bottom: 1px; }
 /* Feinjustage einzelner Icons (Masken-Glyphen sitzen im SVG leicht außermittig): */
 .bt-view .bt-due::before { transform: translateY(1px); }   /* Kalender-Icon minimal runter (zum Datum passend) */
-.bt-view .bt-sched { transform: translateY(1px); }          /* Deadline („Morgen") sitzt zu hoch -> etwas runter */
+.bt-view .bt-sched { transform: translateY(1px); }          /* Deadline-Chip: Icon sitzt danach gut auf Linie */
+/* Nur die Text-Teile feinjustieren (Icons bleiben, wo sie sind): Label-Text etwas tiefer, „Morgen" auch. */
+.bt-view .bt-label .bt-meta-txt { transform: translateY(2px); }
+.bt-view .bt-sched .bt-meta-txt { transform: translateY(1px); }
 
 /* Chips (Basis) – nur in der Liste; Modal-Chips nutzen .bt-task-modal .bt-chip */
 .bt-view .bt-chip {
