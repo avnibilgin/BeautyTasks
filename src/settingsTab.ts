@@ -135,7 +135,6 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();
       }));
 
-
     // Auf Mobilgeraeten ist der Kompakt-Modus fest an (44px-Chips mit Text saehen dort den
     // halben Bildschirm) – der Schalter zeigt das an und ist deaktiviert, statt wirkungslos
     // umschaltbar zu sein. Der gespeicherte Wert bleibt unangetastet und gilt am Desktop weiter.
