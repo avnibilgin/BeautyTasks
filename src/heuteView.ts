@@ -1040,7 +1040,13 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   const o = plugin.pageViewOptions();
   const subs = effectiveSubtasks(o);
   const manual = o.sort === "manual";
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone });
+  // „Kompakt"-Thema: ist die Ansicht nach Datum gruppiert, tragen die Sektionsüberschriften das Datum
+  // -> der per-Aufgabe-Datums-Chip ist redundant (renderTask blendet ihn dann aus, außer Uhrzeit).
+  // Heute/Demnächst zeigen Datums-Sektionen schon im Default (group „none"), volle Seiten (Projekt/
+  // Bereich/Label/Filter/Eingang) nur bei ausdrücklichem group „date". Einmal je Sektion bestimmt.
+  const key = plugin.currentPage().key;
+  const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1118,7 +1124,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1173,20 +1179,13 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
 
   const meta = body.createDiv({ cls: "bt-meta" });
   if (task.due) {
-    // „Kompakt"-Thema (nur Liste): das Datum weglassen, wo die Umgebung es schon zeigt – in „Heute" die
-    // Heute-Sektion (man ist ja in Heute), in „Demnächst" die Tages-Sektionsüberschrift (nur bei
-    // Gruppierung nach Datum; bei Label/Priorität bleibt das Datum sichtbar). Ohne Uhrzeit gar kein Chip
-    // (Icon UND Wort weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt) in Grau. Überfällig/andere
-    // Ansichten/Board bleiben unberührt. pageViewOptions() nur für „Demnächst" (nicht auf Projektseiten).
-    let compactHide = false;
-    if (plugin.settings.metaTheme === "compact" && !opts.flat) {
-      const key = plugin.currentPage().key;
-      if (key === "heute") compactHide = task.due === today;
-      else if (key === "demnaechst") { const g = plugin.pageViewOptions().group; compactHide = g === "none" || g === "date"; }
-      // Eingang: nur wenn ausdrücklich nach Datum gruppiert (dann steht das Datum in der Sektions-
-      // überschrift). Überfällige liegen im Sammel-Bucket „Überfällig" ohne Datum -> dort NICHT ausblenden.
-      else if (key === "inbox") compactHide = plugin.pageViewOptions().group === "date" && task.due >= today;
-    }
+    // „Kompakt"-Thema (nur Liste, nur Top-Level): das Datum weglassen, wo die Sektionsüberschrift es
+    // schon zeigt – also überall dort, wo nach Datum gruppiert ist (opts.dateImplied, EINMAL je Sektion
+    // in section() bestimmt). Datierte Sektionen betreffen due >= heute; Überfällige liegen im Sammel-
+    // Bucket „Überfällig" ohne Datum -> dort NICHT ausblenden. Ohne Uhrzeit gar kein Chip (Icon UND Wort
+    // weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt) in Grau.
+    const compactHide = plugin.settings.metaTheme === "compact" && !opts.flat && depth === 0
+      && !!opts.dateImplied && task.due >= today;
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
       const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : ""), text });
