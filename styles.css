@@ -1220,6 +1220,7 @@ body.bt-theme-compact .bt-view .bt-parent-link-lbl { color: var(--text-faint); }
 .bt-view .bt-due[data-dist="d1"]    { color: var(--bt-nav-demnaechst); }
 .bt-view .bt-due[data-dist="d2"]    { color: var(--bt-nav-project); }
 .bt-view .bt-due[data-dist="week"]  { color: var(--bt-label); }
+.bt-view .bt-due[data-dist="far"]   { color: var(--text-faint); }   /* ab Tag 8: wie die übrigen Kompakt-Icons */
 /* Übergeordnet-Dreieck wird über die Rand-Farbe gezeichnet, nicht über color. */
 body.bt-theme-compact .bt-view .bt-parent-link-tri { border-right-color: var(--text-faint); }
 

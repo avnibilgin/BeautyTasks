@@ -1197,7 +1197,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       // Überfällig (< heute) und weiter als 7 Tage behalten ihre normale data-when-Farbe.
       if (opts.distColor) {
         const off = dayOffset(task.due, today);
-        const dist = off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : (off >= 3 && off <= 7) ? "week" : "";
+        // Überfällig (< heute) behält seine rote data-when-Farbe (kein data-dist); ab Tag 8 heller Grau.
+        const dist = off < 0 ? "" : off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : off <= 7 ? "week" : "far";
         if (dist) chip.dataset.dist = dist;
       }
       chip.onclick = (e) => {
