@@ -912,7 +912,9 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     const dateImplied = groupKey === "date";
     // Ist das Datum sichtbar (Board NICHT nach Datum gruppiert), nach Tages-Distanz einfärben – wie in der Liste.
     const distColor = plugin.settings.metaTheme === "compact" && !dateImplied;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied, distColor });
+    // Bei Projekt-Gruppierung ist die Spalte das Projekt (col.id = Name bzw. NO_PROJECT) -> @Projekt weglassen.
+    const hideProject = groupKey === "project" ? col.id : undefined;
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied, distColor, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1059,7 +1061,11 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   const distColor = plugin.settings.metaTheme === "compact" && !dateImplied;
   // Bei Gruppierung nach Label trägt die Sektionsüberschrift „#name" das Label -> in den Zeilen weglassen.
   const hideLabel = o.group === "label" && title.startsWith("#") ? title.slice(1) : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor, hideLabel });
+  // Analog nach Projekt: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
+  // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon).
+  const hideProject = o.group === "project" && top.length
+    ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor, hideLabel, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1137,7 +1143,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; distColor?: boolean; hideLabel?: string } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; distColor?: boolean; hideLabel?: string; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1288,7 +1294,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // würde grafisch mit Titel/@Projekt kollidieren. Nur in der Liste – und nur, wenn der Nutzer die
     // Markierung nicht per Einstellung (showParentMarker) abgeschaltet hat.
     const parent = !opts.flat && plugin.settings.showParentMarker && task.parent ? plugin.index.get(task.parent) : undefined;
-    const backlink = !plugin.currentProject;
+    // @Projekt-Backlink weglassen: im Projekt-/Inbox-Board (currentProject) ODER wenn die Gruppierung nach
+    // Projekt das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang).
+    const inbox = isInboxLink(task.project);
+    const projName = inbox ? null : projectName(task.project!);
+    const backlink = !plugin.currentProject && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
     if (parent || backlink) {
       const extras = row.createDiv({ cls: "bt-extras" });
       if (parent) {
@@ -1301,12 +1311,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
         crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
       }
       if (backlink) {
-        if (isInboxLink(task.project)) {
+        if (inbox) {
           const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
           bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
         } else {
-          const name = projectName(task.project!);
-          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName!) });
           bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
         }
       }
