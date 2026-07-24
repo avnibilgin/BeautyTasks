@@ -1183,6 +1183,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       const key = plugin.currentPage().key;
       if (key === "heute") compactHide = task.due === today;
       else if (key === "demnaechst") { const g = plugin.pageViewOptions().group; compactHide = g === "none" || g === "date"; }
+      // Eingang: nur wenn ausdrücklich nach Datum gruppiert (dann steht das Datum in der Sektions-
+      // überschrift). Überfällige liegen im Sammel-Bucket „Überfällig" ohne Datum -> dort NICHT ausblenden.
+      else if (key === "inbox") compactHide = plugin.pageViewOptions().group === "date" && task.due >= today;
     }
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
