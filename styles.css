@@ -1263,28 +1263,28 @@ body {
 .bt-subs-ic svg { width: 14px; height: 14px; }
 .bt-subs-n { font-size: 0.92em; font-variant-numeric: tabular-nums; }
 
-/* Herkunfts-Marker: Icon (corner-left-up) in der Akzentfarbe, absolut oben rechts an der Zeilenkante –
-   steht damit genau ÜBER dem @Projekt-Backlink (unten rechts). An Unteraufgaben, die auf Top-Level
-   stehen (nicht unter ihrem Parent). Tooltip nennt die Hauptaufgabe, Klick öffnet sie. */
+/* Herkunfts-Marker: Icon (corner-left-up, Akzentfarbe) + gekürzter Hauptaufgabentitel, oben in der
+   rechten Spalte – steht damit über dem @Projekt-Backlink. An Unteraufgaben, die auf Top-Level stehen.
+   Titel per ellipsis gekürzt; Icon farbig, Text gedämpft (leiser Kontext). Klick öffnet die Hauptaufgabe. */
 .bt-view .bt-parent-link {
-  position: absolute; top: 7px; right: 2px;
-  display: inline-flex; align-items: center;
-  color: var(--interactive-accent); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 3px; max-width: 150px;
+  cursor: pointer; font-size: 0.82em;
 }
-.bt-view .bt-parent-link:hover { opacity: 0.75; }
+.bt-view .bt-parent-link:hover .bt-parent-link-lbl { color: var(--text-normal); }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
-.bt-parent-link-ic { display: inline-flex; }
-.bt-parent-link-ic svg { width: 14px; height: 14px; }
-/* Rechts Platz reservieren, damit ein langer Titel nicht unter das absolute Icon läuft. */
-.bt-view .bt-title-has-crumb { padding-right: 22px; }
+.bt-parent-link-ic { display: inline-flex; flex-shrink: 0; color: var(--interactive-accent); }
+.bt-parent-link-ic svg { width: 13px; height: 13px; }
+.bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
   margin-left: auto;
-  align-self: flex-end;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  align-self: stretch;   /* volle Zeilenhöhe: Marker oben, @Projekt unten */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
 }
 /* ── „Aufgabennotiz bearbeiten" – Aktion rechts in der Kommentar-Kopfzeile ──
    Sitzt an derselben Stelle wie „Erledigte ausblenden" bei den Unteraufgaben und holt Groesse,
@@ -1303,7 +1303,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    in derselben Zeile links und rechts gegenueber. */
 .bt-notes-edit-ic svg { width: 18px; height: 18px; }
 
-.bt-backlink { font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+.bt-backlink { margin-top: auto; font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
 .bt-backlink:hover { color: var(--text-normal); text-decoration: underline; }
 /* Papierkorb-Zeilenaktionen (Wiederherstellen/Löschen) rechts – wie Manage-Aktionen. */
 .bt-task-actions { margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }

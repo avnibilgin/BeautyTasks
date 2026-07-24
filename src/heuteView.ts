@@ -1160,24 +1160,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   renderCheck(row, plugin, task, { trash });
 
   const body = row.createDiv({ cls: "bt-body" });
-  const titleEl = body.createDiv({ cls: "bt-title" });
-  renderLinkedText(titleEl, plugin, task.title, task.path);
-  // Herkunfts-Marker oben rechts (Icon in Akzentfarbe, corner-left-up wie im Modal) an jeder
-  // Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent,
-  // „Einzeln"). Absolut an der rechten Kante der Zeile positioniert – steht damit genau ÜBER dem
-  // @Projekt-Backlink (der unten rechts sitzt). Tooltip nennt die Hauptaufgabe, Klick öffnet sie.
-  if (depth === 0 && task.parent) {
-    const parent = plugin.index.get(task.parent);   // task.parent = aufgelöster Parent-Pfad
-    if (parent) {
-      titleEl.addClass("bt-title-has-crumb");   // rechts Platz reservieren, damit lange Titel nicht drunterlaufen
-      const crumb = titleEl.createSpan({ cls: "bt-parent-link",
-        attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-      setIcon(crumb.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
-      const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
-      crumb.onclick = openParent;
-      crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
-    }
-  }
+  renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
 
   // Beschreibungs-Vorschau (einzeilig, gekürzt) – aus dem Frontmatter (`description`), optional
   // per Einstellung. Bild-/Embed-Syntax wird entfernt, damit die Zeile nie zu einem Block aufgeht.
@@ -1251,18 +1234,34 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (!plugin.currentProject && depth === 0) {
-    // In einem Projekt-/Inbox-Board ist die Zuordnung redundant -> ausblenden (currentProject gesetzt);
-    // sonst sichtbar. Bei verschachtelten Unteraufgaben (depth > 0) zeigt der Parent sie schon.
-    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) wird als @Eingang gezeigt.
-    const extras = row.createDiv({ cls: "bt-extras" });
-    if (isInboxLink(task.project)) {
-      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
-    } else {
-      const name = projectName(task.project!);
-      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
-      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+  } else if (depth === 0) {
+    // Rechte Zone als Spalte: Herkunfts-Marker (Icon + gekürzter Hauptaufgabentitel) OBEN, @Projekt-
+    // Backlink UNTEN – der Marker steht damit genau über @Projekt. Herkunft an jeder Unteraufgabe, die
+    // hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent, „Einzeln").
+    // @Projekt nur außerhalb eines Projekt-/Inbox-Boards (dort redundant); „nicht einsortiert" = @Eingang.
+    const parent = task.parent ? plugin.index.get(task.parent) : undefined;
+    const backlink = !plugin.currentProject;
+    if (parent || backlink) {
+      const extras = row.createDiv({ cls: "bt-extras" });
+      if (parent) {
+        const crumb = extras.createSpan({ cls: "bt-parent-link",
+          attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
+        setIcon(crumb.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
+        crumb.createSpan({ cls: "bt-parent-link-lbl", text: parent.title });   // per CSS gekürzt mit „…"
+        const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
+        crumb.onclick = openParent;
+        crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
+      }
+      if (backlink) {
+        if (isInboxLink(task.project)) {
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
+          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
+        } else {
+          const name = projectName(task.project!);
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
+          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+        }
+      }
     }
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
