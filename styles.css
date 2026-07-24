@@ -1270,7 +1270,7 @@ body {
   display: inline-flex; align-items: center;
   color: var(--bt-nav-search); cursor: pointer; padding: 1px 3px; border-radius: 5px;
 }
-.bt-view .bt-parent-link:hover { background: var(--background-modifier-hover); }
+/* Kein Hover-Hintergrund – konsistent zum Unteraufgaben-Badge (.bt-subs) und den übrigen Meta-Chips. */
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
 .bt-parent-link-ic { display: inline-flex; }
 .bt-parent-link-ic svg { width: 14px; height: 14px; }
