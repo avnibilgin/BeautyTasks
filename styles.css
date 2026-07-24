@@ -1273,7 +1273,7 @@ body {
 .bt-view .bt-parent-link:hover .bt-parent-link-lbl,
 .bt-view .bt-parent-link:hover .bt-parent-link-ic { color: var(--text-normal); }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
-.bt-parent-link-ic { display: inline-flex; flex-shrink: 0; color: var(--text-faint); }
+.bt-parent-link-ic { display: inline-flex; flex-shrink: 0; color: var(--text-faint); transform: translateY(-1px); }
 .bt-parent-link-ic svg { width: 13px; height: 13px; }
 .bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-faint); }
 
