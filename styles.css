@@ -1202,6 +1202,19 @@ body {
    die data-when-Regel oben). Zeigt hier ohnehin nur die Uhrzeit. */
 .bt-view .bt-due.bt-due-compact { color: var(--text-muted); }
 
+/* „Kompakt"-Thema (body.bt-theme-compact): alle Meta-Icons einheitlich grau – Wiederholung,
+   Erinnerung, Deadline, Details, Übergeordnet – UND das Heute-Datum. Label behält bewusst seine
+   Farbe; die Checkbox (Status) ist keine Meta-Zeile und bleibt unberührt. */
+body.bt-theme-compact .bt-view .bt-recur,
+body.bt-theme-compact .bt-view .bt-sched,
+body.bt-theme-compact .bt-view .bt-remind,
+body.bt-theme-compact .bt-view .bt-comments,
+body.bt-theme-compact .bt-view .bt-subs,
+body.bt-theme-compact .bt-view .bt-parent-link-lbl,
+body.bt-theme-compact .bt-view .bt-due[data-when="today"] { color: var(--text-muted); }
+/* Übergeordnet-Dreieck wird über die Rand-Farbe gezeichnet, nicht über color. */
+body.bt-theme-compact .bt-view .bt-parent-link-tri { border-right-color: var(--text-muted); }
+
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
 .bt-sched::before { -webkit-mask-image: var(--bt-clock); mask-image: var(--bt-clock); }
