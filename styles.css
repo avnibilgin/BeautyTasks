@@ -1257,7 +1257,7 @@ body {
 .bt-task:hover .bt-row-grip { opacity: 0.8; }
 .bt-task.is-dragging .bt-row-grip { cursor: grabbing; opacity: 1; }
 
-.bt-subs.is-open { color: var(--text-accent); }
+/* „is-open" färbt bewusst NICHT mehr um – der Badge behält in jedem Zustand denselben Grauton. */
 /* Auf einer Kanban-Karte ist das Badge reine Anzeige (aufklappen ginge dort nicht) – es darf
    deshalb auch nicht klickbar aussehen. Der Zeiger bleibt der der Karte selbst. */
 .bt-subs.is-static { cursor: inherit; }
