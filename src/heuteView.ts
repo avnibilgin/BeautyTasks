@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, combineDT, dueWhen, dateOf, groupLabel } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dayOffset, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
@@ -1046,7 +1046,10 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Bereich/Label/Filter/Eingang) nur bei ausdrücklichem group „date". Einmal je Sektion bestimmt.
   const key = plugin.currentPage().key;
   const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied });
+  // „Kompakt" + Gruppierung „Keine" (flache Liste, Datum sichtbar): Datum nach Tages-Distanz einfärben
+  // (heute/morgen/übermorgen/bis Tag 7). Nur wo das Datum tatsächlich steht (nicht date-gruppiert).
+  const distColor = plugin.settings.metaTheme === "compact" && o.group === "none" && !dateImplied;
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1124,7 +1127,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; distColor?: boolean } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1190,6 +1193,13 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
       const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : ""), text });
       chip.dataset.when = dueWhen(task.due, today);
+      // Kompakt + flache Liste: Datum nach Distanz einfärben (heute/morgen/übermorgen/bis Tag 7).
+      // Überfällig (< heute) und weiter als 7 Tage behalten ihre normale data-when-Farbe.
+      if (opts.distColor) {
+        const off = dayOffset(task.due, today);
+        const dist = off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : (off >= 3 && off <= 7) ? "week" : "";
+        if (dist) chip.dataset.dist = dist;
+      }
       chip.onclick = (e) => {
         e.stopPropagation();
         openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),

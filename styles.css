@@ -1212,8 +1212,14 @@ body.bt-theme-compact .bt-view .bt-comments,
 body.bt-theme-compact .bt-view .bt-subs,
 body.bt-theme-compact .bt-view .bt-label,
 body.bt-theme-compact .bt-view .bt-backlink,
-body.bt-theme-compact .bt-view .bt-parent-link-lbl,
-body.bt-theme-compact .bt-view .bt-due[data-when="today"] { color: var(--text-faint); }
+body.bt-theme-compact .bt-view .bt-parent-link-lbl { color: var(--text-faint); }
+/* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
+   Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
+   ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
+.bt-view .bt-due[data-dist="today"] { color: var(--bt-nav-erledigt); }
+.bt-view .bt-due[data-dist="d1"]    { color: var(--bt-nav-demnaechst); }
+.bt-view .bt-due[data-dist="d2"]    { color: var(--bt-nav-project); }
+.bt-view .bt-due[data-dist="week"]  { color: var(--bt-label); }
 /* Übergeordnet-Dreieck wird über die Rand-Farbe gezeichnet, nicht über color. */
 body.bt-theme-compact .bt-view .bt-parent-link-tri { border-right-color: var(--text-faint); }
 

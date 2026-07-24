@@ -38,6 +38,14 @@ export const dateOf = (iso: string): string => iso.slice(0, 10);
 export const timeOf = (iso: string): string | null => { const m = iso.match(/T(\d{2}:\d{2})/); return m ? m[1] : null; };
 export const combineDT = (date: string, time: string | null | undefined): string => (time ? date + "T" + time : date);
 
+/** Ganze Tage von heute bis zum ISO-Datum (0 = heute, 1 = morgen, -1 = gestern). Nur der
+ *  Datums-Teil zählt (Uhrzeit ignoriert) – gleiche Rechnung wie formatDate. */
+export function dayOffset(iso: string, today = todayStr()): number {
+  const d = new Date(dateOf(iso) + "T00:00");
+  const tn = new Date(dateOf(today) + "T00:00");
+  return Math.round((d.getTime() - tn.getTime()) / 86400000);
+}
+
 /** ISO-Datum -> "Today" | "Yesterday" | "Tomorrow" | "24 Jun" | "1 Dec 2025" (locale).
  *  Eine evtl. Uhrzeit im ISO-String wird ignoriert (nur der Datums-Teil zählt). */
 export function formatDate(iso: string, today = todayStr()): string {
