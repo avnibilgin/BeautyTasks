@@ -1162,15 +1162,15 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const body = row.createDiv({ cls: "bt-body" });
   const titleEl = body.createDiv({ cls: "bt-title" });
   renderLinkedText(titleEl, plugin, task.title, task.path);
-  // Herkunfts-Marker rechts neben dem Titel: ein Punkt in der Akzentfarbe an jeder Unteraufgabe, die
-  // hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent, „Einzeln"). Tooltip
-  // nennt die Hauptaufgabe, Klick öffnet sie. Dezent – lässt Titelzeile und Meta-Zeile ruhig.
+  // Herkunfts-Marker rechts neben dem Titel: ein Icon in der Akzentfarbe (corner-left-up wie im Modal)
+  // an jeder Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter
+  // Parent, „Einzeln"). Tooltip nennt die Hauptaufgabe, Klick öffnet sie. Dezent – lässt Meta-Zeile ruhig.
   if (depth === 0 && task.parent) {
     const parent = plugin.index.get(task.parent);   // task.parent = aufgelöster Parent-Pfad
     if (parent) {
       const crumb = titleEl.createSpan({ cls: "bt-parent-link",
         attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-      crumb.createSpan({ cls: "bt-parent-link-dot" });   // Akzent-Punkt statt Icon
+      setIcon(crumb.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
       const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
       crumb.onclick = openParent;
       crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };

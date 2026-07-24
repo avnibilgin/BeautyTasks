@@ -1263,16 +1263,17 @@ body {
 .bt-subs-ic svg { width: 14px; height: 14px; }
 .bt-subs-n { font-size: 0.92em; font-variant-numeric: tabular-nums; }
 
-/* Herkunfts-Marker: kleiner Punkt in der Akzentfarbe rechts neben dem Aufgabentitel – an
+/* Herkunfts-Marker: Icon (corner-left-up) in der Akzentfarbe rechts neben dem Aufgabentitel – an
    Unteraufgaben, die auf Top-Level stehen (nicht unter ihrem Parent). Tooltip nennt die Hauptaufgabe,
-   Klick öffnet sie. Der äußere Span liefert die Klickfläche (padding), der Punkt selbst ist klein. */
+   Klick öffnet sie. */
 .bt-view .bt-parent-link {
   display: inline-flex; align-items: center; vertical-align: middle;
-  margin-left: 6px; padding: 2px; cursor: pointer;
+  margin-left: 6px; color: var(--interactive-accent); cursor: pointer;
 }
-.bt-parent-link-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--interactive-accent); }
-.bt-view .bt-parent-link:hover .bt-parent-link-dot { opacity: 0.75; }
+.bt-view .bt-parent-link:hover { opacity: 0.75; }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
+.bt-parent-link-ic { display: inline-flex; }
+.bt-parent-link-ic svg { width: 14px; height: 14px; }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
