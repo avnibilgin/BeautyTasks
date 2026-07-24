@@ -138,7 +138,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   fontHeadingPct: 100,
   fontSectionPct: 100,
   showDescriptionInList: true,
-  showParentMarker: true,
+  showParentMarker: false,
   navCollapsed: {},
   startView: "heute",
   lastView: "heute",
