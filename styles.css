@@ -1231,7 +1231,7 @@ body {
    die auch keinen Hover-Hintergrund haben; im aufgeklappten Zustand (is-open) in der Akzentfarbe. */
 .bt-subs {
   display: inline-flex; align-items: center; gap: 3px;
-  color: var(--text-muted); font-size: 0.85em;
+  color: var(--text-faint); font-size: 0.85em;
   padding: 1px 5px; border-radius: 5px; cursor: pointer;
 }
 /* Einfüge-Markierung beim Umsortieren (nur bei Sortierung „Manuell"): eine Linie an der Kante, an
