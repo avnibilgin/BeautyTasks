@@ -100,6 +100,7 @@ export interface BeautyTasksSettings {
   fontHeadingPct: number;  // Skalierung Sektionsüberschriften der Seitenleiste in % (100 = Standard)
   fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
+  showParentMarker: boolean;  // Herkunfts-Dreieck an eigenständig gelisteten Unteraufgaben (Link zur Hauptaufgabe)
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
@@ -137,6 +138,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   fontHeadingPct: 100,
   fontSectionPct: 100,
   showDescriptionInList: true,
+  showParentMarker: true,
   navCollapsed: {},
   startView: "heute",
   lastView: "heute",
