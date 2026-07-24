@@ -1173,14 +1173,20 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
 
   const meta = body.createDiv({ cls: "bt-meta" });
   if (task.due) {
-    // „Kompakt"-Thema in der Heute-Ansicht (nur Liste): das redundante „Heute" weglassen – man ist ja
-    // in „Heute". Ohne Uhrzeit gar kein Chip (Icon UND Wort weg); mit Uhrzeit nur die Uhrzeit (Kalender-
-    // icon bleibt) in Grau. Überfällig (due < heute) und alle anderen Ansichten bleiben unberührt.
-    const compactToday = plugin.settings.metaTheme === "compact" && !opts.flat
-      && plugin.currentPage().key === "heute" && task.due === today;
-    if (!(compactToday && !task.dueTime)) {
-      const text = compactToday ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
-      const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactToday ? " bt-due-compact" : ""), text });
+    // „Kompakt"-Thema (nur Liste): das Datum weglassen, wo die Umgebung es schon zeigt – in „Heute" die
+    // Heute-Sektion (man ist ja in Heute), in „Demnächst" die Tages-Sektionsüberschrift (nur bei
+    // Gruppierung nach Datum; bei Label/Priorität bleibt das Datum sichtbar). Ohne Uhrzeit gar kein Chip
+    // (Icon UND Wort weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt) in Grau. Überfällig/andere
+    // Ansichten/Board bleiben unberührt. pageViewOptions() nur für „Demnächst" (nicht auf Projektseiten).
+    let compactHide = false;
+    if (plugin.settings.metaTheme === "compact" && !opts.flat) {
+      const key = plugin.currentPage().key;
+      if (key === "heute") compactHide = task.due === today;
+      else if (key === "demnaechst") { const g = plugin.pageViewOptions().group; compactHide = g === "none" || g === "date"; }
+    }
+    if (!(compactHide && !task.dueTime)) {
+      const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
+      const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : ""), text });
       chip.dataset.when = dueWhen(task.due, today);
       chip.onclick = (e) => {
         e.stopPropagation();
