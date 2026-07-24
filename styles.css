@@ -1274,7 +1274,7 @@ body {
 /* Ruhezustand: nur das Icon (Akzentfarbe). Bei Hover/Fokus stattdessen den Hauptaufgabentitel –
    das Icon wird dabei ausgeblendet (Icon ODER Text, nie beides). */
 .bt-view .bt-parent-link:hover .bt-parent-link-lbl,
-.bt-view .bt-parent-link:focus-visible .bt-parent-link-lbl { display: block; color: var(--text-normal); }
+.bt-view .bt-parent-link:focus-visible .bt-parent-link-lbl { display: block; }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 /* Gefülltes Dreieck nach links (reine CSS-Borders): rechte Kante gefärbt, Spitze links. */
 .bt-parent-link-tri {
@@ -1282,7 +1282,7 @@ body {
   border-top: 5px solid transparent; border-bottom: 5px solid transparent;
   border-right: 7px solid var(--interactive-accent);
 }
-.bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-faint); }
+.bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-muted); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
