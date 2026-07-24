@@ -1265,10 +1265,10 @@ body {
 
 /* Hauptaufgaben-Link: an Unteraufgaben, die auf Top-Level stehen (nicht unter ihrem Parent). Nur
    Icon (corner-left-up), Titel im Tooltip. Steht inline direkt rechts neben dem Aufgabentitel als
-   „Herkunft". Gedämpft (muted), beim Hover text-normal, kein Hintergrund. Zurückhaltend wie bei
-   etablierten To-do-Apps (Farbe bleibt Bedeutung vorbehalten). */
+   „Herkunft" (links vor dem Titel). Gedämpft (muted), beim Hover text-normal, kein Hintergrund.
+   Zurückhaltend wie bei etablierten To-do-Apps (Farbe bleibt Bedeutung vorbehalten). */
 .bt-view .bt-parent-link {
-  display: inline-flex; align-items: center; vertical-align: middle; margin-left: 5px;
+  display: inline-flex; align-items: center; vertical-align: middle; margin-right: 5px;
   color: var(--text-muted); cursor: pointer;
 }
 .bt-view .bt-parent-link:hover { color: var(--text-normal); }
