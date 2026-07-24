@@ -907,7 +907,10 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     listEl.addEventListener("scroll", () => colScroll.set(colKey, listEl.scrollTop));
     // Bei Label-Gruppierung ist die Spalte das Label (col.id = Name) -> in den Karten weglassen (redundant).
     const hideLabel = groupKey === "label" && col.id !== NO_LABEL ? col.id : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel });
+    // Bei Datums-Gruppierung ist die Spalte das Fälligkeitsdatum -> Datums-Chip in der Karte redundant
+    // (Kompakt-Thema blendet ihn dann aus, außer Uhrzeit). „Überfällig"/„ohne Datum" bleiben unberührt.
+    const dateImplied = groupKey === "date";
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1192,7 +1195,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // in section() bestimmt). Datierte Sektionen betreffen due >= heute; Überfällige liegen im Sammel-
     // Bucket „Überfällig" ohne Datum -> dort NICHT ausblenden. Ohne Uhrzeit gar kein Chip (Icon UND Wort
     // weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt) in Grau.
-    const compactHide = plugin.settings.metaTheme === "compact" && !opts.flat && depth === 0
+    // Gilt in Liste UND Board-Karten – aber nur, wenn dateImplied gesetzt ist (Datums-Sektion bzw.
+    // Datums-Spalte). Auf nicht-date-gruppierten Boards ist dateImplied nicht gesetzt -> nichts ausgeblendet.
+    const compactHide = plugin.settings.metaTheme === "compact" && depth === 0
       && !!opts.dateImplied && task.due >= today;
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
