@@ -128,6 +128,13 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();
       }));
 
+    new Setting(containerEl).setName(t("set_parent_marker")).setDesc(t("set_parent_marker_desc")).addToggle((tg) =>
+      tg.setValue(p.settings.showParentMarker).onChange(async (v) => {
+        p.settings.showParentMarker = v;
+        await p.saveSettings();
+        p.renderAll();
+      }));
+
     // Auf Mobilgeraeten ist der Kompakt-Modus fest an (44px-Chips mit Text saehen dort den
     // halben Bildschirm) – der Schalter zeigt das an und ist deaktiviert, statt wirkungslos
     // umschaltbar zu sein. Der gespeicherte Wert bleibt unangetastet und gilt am Desktop weiter.
