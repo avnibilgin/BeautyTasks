@@ -1225,8 +1225,7 @@ body.bt-theme-compact .bt-view .bt-remind,
 body.bt-theme-compact .bt-view .bt-comments,
 body.bt-theme-compact .bt-view .bt-subs,
 body.bt-theme-compact .bt-view .bt-label,
-body.bt-theme-compact .bt-view .bt-backlink,
-body.bt-theme-compact .bt-view .bt-parent-link-lbl { color: var(--text-faint); }
+body.bt-theme-compact .bt-view .bt-backlink { color: var(--text-faint); }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
    ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
@@ -1235,8 +1234,6 @@ body.bt-theme-compact .bt-view .bt-parent-link-lbl { color: var(--text-faint); }
 .bt-view .bt-due[data-dist="d2"]    { color: var(--bt-nav-project); }
 .bt-view .bt-due[data-dist="week"]  { color: var(--bt-label); }
 .bt-view .bt-due[data-dist="far"]   { color: var(--text-faint); }   /* ab Tag 8: wie die übrigen Kompakt-Icons */
-/* Übergeordnet-Dreieck wird über die Rand-Farbe gezeichnet, nicht über color. */
-body.bt-theme-compact .bt-view .bt-parent-link-tri { border-right-color: var(--text-faint); }
 
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
@@ -1304,37 +1301,21 @@ body.bt-theme-compact .bt-view .bt-parent-link-tri { border-right-color: var(--t
 .bt-subs-ic svg { width: 14px; height: 14px; }
 .bt-subs-n { font-size: 0.92em; font-variant-numeric: tabular-nums; }
 
-/* Herkunfts-Marker: Icon (corner-left-up, Akzentfarbe) + gekürzter Hauptaufgabentitel, oben in der
-   rechten Spalte – steht damit über dem @Projekt-Backlink. An Unteraufgaben, die auf Top-Level stehen.
-   Titel per ellipsis gekürzt; Icon farbig, Text gedämpft (leiser Kontext). Klick öffnet die Hauptaufgabe. */
-.bt-view .bt-parent-link {
-  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
-  min-height: 1.7em;   /* Höhe der Titelzeile – damit der Punkt vertikal auf ihr zentriert (Text ist im Ruhezustand aus) */
-  cursor: pointer; font-size: 0.82em;
-}
-/* Ruhezustand: nur das Icon (Akzentfarbe). Bei Hover/Fokus stattdessen den Hauptaufgabentitel –
-   das Icon wird dabei ausgeblendet (Icon ODER Text, nie beides). */
-.bt-view .bt-parent-link:hover .bt-parent-link-lbl,
-.bt-view .bt-parent-link:focus-visible .bt-parent-link-lbl { display: block; }
+/* Hauptaufgaben-Link: normales Meta-Icon ganz vorn (corner-left-up), grau, kein Hover-Hintergrund –
+   konsistent zu den übrigen Meta-Icons. An Unteraufgaben, die auf Top-Level stehen. Tooltip = Titel,
+   Klick öffnet die Hauptaufgabe. */
+.bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--text-faint); cursor: pointer; }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
-/* Gefülltes Dreieck nach links (reine CSS-Borders): rechte Kante gefärbt, Spitze links. */
-.bt-parent-link-tri {
-  flex-shrink: 0; width: 0; height: 0;
-  border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-  border-right: 7px solid var(--interactive-accent);
-}
-.bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-weight: 500; color: var(--interactive-accent); }
+.bt-parent-link-ic { display: inline-flex; }
+.bt-parent-link-ic svg { width: 14px; height: 14px; }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
   margin-left: auto;
-  align-self: stretch;   /* volle Zeilenhöhe: Marker oben, @Projekt unten */
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  min-width: 0;
-  max-width: 60%;   /* Herkunfts-Titel voll, aber die Zeile nie dominieren – Aufgabentitel behält ≥40% */
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 /* ── „Aufgabennotiz bearbeiten" – Aktion rechts in der Kommentar-Kopfzeile ──
    Sitzt an derselben Stelle wie „Erledigte ausblenden" bei den Unteraufgaben und holt Groesse,
@@ -1353,7 +1334,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    in derselben Zeile links und rechts gegenueber. */
 .bt-notes-edit-ic svg { width: 18px; height: 18px; }
 
-.bt-backlink { margin-top: auto; font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+.bt-backlink { font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
 .bt-backlink:hover { color: var(--text-normal); text-decoration: underline; }
 /* Papierkorb-Zeilenaktionen (Wiederherstellen/Löschen) rechts – wie Manage-Aktionen. */
 .bt-task-actions { margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }

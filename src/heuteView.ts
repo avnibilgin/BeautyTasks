@@ -1199,6 +1199,21 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
 
   const meta = body.createDiv({ cls: "bt-meta" });
+  // Hauptaufgaben-Link ganz vorn als normales Meta-Icon (nur Liste, nur wenn per Einstellung an): an jeder
+  // Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent,
+  // „Einzeln"). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die Hauptaufgabe – konsistent
+  // zu den übrigen Meta-Icons.
+  if (depth === 0 && !opts.flat && plugin.settings.showParentMarker && task.parent) {
+    const parent = plugin.index.get(task.parent);
+    if (parent) {
+      const link = meta.createSpan({ cls: "bt-parent-link",
+        attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
+      setIcon(link.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
+      const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
+      link.onclick = openParent;
+      link.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
+    }
+  }
   if (task.due) {
     // „Kompakt"-Thema (nur Liste, nur Top-Level): das Datum weglassen, wo die Sektionsüberschrift es
     // schon zeigt – also überall dort, wo nach Datum gruppiert ist (opts.dateImplied, EINMAL je Sektion
@@ -1294,38 +1309,21 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
   } else if (depth === 0) {
-    // Rechte Zone als Spalte: Herkunfts-Marker (Icon + gekürzter Hauptaufgabentitel) OBEN, @Projekt-
-    // Backlink UNTEN – der Marker steht damit genau über @Projekt. Herkunft an jeder Unteraufgabe, die
-    // hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent, „Einzeln").
-    // @Projekt nur außerhalb eines Projekt-/Inbox-Boards (dort redundant); „nicht einsortiert" = @Eingang.
-    // Herkunfts-Marker NICHT auf Board-Karten (opts.flat): dort ist die Karte zu schmal, der Marker
-    // würde grafisch mit Titel/@Projekt kollidieren. Nur in der Liste – und nur, wenn der Nutzer die
-    // Markierung nicht per Einstellung (showParentMarker) abgeschaltet hat.
-    const parent = !opts.flat && plugin.settings.showParentMarker && task.parent ? plugin.index.get(task.parent) : undefined;
-    // @Projekt-Backlink weglassen: im Projekt-/Inbox-Board (currentProject) ODER wenn die Gruppierung nach
-    // Projekt das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang).
+    // Rechte Zone: nur der @Projekt-Backlink (der Hauptaufgaben-Link sitzt jetzt links in der Meta-Zeile).
+    // @Projekt weglassen: im Projekt-/Inbox-Board (currentProject) ODER wenn die Gruppierung nach Projekt
+    // das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang);
+    // „nicht einsortiert" = @Eingang.
     const inbox = isInboxLink(task.project);
     const projName = inbox ? null : projectName(task.project!);
     const backlink = !plugin.currentProject && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
-    if (parent || backlink) {
+    if (backlink) {
       const extras = row.createDiv({ cls: "bt-extras" });
-      if (parent) {
-        const crumb = extras.createSpan({ cls: "bt-parent-link",
-          attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-        crumb.createSpan({ cls: "bt-parent-link-lbl", text: parent.title });   // bei Hover links vom Dreieck; per CSS gekürzt mit „…"
-        crumb.createSpan({ cls: "bt-parent-link-tri" });   // gefülltes Dreieck – im Ruhezustand allein, bei Hover rechts neben dem Text
-        const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
-        crumb.onclick = openParent;
-        crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
-      }
-      if (backlink) {
-        if (inbox) {
-          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
-        } else {
-          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName) });
-          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
-        }
+      if (inbox) {
+        const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
+        bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
+      } else {
+        const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName) });
+        bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
       }
     }
   }
