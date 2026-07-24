@@ -1171,7 +1171,12 @@ body {
 .bt-check.bt-check-x .svg-icon { width: 11px; height: 11px; color: var(--text-muted); }
 .bt-check.bt-check-x:hover { border-color: var(--text-faint); }   /* kein Hover-Effekt */
 .bt-check.bt-check-x:hover::after { display: none; }              /* kein Häkchen-Hover */
-.bt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px; }
+.bt-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px;
+  /* Einheitlicher Grauton der Meta-Zeile (Kompakt-Stil). Zwischen faint und muted, Richtung muted =
+     etwas dunkler. An dieser EINEN Stelle justierbar (Verhältnis ändern = heller/dunkler). */
+  --bt-meta-gray: color-mix(in srgb, var(--text-faint) 40%, var(--text-muted) 60%);
+}
 /* Alle Meta-Chips sauber auf EINE Mittellinie: einheitliche Zeilenhöhe (kein 1.3-Versatz mehr) und
    symmetrisches vertikales Padding – überstimmt die je-Chip-Unterschiede (bt-chip 2px, bt-subs 1px,
    SVG-Chips 0). Icons UND Text/Zahlen sind dann zentriert (jeder Chip ist inline-flex align-items:center). */
@@ -1214,7 +1219,7 @@ body {
 .bt-due[data-when="future"] { color: var(--text-muted); }
 /* „Kompakt"-Thema: das Heute-Datum ist grau statt in der Akzentfarbe (höhere Spezifität schlägt
    die data-when-Regel oben). Zeigt hier ohnehin nur die Uhrzeit. */
-.bt-view .bt-due.bt-due-compact { color: var(--text-faint); }
+.bt-view .bt-due.bt-due-compact { color: var(--bt-meta-gray); }
 
 /* „Kompakt"-Thema (body.bt-theme-compact): alle Meta-Icons einheitlich grau (heller Ton) –
    Wiederholung, Erinnerung, Deadline, Details, Übergeordnet, Label – UND das Heute-Datum. Nur die
@@ -1225,7 +1230,7 @@ body.bt-theme-compact .bt-view .bt-remind,
 body.bt-theme-compact .bt-view .bt-comments,
 body.bt-theme-compact .bt-view .bt-subs,
 body.bt-theme-compact .bt-view .bt-label,
-body.bt-theme-compact .bt-view .bt-backlink { color: var(--text-faint); }
+body.bt-theme-compact .bt-view .bt-backlink { color: var(--bt-meta-gray); }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
    ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
@@ -1233,7 +1238,7 @@ body.bt-theme-compact .bt-view .bt-backlink { color: var(--text-faint); }
 .bt-view .bt-due[data-dist="d1"]    { color: var(--bt-nav-demnaechst); }
 .bt-view .bt-due[data-dist="d2"]    { color: var(--bt-nav-project); }
 .bt-view .bt-due[data-dist="week"]  { color: var(--bt-label); }
-.bt-view .bt-due[data-dist="far"]   { color: var(--text-faint); }   /* ab Tag 8: wie die übrigen Kompakt-Icons */
+.bt-view .bt-due[data-dist="far"]   { color: var(--bt-meta-gray); }   /* ab Tag 8: wie die übrigen Kompakt-Icons */
 
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
@@ -1304,7 +1309,7 @@ body.bt-theme-compact .bt-view .bt-backlink { color: var(--text-faint); }
 /* Hauptaufgaben-Link: normales Meta-Icon ganz vorn (corner-left-up), grau, kein Hover-Hintergrund –
    konsistent zu den übrigen Meta-Icons. An Unteraufgaben, die auf Top-Level stehen. Tooltip = Titel,
    Klick öffnet die Hauptaufgabe. */
-.bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--text-faint); cursor: pointer; }
+.bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--bt-meta-gray); cursor: pointer; }
 /* Kein Hover-Effekt – konsistent zu den übrigen Meta-Icons. Fokus-Outline bleibt für Tastatur. */
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; }
