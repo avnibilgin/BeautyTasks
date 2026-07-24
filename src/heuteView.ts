@@ -1246,7 +1246,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       if (parent) {
         const crumb = extras.createSpan({ cls: "bt-parent-link",
           attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-        crumb.createSpan({ cls: "bt-parent-link-dot" });   // Akzent-Punkt (Ruhezustand)
+        setIcon(crumb.createSpan({ cls: "bt-parent-link-ic" }), "chevron-left");   // Reveal-Hinweis (Ruhezustand)
         crumb.createSpan({ cls: "bt-parent-link-lbl", text: parent.title });   // bei Hover; per CSS gekürzt mit „…"
         const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
         crumb.onclick = openParent;
