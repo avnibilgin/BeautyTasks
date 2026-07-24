@@ -1048,9 +1048,10 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Bereich/Label/Filter/Eingang) nur bei ausdrücklichem group „date". Einmal je Sektion bestimmt.
   const key = plugin.currentPage().key;
   const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
-  // „Kompakt" + Gruppierung „Keine" (flache Liste, Datum sichtbar): Datum nach Tages-Distanz einfärben
-  // (heute/morgen/übermorgen/bis Tag 7). Nur wo das Datum tatsächlich steht (nicht date-gruppiert).
-  const distColor = plugin.settings.metaTheme === "compact" && o.group === "none" && !dateImplied;
+  // „Kompakt": Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7), ÜBERALL wo das
+  // Datum sichtbar ist – also wo keine Datums-Sektionsüberschrift es trägt (!dateImplied). Das gilt bei
+  // „Keine" UND bei Gruppierung nach Label/Priorität/Projekt (dort gibt es keine eindeutige Datums-Sektion).
+  const distColor = plugin.settings.metaTheme === "compact" && !dateImplied;
   // Bei Gruppierung nach Label trägt die Sektionsüberschrift „#name" das Label -> in den Zeilen weglassen.
   const hideLabel = o.group === "label" && title.startsWith("#") ? title.slice(1) : undefined;
   for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor, hideLabel });
