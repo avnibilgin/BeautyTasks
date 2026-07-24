@@ -1267,7 +1267,7 @@ body {
    rechten Spalte – steht damit über dem @Projekt-Backlink. An Unteraufgaben, die auf Top-Level stehen.
    Titel per ellipsis gekürzt; Icon farbig, Text gedämpft (leiser Kontext). Klick öffnet die Hauptaufgabe. */
 .bt-view .bt-parent-link {
-  display: inline-flex; align-items: center; gap: 3px; max-width: 100%; min-width: 0;
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
   min-height: 1.7em;   /* Höhe der Titelzeile – damit der Punkt vertikal auf ihr zentriert (Text ist im Ruhezustand aus) */
   cursor: pointer; font-size: 0.82em;
 }
@@ -1282,7 +1282,7 @@ body {
   border-top: 5px solid transparent; border-bottom: 5px solid transparent;
   border-right: 7px solid var(--interactive-accent);
 }
-.bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-muted); }
+.bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-weight: 500; color: var(--interactive-accent); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
