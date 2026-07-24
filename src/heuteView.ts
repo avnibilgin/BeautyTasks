@@ -905,7 +905,9 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // müsste nach jeder einzelnen erneut hinunterscrollen.
     const colKey = scrollKey + "|" + col.id;
     listEl.addEventListener("scroll", () => colScroll.set(colKey, listEl.scrollTop));
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs });
+    // Bei Label-Gruppierung ist die Spalte das Label (col.id = Name) -> in den Karten weglassen (redundant).
+    const hideLabel = groupKey === "label" && col.id !== NO_LABEL ? col.id : undefined;
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1049,7 +1051,9 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // „Kompakt" + Gruppierung „Keine" (flache Liste, Datum sichtbar): Datum nach Tages-Distanz einfärben
   // (heute/morgen/übermorgen/bis Tag 7). Nur wo das Datum tatsächlich steht (nicht date-gruppiert).
   const distColor = plugin.settings.metaTheme === "compact" && o.group === "none" && !dateImplied;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor });
+  // Bei Gruppierung nach Label trägt die Sektionsüberschrift „#name" das Label -> in den Zeilen weglassen.
+  const hideLabel = o.group === "label" && title.startsWith("#") ? title.slice(1) : undefined;
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor, hideLabel });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1127,7 +1131,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; distColor?: boolean } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; distColor?: boolean; hideLabel?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1216,9 +1220,10 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     setIcon(rem, "alarm-clock");
   }
   // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
-  // Auf einer Label-Seite das GLEICHNAMIGE Label weglassen (redundant – man ist ja in #label), analog
-  // zum @Projekt-Backlink, der im Projekt-Board ausgeblendet wird.
-  for (const l of task.labels) if (l !== plugin.currentLabel) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
+  // Redundantes Label weglassen: auf einer Label-Seite das gleichnamige (man ist ja in #label, analog
+  // zum @Projekt-Backlink); bei Gruppierung nach Label zusätzlich das Label der Sektion/Spalte (steht
+  // schon in der Überschrift). opts.hideLabel wird vom Aufrufer je Sektion/Spalte gesetzt.
+  for (const l of task.labels) if (l !== plugin.currentLabel && l !== opts.hideLabel) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   if (task.scheduled) {
     const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
     chip.createSpan({ cls: "bt-meta-txt", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
