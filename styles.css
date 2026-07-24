@@ -1263,17 +1263,20 @@ body {
 .bt-subs-ic svg { width: 14px; height: 14px; }
 .bt-subs-n { font-size: 0.92em; font-variant-numeric: tabular-nums; }
 
-/* Herkunfts-Marker: Icon (corner-left-up) in der Akzentfarbe rechts neben dem Aufgabentitel – an
-   Unteraufgaben, die auf Top-Level stehen (nicht unter ihrem Parent). Tooltip nennt die Hauptaufgabe,
-   Klick öffnet sie. */
+/* Herkunfts-Marker: Icon (corner-left-up) in der Akzentfarbe, absolut oben rechts an der Zeilenkante –
+   steht damit genau ÜBER dem @Projekt-Backlink (unten rechts). An Unteraufgaben, die auf Top-Level
+   stehen (nicht unter ihrem Parent). Tooltip nennt die Hauptaufgabe, Klick öffnet sie. */
 .bt-view .bt-parent-link {
-  display: inline-flex; align-items: center; vertical-align: middle;
-  margin-left: 6px; color: var(--interactive-accent); cursor: pointer;
+  position: absolute; top: 7px; right: 2px;
+  display: inline-flex; align-items: center;
+  color: var(--interactive-accent); cursor: pointer;
 }
 .bt-view .bt-parent-link:hover { opacity: 0.75; }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; }
 .bt-parent-link-ic svg { width: 14px; height: 14px; }
+/* Rechts Platz reservieren, damit ein langer Titel nicht unter das absolute Icon läuft. */
+.bt-view .bt-title-has-crumb { padding-right: 22px; }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
