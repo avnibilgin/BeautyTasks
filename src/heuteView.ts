@@ -1173,13 +1173,21 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
 
   const meta = body.createDiv({ cls: "bt-meta" });
   if (task.due) {
-    const chip = meta.createSpan({ cls: "bt-chip bt-due", text: formatDateTime(combineDT(task.due, task.dueTime), today) });
-    chip.dataset.when = dueWhen(task.due, today);
-    chip.onclick = (e) => {
-      e.stopPropagation();
-      openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),
-        { value: task.duration, onChange: (d) => void plugin.setTaskDuration(task, d) });
-    };
+    // „Kompakt"-Thema in der Heute-Ansicht (nur Liste): das redundante „Heute" weglassen – man ist ja
+    // in „Heute". Ohne Uhrzeit gar kein Chip (Icon UND Wort weg); mit Uhrzeit nur die Uhrzeit (Kalender-
+    // icon bleibt) in Grau. Überfällig (due < heute) und alle anderen Ansichten bleiben unberührt.
+    const compactToday = plugin.settings.metaTheme === "compact" && !opts.flat
+      && plugin.currentPage().key === "heute" && task.due === today;
+    if (!(compactToday && !task.dueTime)) {
+      const text = compactToday ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
+      const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactToday ? " bt-due-compact" : ""), text });
+      chip.dataset.when = dueWhen(task.due, today);
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),
+          { value: task.duration, onChange: (d) => void plugin.setTaskDuration(task, d) });
+      };
+    }
   }
   if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
   // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.

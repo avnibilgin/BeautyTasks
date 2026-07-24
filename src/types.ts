@@ -101,6 +101,7 @@ export interface BeautyTasksSettings {
   fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   showParentMarker: boolean;  // Herkunfts-Dreieck an eigenständig gelisteten Unteraufgaben (Link zur Hauptaufgabe)
+  metaTheme: "standard" | "compact";  // Stil der Meta-Zeile: Standard oder Kompakt (redundantes „Heute" weg, nur Uhrzeit, grau)
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
@@ -139,6 +140,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   fontSectionPct: 100,
   showDescriptionInList: true,
   showParentMarker: false,
+  metaTheme: "standard",
   navCollapsed: {},
   startView: "heute",
   lastView: "heute",
