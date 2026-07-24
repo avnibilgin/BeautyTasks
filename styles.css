@@ -1265,10 +1265,10 @@ body {
 
 /* Hauptaufgaben-Link: an Unteraufgaben, die auf Top-Level stehen (nicht unter ihrem Parent). Nur
    Icon (corner-left-up), Titel im Tooltip. Steht ganz vorn in der Meta-Zeile als „Herkunft".
-   Rot wie die anderen Aktions-Akzente (--bt-add), .bt-view-Präfix schlägt die Chip-/Muted-Basis. */
+   Blau wie das Suchen-Icon (--bt-nav-search); .bt-view-Präfix schlägt die Chip-/Muted-Basis. */
 .bt-view .bt-parent-link {
   display: inline-flex; align-items: center;
-  color: var(--bt-add); cursor: pointer; padding: 1px 3px; border-radius: 5px;
+  color: var(--bt-nav-search); cursor: pointer; padding: 1px 3px; border-radius: 5px;
 }
 .bt-view .bt-parent-link:hover { background: var(--background-modifier-hover); }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
