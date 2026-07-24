@@ -199,8 +199,8 @@ export default class BeautyTasksPlugin extends Plugin {
 
   renderMain(): void {
     if (!this.index) return;
-    // „Kompakt"-Thema global markieren – die Meta-Farb-Regeln hängen daran (CSS body.bt-theme-compact).
-    document.body.toggleClass("bt-theme-compact", this.settings.metaTheme === "compact");
+    // Kompakt-Meta-Stil ist der feste Standard – die Meta-Farb-Regeln hängen an body.bt-theme-compact.
+    document.body.addClass("bt-theme-compact");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_MAIN)) {
       if (leaf.view instanceof MainView) leaf.view.draw();
     }

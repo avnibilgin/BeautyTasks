@@ -912,7 +912,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     const dateImplied = groupKey === "date";
     const deadlineImplied = groupKey === "deadline";   // Spalte = Deadline-Datum -> Deadline-Chip in Karte redundant
     // Ist das Datum sichtbar (Board NICHT nach Datum gruppiert), nach Tages-Distanz einfärben – wie in der Liste.
-    const distColor = plugin.settings.metaTheme === "compact" && !dateImplied;
+    const distColor = !dateImplied;
     // Bei Projekt-Gruppierung ist die Spalte das Projekt (col.id = Name bzw. NO_PROJECT) -> @Projekt weglassen.
     const hideProject = groupKey === "project" ? col.id : undefined;
     for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied, deadlineImplied, distColor, hideProject });
@@ -1060,7 +1060,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // „Kompakt": Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7), ÜBERALL wo das
   // Datum sichtbar ist – also wo keine Datums-Sektionsüberschrift es trägt (!dateImplied). Das gilt bei
   // „Keine" UND bei Gruppierung nach Label/Priorität/Projekt (dort gibt es keine eindeutige Datums-Sektion).
-  const distColor = plugin.settings.metaTheme === "compact" && !dateImplied;
+  const distColor = !dateImplied;
   // Bei Gruppierung nach Label trägt die Sektionsüberschrift „#name" das Label -> in den Zeilen weglassen.
   const hideLabel = o.group === "label" && title.startsWith("#") ? title.slice(1) : undefined;
   // Analog nach Projekt: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
@@ -1222,8 +1222,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt) in Grau.
     // Gilt in Liste UND Board-Karten – aber nur, wenn dateImplied gesetzt ist (Datums-Sektion bzw.
     // Datums-Spalte). Auf nicht-date-gruppierten Boards ist dateImplied nicht gesetzt -> nichts ausgeblendet.
-    const compactHide = plugin.settings.metaTheme === "compact" && depth === 0
-      && !!opts.dateImplied && task.due >= today;
+    const compactHide = depth === 0 && !!opts.dateImplied && task.due >= today;
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
       const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : "") });
@@ -1259,7 +1258,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
     // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).
     // Überfällige Deadlines (< heute) liegen im Sammel-Bucket „Überfällig" -> dort NICHT ausblenden.
-    const schedHide = plugin.settings.metaTheme === "compact" && depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
+    const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
     if (!(schedHide && !task.scheduledTime)) {
       const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
       chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
@@ -1347,7 +1346,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
     // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. dateImplied wird bewusst
     // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
-    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: plugin.settings.metaTheme === "compact" });
+    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: true });
   }
 }
 
