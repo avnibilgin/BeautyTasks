@@ -1275,8 +1275,6 @@ body {
    das Icon wird dabei ausgeblendet (Icon ODER Text, nie beides). */
 .bt-view .bt-parent-link:hover .bt-parent-link-lbl,
 .bt-view .bt-parent-link:focus-visible .bt-parent-link-lbl { display: block; color: var(--text-normal); }
-.bt-view .bt-parent-link:hover .bt-parent-link-tri,
-.bt-view .bt-parent-link:focus-visible .bt-parent-link-tri { display: none; }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 /* Gefülltes Dreieck nach links (reine CSS-Borders): rechte Kante gefärbt, Spitze links. */
 .bt-parent-link-tri {

@@ -1246,8 +1246,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       if (parent) {
         const crumb = extras.createSpan({ cls: "bt-parent-link",
           attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-        crumb.createSpan({ cls: "bt-parent-link-tri" });   // gefülltes Dreieck nach links (Reveal-Hinweis, Ruhezustand)
-        crumb.createSpan({ cls: "bt-parent-link-lbl", text: parent.title });   // bei Hover; per CSS gekürzt mit „…"
+        crumb.createSpan({ cls: "bt-parent-link-lbl", text: parent.title });   // bei Hover links vom Dreieck; per CSS gekürzt mit „…"
+        crumb.createSpan({ cls: "bt-parent-link-tri" });   // gefülltes Dreieck – im Ruhezustand allein, bei Hover rechts neben dem Text
         const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
         crumb.onclick = openParent;
         crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
