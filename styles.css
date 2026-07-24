@@ -1270,12 +1270,14 @@ body {
   display: inline-flex; align-items: center; gap: 3px; max-width: 100%; min-width: 0;
   cursor: pointer; font-size: 0.82em;
 }
+/* Titel standardmäßig ausgeblendet (nur Icon). Bei Hover/Fokus den Hauptaufgabentitel einblenden. */
 .bt-view .bt-parent-link:hover .bt-parent-link-lbl,
+.bt-view .bt-parent-link:focus-visible .bt-parent-link-lbl { display: block; color: var(--text-normal); }
 .bt-view .bt-parent-link:hover .bt-parent-link-ic { color: var(--text-normal); }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; flex-shrink: 0; color: var(--text-faint); transform: translateY(-1px); }
 .bt-parent-link-ic svg { width: 13px; height: 13px; }
-.bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-faint); }
+.bt-parent-link-lbl { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-faint); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
