@@ -1176,6 +1176,9 @@ body {
    symmetrisches vertikales Padding – überstimmt die je-Chip-Unterschiede (bt-chip 2px, bt-subs 1px,
    SVG-Chips 0). Icons UND Text/Zahlen sind dann zentriert (jeder Chip ist inline-flex align-items:center). */
 .bt-meta > * { line-height: 1; padding-top: 1px; padding-bottom: 1px; }
+/* Feinjustage einzelner Icons (Masken-Glyphen sitzen im SVG leicht außermittig): */
+.bt-view .bt-due::before { transform: translateY(1px); }   /* Kalender-Icon minimal runter (zum Datum passend) */
+.bt-view .bt-sched { transform: translateY(1px); }          /* Deadline („Morgen") sitzt zu hoch -> etwas runter */
 
 /* Chips (Basis) – nur in der Liste; Modal-Chips nutzen .bt-task-modal .bt-chip */
 .bt-view .bt-chip {
@@ -1248,7 +1251,7 @@ body.bt-theme-compact .bt-view .bt-parent-link-tri { border-right-color: var(--t
 /* Erinnerungs-Indikator (alarm-clock) – nur Icon, Details im Tooltip; gleiches Glyph wie der
    Reminder-Chip im Editor, damit „Erinnerung" überall dasselbe Symbol trägt. */
 .bt-remind { display: inline-flex; align-items: center; color: var(--text-muted); }
-.bt-remind svg { width: 14px; height: 14px; }
+.bt-remind svg { width: 16px; height: 16px; }
 
 /* Kommentar-/Anhang-Chip (Büroklammer + dezente Anzahl) */
 .bt-comments { display: inline-flex; align-items: center; gap: 3px; color: var(--bt-attach); font-size: 0.85em; }
