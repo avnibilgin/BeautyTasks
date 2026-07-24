@@ -1267,14 +1267,14 @@ body {
    rechten Spalte – steht damit über dem @Projekt-Backlink. An Unteraufgaben, die auf Top-Level stehen.
    Titel per ellipsis gekürzt; Icon farbig, Text gedämpft (leiser Kontext). Klick öffnet die Hauptaufgabe. */
 .bt-view .bt-parent-link {
-  display: inline-flex; align-items: center; gap: 3px; max-width: 150px;
+  display: inline-flex; align-items: center; gap: 3px; max-width: 100%; min-width: 0;
   cursor: pointer; font-size: 0.82em;
 }
 .bt-view .bt-parent-link:hover .bt-parent-link-lbl { color: var(--text-normal); }
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; flex-shrink: 0; color: var(--interactive-accent); }
 .bt-parent-link-ic svg { width: 13px; height: 13px; }
-.bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.bt-parent-link-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--text-muted); }
 
 /* Rechte Gruppe: Projekt-Backlink + Stift */
 .bt-extras {
@@ -1285,6 +1285,7 @@ body {
   align-items: flex-end;
   gap: 2px;
   min-width: 0;
+  max-width: 60%;   /* Herkunfts-Titel voll, aber die Zeile nie dominieren – Aufgabentitel behält ≥40% */
 }
 /* ── „Aufgabennotiz bearbeiten" – Aktion rechts in der Kommentar-Kopfzeile ──
    Sitzt an derselben Stelle wie „Erledigte ausblenden" bei den Unteraufgaben und holt Groesse,
