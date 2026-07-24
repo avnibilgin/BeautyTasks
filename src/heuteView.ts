@@ -1172,21 +1172,6 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
 
   const meta = body.createDiv({ cls: "bt-meta" });
-  // Hauptaufgaben-Link: an JEDER Unteraufgabe, die auf Top-Level steht (depth 0) – also nicht unter
-  // ihrer Hauptaufgabe eingerückt. Deckt alle Fälle ab: datierte Unteraufgabe in Heute, Unteraufgabe
-  // in fremdem Projekt, offene Unteraufgabe unter erledigtem Parent, „Einzeln"-Modus, Papierkorb.
-  // Nur Icon (rot) + Tooltip mit dem Titel; Klick öffnet die Hauptaufgabe (corner-left-up wie im Modal).
-  if (depth === 0 && task.parent) {
-    const parent = plugin.index.get(task.parent);   // task.parent = aufgelöster Parent-Pfad
-    if (parent) {
-      const crumb = meta.createSpan({ cls: "bt-parent-link",
-        attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-      setIcon(crumb.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
-      const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
-      crumb.onclick = openParent;
-      crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
-    }
-  }
   if (task.due) {
     const chip = meta.createSpan({ cls: "bt-chip bt-due", text: formatDateTime(combineDT(task.due, task.dueTime), today) });
     chip.dataset.when = dueWhen(task.due, today);
@@ -1249,18 +1234,34 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (!plugin.currentProject && depth === 0) {
-    // In einem Projekt-/Inbox-Board ist die Zuordnung redundant -> ausblenden (currentProject gesetzt);
-    // sonst sichtbar. Bei verschachtelten Unteraufgaben (depth > 0) zeigt der Parent sie schon.
-    // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) wird als @Eingang gezeigt.
-    const extras = row.createDiv({ cls: "bt-extras" });
-    if (isInboxLink(task.project)) {
-      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
-    } else {
-      const name = projectName(task.project!);
-      const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
-      bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+  } else if (depth === 0) {
+    // Rechte Zone = „wo gehört das hin"-Kontext: Herkunft (Hauptaufgabe) + @Projekt-Backlink. Steht
+    // rechts, damit die linke Spalte (Titel · Datum · Labels) in ruhiger vertikaler Flucht bleibt.
+    // Herkunft: an jeder Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt,
+    // erledigter Parent, „Einzeln"). @Projekt nur außerhalb eines Projekt-/Inbox-Boards (dort redundant).
+    const parent = task.parent ? plugin.index.get(task.parent) : undefined;
+    const backlink = !plugin.currentProject;
+    if (parent || backlink) {
+      const extras = row.createDiv({ cls: "bt-extras" });
+      if (parent) {
+        const crumb = extras.createSpan({ cls: "bt-parent-link",
+          attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
+        setIcon(crumb.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
+        const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
+        crumb.onclick = openParent;
+        crumb.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
+      }
+      if (backlink) {
+        // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) wird als @Eingang gezeigt.
+        if (isInboxLink(task.project)) {
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
+          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
+        } else {
+          const name = projectName(task.project!);
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(name) });
+          bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+        }
+      }
     }
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
