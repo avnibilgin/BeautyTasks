@@ -1185,7 +1185,7 @@ body {
 /* Zahlen bei Dokumente/Anhänge und Unteraufgaben-Badge ebenfalls leicht tiefer (Icons bleiben). */
 .bt-view .bt-comments-n { transform: translateY(1px); }
 .bt-view .bt-subs-n { transform: translateY(1px); }
-.bt-view .bt-label::before { transform: translateY(3px); }   /* Hashtag-Icon etwas tiefer */
+.bt-view .bt-label::before { transform: translateY(1px); }   /* Hashtag-Icon etwas tiefer */
 
 /* Chips (Basis) – nur in der Liste; Modal-Chips nutzen .bt-task-modal .bt-chip */
 .bt-view .bt-chip {
