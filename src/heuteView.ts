@@ -1036,7 +1036,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   const o = plugin.pageViewOptions();
   const subs = effectiveSubtasks(o);
   const manual = o.sort === "manual";
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual });
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1114,7 +1114,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1257,9 +1257,14 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const showKids = !trash && !opts.flat
     && (subs === "indented" || (subs === "compact" && subtasksExpanded.has(task.path)));
   if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
+    if (isTrashed(kid.status)) continue;
+    // Erledigte Unteraufgaben an denselben Schalter koppeln wie die Erledigt-Sektion: „Erledigte
+    // anzeigen" aus -> auch hier verschachtelt weg. Ausnahme: ist der Parent SELBST erledigt (Erledigt-
+    // Ansicht/-Sektion), bleiben sie sichtbar – sonst verschwänden dort die einzigen Zeilen fälschlich.
+    if (isDone(kid.status) && !opts.showDone && !isDone(task.status)) continue;
     // Griff auch an verschachtelten Zeilen: ihre Geschwister stehen direkt darunter, also lassen
     // sie sich untereinander genauso einsortieren wie Hauptaufgaben.
-    if (!isTrashed(kid.status)) renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual });
+    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
   }
 }
 
