@@ -1171,12 +1171,11 @@ body {
 .bt-check.bt-check-x .svg-icon { width: 11px; height: 11px; color: var(--text-muted); }
 .bt-check.bt-check-x:hover { border-color: var(--text-faint); }   /* kein Hover-Effekt */
 .bt-check.bt-check-x:hover::after { display: none; }              /* kein Häkchen-Hover */
-.bt-meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px;
-  /* Einheitlicher Grauton der Meta-Zeile (Kompakt-Stil). Zwischen faint und muted, Richtung muted =
-     etwas dunkler. An dieser EINEN Stelle justierbar (Verhältnis ändern = heller/dunkler). */
-  --bt-meta-gray: color-mix(in srgb, var(--text-faint) 40%, var(--text-muted) 60%);
-}
+/* Einheitlicher Grauton der Meta-Zeile (Kompakt-Stil). Zwischen faint und muted, Richtung muted =
+   etwas dunkler. Auf .bt-view definiert, damit ihn AUCH der @Projekt-Backlink (in .bt-extras, außerhalb
+   von .bt-meta) erbt. An dieser EINEN Stelle justierbar (Verhältnis ändern = heller/dunkler). */
+.bt-view { --bt-meta-gray: color-mix(in srgb, var(--text-faint) 40%, var(--text-muted) 60%); }
+.bt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px; }
 /* Alle Meta-Chips sauber auf EINE Mittellinie: einheitliche Zeilenhöhe (kein 1.3-Versatz mehr) und
    symmetrisches vertikales Padding – überstimmt die je-Chip-Unterschiede (bt-chip 2px, bt-subs 1px,
    SVG-Chips 0). Icons UND Text/Zahlen sind dann zentriert (jeder Chip ist inline-flex align-items:center). */
