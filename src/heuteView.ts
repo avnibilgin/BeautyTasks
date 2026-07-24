@@ -1315,7 +1315,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
           const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
           bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
         } else {
-          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName!) });
+          const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName) });
           bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
         }
       }
