@@ -1208,7 +1208,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",
         attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
-      setIcon(link.createSpan({ cls: "bt-parent-link-ic" }), "git-branch");
+      setIcon(link.createSpan({ cls: "bt-parent-link-ic" }), "circle-arrow-out-up-left");
       const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
       link.onclick = openParent;
       link.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParent(e); } };
