@@ -1191,7 +1191,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       && !!opts.dateImplied && task.due >= today;
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
-      const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : ""), text });
+      const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : "") });
+      chip.createSpan({ cls: "bt-meta-txt", text });   // Text im eigenen Span -> unabhängig vom Kalender-Icon justierbar
       chip.dataset.when = dueWhen(task.due, today);
       // Kompakt + flache Liste: Datum nach Distanz einfärben (heute/morgen/übermorgen/bis Tag 7).
       // Überfällig (< heute) und weiter als 7 Tage behalten ihre normale data-when-Farbe.

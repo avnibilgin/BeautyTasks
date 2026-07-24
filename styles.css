@@ -1177,9 +1177,9 @@ body {
    SVG-Chips 0). Icons UND Text/Zahlen sind dann zentriert (jeder Chip ist inline-flex align-items:center). */
 .bt-meta > * { line-height: 1; padding-top: 1px; padding-bottom: 1px; }
 /* Feinjustage einzelner Icons (Masken-Glyphen sitzen im SVG leicht außermittig): */
-.bt-view .bt-due::before { transform: translateY(1px); }   /* Kalender-Icon minimal runter (zum Datum passend) */
 .bt-view .bt-sched { transform: translateY(1px); }          /* Deadline-Chip: Icon sitzt danach gut auf Linie */
-/* Nur die Text-Teile feinjustieren (Icons bleiben, wo sie sind): Label-Text etwas tiefer, „Morgen" auch. */
+/* Nur die Text-Teile feinjustieren (Icons bleiben, wo sie sind): Datum/Label-Text tiefer, „Morgen" auch. */
+.bt-view .bt-due .bt-meta-txt { transform: translateY(2px); }
 .bt-view .bt-label .bt-meta-txt { transform: translateY(2px); }
 .bt-view .bt-sched .bt-meta-txt { transform: translateY(1px); }
 
