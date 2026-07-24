@@ -69,8 +69,9 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.loadSettings();
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
     this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
-    this.register(() => {                      // beim Entladen die gesetzten Variablen wieder entfernen
+    this.register(() => {                      // beim Entladen die gesetzten Body-Anpassungen wieder entfernen
       for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale"]) document.body.style.removeProperty(n);
+      document.body.removeClass("bt-theme-compact");   // Meta-Stil-Klasse (s. renderMain) sauber entfernen
     });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
