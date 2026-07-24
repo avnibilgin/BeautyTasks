@@ -1345,7 +1345,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     if (isDone(kid.status) && !opts.showDone && !isDone(task.status)) continue;
     // Griff auch an verschachtelten Zeilen: ihre Geschwister stehen direkt darunter, also lassen
     // sie sich untereinander genauso einsortieren wie Hauptaufgaben.
-    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
+    // Unteraufgaben zeigen IMMER ihr eigenes Datum distanz-gefärbt (nie ausgeblendet): die Sektions-/
+    // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
+    // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. dateImplied wird bewusst
+    // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
+    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: plugin.settings.metaTheme === "compact" });
   }
 }
 
