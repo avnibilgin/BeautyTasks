@@ -910,11 +910,12 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // Bei Datums-Gruppierung ist die Spalte das Fälligkeitsdatum -> Datums-Chip in der Karte redundant
     // (Kompakt-Thema blendet ihn dann aus, außer Uhrzeit). „Überfällig"/„ohne Datum" bleiben unberührt.
     const dateImplied = groupKey === "date";
+    const deadlineImplied = groupKey === "deadline";   // Spalte = Deadline-Datum -> Deadline-Chip in Karte redundant
     // Ist das Datum sichtbar (Board NICHT nach Datum gruppiert), nach Tages-Distanz einfärben – wie in der Liste.
     const distColor = plugin.settings.metaTheme === "compact" && !dateImplied;
     // Bei Projekt-Gruppierung ist die Spalte das Projekt (col.id = Name bzw. NO_PROJECT) -> @Projekt weglassen.
     const hideProject = groupKey === "project" ? col.id : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied, distColor, hideProject });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied, deadlineImplied, distColor, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1055,6 +1056,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Bereich/Label/Filter/Eingang) nur bei ausdrücklichem group „date". Einmal je Sektion bestimmt.
   const key = plugin.currentPage().key;
   const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
+  const deadlineImplied = o.group === "deadline";   // Sektionen = Deadline-Datum -> Deadline-Chip redundant
   // „Kompakt": Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7), ÜBERALL wo das
   // Datum sichtbar ist – also wo keine Datums-Sektionsüberschrift es trägt (!dateImplied). Das gilt bei
   // „Keine" UND bei Gruppierung nach Label/Priorität/Projekt (dort gibt es keine eindeutige Datums-Sektion).
@@ -1065,7 +1067,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon).
   const hideProject = o.group === "project" && top.length
     ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, distColor, hideLabel, hideProject });
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideLabel, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1143,7 +1145,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; distColor?: boolean; hideLabel?: string; hideProject?: string } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; deadlineImplied?: boolean; distColor?: boolean; hideLabel?: string; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1239,9 +1241,15 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // schon in der Überschrift). opts.hideLabel wird vom Aufrufer je Sektion/Spalte gesetzt.
   for (const l of task.labels) if (l !== plugin.currentLabel && l !== opts.hideLabel) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   if (task.scheduled) {
-    const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
-    chip.createSpan({ cls: "bt-meta-txt", text: formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
-    chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
+    // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
+    // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).
+    // Überfällige Deadlines (< heute) liegen im Sammel-Bucket „Überfällig" -> dort NICHT ausblenden.
+    const schedHide = plugin.settings.metaTheme === "compact" && depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
+    if (!(schedHide && !task.scheduledTime)) {
+      const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
+      chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
+      chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
+    }
   }
   // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
   const comments = plugin.index.commentsOf(task.path);
