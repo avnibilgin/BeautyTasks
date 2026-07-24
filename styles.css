@@ -1305,7 +1305,7 @@ body.bt-theme-compact .bt-view .bt-backlink { color: var(--text-faint); }
    konsistent zu den übrigen Meta-Icons. An Unteraufgaben, die auf Top-Level stehen. Tooltip = Titel,
    Klick öffnet die Hauptaufgabe. */
 .bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--text-faint); cursor: pointer; }
-.bt-view .bt-parent-link:hover { color: var(--text-normal); }
+/* Kein Hover-Effekt – konsistent zu den übrigen Meta-Icons. Fokus-Outline bleibt für Tastatur. */
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; }
 .bt-parent-link-ic svg { width: 15px; height: 15px; }
