@@ -71,7 +71,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
     this.register(() => {                      // beim Entladen die gesetzten Body-Anpassungen wieder entfernen
       for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale"]) document.body.style.removeProperty(n);
-      document.body.removeClass("bt-theme-compact");   // Meta-Stil-Klasse (s. renderMain) sauber entfernen
+      document.body.removeClasses(["bt-meta-minimalisto", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
     });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
@@ -200,8 +200,10 @@ export default class BeautyTasksPlugin extends Plugin {
 
   renderMain(): void {
     if (!this.index) return;
-    // Kompakt-Meta-Stil ist der feste Standard – die Meta-Farb-Regeln hängen an body.bt-theme-compact.
-    document.body.addClass("bt-theme-compact");
+    // Meta-Zeilen-Thema global markieren – die Farb-Regeln hängen an body.bt-meta-minimalisto/-colorado.
+    const colorado = this.settings.metaTheme === "colorado";
+    document.body.toggleClass("bt-meta-colorado", colorado);
+    document.body.toggleClass("bt-meta-minimalisto", !colorado);
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_MAIN)) {
       if (leaf.view instanceof MainView) leaf.view.draw();
     }

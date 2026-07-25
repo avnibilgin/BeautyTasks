@@ -135,6 +135,16 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();
       }));
 
+    new Setting(containerEl).setName(t("set_meta_theme")).setDesc(t("set_meta_theme_desc")).addDropdown((dd) => {
+      dd.addOption("minimalisto", "Minimalisto");   // Eigennamen -> nicht übersetzt
+      dd.addOption("colorado", "Colorado");
+      dd.setValue(p.settings.metaTheme).onChange(async (v) => {
+        p.settings.metaTheme = v as "minimalisto" | "colorado";
+        await p.saveSettings();
+        p.renderAll();
+      });
+    });
+
     // Auf Mobilgeraeten ist der Kompakt-Modus fest an (44px-Chips mit Text saehen dort den
     // halben Bildschirm) – der Schalter zeigt das an und ist deaktiviert, statt wirkungslos
     // umschaltbar zu sein. Der gespeicherte Wert bleibt unangetastet und gilt am Desktop weiter.

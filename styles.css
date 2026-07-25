@@ -1220,16 +1220,17 @@ body {
    die data-when-Regel oben). Zeigt hier ohnehin nur die Uhrzeit. */
 .bt-view .bt-due.bt-due-compact { color: var(--bt-meta-gray); }
 
-/* „Kompakt"-Thema (body.bt-theme-compact): alle Meta-Icons einheitlich grau (heller Ton) –
-   Wiederholung, Erinnerung, Deadline, Details, Übergeordnet, Label – UND das Heute-Datum. Nur die
-   Checkbox (Status) ist keine Meta-Zeile und bleibt unberührt. */
-body.bt-theme-compact .bt-view .bt-recur,
-body.bt-theme-compact .bt-view .bt-sched,
-body.bt-theme-compact .bt-view .bt-remind,
-body.bt-theme-compact .bt-view .bt-comments,
-body.bt-theme-compact .bt-view .bt-subs,
-body.bt-theme-compact .bt-view .bt-label,
-body.bt-theme-compact .bt-view .bt-backlink { color: var(--bt-meta-gray); }
+/* Immer grau (BEIDE Themes): Erinnerung, Unteraufgaben-Badge, @Projekt-Backlink. Der Hauptaufgaben-
+   Link ist ohnehin schon grau (s. .bt-parent-link). Checkbox/Status ist keine Meta-Zeile -> unberührt. */
+.bt-view .bt-remind,
+.bt-view .bt-subs,
+.bt-view .bt-backlink { color: var(--bt-meta-gray); }
+/* Nur „Minimalisto" grau: Wiederholung, Deadline, Details, Label. In „Colorado" fällt dieser Override
+   weg -> die Basis-Farbregeln (.bt-view .bt-recur/.bt-sched/.bt-comments/.bt-label) greifen wieder. */
+body.bt-meta-minimalisto .bt-view .bt-recur,
+body.bt-meta-minimalisto .bt-view .bt-sched,
+body.bt-meta-minimalisto .bt-view .bt-comments,
+body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
    ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
