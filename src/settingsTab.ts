@@ -138,28 +138,10 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     // Register der Farb-Picker/Reset-Knöpfe – der Theme-Wechsel aktualisiert deren Zustand direkt
     // (aktiv nur bei „User", Swatch = effektive Farbe des neuen Themes), ohne this.display().
     const colorControls: { key: MetaColorKey; picker: ColorComponent; reset: ExtraButtonComponent }[] = [];
+    let colorBox: HTMLElement;   // Container aller Farbzeilen – wird bei Nicht-„User" sichtbar abgedunkelt (is-locked)
 
-    new Setting(containerEl).setName(t("set_meta_theme")).setDesc(t("set_meta_theme_desc")).addDropdown((dd) => {
-      dd.addOption("minimalisdo", "Minimalisdo");   // Eigennamen -> nicht übersetzt
-      dd.addOption("colorado", "Colorado");
-      dd.addOption("user", "User");   // eigene Farben (metaColors) – nur hier sind die Picker aktiv
-      dd.setValue(p.settings.metaTheme).onChange(async (v) => {
-        p.settings.metaTheme = v as "minimalisdo" | "colorado" | "user";
-        await p.saveSettings();
-        p.renderAll();     // setzt die Colorado-Body-Klasse
-        p.applyColors();   // User-Overrides an/aus
-        const isU = p.settings.metaTheme === "user";
-        for (const c of colorControls) {
-          c.picker.setDisabled(!isU); c.reset.setDisabled(!isU);
-          c.picker.setValue(p.settings.metaColors[c.key] ?? resolveColor(c.key));   // Swatch = neue effektive Farbe
-        }
-      });
-    });
-
-    // Farben je Meta-Element EINZELN: Color-Picker + Reset (leert -> Theme-Default). Der Swatch zeigt die
-    // aktuelle EFFEKTIVE Farbe – resolveColor liest die CSS-Variable über ein Probe-Element aus (also auch
-    // die echte Obsidian-Akzentfarbe). Akzent überschreibt --interactive-accent NUR im Plugin (s. CSS).
-    new Setting(containerEl).setName(t("set_colors_heading")).setDesc(t("set_colors_desc")).setHeading();
+    // Zu jeder Meta-Farbe ihre CSS-Variable; resolveColor liest die EFFEKTIVE (gerenderte) Farbe über ein
+    // Probe-Element aus – also auch die echte Obsidian-Akzentfarbe bzw. den User-Override.
     const cssVarOf: Record<MetaColorKey, string> = {
       accent: "--bt-accent",
       overdue: "--bt-dist-overdue", today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",
@@ -173,11 +155,58 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       probe.remove();
       return m && m.length >= 3 ? "#" + m.slice(0, 3).map((n) => (+n).toString(16).padStart(2, "0")).join("") : "#888888";
     };
+
+    // Akzentfarbe – eigenständige Design-Einstellung ÜBER der Meta-Theme-Sektion (thematisch getrennt: der
+    // Akzent wirkt auf das ganze Plugin – Buttons/Links/Auswahl –, nicht nur auf die Meta-Zeile). Überschreibt
+    // die Obsidian-Akzentfarbe NUR innerhalb von BeautyTasks; Default/Reset = Obsidian-Akzent. Immer editierbar.
+    {
+      let accentPicker!: ColorComponent;
+      const s = new Setting(containerEl).setName(t("set_color_accent")).setDesc(t("set_color_accent_desc"))
+        .addColorPicker((cp) => { accentPicker = cp; cp.setValue(resolveColor("accent")).onChange(async (v) => {
+          p.settings.metaColors = { ...p.settings.metaColors, accent: v };
+          await p.saveSettings(); p.applyColors(); p.renderAll();
+        }); })
+        .addExtraButton((b) => b.setIcon("rotate-ccw").setTooltip(t("filter_reset")).onClick(async () => {
+          const nc = { ...p.settings.metaColors }; delete nc.accent;
+          p.settings.metaColors = nc;
+          await p.saveSettings(); p.applyColors(); p.renderAll();
+          accentPicker.setValue(resolveColor("accent"));   // zurück auf Obsidian-Akzent
+        }));
+      const ic = createSpan({ cls: "bt-color-row-ic" });
+      setIcon(ic, "palette");
+      ic.style.color = `var(${cssVarOf.accent})`;   // Icon in der effektiven Akzentfarbe (Live-Vorschau)
+      s.nameEl.prepend(ic);
+    }
+
+    new Setting(containerEl).setName(t("set_meta_theme")).setDesc(t("set_meta_theme_desc")).addDropdown((dd) => {
+      dd.addOption("minimalisdo", "Minimalisdo");   // Eigennamen -> nicht übersetzt
+      dd.addOption("colorado", "Colorado");
+      dd.addOption("user", "User");   // eigene Farben (metaColors) – nur hier sind die Picker aktiv
+      dd.setValue(p.settings.metaTheme).onChange(async (v) => {
+        p.settings.metaTheme = v as "minimalisdo" | "colorado" | "user";
+        await p.saveSettings();
+        p.renderAll();     // setzt die Colorado-Body-Klasse
+        p.applyColors();   // User-Overrides an/aus
+        const isU = p.settings.metaTheme === "user";
+        colorBox.toggleClass("is-locked", !isU);   // sichtbar abdunkeln, wenn nicht editierbar
+        for (const c of colorControls) {
+          c.picker.setDisabled(!isU); c.reset.setDisabled(!isU);
+          c.picker.setValue(resolveColor(c.key));   // Swatch = effektive Farbe des neuen Themes (Preset bzw. User-Wert)
+        }
+      });
+    });
+
+    // Farben je Meta-Element EINZELN: Color-Picker + Reset (leert -> Theme-Default). Der Swatch zeigt die
+    // aktuelle EFFEKTIVE Farbe (resolveColor, s. o.). Nur im „User"-Theme editierbar (sonst gedimmt).
+    new Setting(containerEl).setName(t("set_colors_heading")).setDesc(t("set_colors_desc")).setHeading();
     const isUser = p.settings.metaTheme === "user";   // Farben nur im „User"-Theme änderbar
-    const colorRow = (key: MetaColorKey, name: string): void => {
+    // Icon vor jedem Farbnamen = GENAU das Symbol der Meta-Zeile (calendar/alarm-clock/… – s. heuteView),
+    // damit die Zuordnung eindeutig ist (Verwechslung Haupt-/Unteraufgabe o. Ä. ausgeschlossen). Das Icon
+    // trägt die effektive Farbe (CSS-Variable), ist also selbst eine kleine Live-Vorschau.
+    const colorRow = (key: MetaColorKey, name: string, icon: string): void => {
       let picker!: ColorComponent; let reset!: ExtraButtonComponent;
-      new Setting(containerEl).setName(name)
-        .addColorPicker((cp) => { picker = cp; cp.setDisabled(!isUser).setValue(p.settings.metaColors[key] ?? resolveColor(key)).onChange(async (v) => {
+      const s = new Setting(colorBox).setName(name)
+        .addColorPicker((cp) => { picker = cp; cp.setDisabled(!isUser).setValue(resolveColor(key)).onChange(async (v) => {
           p.settings.metaColors = { ...p.settings.metaColors, [key]: v };
           await p.saveSettings(); p.applyColors(); p.renderAll();
         }); })
@@ -187,23 +216,28 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
           await p.saveSettings(); p.applyColors(); p.renderAll();
           picker.setValue(resolveColor(key));   // Swatch = aktuelle effektive Farbe (jetzt der Theme-Default)
         }); });
+      const ic = createSpan({ cls: "bt-color-row-ic" });
+      setIcon(ic, icon);
+      ic.style.color = `var(${cssVarOf[key]})`;   // Icon in der effektiven Farbe (Live-Vorschau)
+      s.nameEl.prepend(ic);
       colorControls.push({ key, picker, reset });   // fürs Aktivieren/Deaktivieren beim Theme-Wechsel
     };
-    colorRow("accent", t("set_color_accent"));
-    colorRow("overdue", t("sec_overdue"));
-    colorRow("today", t("date_today"));
-    colorRow("d1", t("date_tomorrow"));
-    colorRow("d2", t("set_color_d2"));
-    colorRow("week", t("set_color_week"));
-    colorRow("far", t("set_color_far"));
-    colorRow("recur", t("set_color_recur"));
-    colorRow("remind", t("set_color_remind"));
-    colorRow("sched", t("filter_group_deadline"));
-    colorRow("label", t("filter_group_label"));
-    colorRow("comments", t("set_color_comments"));
-    colorRow("subs", t("set_color_subs"));
-    colorRow("parent", t("set_color_parent"));
-    colorRow("backlink", t("filter_group_project"));
+    colorBox = containerEl.createDiv({ cls: "bt-color-settings" });   // themengebundene Farbzeilen (dimmbar)
+    colorRow("overdue", t("sec_overdue"), "calendar");
+    colorRow("today", t("date_today"), "calendar");
+    colorRow("d1", t("date_tomorrow"), "calendar");
+    colorRow("d2", t("set_color_d2"), "calendar");
+    colorRow("week", t("set_color_week"), "calendar");
+    colorRow("far", t("set_color_far"), "calendar");
+    colorRow("recur", t("set_color_recur"), "refresh-cw");
+    colorRow("remind", t("set_color_remind"), "alarm-clock");
+    colorRow("sched", t("filter_group_deadline"), "clock");
+    colorRow("label", t("filter_group_label"), "tag");
+    colorRow("comments", t("set_color_comments"), "paperclip");
+    colorRow("subs", t("set_color_subs"), "list-checks");
+    colorRow("parent", t("set_color_parent"), "corner-left-up");
+    colorRow("backlink", t("filter_group_project"), "at-sign");
+    colorBox.toggleClass("is-locked", !isUser);   // Startzustand: abgedunkelt, wenn nicht „User"
 
     // Auf Mobilgeraeten ist der Kompakt-Modus fest an (44px-Chips mit Text saehen dort den
     // halben Bildschirm) – der Schalter zeigt das an und ist deaktiviert, statt wirkungslos

@@ -1232,9 +1232,6 @@ body {
 .bt-due[data-when="past"]   { color: var(--bt-dist-overdue); }
 .bt-due[data-when="today"]  { color: var(--bt-today); }
 .bt-due[data-when="future"] { color: var(--text-muted); }
-/* „Kompakt"-Thema: das Heute-Datum ist grau statt in der Akzentfarbe (höhere Spezifität schlägt
-   die data-when-Regel oben). Zeigt hier ohnehin nur die Uhrzeit. */
-.bt-view .bt-due.bt-due-compact { color: var(--bt-meta-gray); }
 
 /* „Colorado" färbt Wiederholung/Deadline/Label/Anhänge in die klassischen Farben; Erinnerung, Badge,
    Herkunft und Projekt bleiben bewusst grau (= Body-Basis). „Minimalisdo"/„User" nutzen die Body-Basis
@@ -2483,3 +2480,10 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   font-size: var(--font-ui-small); color: var(--text-muted);
 }
 .bt-search-bar .bt-panel-switch { flex-shrink: 0; }
+
+/* Farb-Einstellungen: das Meta-Icon vor dem Namen (Live-Vorschau in der effektiven Farbe). */
+.bt-color-row-ic { display: inline-flex; vertical-align: -3px; margin-right: 7px; }
+.bt-color-row-ic svg { width: 15px; height: 15px; }
+/* Nicht im „User"-Theme: der Farbbereich ist gesperrt (Picker zeigen die Theme-Presets, sind aber
+   nicht editierbar) – sichtbar abgedunkelt, damit „nicht änderbar" auf einen Blick klar ist. */
+.bt-color-settings.is-locked { opacity: 0.5; }

@@ -905,8 +905,6 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // müsste nach jeder einzelnen erneut hinunterscrollen.
     const colKey = scrollKey + "|" + col.id;
     listEl.addEventListener("scroll", () => colScroll.set(colKey, listEl.scrollTop));
-    // Bei Label-Gruppierung ist die Spalte das Label (col.id = Name) -> in den Karten weglassen (redundant).
-    const hideLabel = groupKey === "label" && col.id !== NO_LABEL ? col.id : undefined;
     // Bei Datums-Gruppierung ist die Spalte das Fälligkeitsdatum -> Datums-Chip in der Karte redundant
     // (Kompakt-Thema blendet ihn dann aus, außer Uhrzeit). „Überfällig"/„ohne Datum" bleiben unberührt.
     const dateImplied = groupKey === "date";
@@ -915,7 +913,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     const distColor = !dateImplied;
     // Bei Projekt-Gruppierung ist die Spalte das Projekt (col.id = Name bzw. NO_PROJECT) -> @Projekt weglassen.
     const hideProject = groupKey === "project" ? col.id : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, hideLabel, dateImplied, deadlineImplied, distColor, hideProject });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, dateImplied, deadlineImplied, distColor, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1061,13 +1059,12 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Datum sichtbar ist – also wo keine Datums-Sektionsüberschrift es trägt (!dateImplied). Das gilt bei
   // „Keine" UND bei Gruppierung nach Label/Priorität/Projekt (dort gibt es keine eindeutige Datums-Sektion).
   const distColor = !dateImplied;
-  // Bei Gruppierung nach Label trägt die Sektionsüberschrift „#name" das Label -> in den Zeilen weglassen.
-  const hideLabel = o.group === "label" && title.startsWith("#") ? title.slice(1) : undefined;
-  // Analog nach Projekt: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
-  // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon).
+  // Bei Projekt-Gruppierung: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
+  // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon). Labels
+  // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
   const hideProject = o.group === "project" && top.length
     ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideLabel, hideProject });
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1145,7 +1142,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; deadlineImplied?: boolean; distColor?: boolean; hideLabel?: string; hideProject?: string } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; deadlineImplied?: boolean; distColor?: boolean; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1219,18 +1216,22 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // schon zeigt – also überall dort, wo nach Datum gruppiert ist (opts.dateImplied, EINMAL je Sektion
     // in section() bestimmt). Datierte Sektionen betreffen due >= heute; Überfällige liegen im Sammel-
     // Bucket „Überfällig" ohne Datum -> dort NICHT ausblenden. Ohne Uhrzeit gar kein Chip (Icon UND Wort
-    // weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt) in Grau.
+    // weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt), eingefärbt nach Tages-Distanz (s. u.).
     // Gilt in Liste UND Board-Karten – aber nur, wenn dateImplied gesetzt ist (Datums-Sektion bzw.
     // Datums-Spalte). Auf nicht-date-gruppierten Boards ist dateImplied nicht gesetzt -> nichts ausgeblendet.
     const compactHide = depth === 0 && !!opts.dateImplied && task.due >= today;
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
-      const chip = meta.createSpan({ cls: "bt-chip bt-due" + (compactHide ? " bt-due-compact" : "") });
+      const chip = meta.createSpan({ cls: "bt-chip bt-due" });
       chip.createSpan({ cls: "bt-meta-txt", text });   // Text im eigenen Span -> unabhängig vom Kalender-Icon justierbar
       chip.dataset.when = dueWhen(task.due, today);
-      // Kompakt + flache Liste: Datum nach Distanz einfärben (heute/morgen/übermorgen/bis Tag 7).
-      // Überfällig (< heute) und weiter als 7 Tage behalten ihre normale data-when-Farbe.
-      if (opts.distColor) {
+      // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7). Zwei Fälle:
+      //  • flache/nicht-datierte Liste (opts.distColor): der volle Datums-Chip trägt die Farbe.
+      //  • Datums-Gruppierung (compactHide): der Chip zeigt nur die Uhrzeit und ist DAS sichtbare
+      //    Datums-Element – auch er trägt die Tages-Farbe (sonst „greift" die Farbwahl hier nicht).
+      // Überfällig (< heute) behält seine data-when-Farbe (dist bleibt leer). compactHide ist nur bei
+      // due >= heute aktiv, dort ist off immer >= 0.
+      if (opts.distColor || compactHide) {
         const off = dayOffset(task.due, today);
         // Überfällig (< heute) behält seine rote data-when-Farbe (kein data-dist); ab Tag 8 heller Grau.
         const dist = off < 0 ? "" : off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : off <= 7 ? "week" : "far";
@@ -1250,10 +1251,10 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     setIcon(rem, "alarm-clock");
   }
   // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
-  // Redundantes Label weglassen: auf einer Label-Seite das gleichnamige (man ist ja in #label, analog
-  // zum @Projekt-Backlink); bei Gruppierung nach Label zusätzlich das Label der Sektion/Spalte (steht
-  // schon in der Überschrift). opts.hideLabel wird vom Aufrufer je Sektion/Spalte gesetzt.
-  for (const l of task.labels) if (l !== plugin.currentLabel && l !== opts.hideLabel) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
+  // ALLE Labels der Aufgabe werden gezeigt – auch auf einer #Label-Seite bzw. bei Gruppierung nach Label
+  // das gleichnamige. Selektives Ausblenden verwirrt, sobald eine Aufgabe mehrere Labels hat (anders als
+  // beim @Projekt-Backlink, wo eine Aufgabe genau ein Projekt hat).
+  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   if (task.scheduled) {
     // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
     // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).

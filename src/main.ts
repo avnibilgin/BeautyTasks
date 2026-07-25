@@ -1411,7 +1411,8 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Vom Nutzer gewählte Meta-Farben als Body-Inline-Variablen setzen – NUR im Theme „User" (sonst gelten
    *  die festen Vorlagen Minimalisdo/Colorado; die gespeicherten metaColors bleiben erhalten). */
   applyColors(): void {
-    const c = this.settings.metaTheme === "user" ? (this.settings.metaColors ?? {}) : {};
+    const mc = this.settings.metaColors ?? {};
+    const isUser = this.settings.metaTheme === "user";
     const map: Record<string, string> = {
       accent: "--bt-accent",
       overdue: "--bt-dist-overdue", today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",
@@ -1419,7 +1420,10 @@ export default class BeautyTasksPlugin extends Plugin {
       comments: "--bt-c-comments", subs: "--bt-c-subs", parent: "--bt-c-parent", backlink: "--bt-c-backlink",
     };
     for (const [key, cssVar] of Object.entries(map)) {
-      const v = c[key as keyof typeof c];
+      // Akzent gilt IMMER (themenunabhängig) – überschreibt nur die Obsidian-Akzentfarbe innerhalb des
+      // Plugins; leer = Obsidian-Akzent. Alle anderen Meta-Farben nur im „User"-Theme (sonst Preset).
+      const active = key === "accent" || isUser;
+      const v = active ? mc[key as keyof typeof mc] : undefined;
       if (v) document.body.style.setProperty(cssVar, v); else document.body.style.removeProperty(cssVar);
     }
   }
