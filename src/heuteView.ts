@@ -1200,7 +1200,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent,
   // „Einzeln"). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die Hauptaufgabe – konsistent
   // zu den übrigen Meta-Icons.
-  if (depth === 0 && !opts.flat && plugin.settings.showParentMarker && task.parent) {
+  if (depth === 0 && !opts.flat && task.parent) {
     const parent = plugin.index.get(task.parent);
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",

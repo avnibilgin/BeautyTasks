@@ -128,13 +128,6 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();
       }));
 
-    new Setting(containerEl).setName(t("set_parent_marker")).setDesc(t("set_parent_marker_desc")).addToggle((tg) =>
-      tg.setValue(p.settings.showParentMarker).onChange(async (v) => {
-        p.settings.showParentMarker = v;
-        await p.saveSettings();
-        p.renderAll();
-      }));
-
     // Register der Farb-Picker/Reset-Knöpfe – der Theme-Wechsel aktualisiert deren Zustand direkt
     // (aktiv nur bei „User", Swatch = effektive Farbe des neuen Themes), ohne this.display().
     const colorControls: { key: MetaColorKey; picker: ColorComponent; reset: ExtraButtonComponent }[] = [];
