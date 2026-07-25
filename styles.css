@@ -1171,10 +1171,20 @@ body {
 .bt-check.bt-check-x .svg-icon { width: 11px; height: 11px; color: var(--text-muted); }
 .bt-check.bt-check-x:hover { border-color: var(--text-faint); }   /* kein Hover-Effekt */
 .bt-check.bt-check-x:hover::after { display: none; }              /* kein Häkchen-Hover */
-/* Einheitlicher Grauton der Meta-Zeile (Kompakt-Stil). Zwischen faint und muted, Richtung muted =
-   etwas dunkler. Auf .bt-view definiert, damit ihn AUCH der @Projekt-Backlink (in .bt-extras, außerhalb
-   von .bt-meta) erbt. An dieser EINEN Stelle justierbar (Verhältnis ändern = heller/dunkler). */
-.bt-view { --bt-meta-gray: color-mix(in srgb, var(--text-faint) 40%, var(--text-muted) 60%); }
+/* Konfigurierbare BeautyTasks-Meta-Farben. Defaults auf `body` (niedrige Spezifität) – der Nutzer
+   überschreibt sie per Einstellung (applyColors setzt Inline-Vars auf body, gewinnen dann). --bt-meta-
+   gray auf body, damit ihn auch der @Projekt-Backlink (in .bt-extras) erbt. --bt-dist-far = Icon-Grau. */
+body {
+  --bt-meta-gray: color-mix(in srgb, var(--text-faint) 40%, var(--text-muted) 60%);
+  --bt-dist-today: var(--bt-nav-erledigt);
+  --bt-dist-d1:    var(--bt-nav-demnaechst);
+  --bt-dist-d2:    var(--bt-nav-project);
+  --bt-dist-week:  var(--bt-label);
+  --bt-dist-far:   var(--bt-meta-gray);
+  --bt-accent:     var(--interactive-accent);
+}
+/* Akzent NUR innerhalb des Plugins überschreiben (nicht global in Obsidian). Default = Obsidian-Akzent. */
+.bt-view, .bt-nav { --interactive-accent: var(--bt-accent); }
 .bt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px; }
 /* Meta-Chips symmetrisch: nur vertikales Padding vereinheitlichen (überstimmt bt-chip 2px / bt-subs 1px /
    SVG-Chips 0). Zentriert wird über align-items:center der inline-flex-Chips – die Zeilenhöhe wird BEWUSST
@@ -1234,11 +1244,11 @@ body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
    ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
-.bt-view .bt-due[data-dist="today"] { color: var(--bt-nav-erledigt); }
-.bt-view .bt-due[data-dist="d1"]    { color: var(--bt-nav-demnaechst); }
-.bt-view .bt-due[data-dist="d2"]    { color: var(--bt-nav-project); }
-.bt-view .bt-due[data-dist="week"]  { color: var(--bt-label); }
-.bt-view .bt-due[data-dist="far"]   { color: var(--bt-meta-gray); }   /* ab Tag 8: wie die übrigen Kompakt-Icons */
+.bt-view .bt-due[data-dist="today"] { color: var(--bt-dist-today); }
+.bt-view .bt-due[data-dist="d1"]    { color: var(--bt-dist-d1); }
+.bt-view .bt-due[data-dist="d2"]    { color: var(--bt-dist-d2); }
+.bt-view .bt-due[data-dist="week"]  { color: var(--bt-dist-week); }
+.bt-view .bt-due[data-dist="far"]   { color: var(--bt-dist-far); }
 
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */

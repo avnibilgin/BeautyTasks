@@ -69,8 +69,10 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.loadSettings();
     this.applyLocale();                        // "auto" folgt Obsidian; sonst EN (Kanon) / DE
     this.applyFontSizes();                     // überschreibbare Textgrößen als body-CSS-Variablen
+    this.applyColors();                        // vom Nutzer gewählte Meta-Farben als body-CSS-Variablen
     this.register(() => {                      // beim Entladen die gesetzten Body-Anpassungen wieder entfernen
-      for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale"]) document.body.style.removeProperty(n);
+      for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale",
+        "--bt-accent", "--bt-meta-gray", "--bt-dist-today", "--bt-dist-d1", "--bt-dist-d2", "--bt-dist-week", "--bt-dist-far"]) document.body.style.removeProperty(n);
       document.body.removeClasses(["bt-meta-minimalisto", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
     });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
@@ -1404,6 +1406,19 @@ export default class BeautyTasksPlugin extends Plugin {
     set("--bt-nav-scale", s.fontNavPct);
     set("--bt-head-scale", s.fontHeadingPct);
     set("--bt-section-scale", s.fontSectionPct);
+  }
+
+  /** Vom Nutzer gewählte Meta-Farben als Body-Inline-Variablen setzen (leer = entfernen -> Theme-Default). */
+  applyColors(): void {
+    const c = this.settings.metaColors ?? {};
+    const map: Record<string, string> = {
+      accent: "--bt-accent", gray: "--bt-meta-gray",
+      today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",
+    };
+    for (const [key, cssVar] of Object.entries(map)) {
+      const v = c[key as keyof typeof c];
+      if (v) document.body.style.setProperty(cssVar, v); else document.body.style.removeProperty(cssVar);
+    }
   }
 
   /** Google-Auth + Push-Engine aufbauen (UI-agnostisch). Beide mutieren `settings.gcal`

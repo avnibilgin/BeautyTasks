@@ -102,6 +102,10 @@ export interface BeautyTasksSettings {
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   showParentMarker: boolean;  // Herkunfts-Icon an eigenständig gelisteten Unteraufgaben (Link zur Hauptaufgabe)
   metaTheme: "minimalisto" | "colorado";  // Farbstil der Meta-Zeile: Minimalisto (grau) / Colorado (farbige Icons)
+  // Vom Nutzer überschreibbare Farben (leer = Theme-Default). Angewandt als Body-CSS-Variablen (applyColors):
+  // accent=--bt-accent (überschreibt --interactive-accent NUR im Plugin), gray=--bt-meta-gray,
+  // today/d1/d2/week/far=--bt-dist-* (Datums-Distanzfarben).
+  metaColors: Partial<Record<"accent" | "gray" | "today" | "d1" | "d2" | "week" | "far", string>>;
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
@@ -141,6 +145,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   showDescriptionInList: true,
   showParentMarker: false,
   metaTheme: "minimalisto",
+  metaColors: {},
   navCollapsed: {},
   startView: "heute",
   lastView: "heute",
