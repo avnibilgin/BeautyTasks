@@ -86,6 +86,13 @@ export interface CalEvent {
   location?: string;
 }
 
+/** Vom Nutzer einzeln überschreibbare Meta-Farben (leer = Theme-Default). accent=--bt-accent,
+ *  Datum: overdue/today/d1/d2/week/far=--bt-dist-*, Icons: recur/remind/sched/label/comments/subs/
+ *  parent/backlink=--bt-c-*. Angewandt als Body-CSS-Variablen (main.applyColors). */
+export type MetaColorKey =
+  | "accent" | "overdue" | "today" | "d1" | "d2" | "week" | "far"
+  | "recur" | "remind" | "sched" | "label" | "comments" | "subs" | "parent" | "backlink";
+
 export interface BeautyTasksSettings {
   itemsFolder: string;
   projectsFolder: string;   // Projekte UND Bereiche liegen hier (Bereich = type:area)
@@ -101,11 +108,8 @@ export interface BeautyTasksSettings {
   fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   showParentMarker: boolean;  // Herkunfts-Icon an eigenständig gelisteten Unteraufgaben (Link zur Hauptaufgabe)
-  metaTheme: "minimalisto" | "colorado";  // Farbstil der Meta-Zeile: Minimalisto (grau) / Colorado (farbige Icons)
-  // Vom Nutzer überschreibbare Farben (leer = Theme-Default). Angewandt als Body-CSS-Variablen (applyColors):
-  // accent=--bt-accent (überschreibt --interactive-accent NUR im Plugin), gray=--bt-meta-gray,
-  // today/d1/d2/week/far=--bt-dist-* (Datums-Distanzfarben).
-  metaColors: Partial<Record<"accent" | "gray" | "today" | "d1" | "d2" | "week" | "far", string>>;
+  metaTheme: "minimalisdo" | "colorado";  // Farbstil der Meta-Zeile: Minimalisto (grau) / Colorado (farbige Icons)
+  metaColors: Partial<Record<MetaColorKey, string>>;   // einzeln überschreibbare Meta-Farben (s. MetaColorKey)
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
   lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
@@ -144,7 +148,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   fontSectionPct: 100,
   showDescriptionInList: true,
   showParentMarker: false,
-  metaTheme: "minimalisto",
+  metaTheme: "minimalisdo",
   metaColors: {},
   navCollapsed: {},
   startView: "heute",

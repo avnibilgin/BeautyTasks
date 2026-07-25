@@ -1176,6 +1176,7 @@ body {
    gray auf body, damit ihn auch der @Projekt-Backlink (in .bt-extras) erbt. --bt-dist-far = Icon-Grau. */
 body {
   --bt-meta-gray: color-mix(in srgb, var(--text-faint) 40%, var(--text-muted) 60%);
+  --bt-dist-overdue: var(--bt-overdue);
   --bt-dist-today: var(--bt-nav-erledigt);
   --bt-dist-d1:    var(--bt-nav-demnaechst);
   --bt-dist-d2:    var(--bt-nav-project);
@@ -1223,24 +1224,27 @@ body {
 
 /* Fälligkeit – Kalender-Icon + Farbe je Zeitbezug */
 .bt-due::before { -webkit-mask-image: var(--bt-calendar); mask-image: var(--bt-calendar); }
-.bt-due[data-when="past"]   { color: var(--bt-overdue); }
+.bt-due[data-when="past"]   { color: var(--bt-dist-overdue); }
 .bt-due[data-when="today"]  { color: var(--bt-today); }
 .bt-due[data-when="future"] { color: var(--text-muted); }
 /* „Kompakt"-Thema: das Heute-Datum ist grau statt in der Akzentfarbe (höhere Spezifität schlägt
    die data-when-Regel oben). Zeigt hier ohnehin nur die Uhrzeit. */
 .bt-view .bt-due.bt-due-compact { color: var(--bt-meta-gray); }
 
-/* Immer grau (BEIDE Themes): Erinnerung, Unteraufgaben-Badge, @Projekt-Backlink. Der Hauptaufgaben-
-   Link ist ohnehin schon grau (s. .bt-parent-link). Checkbox/Status ist keine Meta-Zeile -> unberührt. */
-.bt-view .bt-remind,
-.bt-view .bt-subs,
-.bt-view .bt-backlink { color: var(--bt-meta-gray); }
-/* Nur „Minimalisto" grau: Wiederholung, Deadline, Details, Label. In „Colorado" fällt dieser Override
-   weg -> die Basis-Farbregeln (.bt-view .bt-recur/.bt-sched/.bt-comments/.bt-label) greifen wieder. */
-body.bt-meta-minimalisto .bt-view .bt-recur,
-body.bt-meta-minimalisto .bt-view .bt-sched,
-body.bt-meta-minimalisto .bt-view .bt-comments,
-body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
+/* Pro-Icon-Farbe: jedes Meta-Icon hat eine eigene Variable (--bt-c-*), deren DEFAULT das Theme setzt.
+   Der Nutzer überschreibt einzeln (applyColors -> Inline auf body, gewinnt über die Theme-Klasse).
+   Minimalisdo = alles grau; Colorado = die klassischen Farben (Erinnerung/Badge/Herkunft/Projekt
+   bleiben aber bewusst grau). Die Icon-Regeln unten nutzen dann var(--bt-c-*). */
+body.bt-meta-minimalisdo {
+  --bt-c-recur: var(--bt-meta-gray); --bt-c-remind: var(--bt-meta-gray); --bt-c-sched: var(--bt-meta-gray);
+  --bt-c-label: var(--bt-meta-gray); --bt-c-comments: var(--bt-meta-gray); --bt-c-subs: var(--bt-meta-gray);
+  --bt-c-parent: var(--bt-meta-gray); --bt-c-backlink: var(--bt-meta-gray);
+}
+body.bt-meta-colorado {
+  --bt-c-recur: var(--bt-recur); --bt-c-remind: var(--bt-meta-gray); --bt-c-sched: var(--bt-sched);
+  --bt-c-label: var(--bt-label); --bt-c-comments: var(--bt-attach); --bt-c-subs: var(--bt-meta-gray);
+  --bt-c-parent: var(--bt-meta-gray); --bt-c-backlink: var(--bt-meta-gray);
+}
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
    ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
@@ -1253,14 +1257,14 @@ body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
 .bt-sched::before { -webkit-mask-image: var(--bt-clock); mask-image: var(--bt-clock); }
-.bt-view .bt-sched { color: var(--bt-sched); }
+.bt-view .bt-sched { color: var(--bt-c-sched); }
 
 /* Wiederholung – nur Icon. `.bt-view`-Präfix nötig (s. o.), sonst überschreibt die Chip-Basis. */
-.bt-view .bt-recur { color: var(--bt-recur); gap: 0; }
+.bt-view .bt-recur { color: var(--bt-c-recur); gap: 0; }
 .bt-recur::before { -webkit-mask-image: var(--bt-refresh); mask-image: var(--bt-refresh); }
 
 /* Label – Tag-Icon (liefert das „#"). `.bt-view`-Präfix nötig (s. o.). */
-.bt-view .bt-label { color: var(--bt-label); }
+.bt-view .bt-label { color: var(--bt-c-label); }
 .bt-label { gap: 0; }
 .bt-label::before {
   width: 13px; height: 13px; margin-right: -1px;
@@ -1269,11 +1273,11 @@ body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
 
 /* Erinnerungs-Indikator (alarm-clock) – nur Icon, Details im Tooltip; gleiches Glyph wie der
    Reminder-Chip im Editor, damit „Erinnerung" überall dasselbe Symbol trägt. */
-.bt-remind { display: inline-flex; align-items: center; color: var(--text-muted); }
+.bt-remind { display: inline-flex; align-items: center; color: var(--bt-c-remind); }
 .bt-remind svg { width: 16px; height: 16px; }
 
 /* Kommentar-/Anhang-Chip (Büroklammer + dezente Anzahl) */
-.bt-comments { display: inline-flex; align-items: center; gap: 3px; color: var(--bt-attach); font-size: 0.85em; }
+.bt-comments { display: inline-flex; align-items: center; gap: 3px; color: var(--bt-c-comments); font-size: 0.85em; }
 .bt-comments-ic { display: inline-flex; }
 .bt-comments-ic svg { width: 14px; height: 14px; }
 .bt-comments-n { font-size: 0.92em; }
@@ -1282,8 +1286,7 @@ body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
    die auch keinen Hover-Hintergrund haben; im aufgeklappten Zustand (is-open) in der Akzentfarbe. */
 .bt-subs {
   display: inline-flex; align-items: center; gap: 3px;
-  /* zwischen faint und muted – heller als der alte Grauton, aber einen Tick dunkler als faint */
-  color: color-mix(in srgb, var(--text-faint) 55%, var(--text-muted) 45%);
+  color: var(--bt-c-subs);
   font-size: 0.85em;
   padding: 1px 5px; border-radius: 5px; cursor: pointer;
 }
@@ -1319,7 +1322,7 @@ body.bt-meta-minimalisto .bt-view .bt-label { color: var(--bt-meta-gray); }
 /* Hauptaufgaben-Link: normales Meta-Icon ganz vorn (corner-left-up), grau, kein Hover-Hintergrund –
    konsistent zu den übrigen Meta-Icons. An Unteraufgaben, die auf Top-Level stehen. Tooltip = Titel,
    Klick öffnet die Hauptaufgabe. */
-.bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--bt-meta-gray); cursor: pointer; }
+.bt-view .bt-parent-link { display: inline-flex; align-items: center; color: var(--bt-c-parent); cursor: pointer; }
 /* Kein Hover-Effekt – konsistent zu den übrigen Meta-Icons. Fokus-Outline bleibt für Tastatur. */
 .bt-view .bt-parent-link:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; border-radius: 3px; }
 .bt-parent-link-ic { display: inline-flex; }
@@ -1350,7 +1353,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    in derselben Zeile links und rechts gegenueber. */
 .bt-notes-edit-ic svg { width: 18px; height: 18px; }
 
-.bt-backlink { font-size: 0.82em; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+.bt-backlink { font-size: 0.82em; color: var(--bt-c-backlink); text-decoration: none; white-space: nowrap; }
 .bt-backlink:hover { color: var(--text-normal); text-decoration: underline; }
 /* Papierkorb-Zeilenaktionen (Wiederherstellen/Löschen) rechts – wie Manage-Aktionen. */
 .bt-task-actions { margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }

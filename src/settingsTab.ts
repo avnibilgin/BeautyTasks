@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice, Platform, ColorComponent } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { ChipId, ChipTier, ChipSurface, DEFAULT_SETTINGS } from "./types";
+import { ChipId, ChipTier, ChipSurface, MetaColorKey, DEFAULT_SETTINGS } from "./types";
 import { CHIPS, chipsCompact, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
@@ -136,23 +136,36 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       }));
 
     new Setting(containerEl).setName(t("set_meta_theme")).setDesc(t("set_meta_theme_desc")).addDropdown((dd) => {
-      dd.addOption("minimalisto", "Minimalisto");   // Eigennamen -> nicht übersetzt
+      dd.addOption("minimalisdo", "Minimalisdo");   // Eigennamen -> nicht übersetzt
       dd.addOption("colorado", "Colorado");
       dd.setValue(p.settings.metaTheme).onChange(async (v) => {
-        p.settings.metaTheme = v as "minimalisto" | "colorado";
+        p.settings.metaTheme = v as "minimalisdo" | "colorado";
         await p.saveSettings();
         p.renderAll();
       });
     });
 
-    // Farben: eigene Color-Picker je Variable, plus Reset-Knopf pro Farbe (leert -> Theme-Default).
-    // Der Picker-Seed (Hex) ist nur die Anzeige-Startfarbe, solange nichts gewählt ist; die echte Vorgabe
-    // liefert die CSS-Variable. Akzent überschreibt --interactive-accent NUR im Plugin (s. applyColors/CSS).
+    // Farben je Meta-Element EINZELN: Color-Picker + Reset (leert -> Theme-Default). Der Swatch zeigt die
+    // aktuelle EFFEKTIVE Farbe – resolveColor liest die CSS-Variable über ein Probe-Element aus (also auch
+    // die echte Obsidian-Akzentfarbe). Akzent überschreibt --interactive-accent NUR im Plugin (s. CSS).
     new Setting(containerEl).setName(t("set_colors_heading")).setDesc(t("set_colors_desc")).setHeading();
-    const colorRow = (key: "accent" | "gray" | "today" | "d1" | "d2" | "week" | "far", name: string, seed: string): void => {
+    const cssVarOf: Record<MetaColorKey, string> = {
+      accent: "--bt-accent",
+      overdue: "--bt-dist-overdue", today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",
+      recur: "--bt-c-recur", remind: "--bt-c-remind", sched: "--bt-c-sched", label: "--bt-c-label",
+      comments: "--bt-c-comments", subs: "--bt-c-subs", parent: "--bt-c-parent", backlink: "--bt-c-backlink",
+    };
+    const resolveColor = (key: MetaColorKey): string => {
+      const probe = document.body.createSpan();
+      probe.style.color = `var(${cssVarOf[key]})`;
+      const m = getComputedStyle(probe).color.match(/\d+/g);
+      probe.remove();
+      return m && m.length >= 3 ? "#" + m.slice(0, 3).map((n) => (+n).toString(16).padStart(2, "0")).join("") : "#888888";
+    };
+    const colorRow = (key: MetaColorKey, name: string): void => {
       let picker: ColorComponent | null = null;
       new Setting(containerEl).setName(name)
-        .addColorPicker((cp) => { picker = cp; cp.setValue(p.settings.metaColors[key] ?? seed).onChange(async (v) => {
+        .addColorPicker((cp) => { picker = cp; cp.setValue(p.settings.metaColors[key] ?? resolveColor(key)).onChange(async (v) => {
           p.settings.metaColors = { ...p.settings.metaColors, [key]: v };
           await p.saveSettings(); p.applyColors(); p.renderAll();
         }); })
@@ -160,16 +173,24 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
           const nc = { ...p.settings.metaColors }; delete nc[key];
           p.settings.metaColors = nc;
           await p.saveSettings(); p.applyColors(); p.renderAll();
-          picker?.setValue(seed);   // Picker-Swatch zurück auf den Anzeige-Default (echte Vorgabe = CSS-Variable)
+          picker?.setValue(resolveColor(key));   // Swatch = aktuelle effektive Farbe (jetzt der Theme-Default)
         }));
     };
-    colorRow("accent", t("set_color_accent"), "#8b5cf6");
-    colorRow("gray", t("set_color_gray"), "#7d8590");
-    colorRow("today", t("date_today"), "#98c379");
-    colorRow("d1", t("date_tomorrow"), "#d19a66");
-    colorRow("d2", t("set_color_d2"), "#e5c07b");
-    colorRow("week", t("set_color_week"), "#c678dd");
-    colorRow("far", t("set_color_far"), "#7d8590");
+    colorRow("accent", t("set_color_accent"));
+    colorRow("overdue", t("sec_overdue"));
+    colorRow("today", t("date_today"));
+    colorRow("d1", t("date_tomorrow"));
+    colorRow("d2", t("set_color_d2"));
+    colorRow("week", t("set_color_week"));
+    colorRow("far", t("set_color_far"));
+    colorRow("recur", t("set_color_recur"));
+    colorRow("remind", t("set_color_remind"));
+    colorRow("sched", t("filter_group_deadline"));
+    colorRow("label", t("filter_group_label"));
+    colorRow("comments", t("set_color_comments"));
+    colorRow("subs", t("set_color_subs"));
+    colorRow("parent", t("set_color_parent"));
+    colorRow("backlink", t("filter_group_project"));
 
     // Auf Mobilgeraeten ist der Kompakt-Modus fest an (44px-Chips mit Text saehen dort den
     // halben Bildschirm) – der Schalter zeigt das an und ist deaktiviert, statt wirkungslos

@@ -72,8 +72,9 @@ export default class BeautyTasksPlugin extends Plugin {
     this.applyColors();                        // vom Nutzer gewählte Meta-Farben als body-CSS-Variablen
     this.register(() => {                      // beim Entladen die gesetzten Body-Anpassungen wieder entfernen
       for (const n of ["--bt-task-scale", "--bt-nav-scale", "--bt-head-scale", "--bt-section-scale",
-        "--bt-accent", "--bt-meta-gray", "--bt-dist-today", "--bt-dist-d1", "--bt-dist-d2", "--bt-dist-week", "--bt-dist-far"]) document.body.style.removeProperty(n);
-      document.body.removeClasses(["bt-meta-minimalisto", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
+        "--bt-accent", "--bt-dist-overdue", "--bt-dist-today", "--bt-dist-d1", "--bt-dist-d2", "--bt-dist-week", "--bt-dist-far",
+        "--bt-c-recur", "--bt-c-remind", "--bt-c-sched", "--bt-c-label", "--bt-c-comments", "--bt-c-subs", "--bt-c-parent", "--bt-c-backlink"]) document.body.style.removeProperty(n);
+      document.body.removeClasses(["bt-meta-minimalisdo", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
     });
     this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
@@ -202,10 +203,10 @@ export default class BeautyTasksPlugin extends Plugin {
 
   renderMain(): void {
     if (!this.index) return;
-    // Meta-Zeilen-Thema global markieren – die Farb-Regeln hängen an body.bt-meta-minimalisto/-colorado.
+    // Meta-Zeilen-Thema global markieren – die Farb-Regeln hängen an body.bt-meta-minimalisdo/-colorado.
     const colorado = this.settings.metaTheme === "colorado";
     document.body.toggleClass("bt-meta-colorado", colorado);
-    document.body.toggleClass("bt-meta-minimalisto", !colorado);
+    document.body.toggleClass("bt-meta-minimalisdo", !colorado);
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_MAIN)) {
       if (leaf.view instanceof MainView) leaf.view.draw();
     }
@@ -1412,8 +1413,10 @@ export default class BeautyTasksPlugin extends Plugin {
   applyColors(): void {
     const c = this.settings.metaColors ?? {};
     const map: Record<string, string> = {
-      accent: "--bt-accent", gray: "--bt-meta-gray",
-      today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",
+      accent: "--bt-accent",
+      overdue: "--bt-dist-overdue", today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",
+      recur: "--bt-c-recur", remind: "--bt-c-remind", sched: "--bt-c-sched", label: "--bt-c-label",
+      comments: "--bt-c-comments", subs: "--bt-c-subs", parent: "--bt-c-parent", backlink: "--bt-c-backlink",
     };
     for (const [key, cssVar] of Object.entries(map)) {
       const v = c[key as keyof typeof c];
