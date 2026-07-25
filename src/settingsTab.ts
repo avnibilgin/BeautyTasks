@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice, Platform, ColorComponent } from "obsidian";
+import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice, Platform, ColorComponent, ExtraButtonComponent } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { ChipId, ChipTier, ChipSurface, MetaColorKey, DEFAULT_SETTINGS } from "./types";
 import { CHIPS, chipsCompact, resolveChipOrder, chipTierOf } from "./chips";
@@ -135,6 +135,10 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         p.renderAll();
       }));
 
+    // Register der Farb-Picker/Reset-Knöpfe – der Theme-Wechsel aktualisiert deren Zustand direkt
+    // (aktiv nur bei „User", Swatch = effektive Farbe des neuen Themes), ohne this.display().
+    const colorControls: { key: MetaColorKey; picker: ColorComponent; reset: ExtraButtonComponent }[] = [];
+
     new Setting(containerEl).setName(t("set_meta_theme")).setDesc(t("set_meta_theme_desc")).addDropdown((dd) => {
       dd.addOption("minimalisdo", "Minimalisdo");   // Eigennamen -> nicht übersetzt
       dd.addOption("colorado", "Colorado");
@@ -144,8 +148,11 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
         p.renderAll();     // setzt die Colorado-Body-Klasse
         p.applyColors();   // User-Overrides an/aus
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Tab ist bewusst imperativ (display-basiert), s. beautytasks-settings-declarative-api; Refresh der Picker nur so
-        this.display();    // Picker aktivieren/deaktivieren + Swatches auf das neue Theme aktualisieren
+        const isU = p.settings.metaTheme === "user";
+        for (const c of colorControls) {
+          c.picker.setDisabled(!isU); c.reset.setDisabled(!isU);
+          c.picker.setValue(p.settings.metaColors[c.key] ?? resolveColor(c.key));   // Swatch = neue effektive Farbe
+        }
       });
     });
 
@@ -168,18 +175,19 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     };
     const isUser = p.settings.metaTheme === "user";   // Farben nur im „User"-Theme änderbar
     const colorRow = (key: MetaColorKey, name: string): void => {
-      let picker: ColorComponent | null = null;
+      let picker!: ColorComponent; let reset!: ExtraButtonComponent;
       new Setting(containerEl).setName(name)
         .addColorPicker((cp) => { picker = cp; cp.setDisabled(!isUser).setValue(p.settings.metaColors[key] ?? resolveColor(key)).onChange(async (v) => {
           p.settings.metaColors = { ...p.settings.metaColors, [key]: v };
           await p.saveSettings(); p.applyColors(); p.renderAll();
         }); })
-        .addExtraButton((b) => b.setIcon("rotate-ccw").setDisabled(!isUser).setTooltip(t("filter_reset")).onClick(async () => {
+        .addExtraButton((b) => { reset = b; b.setIcon("rotate-ccw").setDisabled(!isUser).setTooltip(t("filter_reset")).onClick(async () => {
           const nc = { ...p.settings.metaColors }; delete nc[key];
           p.settings.metaColors = nc;
           await p.saveSettings(); p.applyColors(); p.renderAll();
-          picker?.setValue(resolveColor(key));   // Swatch = aktuelle effektive Farbe (jetzt der Theme-Default)
-        }));
+          picker.setValue(resolveColor(key));   // Swatch = aktuelle effektive Farbe (jetzt der Theme-Default)
+        }); });
+      colorControls.push({ key, picker, reset });   // fürs Aktivieren/Deaktivieren beim Theme-Wechsel
     };
     colorRow("accent", t("set_color_accent"));
     colorRow("overdue", t("sec_overdue"));
