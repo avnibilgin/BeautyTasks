@@ -108,7 +108,7 @@ export interface BeautyTasksSettings {
   fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
   showParentMarker: boolean;  // Herkunfts-Icon an eigenständig gelisteten Unteraufgaben (Link zur Hauptaufgabe)
-  metaTheme: "minimalisdo" | "colorado";  // Farbstil der Meta-Zeile: Minimalisto (grau) / Colorado (farbige Icons)
+  metaTheme: "minimalisdo" | "colorado" | "user";  // Meta-Farbstil: Minimalisdo (grau) / Colorado (farbig) / User (eigene Farben aus metaColors)
   metaColors: Partial<Record<MetaColorKey, string>>;   // einzeln überschreibbare Meta-Farben (s. MetaColorKey)
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
   startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)

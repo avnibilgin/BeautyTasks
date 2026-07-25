@@ -203,10 +203,9 @@ export default class BeautyTasksPlugin extends Plugin {
 
   renderMain(): void {
     if (!this.index) return;
-    // Meta-Zeilen-Thema global markieren – die Farb-Regeln hängen an body.bt-meta-minimalisdo/-colorado.
-    const colorado = this.settings.metaTheme === "colorado";
-    document.body.toggleClass("bt-meta-colorado", colorado);
-    document.body.toggleClass("bt-meta-minimalisdo", !colorado);
+    // Meta-Thema: nur „Colorado" braucht eine Body-Klasse (färbt einige Icons); Minimalisdo & User
+    // nutzen die Body-Basis (grau), User zusätzlich die Overrides aus applyColors.
+    document.body.toggleClass("bt-meta-colorado", this.settings.metaTheme === "colorado");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_MAIN)) {
       if (leaf.view instanceof MainView) leaf.view.draw();
     }
@@ -1409,9 +1408,10 @@ export default class BeautyTasksPlugin extends Plugin {
     set("--bt-section-scale", s.fontSectionPct);
   }
 
-  /** Vom Nutzer gewählte Meta-Farben als Body-Inline-Variablen setzen (leer = entfernen -> Theme-Default). */
+  /** Vom Nutzer gewählte Meta-Farben als Body-Inline-Variablen setzen – NUR im Theme „User" (sonst gelten
+   *  die festen Vorlagen Minimalisdo/Colorado; die gespeicherten metaColors bleiben erhalten). */
   applyColors(): void {
-    const c = this.settings.metaColors ?? {};
+    const c = this.settings.metaTheme === "user" ? (this.settings.metaColors ?? {}) : {};
     const map: Record<string, string> = {
       accent: "--bt-accent",
       overdue: "--bt-dist-overdue", today: "--bt-dist-today", d1: "--bt-dist-d1", d2: "--bt-dist-d2", week: "--bt-dist-week", far: "--bt-dist-far",

@@ -1183,6 +1183,11 @@ body {
   --bt-dist-week:  var(--bt-label);
   --bt-dist-far:   var(--bt-meta-gray);
   --bt-accent:     var(--interactive-accent);
+  /* Icon-Farben – Basis = grau (gilt für „Minimalisdo" UND „User"; Colorado überschreibt einige unten).
+     Auf `body`, damit sie IMMER auflösen (auch im Settings-Vorschau-Probe-Element). */
+  --bt-c-recur: var(--bt-meta-gray); --bt-c-remind: var(--bt-meta-gray); --bt-c-sched: var(--bt-meta-gray);
+  --bt-c-label: var(--bt-meta-gray); --bt-c-comments: var(--bt-meta-gray); --bt-c-subs: var(--bt-meta-gray);
+  --bt-c-parent: var(--bt-meta-gray); --bt-c-backlink: var(--bt-meta-gray);
 }
 /* Akzent NUR innerhalb des Plugins überschreiben (nicht global in Obsidian). Default = Obsidian-Akzent. */
 .bt-view, .bt-nav { --interactive-accent: var(--bt-accent); }
@@ -1231,19 +1236,12 @@ body {
    die data-when-Regel oben). Zeigt hier ohnehin nur die Uhrzeit. */
 .bt-view .bt-due.bt-due-compact { color: var(--bt-meta-gray); }
 
-/* Pro-Icon-Farbe: jedes Meta-Icon hat eine eigene Variable (--bt-c-*), deren DEFAULT das Theme setzt.
-   Der Nutzer überschreibt einzeln (applyColors -> Inline auf body, gewinnt über die Theme-Klasse).
-   Minimalisdo = alles grau; Colorado = die klassischen Farben (Erinnerung/Badge/Herkunft/Projekt
-   bleiben aber bewusst grau). Die Icon-Regeln unten nutzen dann var(--bt-c-*). */
-body.bt-meta-minimalisdo {
-  --bt-c-recur: var(--bt-meta-gray); --bt-c-remind: var(--bt-meta-gray); --bt-c-sched: var(--bt-meta-gray);
-  --bt-c-label: var(--bt-meta-gray); --bt-c-comments: var(--bt-meta-gray); --bt-c-subs: var(--bt-meta-gray);
-  --bt-c-parent: var(--bt-meta-gray); --bt-c-backlink: var(--bt-meta-gray);
-}
+/* „Colorado" färbt Wiederholung/Deadline/Label/Anhänge in die klassischen Farben; Erinnerung, Badge,
+   Herkunft und Projekt bleiben bewusst grau (= Body-Basis). „Minimalisdo"/„User" nutzen die Body-Basis
+   (grau); im „User"-Theme überschreibt applyColors die einzeln gewählten Farben (Inline auf body). */
 body.bt-meta-colorado {
-  --bt-c-recur: var(--bt-recur); --bt-c-remind: var(--bt-meta-gray); --bt-c-sched: var(--bt-sched);
-  --bt-c-label: var(--bt-label); --bt-c-comments: var(--bt-attach); --bt-c-subs: var(--bt-meta-gray);
-  --bt-c-parent: var(--bt-meta-gray); --bt-c-backlink: var(--bt-meta-gray);
+  --bt-c-recur: var(--bt-recur); --bt-c-sched: var(--bt-sched);
+  --bt-c-label: var(--bt-label); --bt-c-comments: var(--bt-attach);
 }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten

@@ -138,10 +138,14 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName(t("set_meta_theme")).setDesc(t("set_meta_theme_desc")).addDropdown((dd) => {
       dd.addOption("minimalisdo", "Minimalisdo");   // Eigennamen -> nicht übersetzt
       dd.addOption("colorado", "Colorado");
+      dd.addOption("user", "User");   // eigene Farben (metaColors) – nur hier sind die Picker aktiv
       dd.setValue(p.settings.metaTheme).onChange(async (v) => {
-        p.settings.metaTheme = v as "minimalisdo" | "colorado";
+        p.settings.metaTheme = v as "minimalisdo" | "colorado" | "user";
         await p.saveSettings();
-        p.renderAll();
+        p.renderAll();     // setzt die Colorado-Body-Klasse
+        p.applyColors();   // User-Overrides an/aus
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Tab ist bewusst imperativ (display-basiert), s. beautytasks-settings-declarative-api; Refresh der Picker nur so
+        this.display();    // Picker aktivieren/deaktivieren + Swatches auf das neue Theme aktualisieren
       });
     });
 
@@ -162,14 +166,15 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       probe.remove();
       return m && m.length >= 3 ? "#" + m.slice(0, 3).map((n) => (+n).toString(16).padStart(2, "0")).join("") : "#888888";
     };
+    const isUser = p.settings.metaTheme === "user";   // Farben nur im „User"-Theme änderbar
     const colorRow = (key: MetaColorKey, name: string): void => {
       let picker: ColorComponent | null = null;
       new Setting(containerEl).setName(name)
-        .addColorPicker((cp) => { picker = cp; cp.setValue(p.settings.metaColors[key] ?? resolveColor(key)).onChange(async (v) => {
+        .addColorPicker((cp) => { picker = cp; cp.setDisabled(!isUser).setValue(p.settings.metaColors[key] ?? resolveColor(key)).onChange(async (v) => {
           p.settings.metaColors = { ...p.settings.metaColors, [key]: v };
           await p.saveSettings(); p.applyColors(); p.renderAll();
         }); })
-        .addExtraButton((b) => b.setIcon("rotate-ccw").setTooltip(t("filter_reset")).onClick(async () => {
+        .addExtraButton((b) => b.setIcon("rotate-ccw").setDisabled(!isUser).setTooltip(t("filter_reset")).onClick(async () => {
           const nc = { ...p.settings.metaColors }; delete nc[key];
           p.settings.metaColors = nc;
           await p.saveSettings(); p.applyColors(); p.renderAll();
