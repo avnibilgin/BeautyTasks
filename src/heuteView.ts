@@ -138,10 +138,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Heute-Liste-Default = „Datum": „Keine"(none) und „Datum" liefern denselben Überfällig/Heute-Split,
       // deshalb ist „Keine" hier ausgeblendet (s. viewPanel) und beide Werte laufen über DIESEN einen Pfad.
       const group = opts.group === "none" ? "date" : opts.group;
-      // „Das eigene Datum gewinnt" (s. agendaOf): bei Datums-/Deadline-Sektionen steht eine
+      // „Das eigene Datum gewinnt" (s. agendaOwnRow): bei Datums-/Deadline-Sektionen steht eine
       // Unteraufgabe mit eigenem Wert in IHRER Sektion – sonst fehlte das Kind mit Fälligkeit
       // heute in „Heute", wenn sein Parent in „Überfällig" sitzt.
-      const agenda = agendaOf(open, group);
+      const ownRow = agendaOwnRow(group);
       if (group === "date") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
@@ -149,12 +149,12 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
-        if (visibleRows(overdue, present, agenda?.ownRow).length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", agenda);
+        if (visibleRows(overdue, present, ownRow).length) {
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
           rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
-        if (visibleRows(dueToday, present, agenda?.ownRow).length || todayEv.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, agenda);
+        if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
@@ -162,23 +162,21 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
         const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin)), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
-          .filter((g) => visibleRows(g.tasks, present, agenda?.ownRow).length);
+          .filter((g) => visibleRows(g.tasks, present, ownRow).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, agenda); };
+        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow); };
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", agenda);
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow);
           // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
           // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
           // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
-      // Erledigt ist KEIN Datums-Eimer (kein ownRow) – aber ein erledigter Parent überspringt
-      // verschachtelt die offenen Kinder, die bereits an ihrem eigenen Datum oben stehen (skip).
-      if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, doneHosts, [], "", agenda && { skip: agenda.skip });
+      if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, doneHosts);
     }
   } else if (view === "demnaechst") {
     // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
@@ -205,9 +203,9 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const flat = groups.flatMap((g) => g.tasks);
       const present = nestingHosts(plugin, flat, effectiveSubtasks(opts));
       const group = opts.group === "none" ? "date" : opts.group;
-      // „Das eigene Datum gewinnt" (s. agendaOf): das Kind mit Fälligkeit übermorgen steht bei
-      // ÜBERMORGEN – nicht unter seinem Parent am Morgen-Tag.
-      const agenda = agendaOf(flat, group);
+      // „Das eigene Datum gewinnt" (s. agendaOwnRow): das Kind mit Fälligkeit übermorgen steht
+      // bei ÜBERMORGEN als eigene Zeile (nicht NUR unter seinem Parent am Morgen-Tag).
+      const ownRow = agendaOwnRow(group);
       if (group === "date") {
         const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
         // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
@@ -219,13 +217,13 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           const dayEv = evByDate.get(date) ?? [];
           // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
           // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
-          if (visibleRows(dayTasks, present, agenda?.ownRow).length || dayEv.length)
-            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, agenda);
+          if (visibleRows(dayTasks, present, ownRow).length || dayEv.length)
+            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow);
         }
       } else {
         const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
-          .filter((g) => visibleRows(g.tasks, present, agenda?.ownRow).length);
-        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present, [], "", agenda);
+          .filter((g) => visibleRows(g.tasks, present, ownRow).length);
+        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present, [], "", ownRow);
       }
     }
   } else if (view === "wiederkehrend") {
@@ -441,15 +439,13 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   const subs = effectiveSubtasks(opts);
   const openHosts = nestingHosts(plugin, open, subs);
   const doneHosts = nestingHosts(plugin, done, subs);
-  // Bei Gruppierung „Datum"/„Deadline" gewinnt das eigene Datum der Unteraufgabe (s. agendaOf) –
-  // sie steht in IHRER Tages-Sektion statt (nur) verschachtelt beim Parent in dessen Sektion.
-  const agenda = agendaOf(open, opts.group);
+  // Bei Gruppierung „Datum"/„Deadline" gewinnt das eigene Datum der Unteraufgabe (agendaOwnRow) –
+  // sie steht in IHRER Tages-Sektion, nicht nur verschachtelt beim Parent in dessen Sektion.
+  const ownRow = agendaOwnRow(opts.group);
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
-    if (visibleRows(g.tasks, openHosts, agenda?.ownRow).length) section(root, plugin, g.title, g.tasks, today, false, false, openHosts, [], "", agenda);
+    if (visibleRows(g.tasks, openHosts, ownRow).length) section(root, plugin, g.title, g.tasks, today, false, false, openHosts, [], "", ownRow);
   }
-  // Erledigt ohne ownRow (kein Datums-Eimer), aber mit skip: die offenen Kinder eines erledigten
-  // Parents stehen ggf. schon oben an ihrem Datum.
-  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, plugin, t("sec_done"), done, today, true, false, doneHosts, [], "", agenda && { skip: agenda.skip });
+  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, plugin, t("sec_done"), done, today, true, false, doneHosts);
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
@@ -968,22 +964,11 @@ function nestingHosts(plugin: BeautyTasksPlugin, anchors: Task[], mode: SubtaskD
   return mode === "standalone" ? new Set<string>() : renderedPaths(plugin, anchors);
 }
 
-/**
- * Die Datums-Ausnahme einer Ansicht, fertig gebündelt für section()/renderTask:
- *  • ownRow – welche Unteraufgaben trotz sichtbarem Parent eine eigene Zeile bekommen
- *    („das eigene Datum gewinnt", s. agendaOwnRow; nur bei Gruppierung Datum/Deadline).
- *  • skip  – GENAU diese Pfade beim Verschachteln unterm Parent überspringen: sie stehen
- *    bereits an ihrem eigenen Datum in der Ansicht, doppelt wäre gelogen („2 Aufgaben heute"?).
- *    Aus der GESAMTEN Aufgabenmenge der Ansicht gebaut (nicht pro Sektion), damit auch der
- *    Parent in der Nachbar-Sektion sie auslässt. Das Badge zählt weiterhin ALLE Kinder.
- * `undefined` bei jeder anderen Gruppierung – dann bleibt alles beim alten Verhalten.
- */
-interface Agenda { ownRow?: (t: Task) => boolean; skip?: Set<string>; }
-function agendaOf(tasks: Task[], group: FilterGroup): Agenda | undefined {
-  const ownRow = agendaOwnRow(group);
-  if (!ownRow) return undefined;
-  return { ownRow, skip: new Set(tasks.filter((t) => t.parent && ownRow(t)).map((t) => t.path)) };
-}
+// Die Datums-Ausnahme („das eigene Datum gewinnt", agendaOwnRow) kennt bewusst KEINE
+// Anti-Doppelungs-Sperre beim Verschachteln: Aufklappen (per „Eingerückt" oder Badge-Klick)
+// zeigt IMMER ALLE Kinder unterm Parent – auch die, die zusätzlich an ihrem eigenen Datum
+// stehen. Das ist der Sinn des Aufklappens: die Aufgabe komplett durchgehen. Eine Sperre
+// machte „Eingerückt" in reinen Datums-Agenden (Demnächst: alles datiert) zum toten Schalter.
 
 function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> {
   const present = new Set<string>();
@@ -1070,8 +1055,8 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
 /** Zeichnet eine Sektion und gibt ihren Überschriften-Kopf zurück – daran hängen Aufrufer
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", agenda?: Agenda): HTMLElement {
-  const top = trash ? tasks : visibleRows(tasks, present, agenda?.ownRow);
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean): HTMLElement {
+  const top = trash ? tasks : visibleRows(tasks, present, ownRow);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });
@@ -1099,7 +1084,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
   const hideProject = o.group === "project" && top.length
     ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideProject, skipKids: agenda?.skip });
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1177,7 +1162,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; deadlineImplied?: boolean; distColor?: boolean; hideProject?: string; skipKids?: Set<string> } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; deadlineImplied?: boolean; distColor?: boolean; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1371,9 +1356,6 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const showKids = !trash && !opts.flat && subsExpanded(task.path, subs);
   if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
     if (isTrashed(kid.status)) continue;
-    // „Das eigene Datum gewinnt": dieses Kind steht bereits als eigene Zeile an SEINEM Datum in
-    // dieser Ansicht (s. agendaOf) – hier verschachtelt wäre es doppelt. Das Badge zählt es weiter.
-    if (opts.skipKids?.has(kid.path)) continue;
     // Erledigte Unteraufgaben an denselben Schalter koppeln wie die Erledigt-Sektion: „Erledigte
     // anzeigen" aus -> auch hier verschachtelt weg. Ausnahme: ist der Parent SELBST erledigt (Erledigt-
     // Ansicht/-Sektion), bleiben sie sichtbar – sonst verschwänden dort die einzigen Zeilen fälschlich.
@@ -1384,7 +1366,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
     // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. dateImplied wird bewusst
     // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
-    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: true, skipKids: opts.skipKids });
+    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: true });
   }
 }
 
