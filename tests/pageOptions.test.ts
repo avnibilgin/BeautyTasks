@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readViewOptions, writeViewOptions } from "../src/pageOptions";
-import { DEFAULT_OPTIONS, boardSubtasks, effectiveSubtasks, BOARD_SUBTASK_DISPLAYS, SUBTASK_DISPLAYS } from "../src/filterEngine";
+import { DEFAULT_OPTIONS, boardSubtasks, listSubtasks, effectiveSubtasks, ALL_SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, SUBTASK_DISPLAYS } from "../src/filterEngine";
 
 describe("readViewOptions – Unteraufgaben-Darstellung", () => {
   it("ohne Angabe: undefined = nie gewählt (NICHT vorzeitig aufgelöst)", () => {
@@ -11,7 +11,9 @@ describe("readViewOptions – Unteraufgaben-Darstellung", () => {
     expect(readViewOptions(undefined).subtasks).toBeUndefined();
   });
 
-  it("nimmt einen gültigen Wert unverändert", () => {
+  it("nimmt einen gültigen Wert unverändert – auch „standalone“, das die Liste nicht mehr anbietet", () => {
+    // „standalone" bleibt als gespeicherter Wert gültig (Board-Wahl „Einblenden", Alt-Seiten).
+    // Wegwerfen würde die Board-Wahl zerstören; was ein Layout nicht kennt, mappt effectiveSubtasks.
     expect(readViewOptions({ subtasks: "indented" }).subtasks).toBe("indented");
     expect(readViewOptions({ subtasks: "standalone" }).subtasks).toBe("standalone");
   });
@@ -28,8 +30,6 @@ describe("readViewOptions – Unteraufgaben-Darstellung", () => {
   });
 
   it("alter Boolean false zählt als nie gewählt", () => {
-    // false war der damalige Standard – keine Entscheidung, sondern deren Abwesenheit. Als
-    // „compact" gelesen hätte es im Board die alte Darstellung überschrieben.
     expect(readViewOptions({ showSubtasks: false }).subtasks).toBeUndefined();
   });
 
@@ -39,54 +39,78 @@ describe("readViewOptions – Unteraufgaben-Darstellung", () => {
 });
 
 describe("effectiveSubtasks – Vorgabe hängt am Layout", () => {
-  it("nie gewählt: Liste kompakt, Board einzeln – beides wie vor dem Feature", () => {
+  it("nie gewählt: Liste kompakt, Board „Ausblenden“ (compact)", () => {
+    // Board-Default seit 2026-07-26 bewusst „Ausblenden": Unterkarten kommen erst per
+    // ausdrücklichem „Einblenden" dazu (vorher zeigte das Board sie standardmäßig).
     expect(effectiveSubtasks({ layout: "list" })).toBe("compact");
-    expect(effectiveSubtasks({ layout: "board" })).toBe("standalone");
+    expect(effectiveSubtasks({ layout: "board" })).toBe("compact");
   });
 
-  it("eine eigene Wahl gilt in beiden Layouts", () => {
-    expect(effectiveSubtasks({ layout: "list", subtasks: "standalone" })).toBe("standalone");
+  it("eine im Layout angebotene Wahl gilt unverändert", () => {
+    expect(effectiveSubtasks({ layout: "list", subtasks: "indented" })).toBe("indented");
+    expect(effectiveSubtasks({ layout: "board", subtasks: "standalone" })).toBe("standalone");
     expect(effectiveSubtasks({ layout: "board", subtasks: "compact" })).toBe("compact");
   });
 
-  it("„Eingerückt“ im Board wird zu „Einzeln“ (keine Karte in einer Karte)", () => {
+  it("„Eingerückt“ im Board wird zu „Einblenden“ (keine Karte in einer Karte)", () => {
     expect(effectiveSubtasks({ layout: "board", subtasks: "indented" })).toBe("standalone");
     expect(effectiveSubtasks({ layout: "list", subtasks: "indented" })).toBe("indented");
   });
 
-  it("liefert nie undefined – jeder Aufrufer bekommt einen konkreten Modus", () => {
-    for (const layout of ["list", "board", "calendar"] as const)
-      for (const v of [undefined, ...SUBTASK_DISPLAYS])
-        expect(SUBTASK_DISPLAYS).toContain(effectiveSubtasks({ layout, subtasks: v }));
+  it("„standalone“ in der Liste wird zu „Kompakt“ (die Liste bietet es nicht mehr an)", () => {
+    // Alt-Seiten mit gewähltem „Einzeln" bzw. Board-Seiten mit „Einblenden" im Listen-Layout:
+    // NICHT verschwinden lassen, sondern aufs Badge zurückfallen – die eigenen Zeilen für
+    // Unteraufgaben ohne sichtbaren Parent liefert ohnehin Variante A (nestingHosts).
+    expect(effectiveSubtasks({ layout: "list", subtasks: "standalone" })).toBe("compact");
   });
 
-  it("der Bestandsfall: alter Boolean false + Board bleibt „Einzeln“", () => {
-    // Das war der Fehler – aus showSubtasks:false wurde „compact", und jedes bestehende Board
-    // verlor beim Update seine Unteraufgaben-Karten (und damit das Ziehen auf andere Spalten).
-    const o = readViewOptions({ showSubtasks: false, layout: "board" });
-    expect(effectiveSubtasks(o)).toBe("standalone");
+  it("liefert nie undefined und nur Werte, die das Layout anbietet", () => {
+    for (const layout of ["list", "board", "calendar"] as const) {
+      const offered = layout === "board" ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS;
+      for (const v of [undefined, ...ALL_SUBTASK_DISPLAYS])
+        expect(offered).toContain(effectiveSubtasks({ layout, subtasks: v }));
+    }
   });
 });
 
 describe("boardSubtasks – „Eingerückt“ gibt es auf Karten nicht", () => {
-  it("Kompakt bleibt Kompakt, Einzeln bleibt Einzeln", () => {
+  it("Ausblenden bleibt Ausblenden, Einblenden bleibt Einblenden", () => {
     expect(boardSubtasks("compact")).toBe("compact");
     expect(boardSubtasks("standalone")).toBe("standalone");
   });
 
-  it("Eingerückt fällt auf Einzeln zurück – nicht auf Kompakt", () => {
+  it("Eingerückt fällt auf Einblenden zurück – nicht auf Ausblenden", () => {
     // Entscheidend: NICHT "compact". Sonst filterte das Board die Unteraufgaben-Karten heraus,
-    // während das Panel „Einzeln" anzeigt – die Unteraufgaben wären weder Karte noch Badge.
+    // während das Panel „Einblenden" anzeigt – die Unteraufgaben wären weder Karte noch Badge.
     expect(boardSubtasks("indented")).toBe("standalone");
   });
 
   it("liefert immer einen im Board anbietbaren Wert", () => {
     // Panel und Board müssen sich einig sein: was boardSubtasks liefert, muss im Dropdown stehen.
-    for (const m of SUBTASK_DISPLAYS) expect(BOARD_SUBTASK_DISPLAYS).toContain(boardSubtasks(m));
+    for (const m of ALL_SUBTASK_DISPLAYS) expect(BOARD_SUBTASK_DISPLAYS).toContain(boardSubtasks(m));
   });
 
   it("ist idempotent (zweimal anwenden ändert nichts)", () => {
-    for (const m of SUBTASK_DISPLAYS) expect(boardSubtasks(boardSubtasks(m))).toBe(boardSubtasks(m));
+    for (const m of ALL_SUBTASK_DISPLAYS) expect(boardSubtasks(boardSubtasks(m))).toBe(boardSubtasks(m));
+  });
+});
+
+describe("listSubtasks – „Einzeln“ gibt es in der Liste nicht mehr", () => {
+  it("Kompakt und Eingerückt bleiben unverändert", () => {
+    expect(listSubtasks("compact")).toBe("compact");
+    expect(listSubtasks("indented")).toBe("indented");
+  });
+
+  it("standalone fällt auf Kompakt zurück – das Spiegelbild zu boardSubtasks", () => {
+    expect(listSubtasks("standalone")).toBe("compact");
+  });
+
+  it("liefert immer einen in der Liste anbietbaren Wert", () => {
+    for (const m of ALL_SUBTASK_DISPLAYS) expect(SUBTASK_DISPLAYS).toContain(listSubtasks(m));
+  });
+
+  it("ist idempotent (zweimal anwenden ändert nichts)", () => {
+    for (const m of ALL_SUBTASK_DISPLAYS) expect(listSubtasks(listSubtasks(m))).toBe(listSubtasks(m));
   });
 });
 
@@ -111,7 +135,7 @@ describe("writeViewOptions – Notiz bleibt schlank", () => {
   });
 
   it("Rundlauf: lesen -> schreiben -> lesen ergibt denselben Wert", () => {
-    for (const v of ["compact", "indented", "standalone"] as const) {
+    for (const v of ALL_SUBTASK_DISPLAYS) {
       const fm: Record<string, unknown> = {};
       writeViewOptions(fm, { ...DEFAULT_OPTIONS, subtasks: v });
       expect(readViewOptions(fm).subtasks).toBe(v);

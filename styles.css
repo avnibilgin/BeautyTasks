@@ -514,11 +514,20 @@ body {
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
   -webkit-mask-position: center; mask-position: center;
 }
-.bt-task-modal .bt-st-chip.bt-recur { color: var(--bt-recur); gap: 0; }
-.bt-task-modal .bt-st-chip.bt-label { color: var(--bt-label); gap: 0; }
+/* Meta-Theme-Variablen (--bt-c-*) wie in der Liste – NICHT die klassischen Festfarben:
+   bei „Minimalisdo"/„User" sind Wiederholung/Label grau, nur „Colorado" färbt sie. Die
+   Festfarben hier ließen das Modal bunt aussehen, obwohl das Theme grau vorgibt. */
+.bt-task-modal .bt-st-chip.bt-recur { color: var(--bt-c-recur); gap: 0; }
+.bt-task-modal .bt-st-chip.bt-label { color: var(--bt-c-label); gap: 0; }
+.bt-task-modal .bt-st-chip.bt-sched { color: var(--bt-c-sched); }
+/* Erinnerung/Anhänge: die globalen Klassen der Liste (Theme-Farben --bt-c-remind/--bt-c-comments
+   bringen sie mit) – hier nur aufs kompakte Modal-Maß der .bt-st-chips gebracht. */
+.bt-task-modal .bt-st-meta .bt-remind svg { width: 13px; height: 13px; }
+.bt-task-modal .bt-st-meta .bt-comments { font-size: 0.78em; }
+.bt-task-modal .bt-st-meta .bt-comments-ic svg { width: 13px; height: 13px; }
 .bt-task-modal .bt-st-kids {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 0.78em; color: var(--text-muted); font-variant-numeric: tabular-nums;
+  font-size: 0.78em; color: var(--bt-c-subs); font-variant-numeric: tabular-nums;
 }
 .bt-task-modal .bt-st-kids-ic { display: inline-flex; }
 .bt-task-modal .bt-st-kids-ic svg { width: 13px; height: 13px; }
@@ -1242,12 +1251,15 @@ body.bt-meta-colorado {
 }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
-   ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
-.bt-view .bt-due[data-dist="today"] { color: var(--bt-dist-today); }
-.bt-view .bt-due[data-dist="d1"]    { color: var(--bt-dist-d1); }
-.bt-view .bt-due[data-dist="d2"]    { color: var(--bt-dist-d2); }
-.bt-view .bt-due[data-dist="week"]  { color: var(--bt-dist-week); }
-.bt-view .bt-due[data-dist="far"]   { color: var(--bt-dist-far); }
+   ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask).
+   Gilt AUCH für die Unteraufgaben-Zeilen im Aufgaben-Modal (.bt-st-chip, s. subtaskList):
+   gleiche Variablen, damit dasselbe Datum auf beiden Flächen dieselbe Farbe trägt – vorher
+   blieb das Modal beim alten data-when-Orange. */
+.bt-view .bt-due[data-dist="today"], .bt-task-modal .bt-st-chip.bt-due[data-dist="today"] { color: var(--bt-dist-today); }
+.bt-view .bt-due[data-dist="d1"],    .bt-task-modal .bt-st-chip.bt-due[data-dist="d1"]    { color: var(--bt-dist-d1); }
+.bt-view .bt-due[data-dist="d2"],    .bt-task-modal .bt-st-chip.bt-due[data-dist="d2"]    { color: var(--bt-dist-d2); }
+.bt-view .bt-due[data-dist="week"],  .bt-task-modal .bt-st-chip.bt-due[data-dist="week"]  { color: var(--bt-dist-week); }
+.bt-view .bt-due[data-dist="far"],   .bt-task-modal .bt-st-chip.bt-due[data-dist="far"]   { color: var(--bt-dist-far); }
 
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */

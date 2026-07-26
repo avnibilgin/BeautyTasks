@@ -77,3 +77,15 @@ export function dueWhen(iso: string, today = todayStr()): "past" | "today" | "fu
   const d = dateOf(iso), tn = dateOf(today);
   return d < tn ? "past" : d === tn ? "today" : "future";
 }
+
+/**
+ * Tages-Distanz-Stufe fürs Einfärben des Datums-Chips (data-dist): heute/morgen/übermorgen/
+ * bis Tag 7/ferner. "" bei Überfällig – das behält seine rote data-when-Farbe (kein data-dist).
+ * EINE Zuordnung für Liste (renderTask) UND Modal-Unteraufgaben (subtaskList): vorher hatte
+ * nur die Liste sie, und die Modal-Zeile blieb beim alten data-when-Orange – zwei Flächen,
+ * zwei Farbsysteme für dasselbe Datum.
+ */
+export function dueDist(iso: string, today = todayStr()): "" | "today" | "d1" | "d2" | "week" | "far" {
+  const off = dayOffset(iso, today);
+  return off < 0 ? "" : off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : off <= 7 ? "week" : "far";
+}

@@ -1,11 +1,11 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, combineDT, dueWhen, dayOffset, dateOf, groupLabel } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -33,12 +33,22 @@ const boardScroll = new Map<string, number>();
 // contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
 const colScroll = new Map<string, number>();
 // Klappzustand der verschachtelten Unteraufgaben je Hauptaufgabe: EXPLIZITE Nutzer-Klicks aufs
-// Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, „Kompakt"/„Einzeln" zu –,
-// ein Klick überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(),
-// ein Reload startet wieder beim Modus-Default.
+// Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, sonst zu –, ein Klick
+// überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(), ein
+// Reload startet wieder beim Modus-Default.
 const subtaskToggle = new Map<string, boolean>();
 function subsExpanded(path: string, mode: SubtaskDisplay): boolean {
   return subtaskToggle.get(path) ?? (mode === "indented");
+}
+/**
+ * Alle Einzel-Klick-Zustände verwerfen – ruft das Anzeige-Panel beim MODUSWECHSEL auf.
+ * Ohne das überstimmte ein früherer Badge-Klick („zu") den frisch gewählten Modus dauerhaft:
+ * „Eingerückt" rückte dann genau die Aufgaben nicht ein, deren Badge man beim Ausprobieren
+ * angeklickt hatte – je Ansicht andere, was wie ein Ansichts-Fehler aussah. Der Moduswechsel
+ * ist die ausdrückliche neue Ansage „alle auf/zu" und setzt deshalb alle Overrides zurück.
+ */
+export function resetSubtaskToggles(): void {
+  subtaskToggle.clear();
 }
 
 export const VIEW_PREFIX = "beautytasks-";
@@ -138,6 +148,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Heute-Liste-Default = „Datum": „Keine"(none) und „Datum" liefern denselben Überfällig/Heute-Split,
       // deshalb ist „Keine" hier ausgeblendet (s. viewPanel) und beide Werte laufen über DIESEN einen Pfad.
       const group = opts.group === "none" ? "date" : opts.group;
+      // „Das eigene Datum gewinnt" (s. agendaOwnRow): bei Datums-/Deadline-Sektionen steht eine
+      // Unteraufgabe mit eigenem Wert in IHRER Sektion – sonst fehlte das Kind mit Fälligkeit
+      // heute in „Heute", wenn sein Parent in „Überfällig" sitzt.
+      const ownRow = agendaOwnRow(group);
       if (group === "date") {
         // Default: die semantischen Sektionen Überfällig/Heute (nach opts.sort sortiert).
         // Die Termine des Tages hängen an „Heute" (Überfällig ist vergangen, dort ergäben sie keinen Sinn).
@@ -145,12 +159,12 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
-        if (visibleRows(overdue, present).length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present);
+        if (visibleRows(overdue, present, ownRow).length) {
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
           rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
-        if (visibleRows(dueToday, present).length || todayEv.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today);
+        if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
@@ -158,14 +172,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // (nie oben über allem schwebend).
         const todayHead = groupLabel(today, today);   // „18. Jul · Heute · Samstag" (Titel der Heute-Gruppe)
         const gs = groupTasks(sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin)), opts.group, today, opts, labelOrderOf(plugin, open, opts.group))
-          .filter((g) => visibleRows(g.tasks, present).length);
+          .filter((g) => visibleRows(g.tasks, present, ownRow).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today); };
+        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow); };
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "");
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow);
           // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
           // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
           // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
@@ -196,8 +210,12 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // Gruppierung wie Heute – Default Datum. „date"/„none": die chronologische Datums-Agenda (mit
       // Terminen). Jede andere Wahl (Label/Priorität/Projekt/Deadline) gruppiert die Aufgaben wie auf
       // den vollen Seiten; Termine haben dort keine Gruppe und entfallen (wie im Board).
-      const present = nestingHosts(plugin, groups.flatMap((g) => g.tasks), effectiveSubtasks(opts));
+      const flat = groups.flatMap((g) => g.tasks);
+      const present = nestingHosts(plugin, flat, effectiveSubtasks(opts));
       const group = opts.group === "none" ? "date" : opts.group;
+      // „Das eigene Datum gewinnt" (s. agendaOwnRow): das Kind mit Fälligkeit übermorgen steht
+      // bei ÜBERMORGEN als eigene Zeile (nicht NUR unter seinem Parent am Morgen-Tag).
+      const ownRow = agendaOwnRow(group);
       if (group === "date") {
         const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
         // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
@@ -209,14 +227,13 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           const dayEv = evByDate.get(date) ?? [];
           // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
           // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
-          if (visibleRows(dayTasks, present).length || dayEv.length)
-            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date);
+          if (visibleRows(dayTasks, present, ownRow).length || dayEv.length)
+            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow);
         }
       } else {
-        const flat = groups.flatMap((g) => g.tasks);
         const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
-          .filter((g) => visibleRows(g.tasks, present).length);
-        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present);
+          .filter((g) => visibleRows(g.tasks, present, ownRow).length);
+        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present, [], "", ownRow);
       }
     }
   } else if (view === "wiederkehrend") {
@@ -432,8 +449,11 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   const subs = effectiveSubtasks(opts);
   const openHosts = nestingHosts(plugin, open, subs);
   const doneHosts = nestingHosts(plugin, done, subs);
+  // Bei Gruppierung „Datum"/„Deadline" gewinnt das eigene Datum der Unteraufgabe (agendaOwnRow) –
+  // sie steht in IHRER Tages-Sektion, nicht nur verschachtelt beim Parent in dessen Sektion.
+  const ownRow = agendaOwnRow(opts.group);
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
-    if (visibleRows(g.tasks, openHosts).length) section(root, plugin, g.title, g.tasks, today, false, false, openHosts);
+    if (visibleRows(g.tasks, openHosts, ownRow).length) section(root, plugin, g.title, g.tasks, today, false, false, openHosts, [], "", ownRow);
   }
   if (opts.showDone && visibleRows(done, doneHosts).length) section(root, plugin, t("sec_done"), done, today, true, false, doneHosts);
 }
@@ -858,7 +878,10 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   // Hat eine Unteraufgabe keine Hauptaufgabe auf diesem Board, bleibt sie auch im kompakten
   // Modus als Karte stehen (nestingHosts/visibleRows) – sonst wäre sie hier unerreichbar.
   const subs = effectiveSubtasks(opts);   // im Board-Layout schliesst das boardSubtasks() ein
-  const cards = visibleRows(tasks, nestingHosts(plugin, tasks, subs));
+  // Datums-/Deadline-Spalten: „das eigene Datum gewinnt" auch hier – eine datierte Unteraufgabe
+  // bekommt ihre Karte in IHRER Tages-Spalte, auch wenn der Parent als Karte auf dem Board steht.
+  // Karten sind flach (keine Verschachtelung) -> kein skip nötig, Doppelung kann nicht entstehen.
+  const cards = visibleRows(tasks, nestingHosts(plugin, tasks, subs), agendaOwnRow(opts.group));
   // Gruppierungs-Schlüssel (stabil) für die board-eigene Spalten-Reihenfolge. Priorität bleibt fest.
   const groupKey = opts.group === "label" ? "label" : opts.group === "priority" ? "priority" : opts.group === "project" ? "project"
     : opts.group === "date" || opts.group === "deadline" ? opts.group : "status";
@@ -941,14 +964,21 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
  * Die Menge, unter der verschachtelt gezeichnet wird – EINZIGE Stelle, an der die gewählte
  * Unteraufgaben-Darstellung über die Verschachtelung entscheidet.
  *
- * Bei „Einzeln" ist sie bewusst LEER: dann gilt keine Hauptaufgabe als Wirt, also hängt keine
- * Unteraufgabe an ihr und jede bekommt ihre eigene Zeile – in ihrer eigenen Gruppe, an ihrer
- * eigenen Position in der Sortierung. Wichtig ist die leere Menge statt `undefined`: `undefined`
- * bedeutet in visibleRows das GEGENTEIL (alle Unteraufgaben weglassen, s. Papierkorb).
+ * Bei „standalone" (Board: „Einblenden"; in der Liste kommt der Wert nicht mehr an, s.
+ * listSubtasks) ist sie bewusst LEER: dann gilt keine Hauptaufgabe als Wirt, also hängt keine
+ * Unteraufgabe an ihr und jede bekommt ihre eigene Karte – in ihrer eigenen Spalte/Gruppe.
+ * Wichtig ist die leere Menge statt `undefined`: `undefined` bedeutet in visibleRows das
+ * GEGENTEIL (alle Unteraufgaben weglassen, s. Papierkorb).
  */
 function nestingHosts(plugin: BeautyTasksPlugin, anchors: Task[], mode: SubtaskDisplay): Set<string> {
   return mode === "standalone" ? new Set<string>() : renderedPaths(plugin, anchors);
 }
+
+// Die Datums-Ausnahme („das eigene Datum gewinnt", agendaOwnRow) kennt bewusst KEINE
+// Anti-Doppelungs-Sperre beim Verschachteln: Aufklappen (per „Eingerückt" oder Badge-Klick)
+// zeigt IMMER ALLE Kinder unterm Parent – auch die, die zusätzlich an ihrem eigenen Datum
+// stehen. Das ist der Sinn des Aufklappens: die Aufgabe komplett durchgehen. Eine Sperre
+// machte „Eingerückt" in reinen Datums-Agenden (Demnächst: alles datiert) zum toten Schalter.
 
 function renderedPaths(plugin: BeautyTasksPlugin, anchors: Task[]): Set<string> {
   const present = new Set<string>();
@@ -1035,8 +1065,8 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
 /** Zeichnet eine Sektion und gibt ihren Überschriften-Kopf zurück – daran hängen Aufrufer
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = ""): HTMLElement {
-  const top = trash ? tasks : visibleRows(tasks, present);
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean): HTMLElement {
+  const top = trash ? tasks : visibleRows(tasks, present, ownRow);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });
@@ -1196,11 +1226,12 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
 
   const meta = body.createDiv({ cls: "bt-meta" });
-  // Hauptaufgaben-Link ganz vorn als normales Meta-Icon (nur Liste, nur wenn per Einstellung an): an jeder
-  // Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent,
-  // „Einzeln"). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die Hauptaufgabe – konsistent
-  // zu den übrigen Meta-Icons.
-  if (depth === 0 && !opts.flat && task.parent) {
+  // Hauptaufgaben-Link ganz vorn als normales Meta-Icon: an jeder Unteraufgabe, die hier auf
+  // Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent) – in der LISTE wie
+  // auf der KARTE (Board „Einblenden": ohne das Icon wäre einer Unterkarte nicht anzusehen,
+  // dass sie eine ist). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die
+  // Hauptaufgabe – konsistent zu den übrigen Meta-Icons.
+  if (depth === 0 && task.parent) {
     const parent = plugin.index.get(task.parent);
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",
@@ -1232,9 +1263,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       // Überfällig (< heute) behält seine data-when-Farbe (dist bleibt leer). compactHide ist nur bei
       // due >= heute aktiv, dort ist off immer >= 0.
       if (opts.distColor || compactHide) {
-        const off = dayOffset(task.due, today);
         // Überfällig (< heute) behält seine rote data-when-Farbe (kein data-dist); ab Tag 8 heller Grau.
-        const dist = off < 0 ? "" : off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : off <= 7 ? "week" : "far";
+        const dist = dueDist(task.due, today);
         if (dist) chip.dataset.dist = dist;
       }
       chip.onclick = (e) => {
@@ -1275,10 +1305,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
   // Unteraufgaben-Badge: an JEDER Hauptaufgabe mit (nicht-abgebrochenen) Kindern, in ALLEN Modi
   // (list-checks + „erledigt/gesamt"). Klick klappt DIESE eine Aufgabe auf/zu – der Default kommt
-  // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt"/„Einzeln" zu. In „Einzeln" stehen die
-  // Kinder ohnehin als eigene Zeilen; klappt man hier bewusst auf, kommen sie zusätzlich genestet
-  // dazu (gewollte, standardmäßig zugeklappte Ausnahme). Auf einer Karte (flat) ist es reine ANZEIGE:
-  // aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf), daher ohne role/Klick.
+  // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt" zu. Auf einer Karte (flat) ist es
+  // reine ANZEIGE: aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf),
+  // daher ohne role/Klick.
   if (!trash) {
     const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
     if (kids.length) {
@@ -1333,7 +1362,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
   // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
   // wenn das Badge (per Modus-Default oder Klick) aufgeklappt ist – siehe subsExpanded.
-  // „Eingerückt" Default auf · „Kompakt"/„Einzeln" Default zu; ein Klick überschreibt pro Aufgabe.
+  // „Eingerückt" Default auf · „Kompakt" Default zu; ein Klick überschreibt pro Aufgabe.
   const showKids = !trash && !opts.flat && subsExpanded(task.path, subs);
   if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
     if (isTrashed(kid.status)) continue;
