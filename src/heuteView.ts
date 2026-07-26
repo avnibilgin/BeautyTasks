@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, combineDT, dueWhen, dayOffset, dateOf, groupLabel } from "./format";
+import { todayStr, formatDateTime, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
@@ -1262,9 +1262,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       // Überfällig (< heute) behält seine data-when-Farbe (dist bleibt leer). compactHide ist nur bei
       // due >= heute aktiv, dort ist off immer >= 0.
       if (opts.distColor || compactHide) {
-        const off = dayOffset(task.due, today);
         // Überfällig (< heute) behält seine rote data-when-Farbe (kein data-dist); ab Tag 8 heller Grau.
-        const dist = off < 0 ? "" : off === 0 ? "today" : off === 1 ? "d1" : off === 2 ? "d2" : off <= 7 ? "week" : "far";
+        const dist = dueDist(task.due, today);
         if (dist) chip.dataset.dist = dist;
       }
       chip.onclick = (e) => {

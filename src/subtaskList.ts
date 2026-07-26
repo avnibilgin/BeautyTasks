@@ -10,7 +10,7 @@ import { Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { createTaskNote, todayIso } from "./taskService";
-import { formatDateTime, combineDT, dueWhen, todayStr } from "./format";
+import { formatDateTime, combineDT, dueWhen, dueDist, todayStr } from "./format";
 import { applyQuickEntry, emptyQuickEntryState } from "./quickEntry";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { isDone, isTrashed } from "./statuses";
@@ -169,6 +169,11 @@ export class SubtaskList {
     if (kid.due) {
       const chip = meta().createSpan({ cls: "bt-st-chip bt-due", text: formatDateTime(combineDT(kid.due, kid.dueTime), todayStr()) });
       chip.dataset.when = dueWhen(kid.due, todayStr());
+      // Tages-Distanz-Farbe wie in der Liste (dueDist, EINE Zuordnung für beide Flächen):
+      // ohne sie blieb der Chip beim alten data-when-Orange, während die Liste längst
+      // heute/morgen/übermorgen abstuft. Überfällig bleibt rot über data-when (dist = "").
+      const dist = dueDist(kid.due, todayStr());
+      if (dist) chip.dataset.dist = dist;
     }
     if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
     for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });

@@ -1242,12 +1242,15 @@ body.bt-meta-colorado {
 }
 /* Kompakt + flache Liste (Gruppierung „Keine"): Datum nach Tages-Distanz in den Seitenleisten-
    Menüfarben – heute grün, morgen orange, übermorgen gelb, Tag 3–7 lila. Überfällig/>7 Tage behalten
-   ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask). */
-.bt-view .bt-due[data-dist="today"] { color: var(--bt-dist-today); }
-.bt-view .bt-due[data-dist="d1"]    { color: var(--bt-dist-d1); }
-.bt-view .bt-due[data-dist="d2"]    { color: var(--bt-dist-d2); }
-.bt-view .bt-due[data-dist="week"]  { color: var(--bt-dist-week); }
-.bt-view .bt-due[data-dist="far"]   { color: var(--bt-dist-far); }
+   ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask).
+   Gilt AUCH für die Unteraufgaben-Zeilen im Aufgaben-Modal (.bt-st-chip, s. subtaskList):
+   gleiche Variablen, damit dasselbe Datum auf beiden Flächen dieselbe Farbe trägt – vorher
+   blieb das Modal beim alten data-when-Orange. */
+.bt-view .bt-due[data-dist="today"], .bt-task-modal .bt-st-chip.bt-due[data-dist="today"] { color: var(--bt-dist-today); }
+.bt-view .bt-due[data-dist="d1"],    .bt-task-modal .bt-st-chip.bt-due[data-dist="d1"]    { color: var(--bt-dist-d1); }
+.bt-view .bt-due[data-dist="d2"],    .bt-task-modal .bt-st-chip.bt-due[data-dist="d2"]    { color: var(--bt-dist-d2); }
+.bt-view .bt-due[data-dist="week"],  .bt-task-modal .bt-st-chip.bt-due[data-dist="week"]  { color: var(--bt-dist-week); }
+.bt-view .bt-due[data-dist="far"],   .bt-task-modal .bt-st-chip.bt-due[data-dist="far"]   { color: var(--bt-dist-far); }
 
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
