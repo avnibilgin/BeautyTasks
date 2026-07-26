@@ -24,16 +24,19 @@ export type PageLayout = "list" | "board" | "calendar";
  *  Bei „smart" bedeutungslos – dort wird sie im UI gar nicht erst angeboten. */
 export type SortDir = "asc" | "desc";
 /**
- * Wie Unteraufgaben in der Liste erscheinen – die drei Antworten auf EINE Frage: wie eng hängt
- * eine Unteraufgabe an ihrer Hauptaufgabe?
+ * Wie Unteraufgaben erscheinen, deren Hauptaufgabe MIT in der Ansicht steht:
  *   compact    – zusammengefasst AN ihr (Fortschritts-Badge „2/3", per Klick aufklappbar)
  *   indented   – sichtbar UNTER ihr (eingerückt)
- *   standalone – UNABHÄNGIG von ihr: eigene Zeile, eigene Gruppe, eigene Position in der Sortierung
+ *   standalone – UNABHÄNGIG von ihr: eigene Karte im Board (Voraussetzung fürs Ziehen zwischen
+ *                Status-Spalten)
  *
- * Der dritte Zustand ist die ausdrückliche Nutzer-Entscheidung in einem Konflikt, den die Liste
- * sonst raten müsste: Gruppieren/Sortieren ordnet nach Attributen, Verschachteln nach Herkunft.
- * Trägt eine Unteraufgabe eigene Labels oder ein eigenes Datum, widersprechen sich beide – dann
- * bestimmt dieser Schalter, welche Ordnung gewinnt, statt dass wir es festlegen.
+ * Unteraufgaben OHNE sichtbare Hauptaufgabe (anderes Datum/Projekt, Parent erledigt) stehen
+ * IMMER als eigene Zeile da – das regelt Variante A (nestingHosts/visibleRows), kein Modus.
+ * Deshalb ist „standalone" in der LISTE keine Option mehr: sein einziger Mehrwert dort war,
+ * eigene Zeilen auch bei sichtbarem Parent zu erzwingen – redundant neben dem aufklappbaren
+ * Badge. Im Board bleibt es die Antwort auf eine echte Frage (Unterkarten ja/nein) und heißt
+ * dort im UI „Einblenden" (compact = „Ausblenden"). Als gespeicherter Wert bleibt es überall
+ * gültig (Alt-Seiten, Board-Wahl) – die Liste bildet es auf „compact" ab (listSubtasks).
  */
 export type SubtaskDisplay = "compact" | "indented" | "standalone";
 /** Verknüpfungs-Modus einer Auswahl-Facette: irgendeines (ODER) / alle (UND) / keines (NICHT).
@@ -91,29 +94,41 @@ export const SUBTASK_FILTERS: SubtaskFilter[] = ["any", "none", "only"];
 export const SORTS: FilterSort[] = ["smart", "manual", "due", "deadline", "priority", "created", "title"];
 export const GROUPS: FilterGroup[] = ["none", "date", "deadline", "priority", "label", "project"];
 export const SORT_DIRS: SortDir[] = ["asc", "desc"];
-/** Reihenfolge im Dropdown = zunehmende Eigenständigkeit der Unteraufgabe. */
-export const SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "indented", "standalone"];
-/** Im Board fehlt „Eingerückt": in eine Karte lässt sich keine Karte einrücken. */
+/** Alle je gespeicherten Werte – NUR für die Validierung beim Lesen (pageOptions): „standalone"
+ *  muss lesbar bleiben (Board-Wahl, Alt-Seiten aus der Zeit, als die Liste es noch anbot). */
+export const ALL_SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "indented", "standalone"];
+/** Listen-Dropdown: nur noch die Klapp-Frage (zu/offen) – „Einzeln" ist dort keine Option mehr
+ *  (s. SubtaskDisplay). Reihenfolge = zunehmende Sichtbarkeit. */
+export const SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "indented"];
+/** Board-Dropdown: Unterkarten „Ausblenden" (compact) / „Einblenden" (standalone). „Eingerückt"
+ *  fehlt: in eine Karte lässt sich keine Karte einrücken. */
 export const BOARD_SUBTASK_DISPLAYS: SubtaskDisplay[] = ["compact", "standalone"];
 /**
- * Der im Board wirksame Modus. „Eingerückt" fällt auf „Einzeln" zurück – sichtbar bleiben die
+ * Der im Board wirksame Modus. „Eingerückt" fällt auf „Einblenden" zurück – sichtbar bleiben die
  * Unteraufgaben in beiden Fällen, nur eben als eigene Karten. Nicht destruktiv: der gespeicherte
  * Wert bleibt „indented" und wirkt in der Liste weiter.
  *
  * Muss die EINE Abbildung sein, die Panel und Board benutzen. Liefen sie auseinander, böte das
- * Panel „Einzeln" an, während das Board nach „Kompakt"-Regeln filtert – die Unteraufgaben wären
- * dann weder Karte noch Badge, also verschwunden.
+ * Panel „Einblenden" an, während das Board nach „Ausblenden"-Regeln filtert – die Unteraufgaben
+ * wären dann weder Karte noch Badge, also verschwunden.
  */
 export const boardSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "compact" ? "compact" : "standalone");
+/**
+ * Der in der Liste wirksame Modus – das Spiegelbild zu boardSubtasks: „standalone" fällt auf
+ * „Kompakt" zurück (die Liste bietet es nicht mehr an, s. SubtaskDisplay). Nicht destruktiv:
+ * der gespeicherte Wert bleibt stehen und bedeutet im Board weiter „Einblenden" – exakt das
+ * Muster, das „indented" dort schon hat, nur in Gegenrichtung.
+ */
+export const listSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "indented" ? "indented" : "compact");
 
 /**
- * Der tatsächlich wirksame Modus – die EINE Stelle, die „nie gewählt" auflöst.
+ * Der tatsächlich wirksame Modus – die EINE Stelle, die „nie gewählt" auflöst UND fremde
+ * Werte auf die Optionen des Layouts abbildet.
  *
- * Die Vorgabe hängt am Layout, weil beide Flächen vor dieser Einstellung unterschiedlich
- * arbeiteten: die Liste zeigte ein Fortschritts-Badge, das Board immer eigene Karten. Eine
- * gemeinsame Vorgabe würde eine der beiden beim Update stillschweigend umstellen – im Board sogar
- * mit Funktionsverlust, weil sich eine Unteraufgabe ohne Karte nicht mehr in eine andere
- * Status-Spalte ziehen lässt.
+ * Vorgabe ist überall „compact": in der Liste das zugeklappte Badge (wie bisher), im Board
+ * „Ausblenden" – Unterkarten kommen erst per ausdrücklichem „Einblenden" dazu (bewusste
+ * Entscheidung 2026-07-26; vorher zeigte das Board sie standardmäßig). Wer sie einblendet,
+ * kann sie auch zwischen Status-Spalten ziehen – ausgeblendet geht das nicht.
  *
  * WICHTIG: erst hier auflösen, nicht schon beim Lesen. setPageViewOption speichert das ganze
  * aufgelöste Objekt; ein vorzeitig gesetzter Wert würde beim Umschalten auf Board mit dem ALTEN
@@ -121,8 +136,8 @@ export const boardSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "comp
  * weg und wird jedes Mal frisch zum aktuellen Layout bestimmt.
  */
 export function effectiveSubtasks(o: { layout: PageLayout; subtasks?: SubtaskDisplay }): SubtaskDisplay {
-  if (o.layout === "board") return boardSubtasks(o.subtasks ?? "standalone");
-  return o.subtasks ?? "compact";
+  if (o.layout === "board") return boardSubtasks(o.subtasks ?? "compact");
+  return listSubtasks(o.subtasks ?? "compact");
 }
 /** „smart" ist eine Semantik (datiert zuerst, Datumlose ans Ende), keine Ordnung – rückwärts
  *  ergibt sie keinen Sinn. „manual" ebenso: eine von Hand gelegte Reihenfolge umzudrehen ist

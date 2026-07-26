@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
 import {
   ViewOptions, PageLayout, FilterSort, FilterGroup, SortDir, SubtaskDisplay,
-  SORTS, GROUPS, LAYOUTS, SORT_DIRS, SUBTASK_DISPLAYS, DEFAULT_OPTIONS,
+  SORTS, GROUPS, LAYOUTS, SORT_DIRS, ALL_SUBTASK_DISPLAYS, DEFAULT_OPTIONS,
 } from "./filterEngine";
 import { CalMode, CAL_MODES } from "./calendarModel";
 
@@ -22,9 +22,12 @@ const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T)
  * Layout (s. effectiveSubtasks), und ein früh gesetzter Wert würde von setPageViewOption
  * dauerhaft festgeschrieben. `showSubtasks: false` war der damalige Standard und zählt deshalb
  * ebenfalls als „nie gewählt" – im Board bedeutete er ohnehin nichts.
+ *
+ * Validiert gegen ALLE je gespeicherten Werte (inkl. „standalone"): was ein Layout nicht
+ * anbietet, bildet erst effectiveSubtasks ab – wegwerfen würde die Board-Wahl zerstören.
  */
 function readSubtasks(o: Record<string, unknown>): SubtaskDisplay | undefined {
-  if (typeof o.subtasks === "string" && (SUBTASK_DISPLAYS as readonly string[]).includes(o.subtasks)) return o.subtasks as SubtaskDisplay;
+  if (typeof o.subtasks === "string" && (ALL_SUBTASK_DISPLAYS as readonly string[]).includes(o.subtasks)) return o.subtasks as SubtaskDisplay;
   return o.showSubtasks === true ? "indented" : undefined;
 }
 

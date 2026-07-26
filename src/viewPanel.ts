@@ -45,21 +45,25 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       }
 
       // Unteraufgaben: in Liste UND Board wählbar (nur der Kalender kennt keine Unteraufgaben-
-      // Darstellung). Bewusst NICHT an eine aktive Gruppierung gekoppelt – „Einzeln" wirkt auch
-      // ungruppiert, weil eine Unteraufgabe dann ihre eigene Position in der Sortierung bekommt
-      // statt der ihrer Hauptaufgabe. Ein Bedienelement, das beim Umstellen eines ANDEREN Feldes
-      // auftaucht, verwirrt mehr, als das Ausblenden spart; ausgeblendet wird hier nur, was
-      // wirklich wirkungslos ist (vgl. Richtung bei „smart").
+      // Darstellung), aber mit VERSCHIEDENEN Fragen (s. SubtaskDisplay in filterEngine):
+      //  • Liste: Klapp-Default der verschachtelten Kinder – „Kompakt" (Badge zu) / „Eingerückt"
+      //    (offen). „Einzeln" gibt es dort nicht mehr: Unteraufgaben ohne sichtbaren Parent
+      //    stehen ohnehin immer einzeln (Variante A), der Rest ist die Klapp-Frage.
+      //  • Board: Unterkarten „Ausblenden" (compact) / „Einblenden" (standalone) – dieselben
+      //    gespeicherten Werte, eigene Labels (labelFor, wie die Status-Umbenennung unten).
       // Steht oberhalb des Anordnen-Blocks, weil es den auf „Demnächst" gar nicht gibt – dort
       // bliebe die Auswahl sonst unerreichbar.
-      // Im Board fehlt „Eingerückt" (keine Karte in einer Karte). Ein gespeichertes „Eingerückt"
-      // wird dort als „Einzeln" gezeigt – genau das, was boardSubtasks() tatsächlich tut. Der
-      // gespeicherte Wert bleibt unangetastet und wirkt in der Liste weiter (nicht destruktiv,
-      // wie bei den Gruppierungen, die das Board nicht anbietet).
+      // Fremde Werte zeigt jedes Layout als das, was effectiveSubtasks daraus macht („indented"
+      // im Board als „Einblenden", „standalone" in der Liste als „Kompakt"). Der gespeicherte
+      // Wert bleibt unangetastet und wirkt im anderen Layout weiter (nicht destruktiv, wie bei
+      // den Gruppierungen, die das Board nicht anbietet).
       if (o.layout !== "calendar") {
+        const subsLabelFor = o.layout === "board"
+          ? (v: string) => t(v === "compact" ? "panel_subs_hide" : "panel_subs_show")
+          : undefined;
         ddRow(pop, t("panel_subtasks"), o.layout === "board" ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS,
           effectiveSubtasks(o), "panel_subs_",
-          (v) => apply({ subtasks: v as SubtaskDisplay }));
+          (v) => apply({ subtasks: v as SubtaskDisplay }), subsLabelFor);
       }
 
       // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
@@ -142,9 +146,10 @@ export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): voi
   // gespeicherter Wert von einer früheren Sortierung darf den Punkt nicht setzen (das Panel
   // zeigt die Zeile dort ja auch nicht: derselbe hasSortDir-Vorbehalt).
   const modified = o.layout !== DEFAULT_OPTIONS.layout || o.sort !== DEFAULT_OPTIONS.sort || o.group !== DEFAULT_OPTIONS.group
-    // Unteraufgaben: die WIRKSAMEN Werte vergleichen. Wer im Board ausdrücklich „Einzeln" wählt,
-    // hat damit nichts verändert – dort ist es ohnehin die Vorgabe. Ein Punkt behauptete sonst
-    // eine Abweichung, die man nicht sieht (wie zuvor bei der Richtung unter „smart").
+    // Unteraufgaben: die WIRKSAMEN Werte vergleichen. Ein gespeichertes „standalone" ist in der
+    // LISTE keine Abweichung (wirkt dort als „Kompakt" = Vorgabe), im Board schon („Einblenden").
+    // Ein Punkt auf dem Rohwert behauptete sonst eine Abweichung, die man nicht sieht (wie
+    // zuvor bei der Richtung unter „smart").
     || o.showDone !== DEFAULT_OPTIONS.showDone
     || effectiveSubtasks(o) !== effectiveSubtasks({ layout: o.layout })
     || (hasSortDir(o.sort) && o.sortDir !== DEFAULT_OPTIONS.sortDir);

@@ -33,9 +33,9 @@ const boardScroll = new Map<string, number>();
 // contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
 const colScroll = new Map<string, number>();
 // Klappzustand der verschachtelten Unteraufgaben je Hauptaufgabe: EXPLIZITE Nutzer-Klicks aufs
-// Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, „Kompakt"/„Einzeln" zu –,
-// ein Klick überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(),
-// ein Reload startet wieder beim Modus-Default.
+// Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, sonst zu –, ein Klick
+// überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(), ein
+// Reload startet wieder beim Modus-Default.
 const subtaskToggle = new Map<string, boolean>();
 function subsExpanded(path: string, mode: SubtaskDisplay): boolean {
   return subtaskToggle.get(path) ?? (mode === "indented");
@@ -941,10 +941,11 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
  * Die Menge, unter der verschachtelt gezeichnet wird – EINZIGE Stelle, an der die gewählte
  * Unteraufgaben-Darstellung über die Verschachtelung entscheidet.
  *
- * Bei „Einzeln" ist sie bewusst LEER: dann gilt keine Hauptaufgabe als Wirt, also hängt keine
- * Unteraufgabe an ihr und jede bekommt ihre eigene Zeile – in ihrer eigenen Gruppe, an ihrer
- * eigenen Position in der Sortierung. Wichtig ist die leere Menge statt `undefined`: `undefined`
- * bedeutet in visibleRows das GEGENTEIL (alle Unteraufgaben weglassen, s. Papierkorb).
+ * Bei „standalone" (Board: „Einblenden"; in der Liste kommt der Wert nicht mehr an, s.
+ * listSubtasks) ist sie bewusst LEER: dann gilt keine Hauptaufgabe als Wirt, also hängt keine
+ * Unteraufgabe an ihr und jede bekommt ihre eigene Karte – in ihrer eigenen Spalte/Gruppe.
+ * Wichtig ist die leere Menge statt `undefined`: `undefined` bedeutet in visibleRows das
+ * GEGENTEIL (alle Unteraufgaben weglassen, s. Papierkorb).
  */
 function nestingHosts(plugin: BeautyTasksPlugin, anchors: Task[], mode: SubtaskDisplay): Set<string> {
   return mode === "standalone" ? new Set<string>() : renderedPaths(plugin, anchors);
@@ -1275,10 +1276,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
   // Unteraufgaben-Badge: an JEDER Hauptaufgabe mit (nicht-abgebrochenen) Kindern, in ALLEN Modi
   // (list-checks + „erledigt/gesamt"). Klick klappt DIESE eine Aufgabe auf/zu – der Default kommt
-  // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt"/„Einzeln" zu. In „Einzeln" stehen die
-  // Kinder ohnehin als eigene Zeilen; klappt man hier bewusst auf, kommen sie zusätzlich genestet
-  // dazu (gewollte, standardmäßig zugeklappte Ausnahme). Auf einer Karte (flat) ist es reine ANZEIGE:
-  // aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf), daher ohne role/Klick.
+  // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt" zu. Auf einer Karte (flat) ist es
+  // reine ANZEIGE: aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf),
+  // daher ohne role/Klick.
   if (!trash) {
     const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
     if (kids.length) {
@@ -1333,7 +1333,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
   // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
   // wenn das Badge (per Modus-Default oder Klick) aufgeklappt ist – siehe subsExpanded.
-  // „Eingerückt" Default auf · „Kompakt"/„Einzeln" Default zu; ein Klick überschreibt pro Aufgabe.
+  // „Eingerückt" Default auf · „Kompakt" Default zu; ein Klick überschreibt pro Aufgabe.
   const showKids = !trash && !opts.flat && subsExpanded(task.path, subs);
   if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
     if (isTrashed(kid.status)) continue;
