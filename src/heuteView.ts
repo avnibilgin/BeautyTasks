@@ -1226,11 +1226,12 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   }
 
   const meta = body.createDiv({ cls: "bt-meta" });
-  // Hauptaufgaben-Link ganz vorn als normales Meta-Icon (nur Liste, nur wenn per Einstellung an): an jeder
-  // Unteraufgabe, die hier auf Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent,
-  // „Einzeln"). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die Hauptaufgabe – konsistent
-  // zu den übrigen Meta-Icons.
-  if (depth === 0 && !opts.flat && task.parent) {
+  // Hauptaufgaben-Link ganz vorn als normales Meta-Icon: an jeder Unteraufgabe, die hier auf
+  // Top-Level steht (datiert in Heute, fremdes Projekt, erledigter Parent) – in der LISTE wie
+  // auf der KARTE (Board „Einblenden": ohne das Icon wäre einer Unterkarte nicht anzusehen,
+  // dass sie eine ist). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die
+  // Hauptaufgabe – konsistent zu den übrigen Meta-Icons.
+  if (depth === 0 && task.parent) {
     const parent = plugin.index.get(task.parent);
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",
