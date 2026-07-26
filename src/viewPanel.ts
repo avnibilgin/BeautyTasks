@@ -5,6 +5,7 @@ import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { openPopover } from "./popover";
 import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, effectiveSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
+import { resetSubtaskToggles } from "./heuteView";
 import { t } from "./i18n";
 
 /** Kontextabhängige Gruppierungs-Optionen: die auf dieser Seite redundante ausblenden
@@ -63,7 +64,9 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
           : undefined;
         ddRow(pop, t("panel_subtasks"), o.layout === "board" ? BOARD_SUBTASK_DISPLAYS : SUBTASK_DISPLAYS,
           effectiveSubtasks(o), "panel_subs_",
-          (v) => apply({ subtasks: v as SubtaskDisplay }), subsLabelFor);
+          // Moduswechsel = „alle auf/zu": gemerkte Einzel-Badge-Klicks verwerfen, sonst
+          // überstimmen sie den neuen Modus und er scheint nichts zu tun (s. resetSubtaskToggles).
+          (v) => { resetSubtaskToggles(); apply({ subtasks: v as SubtaskDisplay }); }, subsLabelFor);
       }
 
       // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
@@ -96,7 +99,7 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       }
 
       const reset = pop.createEl("button", { cls: "bt-panel-reset", text: t("filter_reset") });
-      reset.onclick = () => { void plugin.resetPageViewOptions(); o = { ...DEFAULT_OPTIONS }; render(); };
+      reset.onclick = () => { resetSubtaskToggles(); void plugin.resetPageViewOptions(); o = { ...DEFAULT_OPTIONS }; render(); };
     };
     render();
     void close;   // Popover schließt bei Klick außerhalb

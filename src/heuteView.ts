@@ -40,6 +40,16 @@ const subtaskToggle = new Map<string, boolean>();
 function subsExpanded(path: string, mode: SubtaskDisplay): boolean {
   return subtaskToggle.get(path) ?? (mode === "indented");
 }
+/**
+ * Alle Einzel-Klick-Zustände verwerfen – ruft das Anzeige-Panel beim MODUSWECHSEL auf.
+ * Ohne das überstimmte ein früherer Badge-Klick („zu") den frisch gewählten Modus dauerhaft:
+ * „Eingerückt" rückte dann genau die Aufgaben nicht ein, deren Badge man beim Ausprobieren
+ * angeklickt hatte – je Ansicht andere, was wie ein Ansichts-Fehler aussah. Der Moduswechsel
+ * ist die ausdrückliche neue Ansage „alle auf/zu" und setzt deshalb alle Overrides zurück.
+ */
+export function resetSubtaskToggles(): void {
+  subtaskToggle.clear();
+}
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
