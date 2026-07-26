@@ -519,6 +519,12 @@ body {
    Festfarben hier ließen das Modal bunt aussehen, obwohl das Theme grau vorgibt. */
 .bt-task-modal .bt-st-chip.bt-recur { color: var(--bt-c-recur); gap: 0; }
 .bt-task-modal .bt-st-chip.bt-label { color: var(--bt-c-label); gap: 0; }
+.bt-task-modal .bt-st-chip.bt-sched { color: var(--bt-c-sched); }
+/* Erinnerung/Anhänge: die globalen Klassen der Liste (Theme-Farben --bt-c-remind/--bt-c-comments
+   bringen sie mit) – hier nur aufs kompakte Modal-Maß der .bt-st-chips gebracht. */
+.bt-task-modal .bt-st-meta .bt-remind svg { width: 13px; height: 13px; }
+.bt-task-modal .bt-st-meta .bt-comments { font-size: 0.78em; }
+.bt-task-modal .bt-st-meta .bt-comments-ic svg { width: 13px; height: 13px; }
 .bt-task-modal .bt-st-kids {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 0.78em; color: var(--bt-c-subs); font-variant-numeric: tabular-nums;

@@ -13,6 +13,7 @@ import { createTaskNote, todayIso } from "./taskService";
 import { formatDateTime, combineDT, dueWhen, dueDist, todayStr } from "./format";
 import { applyQuickEntry, emptyQuickEntryState } from "./quickEntry";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
+import { formatReminder } from "./reminders";
 import { isDone, isTrashed } from "./statuses";
 import { sortSubtasks } from "./filterEngine";
 import { t } from "./i18n";
@@ -176,7 +177,24 @@ export class SubtaskList {
       if (dist) chip.dataset.dist = dist;
     }
     if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
+    // Erinnerung/Deadline/Anhänge wie in der Liste (renderTask, gleiche Reihenfolge): die
+    // Zeile im Modal soll dieselbe Meta-Zeile tragen wie dieselbe Aufgabe in der Liste.
+    // Wiederverwendet werden die GLOBALEN Klassen .bt-remind/.bt-comments (Theme-Farben
+    // --bt-c-remind/--bt-c-comments inklusive) – das Modal passt nur die Größe an (CSS).
+    if (kid.reminders.length) {
+      const rem = meta().createSpan({ cls: "bt-remind", attr: { "aria-label": kid.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
+      setIcon(rem, "alarm-clock");
+    }
     for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });
+    if (kid.scheduled) {
+      meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDateTime(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
+    }
+    const comments = this.plugin.index.commentsOf(kid.path);
+    if (comments > 0) {
+      const chip = meta().createSpan({ cls: "bt-comments" });
+      setIcon(chip.createSpan({ cls: "bt-comments-ic" }), "paperclip");
+      chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
+    }
     // Enkel nur als Zahl: Im Modal wird bewusst NUR eine Ebene gelistet – tiefer geht es
     // über das Modal der Unteraufgabe selbst.
     const grand = this.plugin.index.children(kid.path).filter((g) => !isTrashed(g.status));
