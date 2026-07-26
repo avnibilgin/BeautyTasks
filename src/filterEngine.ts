@@ -446,14 +446,38 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc",
  * Fehlt der Parent dort, steht die Unteraufgabe eigenständig da – statt zu verschwinden.
  * Ohne `present` (Papierkorb/Wiederkehrend/Erledigt): altes Verhalten, nur verschachtelt.
  *
+ * `ownRow` ist die Datums-Ausnahme („das eigene Datum gewinnt", s. agendaOwnRow): liefert es
+ * true, steht die Unteraufgabe IMMER als eigene Zeile – auch bei sichtbarem Parent. Ohne diese
+ * Ausnahme galt eine Unteraufgabe als „im Parent aufgehoben", sobald der Parent IRGENDWO in der
+ * Ansicht stand – in einer Datums-Agenda also auch in einer ANDEREN Tages-Sektion: das Kind mit
+ * Fälligkeit „übermorgen" hing unter „morgen" beim Parent, statt bei seinem eigenen Tag zu
+ * stehen, und in „Heute" fehlte es ganz, wenn der Parent in „Überfällig" saß.
+ *
  * Eigene Funktion, weil ZWEI Stellen dieselbe Regel brauchen: die Sektion beim Zeichnen – und
  * jeder Aufrufer, der vorher entscheidet, OB die Sektion überhaupt kommt. Liefen die auseinander,
  * stünde dort ein Kopf mit „· 0" und nichts darunter. Genau das war der Fall bei „Kein Datum":
  * undatierte Unteraufgaben datierter Aufgaben landen alle in dieser einen Gruppe, gezeichnet
  * werden sie aber unter ihrem Parent.
  */
-export function visibleRows(tasks: Task[], present?: Set<string>): Task[] {
-  return tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)));
+export function visibleRows(tasks: Task[], present?: Set<string>, ownRow?: (t: Task) => boolean): Task[] {
+  return tasks.filter((x) => !x.parent || (present !== undefined && !present.has(x.parent)) || ownRow?.(x) === true);
+}
+
+/**
+ * „Das eigene Datum gewinnt" (Todoist-Modell, Nutzer-Entscheidung 2026-07-26): in datums-
+ * gebuckelten Flächen (Heute-Split, Demnächst-Tage, Gruppierung/Spalten „Datum"/„Deadline")
+ * steht jede Unteraufgabe MIT eigenem Wert auf der Sektions-Achse als eigene Zeile/Karte an
+ * ihrem Datum – Gruppieren nach Datum ordnet nach Attribut, und das Attribut hat sie selbst.
+ * Unteraufgaben OHNE eigenen Wert (undatiert bzw. ohne Deadline) haben keinen eigenen Platz
+ * auf der Achse und bleiben beim Parent verschachtelt.
+ *
+ * Für alle anderen Gruppierungen (Label/Priorität/Projekt/Status) `undefined` = keine Ausnahme:
+ * dort bleibt die Herkunft die Ordnung (verschachtelt beim sichtbaren Parent, wie bisher).
+ */
+export function agendaOwnRow(group: FilterGroup): ((t: Task) => boolean) | undefined {
+  if (group === "date") return (t) => !!t.due;
+  if (group === "deadline") return (t) => !!t.scheduled;
+  return undefined;
 }
 
 export interface TaskGroup { title: string; tasks: Task[]; }

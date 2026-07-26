@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Task, Priority } from "../src/types";
-import { groupTasks, visibleRows, FilterSort, SortDir } from "../src/filterEngine";
+import { groupTasks, visibleRows, agendaOwnRow, FilterSort, SortDir } from "../src/filterEngine";
 import { groupLabel } from "../src/format";
 import { t } from "../src/i18n";
 
@@ -260,6 +260,45 @@ describe("visibleRows – offene und erledigte Sektion trennen ihre Wirte", () =
     const p = mk({ id: "p", path: "Items/p.md" });
     const k = mk({ id: "k", path: "Items/k.md", parent: "Items/p.md" });
     expect(visibleRows([p, k], hosts([p, k])).map((t) => t.id)).toEqual(["p"]);
+  });
+});
+
+describe("visibleRows – „das eigene Datum gewinnt“ (ownRow)", () => {
+  // Der gemeldete Fall: Parent überfällig, Kind heute fällig – die Wirtsmenge deckt die GANZE
+  // Ansicht ab, also galt das Kind als „im Parent aufgehoben" und fehlte in „Heute" komplett.
+  // Mit ownRow (agendaOwnRow) steht eine datierte Unteraufgabe IMMER als eigene Zeile in ihrem
+  // Datums-Eimer; undatierte bleiben beim Parent (kein eigener Platz auf der Achse).
+  const parent = mk({ id: "bericht", path: "Items/bericht.md", due: "2026-07-20" });        // überfällig
+  const kindHeute = mk({ id: "kapitel", path: "Items/kapitel.md", parent: "Items/bericht.md", due: TODAY });
+  const kindOhne = mk({ id: "notizen", path: "Items/notizen.md", parent: "Items/bericht.md" });
+  const alle = new Set([parent.path, kindHeute.path, kindOhne.path]);   // Wirte über die GANZE Ansicht
+  const ownRow = agendaOwnRow("date")!;
+
+  it("datierte Unteraufgabe steht trotz sichtbarem Parent in ihrem Datums-Eimer", () => {
+    expect(visibleRows([kindHeute], alle, ownRow).map((t) => t.id)).toEqual(["kapitel"]);
+  });
+
+  it("auch neben dem Parent im SELBEN Eimer (Todoist-Modell: nie hinterm Badge versteckt)", () => {
+    const p = mk({ id: "umzug", path: "Items/umzug.md", due: TODAY });
+    const k = mk({ id: "kartons", path: "Items/kartons.md", parent: "Items/umzug.md", due: TODAY });
+    expect(visibleRows([p, k], new Set([p.path, k.path]), ownRow).map((t) => t.id)).toEqual(["umzug", "kartons"]);
+  });
+
+  it("undatierte Unteraufgabe bleibt beim Parent (kein „Kein Datum“-Diebstahl)", () => {
+    expect(visibleRows([kindOhne], alle, ownRow)).toHaveLength(0);
+  });
+
+  it("ohne ownRow: bisheriges Verhalten, Wirt schluckt das Kind", () => {
+    expect(visibleRows([kindHeute], alle)).toHaveLength(0);
+  });
+
+  it("agendaOwnRow: nur Datum/Deadline haben die Ausnahme, jeweils auf ihrer Achse", () => {
+    const deadline = agendaOwnRow("deadline")!;
+    const mitDeadline = mk({ id: "d", scheduled: "2026-07-25" });
+    expect(deadline(mitDeadline)).toBe(true);
+    expect(deadline(kindHeute)).toBe(false);        // due zählt für die Deadline-Achse nicht
+    expect(ownRow(mitDeadline)).toBe(false);        // und umgekehrt
+    for (const g of ["none", "priority", "label", "project"] as const) expect(agendaOwnRow(g)).toBeUndefined();
   });
 });
 
