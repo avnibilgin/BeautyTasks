@@ -17,6 +17,7 @@ import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
+import { installTaskMenuDelegation } from "./taskMenu";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -1693,6 +1694,8 @@ export class MainView extends ItemView {
   async onOpen(): Promise<void> {
     // Checkbox-Aktionen EINMAL delegiert (nicht je Zeichnung je Checkbox – s. taskCheck.ts).
     installCheckDelegation(this.contentEl, this.plugin);
+    // Zeilen-Kontextmenü (Rechtsklick/Long-Press) genauso: EIN Satz Listener für alle Zeilen.
+    installTaskMenuDelegation(this.contentEl, this.plugin);
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();
   }

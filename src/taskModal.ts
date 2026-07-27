@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform, HoverPopover } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, TaskFields } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, TaskFields } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
@@ -11,7 +11,6 @@ import { SubtaskList } from "./subtaskList";
 import { ConfirmModal } from "./confirmModal";
 import { firstOpenStatus } from "./statuses";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
-import { subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { t, projectDisplayName } from "./i18n";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
@@ -416,54 +415,16 @@ export class TaskModal extends Modal {
       parent: this.f.parent ?? this.opts.parent ?? null,
     });
     await this.log.flush(file);
-    // Unteraufgaben (rekursiv) mitkopieren, verankert an der neuen Hauptkopie.
-    if (this.existing) await this.duplicateSubtree(this.existing.path, file.basename);
+    // Unteraufgaben (rekursiv) mitkopieren, verankert an der neuen Hauptkopie –
+    // die Rekursion lebt in main.ts (gemeinsam mit dem Zeilen-Kontextmenü).
+    if (this.existing) await this.plugin.duplicateSubtree(this.existing.path, file.basename);
     new Notice(t("msg_duplicated"));
     this.close();
   }
 
-  /**
-   * Die SICHTBAREN Unteraufgaben unter `srcParentPath` (nicht die im Papierkorb, s.
-   * subtasksToDuplicate) als Kopien unter `newParentBase` neu anlegen, rekursiv über die ganze
-   * Tiefe. Wie die Hauptkopie startet jede Kopie auf „offen".
-   *
-   * Reihenfolge: die Kopien bekommen frische `sort_order`-Lücken (10, 20, 30 …) in der Reihenfolge
-   * der Originale. Das ist sicher – sie bilden unter der neuen Hauptkopie eine eigene, isolierte
-   * Geschwistergruppe; `sort_order` wird nur INNERHALB einer Gruppe verglichen. Es wird kein
-   * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
-   */
-  private async duplicateSubtree(srcParentPath: string, newParentBase: string): Promise<void> {
-    const kids = subtasksToDuplicate(this.plugin.index.children(srcParentPath));
-    let order = ORDER_GAP;
-    for (const kid of kids) {
-      const copy = await createTaskNote(this.app, this.plugin.settings, {
-        title: kid.title,
-        description: kid.description,
-        status: firstOpenStatus(),
-        due: kid.due, dueTime: kid.dueTime,
-        scheduled: kid.scheduled, scheduledTime: kid.scheduledTime,
-        duration: kid.duration,
-        priority: kid.priority,
-        project: kid.project ? baseName(kid.project) : null,
-        labels: [...kid.labels],
-        recurrence: kid.recurrence, recurBasis: kid.recurBasis,
-        reminders: [...(kid.reminders ?? [])],
-        parent: newParentBase,
-        sortOrder: order,
-      });
-      order += ORDER_GAP;
-      await this.duplicateSubtree(kid.path, copy.basename);   // Enkel & tiefer
-    }
-  }
-
-  /** Obsidian-Deeplink (obsidian://) zur Aufgabe in die Zwischenablage kopieren. */
+  /** Obsidian-Deeplink zur Aufgabe kopieren (gemeinsame Implementierung in taskService). */
   private copyLink(): void {
-    if (!this.existing) return;
-    const vault = encodeURIComponent(this.app.vault.getName());
-    const file = encodeURIComponent(this.existing.path.replace(/\.md$/, ""));
-    navigator.clipboard.writeText(`obsidian://open?vault=${vault}&file=${file}`)
-      .then(() => new Notice(t("msg_link_copied")))
-      .catch((err) => { console.error("BeautyTasks: copy link failed", err); new Notice(t("msg_link_copy_failed")); });
+    if (this.existing) copyTaskLink(this.app, this.existing.path);
   }
 
   /** Aufgaben-Notiz in einem neuen Obsidian-Tab öffnen. */

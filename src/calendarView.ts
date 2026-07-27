@@ -7,6 +7,7 @@ import { isInboxLink } from "./taskService";
 import { combineDT, todayStr } from "./format";
 import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
+import { installTaskMenuDelegation } from "./taskMenu";
 import { openPopover } from "./popover";
 import {
   CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
@@ -353,6 +354,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
         openPopover(more, (pop) => {                       // alle Termine + Aufgaben des Tages im Popover
           pop.addClass("bt-calview-pop");
           installCheckDelegation(pop, plugin);             // Popovers hängen am Body, nicht in der View
+          installTaskMenuDelegation(pop, plugin);          // Zeilen-Kontextmenü auch hier
           pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
           for (const d of draws) d(pop);
         });

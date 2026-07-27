@@ -12,7 +12,7 @@ import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem } from "./taskService";
 import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
-import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets } from "./filterEngine";
+import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
 import { nextInstance } from "./recurrence";
@@ -1305,6 +1305,73 @@ export default class BeautyTasksPlugin extends Plugin {
           recurBasis: task.recurBasis,
         });
       }
+    }
+  }
+
+  /** Erinnerungen einer Aufgabe setzen (Kontextmenü – das Modal schreibt sie über persist).
+   *  Leere Liste entfernt das Feld. */
+  async setTaskReminders(task: Task, reminders: string[]): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(task.path);
+    if (!(f instanceof TFile)) return;
+    await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+      this.ensureCanonical(fm);
+      if (reminders.length) fm.reminders = reminders; else delete fm.reminders;
+    });
+  }
+
+  /** Aufgabe samt Unterbaum duplizieren (Kontextmenü; das Task-Modal kopiert seinen EIGENEN
+   *  Entwurfsstand und ruft nur duplicateSubtree). Die Kopie startet wie dort auf „offen"
+   *  und heißt „… (Kopie)". */
+  async duplicateTask(task: Task): Promise<void> {
+    const file = await createTaskNote(this.app, this.settings, {
+      title: task.title + " " + t("copy_suffix"),
+      description: task.description,
+      status: firstOpenStatus(),
+      due: task.due, dueTime: task.dueTime,
+      scheduled: task.scheduled, scheduledTime: task.scheduledTime,
+      duration: task.duration,
+      priority: task.priority,
+      project: task.project ? projectName(task.project) : null,
+      labels: [...task.labels],
+      recurrence: task.recurrence, recurBasis: task.recurBasis,
+      reminders: [...task.reminders],
+      parent: task.parent ? projectName(task.parent) : null,
+    });
+    await this.duplicateSubtree(task.path, file.basename);
+    new Notice(t("msg_duplicated"));
+  }
+
+  /**
+   * Die SICHTBAREN Unteraufgaben unter `srcParentPath` (nicht die im Papierkorb, s.
+   * subtasksToDuplicate) als Kopien unter `newParentBase` neu anlegen, rekursiv über die ganze
+   * Tiefe. Wie die Hauptkopie startet jede Kopie auf „offen".
+   *
+   * Reihenfolge: die Kopien bekommen frische `sort_order`-Lücken (10, 20, 30 …) in der Reihenfolge
+   * der Originale. Das ist sicher – sie bilden unter der neuen Hauptkopie eine eigene, isolierte
+   * Geschwistergruppe; `sort_order` wird nur INNERHALB einer Gruppe verglichen. Es wird kein
+   * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
+   */
+  async duplicateSubtree(srcParentPath: string, newParentBase: string): Promise<void> {
+    const kids = subtasksToDuplicate(this.index.children(srcParentPath));
+    let order = ORDER_GAP;
+    for (const kid of kids) {
+      const copy = await createTaskNote(this.app, this.settings, {
+        title: kid.title,
+        description: kid.description,
+        status: firstOpenStatus(),
+        due: kid.due, dueTime: kid.dueTime,
+        scheduled: kid.scheduled, scheduledTime: kid.scheduledTime,
+        duration: kid.duration,
+        priority: kid.priority,
+        project: kid.project ? projectName(kid.project) : null,
+        labels: [...kid.labels],
+        recurrence: kid.recurrence, recurBasis: kid.recurBasis,
+        reminders: [...(kid.reminders ?? [])],
+        parent: newParentBase,
+        sortOrder: order,
+      });
+      order += ORDER_GAP;
+      await this.duplicateSubtree(kid.path, copy.basename);   // Enkel & tiefer
     }
   }
 

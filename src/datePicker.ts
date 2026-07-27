@@ -82,6 +82,21 @@ export function parseDuration(raw: string): number | null {
  *  "confirm" – genau EINMAL, beim Bestätigen. Pflicht für Aufrufer, die HINZUFÜGEN
  *              (Erinnerungen): dort würde jeder Zwischenstand des Tippens sonst zu einem
  *              eigenen Eintrag ("1" -> 01:00, "11" -> 11:00, "11:32" -> 11:32). */
+/** Die vier Schnelldaten (Heute/Morgen/Wochenende/Nächste Woche) mit Icon + Farbe –
+ *  EINE Quelle für den Datums-Picker UND die Datum-Schnellzeile im Aufgaben-Kontextmenü. */
+export type QuickDate = { icon: string; color: string; key: string; iso: string };
+export function quickDates(): QuickDate[] {
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  const satOff = (6 - new Date().getDay() + 7) % 7; const sat = new Date(); sat.setDate(sat.getDate() + satOff);
+  const monOff = ((1 - new Date().getDay() + 7) % 7) || 7; const mon = new Date(); mon.setDate(mon.getDate() + monOff);
+  return [
+    { icon: "calendar", color: "#22c55e", key: "date_today", iso: todayISO() },
+    { icon: "sun", color: "#f59e0b", key: "date_tomorrow", iso: iso(tomorrow) },
+    { icon: "sofa", color: "#3b82f6", key: "date_this_weekend", iso: iso(sat) },
+    { icon: "calendar-days", color: "#a78bfa", key: "date_next_week", iso: iso(mon) },
+  ];
+}
+
 export type DatePickerOpts = {
   commit?: "live" | "confirm";
   requireTime?: boolean;      // confirm-Modus: ohne Uhrzeit lässt sich nicht bestätigen
@@ -139,13 +154,10 @@ export function openDatePicker(
       if (hint) r.createSpan({ cls: "bt-date-hint", text: hint });
       r.onclick = () => setDate(val);
     };
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-    const satOff = (6 - new Date().getDay() + 7) % 7; const sat = new Date(); sat.setDate(sat.getDate() + satOff);
-    const monOff = ((1 - new Date().getDay() + 7) % 7) || 7; const mon = new Date(); mon.setDate(mon.getDate() + monOff);
-    qrow("calendar", "#22c55e", t("date_today"), "", todayISO());
-    qrow("sun", "#f59e0b", t("date_tomorrow"), weekdayShort(tomorrow.getDay()), iso(tomorrow));
-    qrow("sofa", "#3b82f6", t("date_this_weekend"), weekdayShort(sat.getDay()), iso(sat));
-    qrow("calendar-days", "#a78bfa", t("date_next_week"), weekdayShort(mon.getDay()), iso(mon));
+    for (const q of quickDates()) {
+      const hint = q.key === "date_today" ? "" : weekdayShort(new Date(q.iso + "T00:00:00").getDay());
+      qrow(q.icon, q.color, t(q.key), hint, q.iso);
+    }
     // „Kein Datum" hebt den Wert auf – ergibt nur beim Setzen Sinn, nicht beim Hinzufügen.
     if (live) qrow("ban", "", t("date_no_date"), "", "");
 
