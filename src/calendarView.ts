@@ -7,7 +7,7 @@ import { isInboxLink } from "./taskService";
 import { combineDT, todayStr } from "./format";
 import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
-import { installTaskMenuDelegation } from "./taskMenu";
+import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
 import { openPopover } from "./popover";
 import {
   CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
@@ -672,6 +672,7 @@ function renderEventChip(parent: HTMLElement, de: DayEvent): void {
 /** Gemeinsames Verhalten von Chip und Zeitblock: Farbe, Erledigt-Zustand, Klick. */
 function decorate(el: HTMLElement, plugin: BeautyTasksPlugin, task: Task): void {
   el.dataset.path = task.path;
+  if (task.path === menuHoldPath()) el.addClass("bt-menu-hold");   // offenes Kontextmenü hält das Hover
   if (isDone(task.status)) el.addClass("is-done");
   el.style.setProperty("--bt-cal-tint", prioTint(task));
   el.onclick = (e) => { e.stopPropagation(); plugin.openEditTask(task); };

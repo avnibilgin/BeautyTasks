@@ -1046,7 +1046,8 @@ body {
 }
 /* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
-.bt-task:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
+/* .bt-menu-hold: die Zeile behält ihr Hover, solange ihr Kontextmenü offen ist (taskMenu.ts). */
+.bt-task:hover, .bt-task.bt-menu-hold { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
@@ -1565,7 +1566,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: var(--background-primary); border: 1px solid var(--bt-line-faint);
   border-radius: 8px; padding: 8px 10px; cursor: grab;
 }
-.bt-kanban-list .bt-task:hover { background: var(--background-primary); border-color: var(--bt-line); }
+.bt-kanban-list .bt-task:hover, .bt-kanban-list .bt-task.bt-menu-hold { background: var(--background-primary); border-color: var(--bt-line); }
 .bt-kanban-list .bt-task::after { display: none; }
 .bt-kanban-list .bt-task:active { cursor: grabbing; }
 .bt-kanban-list .bt-task.is-dragging { opacity: 0.45; }
@@ -2140,7 +2141,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: color-mix(in srgb, var(--bt-cal-tint) 16%, transparent);
   border-left: 2px solid var(--bt-cal-tint); color: var(--text-normal);
 }
-.bt-calview-chip:hover { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
+.bt-calview-chip:hover, .bt-calview-chip.bt-menu-hold { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
 .bt-calview-chip.is-done { opacity: 0.55; }
 .bt-calview-chip.is-done .bt-calview-chip-title { text-decoration: line-through; }
 .bt-calview-chip.is-dragging { opacity: 0.4; }
@@ -2222,7 +2223,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: color-mix(in srgb, var(--bt-cal-tint) 22%, var(--background-primary));
   border-left: 3px solid var(--bt-cal-tint); font-size: 0.84em; line-height: 1.35;
 }
-.bt-calview-block:hover { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
+.bt-calview-block:hover, .bt-calview-block.bt-menu-hold { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
 .bt-calview-block.is-done { opacity: 0.55; }
 .bt-calview-block.is-done .bt-calview-block-title { text-decoration: line-through; }
 .bt-calview-block.is-dragging { opacity: 0.4; }

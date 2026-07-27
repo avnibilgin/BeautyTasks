@@ -61,7 +61,19 @@ function openMovePicker(plugin: BeautyTasksPlugin, task: Task, anchor: HTMLEleme
   });
 }
 
+/** Pfad der Aufgabe, deren Kontextmenü gerade offen ist – renderTask/decorate hängen die
+ *  Halte-Klasse beim Neuzeichnen wieder an (s. Kommentar in showTaskMenu). */
+let holdPath: string | null = null;
+export const menuHoldPath = (): string | null => holdPath;
+
 export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: number, doc: Document): void {
+  // Die auslösende Zeile „gehovert" halten, bis das Menü schließt – sonst ist nach dem Öffnen
+  // nicht mehr erkennbar, WELCHER Aufgabe das Menü gehört. Über den Pfad statt das Element:
+  // ein Neuzeichnen bei offenem Menü (z. B. Erinnerung ergänzt) ersetzt die Zeile; renderTask
+  // (Liste/Board) und decorate (Kalender) fragen menuHoldPath() ab und halten sie weiter.
+  holdPath = task.path;
+  const holdSel = `[data-path="${CSS.escape(task.path)}"]`;
+  doc.querySelectorAll<HTMLElement>(holdSel).forEach((el) => el.addClass("bt-menu-hold"));
   openPopoverAt(doc, x, y, (pop, close) => {
     pop.addClass("bt-plus");       // Trenner + Danger-Zeilen des „+"-Menüs wiederverwenden
     pop.addClass("bt-taskmenu");
@@ -132,6 +144,9 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
         message: t("confirm_delete_cascade"),
       }, () => void plugin.cancelTask(task)).open();
     }, true);
+  }, () => {
+    holdPath = null;
+    doc.querySelectorAll<HTMLElement>(holdSel).forEach((el) => el.removeClass("bt-menu-hold"));
   });
 }
 
