@@ -1907,6 +1907,14 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    auf – die Linie läuft von Kante zu Kante und endet nicht positionsabhängig im Inhalt
    (Scrollbalken bei geklemmter Höhe). Gilt für Kontextmenü UND Modal-„+"-Menü. */
 .bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px -5px; }
+/* Haarlinien bei FRAKTIONALER Displayskalierung (125 %/150 %/175 % bzw. Zoom): 1 CSS-Pixel
+   entspricht dort z. B. 1,5 Gerätepixeln – je nach Position wird die Linie mal 1, mal 2 Pixel
+   dick gerundet. Eine Höhe knapp unter 1px landet nach der Umrechnung immer bei genau EINEM
+   Gerätepixel (0.75 × 1.25…1.75 = 0.94…1.31). Ganzzahlige Skalierung (100 %, 200 %) ist
+   ausgenommen – dort ist 1px bereits überall gleich dick. */
+@media (min-resolution: 1.05dppx) and (max-resolution: 1.95dppx) {
+  .bt-pop.bt-plus .bt-plus-sep, .bt-pop .bt-rem-sep { height: 0.75px; }
+}
 .bt-pop.bt-plus .bt-row-danger .bt-row-lbl,
 .bt-pop.bt-plus .bt-row-danger .bt-row-ic { color: var(--text-error); }
 /* „ist gesetzt"-Signal (v. a. Status): Umrandung + gedämpfte Wert-Vorschau rechts */
