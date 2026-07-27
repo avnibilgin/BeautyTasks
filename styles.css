@@ -1936,9 +1936,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 }
 /* Hover in Akzent-Tönung wie die Seitenleisten-Einträge (bt-nav-item:hover, 10 %). */
 .bt-pop.bt-taskmenu .bt-icbtn:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
-/* Gewählter Wert: KEIN grauer Hover-Hintergrund, nur ein dezenter Akzent-Rahmen – dasselbe
-   „ist gesetzt"-Signal wie die umrandeten Zeilen im „+"-Menü (bt-row-set). */
-.bt-pop.bt-taskmenu .bt-icbtn.is-active { box-shadow: inset 0 0 0 1px var(--interactive-accent); }
+/* Gewählter Wert: Akzent-Rahmen (= „ist gesetzt"-Signal wie bt-row-set im „+"-Menü) plus
+   dauerhafte Akzent-Tönung wie der aktive Seitenleisten-Eintrag (bt-nav-item.is-active, 18 %). */
+.bt-pop.bt-taskmenu .bt-icbtn.is-active {
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+}
 .bt-pop.bt-taskmenu .bt-icbtn:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
 .bt-pop.bt-taskmenu .bt-icbtn-ic { display: inline-flex; }
 .bt-pop.bt-taskmenu .bt-icbtn-ic svg { width: 17px; height: 17px; }
