@@ -1903,7 +1903,10 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Plus-Menü darf höher werden als die 320px-Basis (viele Aktionen) -> kein Scrollbalken, solange
    es auf den Bildschirm passt; openPopover positioniert es so, dass es in den Viewport passt. */
 .bt-pop.bt-plus { min-width: 240px; max-height: calc(100vh - 24px); }
-.bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px 6px; }
+/* Randlos wie im nativen Obsidian-Menü: das negative Margin hebt das 5px-Padding des Popovers
+   auf – die Linie läuft von Kante zu Kante und endet nicht positionsabhängig im Inhalt
+   (Scrollbalken bei geklemmter Höhe). Gilt für Kontextmenü UND Modal-„+"-Menü. */
+.bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px -5px; }
 .bt-pop.bt-plus .bt-row-danger .bt-row-lbl,
 .bt-pop.bt-plus .bt-row-danger .bt-row-ic { color: var(--text-error); }
 /* „ist gesetzt"-Signal (v. a. Status): Umrandung + gedämpfte Wert-Vorschau rechts */
