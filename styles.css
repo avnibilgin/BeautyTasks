@@ -845,14 +845,14 @@ body {
 .bt-pop .bt-tag-box svg { width: 12px; height: 12px; color: var(--text-on-accent); }
 
 /* Gruppen-Überschrift + Aktion-Zeilen (Projekt-Picker) */
-/* Farbe wie die Abschnitts-Überschriften im Filter-Modal (bt-filter-h): text-muted statt
-   text-faint – faint war neben den Menüzeilen zu blass (Nutzer-Feedback). */
-.bt-pop .bt-pop-head { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 8px 8px 3px; }
+/* Farbe UND Gewicht wie die Abschnitts-Überschriften im Filter-Modal (bt-filter-h):
+   text-muted + fett – faint/normal war neben den Menüzeilen zu blass (Nutzer-Feedback). */
+.bt-pop .bt-pop-head { font-size: 0.72em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 8px 8px 3px; }
 .bt-pop .bt-row-action .bt-row-lbl, .bt-pop .bt-row-action .bt-row-ic { color: var(--interactive-accent); }
 
 /* Erinnerungs-Popover: Liste bestehender Erinnerungen + Presets */
 .bt-pop.bt-rem { min-width: 240px; }
-.bt-pop .bt-pop-sub { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 6px 8px 2px; }
+.bt-pop .bt-pop-sub { font-size: 0.72em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 6px 8px 2px; }
 .bt-pop .bt-rem-item .bt-rem-x { display: inline-flex; flex-shrink: 0; color: var(--text-faint); cursor: pointer; }
 .bt-pop .bt-rem-item .bt-rem-x:hover { color: var(--text-normal); }
 .bt-pop .bt-rem-item .bt-rem-x svg { width: 15px; height: 15px; }
