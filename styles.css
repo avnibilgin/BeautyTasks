@@ -847,12 +847,12 @@ body {
 /* Gruppen-Überschrift + Aktion-Zeilen (Projekt-Picker) */
 /* Farbe/Gewicht wie die Abschnitts-Überschriften im Filter-Modal (text-muted + fett), aber in
    normaler Schreibweise statt VERSALIEN (Nutzer-Feedback; Sperrung nur bei Versalien sinnvoll). */
-.bt-pop .bt-pop-head { font-size: 0.8em; font-weight: 700; color: var(--text-muted); padding: 8px 8px 3px; }
+.bt-pop .bt-pop-head { font-size: 0.84em; font-weight: 700; color: var(--text-muted); padding: 8px 8px 3px; }
 .bt-pop .bt-row-action .bt-row-lbl, .bt-pop .bt-row-action .bt-row-ic { color: var(--interactive-accent); }
 
 /* Erinnerungs-Popover: Liste bestehender Erinnerungen + Presets */
 .bt-pop.bt-rem { min-width: 240px; }
-.bt-pop .bt-pop-sub { font-size: 0.8em; font-weight: 700; color: var(--text-muted); padding: 6px 8px 2px; }
+.bt-pop .bt-pop-sub { font-size: 0.84em; font-weight: 700; color: var(--text-muted); padding: 6px 8px 2px; }
 .bt-pop .bt-rem-item .bt-rem-x { display: inline-flex; flex-shrink: 0; color: var(--text-faint); cursor: pointer; }
 .bt-pop .bt-rem-item .bt-rem-x:hover { color: var(--text-normal); }
 .bt-pop .bt-rem-item .bt-rem-x svg { width: 15px; height: 15px; }
