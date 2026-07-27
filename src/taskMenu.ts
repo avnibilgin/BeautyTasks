@@ -11,6 +11,7 @@ import { openPopover, openPopoverAt, popRow } from "./popover";
 import { openDatePicker, quickDates } from "./datePicker";
 import { CHIPS, PRIOS, PRIO_KEY, ChipHost } from "./chips";
 import { listProjectsAndAreas, isInboxLink, copyTaskLink, ProjItem } from "./taskService";
+import { ConfirmModal } from "./confirmModal";
 import { isTrashed } from "./statuses";
 import { combineDT } from "./format";
 import { t } from "./i18n";
@@ -124,7 +125,13 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
       if (f instanceof TFile) void plugin.app.workspace.getLeaf("tab").openFile(f);
     });
     pop.createDiv({ cls: "bt-plus-sep" });
-    row("trash-2", t("btn_delete"), () => void plugin.cancelTask(task), true);
+    // Mit Bestätigung – gleicher Dialog (Titel + Kaskaden-Hinweis) wie das Löschen im Task-Modal.
+    row("trash-2", t("btn_delete"), () => {
+      new ConfirmModal(plugin.app, {
+        title: t("confirm_delete_title", task.title),
+        message: t("confirm_delete_cascade"),
+      }, () => void plugin.cancelTask(task)).open();
+    }, true);
   });
 }
 
