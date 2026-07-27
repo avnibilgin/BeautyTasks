@@ -1,7 +1,8 @@
-import { App, TFile, normalizePath, stringifyYaml } from "obsidian";
+import { App, Notice, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { combineDT, localStamp } from "./format";
 import { firstOpenStatus } from "./statuses";
+import { t } from "./i18n";
 
 export const slugify = (s: string): string =>
   s.replace(/[\\/:*?"<>|#^[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "Task";
@@ -99,6 +100,16 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     description: (f.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
   return app.vault.create(dest, fm + "\n# " + f.title + "\n");
+}
+
+/** Obsidian-Deeplink (obsidian://) zur Aufgabe in die Zwischenablage kopieren –
+ *  genutzt vom Task-Modal („+"-Menü) UND vom Zeilen-Kontextmenü. */
+export function copyTaskLink(app: App, path: string): void {
+  const vault = encodeURIComponent(app.vault.getName());
+  const file = encodeURIComponent(path.replace(/\.md$/, ""));
+  navigator.clipboard.writeText(`obsidian://open?vault=${vault}&file=${file}`)
+    .then(() => new Notice(t("msg_link_copied")))
+    .catch((err) => { console.error("BeautyTasks: copy link failed", err); new Notice(t("msg_link_copy_failed")); });
 }
 
 /** Vorhandene Projekte (Basename, alphabetisch) für den Picker. */

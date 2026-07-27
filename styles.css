@@ -845,12 +845,14 @@ body {
 .bt-pop .bt-tag-box svg { width: 12px; height: 12px; color: var(--text-on-accent); }
 
 /* Gruppen-Überschrift + Aktion-Zeilen (Projekt-Picker) */
-.bt-pop .bt-pop-head { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 8px 8px 3px; }
+/* Farbe/Gewicht wie die Abschnitts-Überschriften im Filter-Modal (text-muted + fett), aber in
+   normaler Schreibweise statt VERSALIEN (Nutzer-Feedback; Sperrung nur bei Versalien sinnvoll). */
+.bt-pop .bt-pop-head { font-size: 0.84em; font-weight: 700; color: var(--text-muted); padding: 8px 8px 3px; }
 .bt-pop .bt-row-action .bt-row-lbl, .bt-pop .bt-row-action .bt-row-ic { color: var(--interactive-accent); }
 
 /* Erinnerungs-Popover: Liste bestehender Erinnerungen + Presets */
 .bt-pop.bt-rem { min-width: 240px; }
-.bt-pop .bt-pop-sub { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 6px 8px 2px; }
+.bt-pop .bt-pop-sub { font-size: 0.84em; font-weight: 700; color: var(--text-muted); padding: 6px 8px 2px; }
 .bt-pop .bt-rem-item .bt-rem-x { display: inline-flex; flex-shrink: 0; color: var(--text-faint); cursor: pointer; }
 .bt-pop .bt-rem-item .bt-rem-x:hover { color: var(--text-normal); }
 .bt-pop .bt-rem-item .bt-rem-x svg { width: 15px; height: 15px; }
@@ -1046,7 +1048,8 @@ body {
 }
 /* Auch die letzte Aufgabe einer Sektion bekommt ihre Trennlinie (bewusst nicht
    ausgeschaltet – zuvor: .bt-task:last-child::after { display: none; }). */
-.bt-task:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
+/* .bt-menu-hold: die Zeile behält ihr Hover, solange ihr Kontextmenü offen ist (taskMenu.ts). */
+.bt-task:hover, .bt-task.bt-menu-hold { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 /* Aus der Suche angesprungene Aufgabe hervorheben – in der Akzentfarbe (dezent getönt,
    damit der Text lesbar bleibt) mit feinem Akzent-Rahmen. */
 .bt-task.is-focus {
@@ -1565,7 +1568,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: var(--background-primary); border: 1px solid var(--bt-line-faint);
   border-radius: 8px; padding: 8px 10px; cursor: grab;
 }
-.bt-kanban-list .bt-task:hover { background: var(--background-primary); border-color: var(--bt-line); }
+.bt-kanban-list .bt-task:hover, .bt-kanban-list .bt-task.bt-menu-hold { background: var(--background-primary); border-color: var(--bt-line); }
 .bt-kanban-list .bt-task::after { display: none; }
 .bt-kanban-list .bt-task:active { cursor: grabbing; }
 .bt-kanban-list .bt-task.is-dragging { opacity: 0.45; }
@@ -1902,12 +1905,50 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Plus-Menü darf höher werden als die 320px-Basis (viele Aktionen) -> kein Scrollbalken, solange
    es auf den Bildschirm passt; openPopover positioniert es so, dass es in den Viewport passt. */
 .bt-pop.bt-plus { min-width: 240px; max-height: calc(100vh - 24px); }
-.bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px 6px; }
+/* Randlos wie im nativen Obsidian-Menü: das negative Margin hebt das 5px-Padding des Popovers
+   auf – die Linie läuft von Kante zu Kante und endet nicht positionsabhängig im Inhalt
+   (Scrollbalken bei geklemmter Höhe). Gilt für Kontextmenü UND Modal-„+"-Menü. */
+.bt-pop.bt-plus .bt-plus-sep { height: 1px; background: var(--background-modifier-border); margin: 4px -5px; }
+/* Haarlinien bei FRAKTIONALER Displayskalierung (125 %/150 %/175 % bzw. Zoom): 1 CSS-Pixel
+   entspricht dort z. B. 1,5 Gerätepixeln – je nach Position wird die Linie mal 1, mal 2 Pixel
+   dick gerundet. Eine Höhe knapp unter 1px landet nach der Umrechnung immer bei genau EINEM
+   Gerätepixel (0.75 × 1.25…1.75 = 0.94…1.31). Ganzzahlige Skalierung (100 %, 200 %) ist
+   ausgenommen – dort ist 1px bereits überall gleich dick. */
+@media (min-resolution: 1.05dppx) and (max-resolution: 1.95dppx) {
+  .bt-pop.bt-plus .bt-plus-sep, .bt-pop .bt-rem-sep { height: 0.75px; }
+}
 .bt-pop.bt-plus .bt-row-danger .bt-row-lbl,
 .bt-pop.bt-plus .bt-row-danger .bt-row-ic { color: var(--text-error); }
 /* „ist gesetzt"-Signal (v. a. Status): Umrandung + gedämpfte Wert-Vorschau rechts */
 .bt-pop.bt-plus .bt-row.bt-row-set { border: 1px solid var(--interactive-accent); }
 .bt-pop.bt-plus .bt-row-val { margin-left: auto; padding-left: 10px; color: var(--text-muted); font-size: 0.92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+
+/* ── Aufgaben-Kontextmenü (Rechtsklick/Long-Press auf Zeile, Karte, Kalenderblock) ──
+   Zeilen wie das +-Menü (bt-plus wird mitgesetzt: Trenner, Danger-Zeile), dazu zwei
+   Icon-Schnellzeilen: Datum (Icons/Farben des Datums-Pickers) und Priorität (die
+   Checkbox-Ringe der Aufgabenliste). */
+.bt-pop.bt-taskmenu { min-width: 250px; }
+.bt-pop.bt-taskmenu .bt-menu-icons { display: flex; gap: 3px; padding: 1px 4px 5px; }
+.bt-pop.bt-taskmenu .bt-icbtn {
+  display: inline-flex; align-items: center; justify-content: center; flex: 1 1 0;
+  height: 30px; padding: 0; border: none; border-radius: 5px;
+  background: transparent; box-shadow: none; cursor: pointer;
+}
+/* Hover in Akzent-Tönung wie die Seitenleisten-Einträge (bt-nav-item:hover, 10 %). */
+.bt-pop.bt-taskmenu .bt-icbtn:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
+/* Gewählter Wert: Akzent-Rahmen (= „ist gesetzt"-Signal wie bt-row-set im „+"-Menü) plus
+   dauerhafte Akzent-Tönung wie der aktive Seitenleisten-Eintrag (bt-nav-item.is-active, 18 %). */
+.bt-pop.bt-taskmenu .bt-icbtn.is-active {
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+}
+.bt-pop.bt-taskmenu .bt-icbtn:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.bt-pop.bt-taskmenu .bt-icbtn-ic { display: inline-flex; }
+.bt-pop.bt-taskmenu .bt-icbtn-ic svg { width: 17px; height: 17px; }
+/* Prioritäts-Kreis: dieselbe .bt-check-Optik wie in der Liste, aber ohne deren Zeilen-Feinjustage
+   und ohne das Hover-Häkchen (hier wird eine PRIORITÄT gewählt, nichts erledigt). */
+.bt-pop.bt-taskmenu .bt-icbtn .bt-check { margin: 0; align-self: center; }
+.bt-pop.bt-taskmenu .bt-icbtn .bt-check:hover::after { display: none; }
 
 /* „+"-Chip: kleiner Punkt, wenn dauerhaft ausgeblendete Chips einen Wert tragen */
 .bt-task-modal .bt-chip-actions.has-set { position: relative; }
@@ -2119,7 +2160,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: color-mix(in srgb, var(--bt-cal-tint) 16%, transparent);
   border-left: 2px solid var(--bt-cal-tint); color: var(--text-normal);
 }
-.bt-calview-chip:hover { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
+.bt-calview-chip:hover, .bt-calview-chip.bt-menu-hold { background: color-mix(in srgb, var(--bt-cal-tint) 28%, transparent); }
 .bt-calview-chip.is-done { opacity: 0.55; }
 .bt-calview-chip.is-done .bt-calview-chip-title { text-decoration: line-through; }
 .bt-calview-chip.is-dragging { opacity: 0.4; }
@@ -2201,7 +2242,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: color-mix(in srgb, var(--bt-cal-tint) 22%, var(--background-primary));
   border-left: 3px solid var(--bt-cal-tint); font-size: 0.84em; line-height: 1.35;
 }
-.bt-calview-block:hover { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
+.bt-calview-block:hover, .bt-calview-block.bt-menu-hold { background: color-mix(in srgb, var(--bt-cal-tint) 32%, var(--background-primary)); }
 .bt-calview-block.is-done { opacity: 0.55; }
 .bt-calview-block.is-done .bt-calview-block-title { text-decoration: line-through; }
 .bt-calview-block.is-dragging { opacity: 0.4; }

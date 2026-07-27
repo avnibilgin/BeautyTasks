@@ -7,6 +7,7 @@ import { isInboxLink } from "./taskService";
 import { combineDT, todayStr } from "./format";
 import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
+import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
 import { openPopover } from "./popover";
 import {
   CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
@@ -353,6 +354,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
         openPopover(more, (pop) => {                       // alle Termine + Aufgaben des Tages im Popover
           pop.addClass("bt-calview-pop");
           installCheckDelegation(pop, plugin);             // Popovers hängen am Body, nicht in der View
+          installTaskMenuDelegation(pop, plugin);          // Zeilen-Kontextmenü auch hier
           pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
           for (const d of draws) d(pop);
         });
@@ -670,6 +672,7 @@ function renderEventChip(parent: HTMLElement, de: DayEvent): void {
 /** Gemeinsames Verhalten von Chip und Zeitblock: Farbe, Erledigt-Zustand, Klick. */
 function decorate(el: HTMLElement, plugin: BeautyTasksPlugin, task: Task): void {
   el.dataset.path = task.path;
+  if (task.path === menuHoldPath()) el.addClass("bt-menu-hold");   // offenes Kontextmenü hält das Hover
   if (isDone(task.status)) el.addClass("is-done");
   el.style.setProperty("--bt-cal-tint", prioTint(task));
   el.onclick = (e) => { e.stopPropagation(); plugin.openEditTask(task); };

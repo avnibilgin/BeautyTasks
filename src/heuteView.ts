@@ -17,6 +17,7 @@ import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
+import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -1179,6 +1180,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
+  if (task.path === menuHoldPath()) row.addClass("bt-menu-hold");   // offenes Kontextmenü hält das Hover
   if (isDone(task.status)) row.addClass("is-done");
   if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);   // aus der Suche angesprungen? -> hervorheben + ins Bild scrollen
@@ -1693,6 +1695,8 @@ export class MainView extends ItemView {
   async onOpen(): Promise<void> {
     // Checkbox-Aktionen EINMAL delegiert (nicht je Zeichnung je Checkbox – s. taskCheck.ts).
     installCheckDelegation(this.contentEl, this.plugin);
+    // Zeilen-Kontextmenü (Rechtsklick/Long-Press) genauso: EIN Satz Listener für alle Zeilen.
+    installTaskMenuDelegation(this.contentEl, this.plugin);
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();
   }

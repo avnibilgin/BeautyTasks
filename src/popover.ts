@@ -98,7 +98,9 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   } else {
     left = clampL(r.left); top = Math.max(8, r.top - ph - 4);
   }
-  pop.setCssStyles({ left: `${left - org.left}px`, top: `${top - org.top}px` });
+  // Auf ganze Pixel runden: getBoundingClientRect liefert Bruchwerte, und ein Popover auf
+  // „halber" Pixelposition zeichnet seine 1px-Trennlinien je nach Rundung 1 oder 2 Pixel dick.
+  pop.setCssStyles({ left: `${Math.round(left - org.left)}px`, top: `${Math.round(top - org.top)}px` });
 
   // Höhe an den Platz klemmen, der ab `top` bis zum unteren Rand noch da ist. Ohne das kann ein
   // Popover, das für keinen der vier Zweige ganz passt, unten aus dem Bild laufen – erreichbar
@@ -108,6 +110,51 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   // Stylesheet (Zeilenlisten 320px, Datumswähler 560px, Anzeige-Panel 480px). Die Klemmung greift
   // erst, wenn der Bildschirm weniger hergibt als diese Grenze. Deshalb wird die berechnete Grenze
   // hier ausgelesen statt überschrieben.
+  const cap = parseFloat(win.getComputedStyle(pop).maxHeight) || Infinity;
+  pop.setCssStyles({ maxHeight: `${Math.min(cap, win.innerHeight - top - 8)}px` });
+
+  win.setTimeout(() => doc.addEventListener("mousedown", onDoc, true), 0);
+  win.addEventListener("resize", close);
+}
+
+/** Popover an einer BILDSCHIRMPOSITION statt an einem Anker-Element (Rechtsklick/Long-Press:
+ *  dort gibt es keinen Anker, nur Koordinaten). Bewusst immer am body – Kontextmenüs entstehen
+ *  in den Views, nie in einem Modal, deshalb entfällt die ganze Modal-Sonderbehandlung von
+ *  openPopover (Fokus-Container, Klick-Verschlucken). Verschachtelte Popovers (ein Picker aus
+ *  dem Menü heraus) bleiben über die .bt-pop-Ausnahme im Außerhalb-Klick erhalten. */
+export function openPopoverAt(doc: Document, x: number, y: number, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
+  const win = doc.defaultView ?? activeWindow;
+  const pop = doc.body.createDiv({ cls: "bt-pop" });
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    pop.remove();
+    doc.removeEventListener("mousedown", onDoc, true);
+    win.removeEventListener("resize", close);
+    onClose?.();
+  };
+  const onDoc = (e: MouseEvent) => {
+    const t = e.target as Node;
+    if (pop.contains(t)) return;
+    const inOtherPop = (t as HTMLElement).closest?.(".bt-pop");
+    if (inOtherPop && inOtherPop !== pop) return;
+    close();
+  };
+  build(pop, close);
+
+  // Gleicher Nullpunkt-Trick wie openPopover: einmal auf 0/0 setzen, Versatz eines etwaigen
+  // containing block herausmessen und am Ende abziehen.
+  pop.setCssStyles({ left: "0px", top: "0px" });
+  const org = pop.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  // Standard: rechts unterhalb des Zeigers; passt es unten nicht, oberhalb aufklappen –
+  // horizontal und vertikal in den Viewport geklemmt.
+  const left = Math.max(8, Math.min(x, win.innerWidth - pw - 8));
+  const top = y + ph + 8 <= win.innerHeight ? y : Math.max(8, y - ph - 4);
+  // Runden wie in openPopover: gebrochener Ursprung macht 1px-Linien mal 1, mal 2 Pixel dick.
+  pop.setCssStyles({ left: `${Math.round(left - org.left)}px`, top: `${Math.round(top - org.top)}px` });
+  // Höhe an den verbleibenden Platz klemmen (nur verkleinern – s. openPopover).
   const cap = parseFloat(win.getComputedStyle(pop).maxHeight) || Infinity;
   pop.setCssStyles({ maxHeight: `${Math.min(cap, win.innerHeight - top - 8)}px` });
 
