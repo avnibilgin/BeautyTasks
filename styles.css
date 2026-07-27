@@ -1935,7 +1935,9 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   background: transparent; box-shadow: none; cursor: pointer;
 }
 .bt-pop.bt-taskmenu .bt-icbtn:hover { background: var(--background-modifier-hover); }
-.bt-pop.bt-taskmenu .bt-icbtn.is-active { background: var(--background-modifier-hover); box-shadow: inset 0 0 0 1px var(--background-modifier-border-hover); }
+/* Gewählter Wert: KEIN Hover-Hintergrund, nur ein dezenter Akzent-Rahmen – dasselbe
+   „ist gesetzt"-Signal wie die umrandeten Zeilen im „+"-Menü (bt-row-set). */
+.bt-pop.bt-taskmenu .bt-icbtn.is-active { box-shadow: inset 0 0 0 1px var(--interactive-accent); }
 .bt-pop.bt-taskmenu .bt-icbtn:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
 .bt-pop.bt-taskmenu .bt-icbtn-ic { display: inline-flex; }
 .bt-pop.bt-taskmenu .bt-icbtn-ic svg { width: 17px; height: 17px; }
