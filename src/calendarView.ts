@@ -10,7 +10,7 @@ import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
 import { openPopover } from "./popover";
 import {
-  CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDue, layoutDayMixed, allDayOf,
+  CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDate, layoutDayMixed, allDayOf,
   addDays, addMonths, addYears, sameMonth, parseISO, DEFAULT_BLOCK_MIN,
   ChipMetrics, ChipFit, chipsThatFit, shownChips,
   DayEvent, bucketEvents, allDayEventsOf,
@@ -20,7 +20,10 @@ import {
  * Kalender-Layout (drittes Layout neben Liste und Board). Dünner Zeichner über calendarModel.ts:
  * die gesamte Datums-/Überlappungs-Logik liegt dort und ist per Vitest abgedeckt.
  *
- * Achse ist `due`. Ziehen einer Aufgabe terminiert sie um:
+ * Achse ist das Agenda-Datum: die Fälligkeit, bei Aufgaben ohne Fälligkeit deren Deadline
+ * (s. agendaDate in types.ts). Ziehen schreibt IMMER `due` – eine nur wegen ihrer Frist hier
+ * liegende Aufgabe bekommt dadurch eine Fälligkeit und steht fortan über diese im Raster.
+ * Ziehen einer Aufgabe terminiert sie um:
  *   Monat / Ganztägig-Zeile -> nur der Tag ändert sich (eine gesetzte Uhrzeit bleibt erhalten)
  *   Zeitraster              -> Tag UND Uhrzeit (auf 15 Minuten gerundet)
  * Der Griff am unteren Blockrand ändert die Dauer.
@@ -154,7 +157,8 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
     b.onclick = () => void plugin.setPageViewOption({ calMode: m });
   }
 
-  // Undatierte der Seite = Quelle der Seitenleiste. Sie fallen ohnehin aus bucketByDue() heraus,
+  // Undatierte der Seite = Quelle der Seitenleiste: weder Fälligkeit noch Deadline. Sie fallen
+  // ohnehin aus bucketByDate() heraus,
   // tauchen im Raster also nirgends auf – ohne Panel wären sie im Kalender unsichtbar.
   const unscheduledOf = (list: Task[]): Task[] => list.filter((tk) => !agendaDate(tk) && isOpen(tk.status));
   // Im Jahr gibt es keine Drop-Ziele -> dort wäre eine Ablage zum Ziehen sinnlos.
@@ -202,7 +206,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
    *  ohne dass die Kontext-Signatur die (ständig wechselnde) Terminmenge kennen müsste. */
   const paint = (list: Task[]): void => {
     const unsched = unscheduledOf(list);
-    fillGrid(bucketByDue(list), feedEvents());
+    fillGrid(bucketByDate(list), feedEvents());
     fillPanel?.(unsched);
     setPanelCount(unsched.length);
   };
