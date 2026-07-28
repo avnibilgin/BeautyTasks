@@ -2602,12 +2602,25 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 15px; height: 15px; }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-time { font-weight: 600; color: var(--text-muted); }
 
-/* Aufklapp-Feld am Hinweis: die ECHTE Aufgabenzeile mit funktionierender Checkbox. */
-.bt-pop.bt-dl-panel { min-width: 240px; max-width: 380px; padding: 7px 9px; }
-.bt-dl-panel .bt-dl-panel-row { display: flex; align-items: flex-start; gap: 10px; }
-.bt-dl-panel .bt-dl-panel-body { min-width: 0; }
-.bt-dl-panel .bt-dl-panel-title { color: var(--text-normal); cursor: pointer; }
-.bt-dl-panel .bt-dl-panel-title:hover { text-decoration: underline; }
-.bt-dl-panel .bt-dl-panel-due { margin-top: 2px; font-size: 0.86em; color: var(--text-muted); }
-.bt-dl-panel .bt-dl-panel-due[data-when="past"]  { color: var(--bt-dist-overdue); }
-.bt-dl-panel .bt-dl-panel-due[data-when="today"] { color: var(--bt-today); }
+/* Aufklapp-Feld am Hinweis: Deadline-Datum im Kopf, darunter die ECHTE Aufgabe mit funktionierender
+   Checkbox, unten der Weg zur Aufgabe. Bewusst ohne Meta-Zeile – zwei Möglichkeiten, mehr nicht. */
+.bt-pop.bt-dl-panel { min-width: 230px; max-width: 320px; padding: 9px 11px; }
+.bt-dl-panel .bt-dl-panel-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.86em; font-weight: 600; color: var(--bt-sched);
+}
+.bt-dl-panel .bt-dl-panel-head[data-when="past"]  { color: var(--bt-dist-overdue); }
+.bt-dl-panel .bt-dl-panel-head[data-when="today"] { color: var(--bt-today); }
+.bt-dl-panel .bt-dl-panel-head-ic { display: inline-flex; }
+.bt-dl-panel .bt-dl-panel-head-ic svg { width: 14px; height: 14px; }
+.bt-dl-panel .bt-dl-panel-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+.bt-dl-panel .bt-dl-panel-title { min-width: 0; color: var(--text-normal); line-height: 1.4; }
+/* „Zur Aufgabe": volle Breite wie im Vorbild – die eine Handlung neben dem Abhaken. */
+.bt-dl-panel .bt-dl-panel-goto {
+  display: block; width: 100%; margin-top: 10px; padding: 5px 8px;
+  border: none; border-radius: 5px; box-shadow: none; cursor: pointer;
+  background: var(--background-modifier-hover); color: var(--text-muted);
+  font-size: 0.88em; font-family: inherit;
+}
+.bt-dl-panel .bt-dl-panel-goto:hover { color: var(--text-normal); background: var(--background-modifier-border); }
+.bt-dl-panel .bt-dl-panel-goto:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
