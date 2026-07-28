@@ -1120,11 +1120,14 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
   const hideProject = o.group === "project" && top.length
     ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
+  // Deadline-Hinweise ganz oben, VOR den Aufgaben: sie sagen, was heute zu Ende gehen muss, und
+  // rahmen damit die Arbeit darunter. In die Kopfzahl gehen sie wie die Termine nicht ein (die
+  // beantwortet „wie viel steht hier an").
+  // Ihre Position stört annotateSubtaskTree nicht: dort werden Nicht-Aufgaben-Zeilen übersprungen,
+  // und weil alle Hinweise VOR der ersten Aufgabe liegen, bleiben die Aufgaben direkte Nachbarn.
+  for (const m of markers) renderDeadlineRow(list, plugin, m, today);
   for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideProject });
   annotateSubtaskTree(list);
-  // Deadline-Hinweise NACH den Aufgaben: sie sind Hinweise, keine Arbeit – und sie zählen wie die
-  // Termine nicht in die Kopfzahl (die beantwortet „wie viel steht hier an").
-  for (const m of markers) renderDeadlineRow(list, plugin, m, today);
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
