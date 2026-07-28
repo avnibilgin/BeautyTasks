@@ -2593,7 +2593,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 }
 .bt-deadline-row.bt-deadline-sm:hover { background: color-mix(in srgb, var(--bt-dl-tint) 22%, transparent); }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-ic { width: 13px; }
-.bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 16px; height: 16px; }
+.bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 15px; height: 15px; }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-time { font-weight: 600; color: var(--text-muted); }
 
 /* Aufklapp-Feld am Hinweis: die ECHTE Aufgabenzeile mit funktionierender Checkbox. */
