@@ -2572,14 +2572,29 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-deadline-ic svg { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 2.5px; }
 .bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-deadline-time { flex-shrink: 0; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-/* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. */
-.bt-deadline-row[data-when="past"]  .bt-deadline-ic { color: var(--bt-dist-overdue); }
-.bt-deadline-row[data-when="past"]  .bt-deadline-title { color: var(--bt-dist-overdue); }
-.bt-deadline-row[data-when="today"] .bt-deadline-ic { color: var(--bt-today); }
-/* Kalender-Variante (Chip/Block): kompakter, ohne eigene Hover-Fläche. */
-.bt-deadline-row.bt-deadline-sm { padding: 1px 3px; gap: 5px; font-size: 0.86em; }
+/* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. EINE Variable,
+   damit Symbol (Liste) und Umrandung (Kalender) nie auseinanderlaufen. */
+.bt-deadline-row { --bt-dl-tint: var(--bt-sched); }
+.bt-deadline-row[data-when="past"]  { --bt-dl-tint: var(--bt-dist-overdue); }
+.bt-deadline-row[data-when="today"] { --bt-dl-tint: var(--bt-today); }
+.bt-deadline-ic { color: var(--bt-dl-tint); }
+.bt-deadline-row[data-when="past"] .bt-deadline-title { color: var(--bt-dist-overdue); }
+
+/* Kalender-Variante: dieselbe Kachel wie ein Aufgaben-Chip (Maße, Radius, Schriftgrad, Tönung) –
+   der EINE Unterschied ist die gestrichelte Umrandung ringsum statt des vollen Farbbalkens links.
+   Genau dafür steht die Strichelung im Plugin schon: „gemeint, aber nicht das Ding selbst" (so
+   auch die Einrast-Vorschau beim Ziehen). Eine Deadline ist ein Verweis, keine Arbeit im Tag. */
+.bt-deadline-row.bt-deadline-sm {
+  gap: 5px; padding: 3px 7px; border-radius: 4px; box-sizing: border-box;
+  font-size: 0.84em; line-height: 1.4; overflow: hidden;
+  background: color-mix(in srgb, var(--bt-dl-tint) 10%, transparent);
+  border: 1px dashed var(--bt-dl-tint);
+  color: var(--text-normal);
+}
+.bt-deadline-row.bt-deadline-sm:hover { background: color-mix(in srgb, var(--bt-dl-tint) 22%, transparent); }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-ic { width: 13px; }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 16px; height: 16px; }
+.bt-deadline-row.bt-deadline-sm .bt-deadline-time { font-weight: 600; color: var(--text-muted); }
 
 /* Aufklapp-Feld am Hinweis: die ECHTE Aufgabenzeile mit funktionierender Checkbox. */
 .bt-pop.bt-dl-panel { min-width: 240px; max-width: 380px; padding: 7px 9px; }
