@@ -1,4 +1,4 @@
-import { Task, Priority } from "./types";
+import { Task, Priority, agendaDate } from "./types";
 // Nur als Typ: taskIndex holt sich umgekehrt orderChain von hier. Ein `import type` wird beim
 // Kompilieren entfernt und schließt den Zyklus, bevor er zur Laufzeit einer wird.
 import type { TaskIndex } from "./taskIndex";
@@ -247,61 +247,34 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
 }
 
 /**
- * Welche Deadlines in EINEM Abschnitt als eigener Hinweis-Eintrag erscheinen.
+ * ── Die Regel für alle Zeit-Ansichten (Heute, Demnächst, Kalender) ──────────────────────────
  *
- * Modell (wie Todoist): Die Deadline dupliziert die Aufgabe nicht, sie ist ein eigener, nicht
- * abhakbarer Eintrag, der auf die Aufgabe zeigt. Deshalb die Regel:
+ *   Hat eine Aufgabe keine Fälligkeit, IST ihre Deadline die Fälligkeit.
+ *   Hat sie eine, entscheidet allein die Fälligkeit, wo sie steht.
+ *   Eine VERSTRICHENE Frist macht sie überfällig – auch bei künftigem Plan.
  *
- *   Ein Hinweis erscheint genau dann, wenn die Deadline in den betrachteten Zeitraum fällt und
- *   die Aufgabe dort nicht ohnehin schon mit ihrer eigenen Zeile steht.
+ * Mehr ist es nicht. Eine Aufgabe erscheint dadurch immer an genau EINER Stelle, nie aus zwei
+ * Gründen gleichzeitig, und keine Abschnittsüberschrift kann ihrem sichtbaren Datum widersprechen.
+ * Die Deadline selbst ist nur noch ein Zustand an der Zeile (Chip mit Countdown und Farbe), keine
+ * zweite Platzierung – deshalb gibt es weder Hinweis-Zeilen noch einen Deadline-Abschnitt.
  *
- * `candidates` sind die Aufgaben, deren Deadline auf den Tag fällt (index.deadlinesByDate bzw.
- * die Tagesbündel des Kalenders). `rowsHere` beantwortet, ob die Aufgabe an diesem Tag schon eine
- * eigene Zeile hat (`due === Tag`) – dann trägt diese Zeile die Deadline als Chip und der Hinweis
- * entfällt.
- *
- * NUR für die chronologischen Ansichten („Demnächst", Kalender). „Heute" ist eine Arbeitsliste und
- * nimmt fällige Deadlines stattdessen als vollwertige Aufgaben auf (s. deadlineDriven) – als
- * zweite volle Zeile in einer Zeitleiste wüsste man dagegen nicht, welche man abarbeiten soll.
- *
- * Sortierung wie überall: nach Uhrzeit, Terminloses ans Tagesende ("99:99", s. sortTasks).
+ * Der letzte Satz ist die einzige Ausnahme von „die Fälligkeit entscheidet": Ein Plan für nächste
+ * Woche ist kein gültiger Plan mehr, wenn der Termin gestern war – die Aufgabe ist dann real zu
+ * spät, und „Überfällig" beschreibt genau das.
  */
-export function deadlineMarkers(candidates: Task[], rowsHere: (t: Task) => boolean): Task[] {
-  return candidates
-    .filter((t) => !isDone(t.status) && !isTrashed(t.status) && !rowsHere(t))
-    .sort((a, b) => (a.scheduledTime ?? "99:99").localeCompare(b.scheduledTime ?? "99:99")
-      || a.title.localeCompare(b.title));
-}
-
-/**
- * Aufgaben, die NUR wegen ihrer Deadline nach „Heute" gehören.
- *
- * „Heute" ist die Arbeitsliste: Was heute Aufmerksamkeit verlangt, steht dort als vollwertige
- * Aufgabe – mit Checkbox, Meta-Zeile und allem. Eine fällige Deadline verlangt Aufmerksamkeit,
- * also gehört die Aufgabe hinein, auch wenn sie erst später (oder gar nicht) fällig ist. Warum
- * sie dort steht, erklärt der eingefärbte Deadline-Chip in ihrer Meta-Zeile.
- *
- * Ausgenommen sind Aufgaben, die schon ÜBER IHRE FÄLLIGKEIT in der Ansicht stehen (`due <= heute`):
- * sie sind bereits da, ein zweiter Eintrag wäre eine Dopplung.
- *
- * Aufteilung auf die Abschnitte nach dem Zustand der Deadline: verstrichen -> „Überfällig"
- * (das IST ihr Zustand), heute -> „Heute".
- *
- * Nur für „Heute". „Demnächst" und der Kalender sind chronologische Karten; dort steht die Aufgabe
- * bereits an ihrem Fälligkeitstag und die Deadline erscheint als eigener Hinweis an ihrem eigenen
- * Tag (s. deadlineMarkers) – als zweite vollwertige Zeile wüsste man nicht, welche der beiden man
- * abarbeiten soll.
- */
-export function deadlineDriven(tasks: Task[], today: string): { overdue: Task[]; today: Task[] } {
-  const out: { overdue: Task[]; today: Task[] } = { overdue: [], today: [] };
-  for (const t of tasks) {
-    if (isDone(t.status) || isTrashed(t.status)) continue;
-    if (!t.scheduled || t.scheduled > today) continue;      // keine oder künftige Deadline
-    if (t.due && t.due <= today) continue;                  // steht schon über die Fälligkeit hier
-    (t.scheduled < today ? out.overdue : out.today).push(t);
-  }
-  return out;
-}
+/** Überfällig: Fälligkeit verstrichen ODER Frist verstrichen. */
+export { agendaDate };
+/** Überfällig: Fälligkeit verstrichen ODER Frist verstrichen. */
+export const isOverdueTask = (t: Task, today: string): boolean =>
+  (!!t.due && t.due < today) || (!!t.scheduled && t.scheduled < today);
+/** Steht heute an: Agenda-Datum ist heute und nichts daran ist verstrichen. */
+export const isTodayTask = (t: Task, today: string): boolean =>
+  !isOverdueTask(t, today) && agendaDate(t) === today;
+/** Steht künftig an: Agenda-Datum liegt nach heute und nichts daran ist verstrichen. */
+export const isUpcomingTask = (t: Task, today: string): boolean => {
+  const d = agendaDate(t);
+  return !isOverdueTask(t, today) && !!d && d > today;
+};
 
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
 export const ORDER_GAP = 10;

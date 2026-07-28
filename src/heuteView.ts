@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, 
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, deadlineMarkers, deadlineDriven, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -18,7 +18,6 @@ import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen 
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
-import { renderDeadlineRow } from "./deadlineRow";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -125,14 +124,9 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const idx = plugin.index;
   if (view === "heute") {
     const opts = plugin.pageViewOptions();
-    // „Heute" ist die Arbeitsliste: Neben den Fälligkeiten stehen hier auch Aufgaben, deren
-    // DEADLINE fällig ist – als vollwertige Aufgaben, nicht als Hinweis. Sie verlangen heute
-    // Aufmerksamkeit, und der eingefärbte Deadline-Chip in ihrer Meta-Zeile erklärt, warum sie
-    // hier stehen. Verstrichene Deadlines landen in „Überfällig" (das ist ihr Zustand), heutige
-    // unter „Heute". Wer schon über seine Fälligkeit hier steht, kommt nicht doppelt (s. deadlineDriven).
-    const overdueDue = idx.overdue(today);
-    const dl = deadlineDriven(idx.open(), today);
-    const overdue = [...overdueDue, ...dl.overdue], dueToday = [...idx.dueToday(today), ...dl.today];
+    // Auswahl vollständig über den Index – die Regel (Fälligkeit, ersatzweise Deadline; eine
+    // verstrichene Frist macht überfällig) lebt in filterEngine und gilt für alle Zeit-Ansichten.
+    const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
     const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
     const open = [...overdue, ...dueToday];
     // Termine des Tages (read-only) zählen mit: sonst behauptete „Nichts für heute" leeren Tag,
@@ -173,7 +167,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           // „Verschieben" wirkt NUR auf die über ihre Fälligkeit überfälligen Aufgaben. Die wegen
           // einer verstrichenen Deadline hier stehenden haben keine oder eine künftige Fälligkeit –
           // ein Sammelzug würde die ungefragt verschieben.
-          if (overdueDue.length) rescheduleButton(overdueHead, plugin, overdueDue);
+          rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
         if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
           section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
@@ -211,10 +205,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const eventEnd = upcomingEventEnd(plugin, today);
     plugin.gcalFeed?.setRange(today, eventEnd);
     const evByDate = feedEventsByDate(plugin, today, eventEnd);
-    // Künftige Deadlines: eigene Hinweis-Einträge an IHREM Tag. Ein Tag, an dem nur eine Deadline
-    // liegt, bekommt dadurch seine Gruppe – genau wie ein Tag mit nur einem Termin.
-    const dlByDate = idx.deadlinesByDate(today);
-    if (!groups.length && !evByDate.size && !dlByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
+    if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
@@ -233,21 +224,17 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const ownRow = agendaOwnRow(group);
       if (group === "date") {
         const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
-        // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen PLUS alle Tage mit
-        // Deadlines, chronologisch.
-        const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys(), ...dlByDate.keys()])].sort();
+        // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
+        const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
         for (const date of dates) {
           // Innerhalb eines Tages nach der gewählten Sortierung ordnen (wie „Heute" seine Sektionen) –
           // die Tages-REIHENFOLGE bleibt chronologisch (Agenda).
           const dayTasks = sortTasks(tasksByDate.get(date) ?? [], opts.sort, opts.sortDir, orderKey(plugin));
           const dayEv = evByDate.get(date) ?? [];
-          // Am Tag D steht die Aufgabe schon, wenn sie an D fällig ist -> dann kein Hinweis, die
-          // Deadline hängt als Chip an ihrer Zeile.
-          const dayDl = deadlineMarkers(dlByDate.get(date) ?? [], (tk) => tk.due === date);
           // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
           // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
-          if (visibleRows(dayTasks, present, ownRow).length || dayEv.length || dayDl.length)
-            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow, dayDl);
+          if (visibleRows(dayTasks, present, ownRow).length || dayEv.length)
+            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow);
         }
       } else {
         const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
@@ -1085,7 +1072,7 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
 /** Zeichnet eine Sektion und gibt ihren Überschriften-Kopf zurück – daran hängen Aufrufer
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean, markers: Task[] = []): HTMLElement {
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean): HTMLElement {
   const top = trash ? tasks : visibleRows(tasks, present, ownRow);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
@@ -1110,12 +1097,6 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
   const hideProject = o.group === "project" && top.length
     ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
-  // Deadline-Hinweise ganz oben, VOR den Aufgaben: sie sagen, was heute zu Ende gehen muss, und
-  // rahmen damit die Arbeit darunter. In die Kopfzahl gehen sie wie die Termine nicht ein (die
-  // beantwortet „wie viel steht hier an").
-  // Ihre Position stört annotateSubtaskTree nicht: dort werden Nicht-Aufgaben-Zeilen übersprungen,
-  // und weil alle Hinweise VOR der ersten Aufgabe liegen, bleiben die Aufgaben direkte Nachbarn.
-  for (const m of markers) renderDeadlineRow(list, plugin, m, today);
   // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
   // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
   const impliedDate = dateImplied && eventKey ? eventKey : undefined;
@@ -1705,12 +1686,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
 function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
   const today = todayStr();
-  if (id === "heute") {
-    // Wie die Ansicht selbst: Fälligkeiten PLUS die wegen ihrer Deadline aufgenommenen Aufgaben –
-    // sonst wiche das Abzeichen von dem ab, was beim Öffnen wirklich dasteht.
-    const dl = deadlineDriven(plugin.index.open(), today);
-    return plugin.index.overdue(today).length + plugin.index.dueToday(today).length + dl.overdue.length + dl.today.length;
-  }
+  if (id === "heute") return plugin.index.overdue(today).length + plugin.index.dueToday(today).length;
   if (id === "demnaechst") return plugin.index.upcoming(today).length;
   if (id === "wiederkehrend") return plugin.index.open().filter((tk) => tk.recurrence).length;
   return 0;

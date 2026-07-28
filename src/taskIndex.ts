@@ -2,7 +2,7 @@ import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
 import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
-import { orderChain, severReferences } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
+import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -268,27 +268,14 @@ export class TaskIndex extends Component {
   isProjectArchived(project: string | null | undefined): boolean {
     return !!project && this.archivedProjects().has(baseName(project).toLowerCase());
   }
-  overdue(today: string): Task[] { return this.open().filter((t) => !!t.due && t.due < today); }
-  dueToday(today: string): Task[] { return this.open().filter((t) => t.due === today); }
+  // Zeit-Ansichten: Platzierung nach agendaDate (Fälligkeit, ersatzweise Deadline) und
+  // Überfälligkeit nach beiden Feldern – die EINE Regel steht in filterEngine.
+  overdue(today: string): Task[] { return this.open().filter((t) => isOverdueTask(t, today)); }
+  dueToday(today: string): Task[] { return this.open().filter((t) => isTodayTask(t, today)); }
   upcoming(today: string): Task[] {
-    return this.open().filter((t) => !!t.due && t.due > today).sort((a, b) => a.due!.localeCompare(b.due!));
+    return this.open().filter((t) => isUpcomingTask(t, today))
+      .sort((a, b) => agendaDate(a)!.localeCompare(agendaDate(b)!));
   }
-  // ── Deadlines (`scheduled`) als Hinweis-Einträge in den chronologischen Ansichten ──
-  // Rohe Auswahl nach Deadline-Datum – OHNE die Entdopplungs-Regel. Welche davon an einem Tag
-  // wirklich als Hinweis erscheinen, entscheidet deadlineMarkers (filterEngine): die Regel hängt
-  // am Tag, nicht an der Aufgabe, und gehört deshalb nicht hierher. In „Heute" gibt es keine
-  // Hinweise – dort werden fällige Deadlines zu vollwertigen Aufgaben (s. deadlineDriven).
-  /** Künftige Deadlines nach Tag gebündelt (für „Demnächst"). */
-  deadlinesByDate(today: string): Map<string, Task[]> {
-    const m = new Map<string, Task[]>();
-    for (const t of this.open()) {
-      if (!t.scheduled || t.scheduled <= today) continue;
-      const arr = m.get(t.scheduled);
-      if (arr) arr.push(t); else m.set(t.scheduled, [t]);
-    }
-    return m;
-  }
-
   done(): Task[] {
     return this.all().filter((t) => isDone(t.status))
       .sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
@@ -384,8 +371,9 @@ export class TaskIndex extends Component {
   upcomingByDate(today: string): { date: string; tasks: Task[] }[] {
     const groups = new Map<string, Task[]>();
     for (const t of this.upcoming(today)) {
-      const arr = groups.get(t.due!) ?? [];
-      arr.push(t); groups.set(t.due!, arr);
+      const d = agendaDate(t)!;
+      const arr = groups.get(d) ?? [];
+      arr.push(t); groups.set(d, arr);
     }
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, tasks]) => ({ date, tasks }));
   }

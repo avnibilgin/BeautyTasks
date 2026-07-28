@@ -1,4 +1,4 @@
-import { Task, CalEvent } from "./types";
+import { Task, CalEvent, agendaDate, agendaTime } from "./types";
 import { dateOf, timeOf } from "./format";
 
 /**
@@ -81,8 +81,9 @@ export const timeGridStep = (mode: CalMode): number => (mode === "week" ? 7 : mo
 export function bucketByDue(tasks: Task[]): Map<string, Task[]> {
   const out = new Map<string, Task[]>();
   for (const tk of tasks) {
-    if (!tk.due) continue;
-    const key = dateOf(tk.due);
+    const d = agendaDate(tk);
+    if (!d) continue;
+    const key = dateOf(d);
     const arr = out.get(key);
     if (arr) arr.push(tk); else out.set(key, [tk]);
   }
@@ -91,7 +92,8 @@ export function bucketByDue(tasks: Task[]): Map<string, Task[]> {
 
 /** Minuten seit Mitternacht aus dueTime ("09:30" -> 570); ohne Uhrzeit null (= ganztägig). */
 export function minutesOf(task: Task): number | null {
-  const tm = task.dueTime ?? (task.due ? timeOf(task.due) : null);
+  const d = agendaDate(task);
+  const tm = agendaTime(task) ?? (d ? timeOf(d) : null);
   if (!tm) return null;
   const m = tm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return null;
