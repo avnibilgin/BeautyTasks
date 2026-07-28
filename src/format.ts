@@ -78,17 +78,16 @@ export function formatDateTime(iso: string, today = todayStr()): string {
  *
  * Formuliert wird über Intl.RelativeTimeFormat – das liefert für alle zehn Sprachen die richtige
  * Pluralform (im Russischen etwa „3 дня назад", aber „5 дней назад") ohne eine einzige eigene
- * Übersetzung. `numeric: "auto"` erzeugt bei -1 von sich aus das WORT („gestern"); nur dieses wird
- * groß geschrieben, damit es zu „Heute"/„Morgen" der übrigen Chips passt. Die gezählten Formen
- * bleiben klein („vor 3 Tagen") – ein „Vor" mitten im Satzbau sähe falsch aus.
+ * Übersetzung. `numeric: "auto"` erzeugt bei -1 von sich aus das Wort („gestern"). Groß geschrieben
+ * wird immer – der Chip ist eine Beschriftung, keine Satzmitte, und beginnt damit wie „Heute",
+ * „Morgen" und „25. Jul" der übrigen Datumsangaben.
  */
 export function formatDeadline(iso: string, today = todayStr()): string {
   const off = dayOffset(iso, today);
   const tm = timeOf(iso);
   if (off >= 0 || off < -7) return formatDateTime(iso, today);
   const rel = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" }).format(off, "day");
-  const text = off === -1 ? rel.charAt(0).toUpperCase() + rel.slice(1) : rel;
-  return text + (tm ? " · " + tm : "");
+  return rel.charAt(0).toUpperCase() + rel.slice(1) + (tm ? " · " + tm : "");
 }
 
 /** Dauer in Minuten -> "30 min" / "1 h" / "1 h 30 min". */

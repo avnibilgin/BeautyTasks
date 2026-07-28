@@ -60,7 +60,7 @@ describe("formatDeadline – verstrichene Deadlines als Abstand", () => {
     expect(formatDeadline("2026-06-12", today)).toBe("3 дня назад");   // 2–4: „дня"
     expect(formatDeadline("2026-06-10", today)).toBe("5 дней назад");  // ab 5: „дней"
     setLocale("de");
-    expect(formatDeadline("2026-06-12", today)).toBe("vor 3 Tagen");   // gezählt: klein
-    expect(formatDeadline("2026-06-14", today)).toBe("Gestern");       // Wortform: groß, wie „Heute"/„Morgen"
+    expect(formatDeadline("2026-06-12", today)).toBe("Vor 3 Tagen");   // Chip = Beschriftung -> groß
+    expect(formatDeadline("2026-06-14", today)).toBe("Gestern");
   });
 });
