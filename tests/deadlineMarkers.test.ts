@@ -59,34 +59,40 @@ describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung am selben Tag", (
 });
 
 describe("deadlineDriven – wegen ihrer Deadline in „Heute“ aufgenommene Aufgaben", () => {
-  const ids = (tasks: Task[]): string[] => deadlineDriven(tasks, TODAY).map((t) => t.id);
-
-  it("nimmt Aufgaben ohne Fälligkeit auf – heutige wie verstrichene Deadlines", () => {
-    expect(ids([mk("heute", { scheduled: TODAY }), mk("alt", { scheduled: "2026-07-20" })]))
-      .toEqual(["heute", "alt"]);
+  it("nimmt Aufgaben ohne Fälligkeit auf: Deadline heute -> „Heute“, verstrichen -> „Überfällig“", () => {
+    const r = deadlineDriven([
+      mk("heute", { scheduled: TODAY }),
+      mk("alt", { scheduled: "2026-07-20" }),
+    ], TODAY);
+    expect(r.today.map((t) => t.id)).toEqual(["heute"]);
+    expect(r.overdue.map((t) => t.id)).toEqual(["alt"]);
   });
 
   it("nimmt Aufgaben mit KÜNFTIGER Fälligkeit auf – sie stehen sonst nicht in der Ansicht", () => {
-    expect(ids([mk("a", { due: "2026-08-05", scheduled: TODAY })])).toEqual(["a"]);
+    const r = deadlineDriven([mk("a", { due: "2026-08-05", scheduled: TODAY })], TODAY);
+    expect(r.today.map((t) => t.id)).toEqual(["a"]);
   });
 
   it("lässt Aufgaben weg, die schon über ihre Fälligkeit dort stehen (heute fällig oder überfällig)", () => {
     // Sonst stünden sie doppelt: einmal wegen der Fälligkeit, einmal wegen der Deadline.
-    expect(ids([
+    const r = deadlineDriven([
       mk("heuteFaellig", { due: TODAY, scheduled: TODAY }),
       mk("ueberfaellig", { due: "2026-07-20", scheduled: TODAY }),
       mk("ueberfaellig2", { due: "2026-07-20", scheduled: "2026-07-22" }),
-    ])).toEqual([]);
+    ], TODAY);
+    expect(r.today).toEqual([]);
+    expect(r.overdue).toEqual([]);
   });
 
   it("lässt künftige Deadlines weg (die gehören nach „Demnächst“)", () => {
-    expect(ids([mk("a", { scheduled: "2026-08-05" })])).toEqual([]);
+    expect(deadlineDriven([mk("a", { scheduled: "2026-08-05" })], TODAY)).toEqual({ overdue: [], today: [] });
   });
 
   it("lässt erledigte und abgebrochene Aufgaben weg", () => {
-    expect(ids([
+    const r = deadlineDriven([
       mk("d", { scheduled: TODAY, status: "done" }),
       mk("c", { scheduled: TODAY, status: "cancelled" }),
-    ])).toEqual([]);
+    ], TODAY);
+    expect(r).toEqual({ overdue: [], today: [] });
   });
 });
