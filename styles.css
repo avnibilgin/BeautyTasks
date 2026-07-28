@@ -2605,18 +2605,10 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 15px; height: 15px; }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-time { font-weight: 600; color: var(--text-muted); }
 
-/* Aufklapp-Feld am Hinweis: Deadline-Datum im Kopf, darunter die ECHTE Aufgabe mit funktionierender
-   Checkbox, unten der Weg zur Aufgabe. Bewusst ohne Meta-Zeile – zwei Möglichkeiten, mehr nicht. */
+/* Aufklapp-Feld am Hinweis: die ECHTE Aufgabe mit funktionierender Checkbox, darunter der Weg zur
+   Aufgabe. Bewusst ohne Deadline-Kopf und ohne Meta-Zeile – zwei Möglichkeiten, mehr nicht. */
 .bt-pop.bt-dl-panel { min-width: 230px; max-width: 320px; padding: 9px 11px; }
-.bt-dl-panel .bt-dl-panel-head {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 0.86em; font-weight: 600; color: var(--bt-sched);
-}
-.bt-dl-panel .bt-dl-panel-head[data-when="past"]  { color: var(--bt-dist-overdue); }
-.bt-dl-panel .bt-dl-panel-head[data-when="today"] { color: var(--bt-today); }
-.bt-dl-panel .bt-dl-panel-head-ic { display: inline-flex; }
-.bt-dl-panel .bt-dl-panel-head-ic svg { width: 14px; height: 14px; }
-.bt-dl-panel .bt-dl-panel-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; }
+.bt-dl-panel .bt-dl-panel-row { display: flex; align-items: flex-start; gap: 10px; }
 .bt-dl-panel .bt-dl-panel-title { min-width: 0; color: var(--text-normal); line-height: 1.4; }
 /* „Zur Aufgabe": volle Breite wie im Vorbild – die eine Handlung neben dem Abhaken. */
 .bt-dl-panel .bt-dl-panel-goto {
