@@ -262,7 +262,6 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
  * Woche ist kein gültiger Plan mehr, wenn der Termin gestern war – die Aufgabe ist dann real zu
  * spät, und „Überfällig" beschreibt genau das.
  */
-/** Überfällig: Fälligkeit verstrichen ODER Frist verstrichen. */
 export { agendaDate };
 /** Überfällig: Fälligkeit verstrichen – oder Frist verstrichen, sofern die Aufgabe nicht
  *  ohnehin heute dran ist. Wer heute daran arbeitet, gewinnt nichts dadurch, unter „Überfällig"

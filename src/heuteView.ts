@@ -164,9 +164,6 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // (die zählen mit, auch ohne Aufgabe für heute).
         if (visibleRows(overdue, present, ownRow).length) {
           const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
-          // „Verschieben" wirkt NUR auf die über ihre Fälligkeit überfälligen Aufgaben. Die wegen
-          // einer verstrichenen Deadline hier stehenden haben keine oder eine künftige Fälligkeit –
-          // ein Sammelzug würde die ungefragt verschieben.
           rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
         if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {

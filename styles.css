@@ -2552,4 +2552,3 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Nicht im „User"-Theme: der Farbbereich ist gesperrt (Picker zeigen die Theme-Presets, sind aber
    nicht editierbar) – sichtbar abgedunkelt, damit „nicht änderbar" auf einen Blick klar ist. */
 .bt-color-settings.is-locked { opacity: 0.5; }
-
