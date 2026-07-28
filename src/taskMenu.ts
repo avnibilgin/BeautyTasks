@@ -83,8 +83,10 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
     };
 
     row("pencil", t("menu_edit_task"), () => plugin.openEditTask(task));
-    // „Zum Projekt" nur bei echtem Projekt/Bereich – mit dessen Icon in dessen Farbe.
-    if (task.project && !isInboxLink(task.project)) {
+    // „Zum Projekt" nur bei echtem Projekt/Bereich – mit dessen Icon in dessen Farbe. Und nur,
+    // wenn es irgendwo hin führt: Auf der Seite dieses Projekts wäre der Eintrag ein Sprung auf
+    // die Stelle, an der man ohnehin steht.
+    if (task.project && !isInboxLink(task.project) && plugin.currentProject !== task.project) {
       const name = baseName(task.project);
       const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
       const sel = [...bereiche, ...projekte].find((p) => p.name === name);
