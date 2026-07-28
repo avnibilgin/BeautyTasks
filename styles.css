@@ -2560,10 +2560,15 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 }
 .bt-deadline-row:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 .bt-deadline-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
-/* Uhr exakt auf Checkbox-Maß (16px, kompakt 13px) und mit kräftigerer Strichstärke: Hinweis und
-   Aufgabenzeile bilden so links eine saubere Spalte gleicher optischer Gewichtung. */
+/* Uhr auf Checkbox-Maß, kräftigerer Strich: Hinweis und Aufgabenzeile bilden links eine Spalte
+   gleicher optischer Gewichtung.
+   Die Zeichenfläche ist um die Umrandungsbreite der Checkbox (2 × 1.5px) größer als deren Kasten –
+   sonst wirkt die Uhr kleiner: der Lucide-Kreis sitzt mit Rand INNERHALB seiner Fläche, füllt sie
+   also nicht aus. Der Behälter behält das Checkbox-Maß, damit die Titelspalte exakt dort beginnt
+   wie in der Aufgabenzeile; der Überstand verteilt sich mittig, die Kreise sitzen also auf
+   derselben Achse. */
 .bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; color: var(--bt-sched); }
-.bt-deadline-ic svg { width: 16px; height: 16px; stroke-width: 2.5px; }
+.bt-deadline-ic svg { width: 19px; height: 19px; stroke-width: 2.5px; }
 .bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-deadline-time { flex-shrink: 0; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 /* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. */
@@ -2573,7 +2578,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Kalender-Variante (Chip/Block): kompakter, ohne eigene Hover-Fläche. */
 .bt-deadline-row.bt-deadline-sm { padding: 1px 3px; gap: 5px; font-size: 0.86em; }
 .bt-deadline-row.bt-deadline-sm .bt-deadline-ic { width: 13px; }
-.bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 13px; height: 13px; }
+.bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 16px; height: 16px; }
 
 /* Aufklapp-Feld am Hinweis: die ECHTE Aufgabenzeile mit funktionierender Checkbox. */
 .bt-pop.bt-dl-panel { min-width: 240px; max-width: 380px; padding: 7px 9px; }
