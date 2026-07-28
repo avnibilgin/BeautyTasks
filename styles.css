@@ -1264,7 +1264,7 @@ body.bt-meta-colorado {
    ihre data-when-Farbe. data-dist wird nur in genau diesem Fall gesetzt (s. renderTask).
    Gilt AUCH für die Unteraufgaben-Zeilen im Aufgaben-Modal (.bt-st-chip, s. subtaskList):
    gleiche Variablen, damit dasselbe Datum auf beiden Flächen dieselbe Farbe trägt – vorher
-   blieb das Modal beim alten data-when-Orange. */
+   blieb das Modal beim alten data-when-Orange.
    Bewusst auf `[data-dist]` gescopet statt auf `.bt-due`: Das Attribut TRÄGT die Bedeutung, und
    es setzt es nur, wer eine Tages-Distanz meint (Fälligkeit UND Deadline). So färben beide
    Datumsangaben dieselbe Nähe gleich ein, ohne dass die Regeln je Chip verdoppelt werden. */
