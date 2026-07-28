@@ -1,10 +1,9 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath } from "./taskService";
+import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
-const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
 const asDate = (v: unknown): string | null =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;

@@ -12,11 +12,9 @@ import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
-import { slugify, todayIso } from "./taskService";
+import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
 
-/** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
-const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /**
  * Kompakt-Modus des vollen Editors: leere Chips zeigen nur ihr Icon, der Name wandert in den

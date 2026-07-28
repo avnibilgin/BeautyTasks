@@ -11,6 +11,11 @@ export const slugify = (s: string): string =>
 export const normalizeLabel = (s: string): string =>
   slugify(s).toLowerCase().replace(/^#/, "").replace(/\s+/g, "-");
 
+/** Basename (ohne Ordner und `.md`). Die EINE Quelle: Aufgaben verweisen über den Basename auf
+ *  Projekt und Elternaufgabe, und genau diese Zeile stand vorher siebenmal im Quelltext – sechsmal
+ *  wörtlich gleich, einmal als `projectName` in einer View-Datei, aus der sogar `main.ts` sie zog. */
+export const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
+
 export const newId = (p: string): string =>
   p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 

@@ -10,13 +10,12 @@ import { Task } from "./types";
 import { openPopover, openPopoverAt, popRow } from "./popover";
 import { openDatePicker, quickDates } from "./datePicker";
 import { CHIPS, PRIOS, PRIO_KEY, ChipHost } from "./chips";
-import { listProjectsAndAreas, isInboxLink, copyTaskLink, ProjItem } from "./taskService";
+import { listProjectsAndAreas, isInboxLink, copyTaskLink, ProjItem, baseName } from "./taskService";
 import { ConfirmModal } from "./confirmModal";
 import { isTrashed } from "./statuses";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
-const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /** Icon-Button einer Schnellzeile (Datum/Priorität). Liefert den Button für Sonderfälle. */
 function iconButton(row: HTMLElement, label: string, active: boolean, onClick: () => void): HTMLElement {

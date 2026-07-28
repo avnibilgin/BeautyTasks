@@ -1,14 +1,13 @@
 import { App, FuzzySuggestModal, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
-import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged } from "./taskService";
+import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged, baseName } from "./taskService";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
 const EXPORT_FORMAT = "beautytasks";
 const EXPORT_VERSION = 2;   // v2: eigener `lists`-Abschnitt (Projekt/Bereich mit Typ). v1 = nur Aufgaben.
 
-const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 
 /** Portable Repräsentation einer Aufgabe: Referenzen (Projekt/Bereich/Eltern) als Basename,
  *  nicht als Vault-Pfad – so bleibt der Export beim Umzug in einen anderen Vault gültig. */

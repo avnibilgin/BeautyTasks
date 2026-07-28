@@ -2,7 +2,7 @@ import { Task, Priority, agendaDate } from "./types";
 // Nur als Typ: taskIndex holt sich umgekehrt orderChain von hier. Ein `import type` wird beim
 // Kompilieren entfernt und schließt den Zyklus, bevor er zur Laufzeit einer wird.
 import type { TaskIndex } from "./taskIndex";
-import { isInboxLink, isInboxName } from "./taskService";
+import { isInboxLink, isInboxName, baseName } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { groupLabel } from "./format";
 import { isDone, isTrashed } from "./statuses";   // statuses importiert nur types+i18n -> kein Zyklus
@@ -147,7 +147,6 @@ export const LAYOUTS: PageLayout[] = ["list", "board", "calendar"];
 /** Prioritäten wie im Aufgaben-Picker (4 Stufen). */
 export const FILTER_PRIORITIES: Priority[] = ["highest", "high", "medium", "normal"];
 
-const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO_RANK: Record<Priority, number> = { highest: 0, high: 1, medium: 2, normal: 3, low: 4, lowest: 5 };
 
 /**

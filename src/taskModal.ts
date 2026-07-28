@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform, HoverPopover } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, TaskFields } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, TaskFields, baseName } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
@@ -17,8 +17,6 @@ import { t, projectDisplayName } from "./i18n";
 // damit bestehende Importe (filterModal, quickAddModal) unverändert bleiben.
 export { PRIOS, PRIO_KEY };
 
-/** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
-const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /** Wie viele Aufgaben-Modale gerade offen sind. Seit Unteraufgaben SICH ÜBER ihr Elternmodal
  *  legen (statt es zu schließen), können es mehrere sein – dann darf das oberste beim Schließen
@@ -457,6 +455,13 @@ export class TaskModal extends Modal {
     // und anhaengen in einem Zug.
     const iframe = doc.body.createEl("iframe", { cls: "bt-print-frame", attr: { "aria-hidden": "true" } });
     // Inhalt liegt im iframe-Realm → nur Standard-DOM (kein Obsidian-createEl/addClass).
+    //
+    // Die fünf `obsidianmd/prefer-create-el`-Warnungen unten sind hier FEHLALARME und bleiben
+    // bewusst stehen: Die Regel schlägt `idoc.win.createEl(…)` vor. Obsidian erweitert damit aber
+    // die Prototypen SEINES Fensters; das iframe hat einen eigenen Realm mit eigenem
+    // `Document.prototype`, in dem weder `win` noch `createEl` existieren – der Vorschlag ließe
+    // sich übersetzen und schlüge zur Laufzeit fehl. Abschalten per eslint-disable verbietet die
+    // Projektkonfiguration (no-restricted-disable), also stehen die Warnungen mit dieser Begründung.
     const idoc = iframe.contentDocument, win = iframe.contentWindow;
     if (!idoc || !win) { iframe.remove(); return; }
     idoc.title = title;

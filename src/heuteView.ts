@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
+import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -332,7 +332,6 @@ function applyReadableWidth(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 }
 
 const byDue = (a: Task, b: Task) => (a.due ?? "").localeCompare(b.due ?? "");
-export const projectName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /** Einheitlicher Leerzustand für alle Boards: zentriert im Restraum, Icon + Text (Akzentfarbe).
  *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css. */
@@ -363,7 +362,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const isInbox = projectPath === INBOX_KEY;   // eingebaute Eingang-Ansicht (keine Notiz)
-  const name = isInbox ? "" : projectName(projectPath);
+  const name = isInbox ? "" : baseName(projectPath);
   // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist eine Systemansicht → kein Menü.
   const isArea = !isInbox && isAreaPath(plugin.app, projectPath);
   // ALLE (aktiv UND archiviert) durchsuchen: archivierte fehlen in listProjectsAndAreas, hätten also
@@ -379,7 +378,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   // Eingang = alle „nicht einsortierten" Aufgaben (kein Projekt ODER Verweis auf Inbox).
   const source = (): Task[] => isInbox
     ? plugin.index.inbox()
-    : plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
+    : plugin.index.all().filter((t) => t.project != null && baseName(t.project) === name);
   const tasks = source();
   if (!tasks.length) {
     if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
@@ -597,7 +596,7 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
   const colorOf = new Map(([...bereiche, ...projekte]).map((p) => [p.name, p.color] as const));
   // Nur ECHTE Projekte werden Spalten – „nicht einsortierte" (kein Projekt ODER Inbox-Verweis)
   // landen alle im einen Eingang-Bucket (unten), nie in einer eigenen Inbox-Spalte.
-  const present = new Set(tasks.filter((t) => t.project && !isInboxLink(t.project)).map((t) => projectName(t.project!)));
+  const present = new Set(tasks.filter((t) => t.project && !isInboxLink(t.project)).map((t) => baseName(t.project!)));
   const ordered = [
     ...plugin.sortProjItems("areas", bereiche.filter((p) => present.has(p.name))),
     ...plugin.sortProjItems("projects", projekte.filter((p) => present.has(p.name))),
@@ -606,8 +605,8 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
   for (const n of present) if (!names.includes(n)) names.push(n);   // Sicherheitsnetz (z. B. archivierte Liste)
   const cols: BoardColumn[] = names.map((name) => ({
     id: name, title: projectDisplayName(name), tint: colorOf.get(name) ?? "var(--bt-nav-project)", kind: "open",
-    has: (tk: Task) => !!tk.project && projectName(tk.project) === name,
-    onDrop: (tk: Task) => { if (!tk.project || projectName(tk.project) !== name) void plugin.setTaskProject(tk, name); },
+    has: (tk: Task) => !!tk.project && baseName(tk.project) === name,
+    onDrop: (tk: Task) => { if (!tk.project || baseName(tk.project) !== name) void plugin.setTaskProject(tk, name); },
     onAdd: () => plugin.openNewTask(name, add.label, add.today ?? false),
   }));
   if (tasks.some((t) => isInboxLink(t.project))) {
@@ -1093,7 +1092,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon). Labels
   // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
   const hideProject = o.group === "project" && top.length
-    ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
+    ? (isInboxLink(top[0].project) ? NO_PROJECT : baseName(top[0].project!)) : undefined;
   // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
   // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
   const impliedDate = dateImplied && eventKey ? eventKey : undefined;
@@ -1283,6 +1282,12 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
     // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).
     // Überfällige Deadlines (< heute) liegen im Sammel-Bucket „Überfällig" -> dort NICHT ausblenden.
+    // Anders als beim Datum genügt hier der Vergleich „nicht vergangen": Bei Gruppierung NACH
+    // DEADLINE bilden die Sektionen/Spalten sich aus genau diesem Feld, alle Zeilen einer Gruppe
+    // tragen also dieselbe Frist. Der einzige Sammel-Bucket ohne eigenes Datum ist „Überfällig"
+    // (scheduled < heute) – und dort soll der Chip ja gerade stehen bleiben. Ein Datumsvergleich
+    // wie bei impliedDate wäre möglich, verlangte aber, die Gruppen-Frist bis hierher zu reichen,
+    // ohne dass sich etwas am Ergebnis änderte.
     const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
     if (!(schedHide && !task.scheduledTime)) {
       const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
@@ -1353,7 +1358,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang);
     // „nicht einsortiert" = @Eingang.
     const inbox = isInboxLink(task.project);
-    const projName = inbox ? null : projectName(task.project!);
+    const projName = inbox ? null : baseName(task.project!);
     const backlink = !plugin.currentProject && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
     if (backlink) {
       const extras = row.createDiv({ cls: "bt-extras" });
