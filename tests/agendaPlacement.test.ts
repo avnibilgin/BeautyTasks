@@ -48,6 +48,13 @@ describe("Zeit-Ansichten: Platzierung", () => {
     expect(bucket(mk({ due: NAECHSTE_WOCHE, scheduled: GESTERN }))).toBe("überfällig");
   });
 
+  it("… aber NICHT, wenn die Aufgabe heute ohnehin dran ist", () => {
+    // Sonst stünde der halbe Heute-Abschnitt unter „Überfällig" – mit grünem „Heute" darunter.
+    // Dass die Frist gerissen ist, sagt der rote Deadline-Chip in der Zeile.
+    expect(bucket(mk({ due: TODAY, scheduled: GESTERN }))).toBe("heute");
+    expect(bucket(mk({ due: TODAY, scheduled: "2026-07-21" }))).toBe("heute");
+  });
+
   it("ohne beides steht die Aufgabe in keiner Zeit-Ansicht", () => {
     expect(agendaDate(mk())).toBeNull();
     expect(bucket(mk())).toBe("nirgends");

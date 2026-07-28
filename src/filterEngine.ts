@@ -264,9 +264,11 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
  */
 /** Überfällig: Fälligkeit verstrichen ODER Frist verstrichen. */
 export { agendaDate };
-/** Überfällig: Fälligkeit verstrichen ODER Frist verstrichen. */
+/** Überfällig: Fälligkeit verstrichen – oder Frist verstrichen, sofern die Aufgabe nicht
+ *  ohnehin heute dran ist. Wer heute daran arbeitet, gewinnt nichts dadurch, unter „Überfällig"
+ *  zu stehen; dass die Frist gerissen ist, sagt der rote Chip in seiner Zeile. */
 export const isOverdueTask = (t: Task, today: string): boolean =>
-  (!!t.due && t.due < today) || (!!t.scheduled && t.scheduled < today);
+  (!!t.due && t.due < today) || (!!t.scheduled && t.scheduled < today && t.due !== today);
 /** Steht heute an: Agenda-Datum ist heute und nichts daran ist verstrichen. */
 export const isTodayTask = (t: Task, today: string): boolean =>
   !isOverdueTask(t, today) && agendaDate(t) === today;
