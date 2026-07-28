@@ -951,14 +951,12 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // (Kompakt-Thema blendet ihn dann aus, außer Uhrzeit). „Überfällig"/„ohne Datum" bleiben unberührt.
     const dateImplied = groupKey === "date";
     const deadlineImplied = groupKey === "deadline";   // Spalte = Deadline-Datum -> Deadline-Chip in Karte redundant
-    // Ist das Datum sichtbar (Board NICHT nach Datum gruppiert), nach Tages-Distanz einfärben – wie in der Liste.
-    const distColor = !dateImplied;
     // Bei Projekt-Gruppierung ist die Spalte das Projekt (col.id = Name bzw. NO_PROJECT) -> @Projekt weglassen.
     const hideProject = groupKey === "project" ? col.id : undefined;
     // Datums-Spalten heißen „d:<ISO>" (s. dateColumns); „Überfällig"/„ohne Datum" tragen kein
     // einzelnes Datum und blenden deshalb nichts aus.
     const impliedDate = dateImplied && col.id.startsWith("d:") ? col.id.slice(2) : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, impliedDate, deadlineImplied, distColor, hideProject });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1107,10 +1105,6 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   const key = plugin.currentPage().key;
   const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
   const deadlineImplied = o.group === "deadline";   // Sektionen = Deadline-Datum -> Deadline-Chip redundant
-  // „Kompakt": Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7), ÜBERALL wo das
-  // Datum sichtbar ist – also wo keine Datums-Sektionsüberschrift es trägt (!dateImplied). Das gilt bei
-  // „Keine" UND bei Gruppierung nach Label/Priorität/Projekt (dort gibt es keine eindeutige Datums-Sektion).
-  const distColor = !dateImplied;
   // Bei Projekt-Gruppierung: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
   // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon). Labels
   // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
@@ -1125,7 +1119,7 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
   // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
   const impliedDate = dateImplied && eventKey ? eventKey : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, distColor, hideProject });
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1203,7 +1197,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; distColor?: boolean; hideProject?: string } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1289,17 +1283,14 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       const chip = meta.createSpan({ cls: "bt-chip bt-due" });
       chip.createSpan({ cls: "bt-meta-txt", text });   // Text im eigenen Span -> unabhängig vom Kalender-Icon justierbar
       chip.dataset.when = dueWhen(task.due, today);
-      // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7). Zwei Fälle:
-      //  • flache/nicht-datierte Liste (opts.distColor): der volle Datums-Chip trägt die Farbe.
-      //  • Datums-Gruppierung (compactHide): der Chip zeigt nur die Uhrzeit und ist DAS sichtbare
-      //    Datums-Element – auch er trägt die Tages-Farbe (sonst „greift" die Farbwahl hier nicht).
-      // Überfällig (< heute) behält seine data-when-Farbe (dist bleibt leer). compactHide ist nur bei
-      // due >= heute aktiv, dort ist off immer >= 0.
-      if (opts.distColor || compactHide) {
-        // Überfällig (< heute) behält seine rote data-when-Farbe (kein data-dist); ab Tag 8 heller Grau.
-        const dist = dueDist(task.due, today);
-        if (dist) chip.dataset.dist = dist;
-      }
+      // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7) – IMMER, wenn der
+      // Chip überhaupt gezeichnet wird. Früher hing das an einer Bedingung, die „Datum sichtbar"
+      // bloß annäherte (nicht datumsgruppiert ODER nur-Uhrzeit-Chip); seit in datierten Sektionen
+      // auch abweichende Fälligkeiten stehen können, hätte deren Datum sonst keine Distanzfarbe.
+      // Überfällig (< heute) behält seine rote data-when-Farbe (dueDist liefert dort ""); ab Tag 8
+      // heller Grau.
+      const dist = dueDist(task.due, today);
+      if (dist) chip.dataset.dist = dist;
       chip.onclick = (e) => {
         e.stopPropagation();
         openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),
@@ -1410,7 +1401,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
     // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. impliedDate wird bewusst
     // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
-    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: true });
+    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
   }
 }
 
