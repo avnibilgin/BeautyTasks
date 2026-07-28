@@ -17,10 +17,11 @@ function mk(id: string, o: Partial<Task> = {}): Task {
   };
 }
 
-/** Tages-Abschnitt: die Aufgabe steht dort schon, wenn sie an genau diesem Tag fällig ist. */
+/** „Demnächst"/Kalender rechnen je TAG: die Aufgabe steht dort, wenn sie an diesem Tag fällig ist. */
 const rowsOnDay = (day: string) => (t: Task): boolean => t.due === day;
-/** Abschnitt „Überfällig": die Aufgabe steht dort schon, wenn ihre Fälligkeit verstrichen ist. */
-const rowsOverdue = (today: string) => (t: Task): boolean => !!t.due && t.due < today;
+/** „Heute" ist EIN Zeitraum: die Aufgabe steht dort, wenn sie heute oder früher fällig ist
+ *  (Abschnitte Überfällig + Heute zusammen). */
+const rowsInHeute = (today: string) => (t: Task): boolean => !!t.due && t.due <= today;
 
 describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung im selben Abschnitt", () => {
   it("zeigt den Hinweis, wenn die Aufgabe gar keine Fälligkeit hat", () => {
@@ -44,15 +45,23 @@ describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung im selben Abschni
     expect(deadlineMarkers(tasks, rowsOnDay(TODAY)).map((t) => t.id)).toEqual(["a"]);
   });
 
-  it("„Überfällig“: heute fällige Aufgabe mit gestriger Deadline bekommt dort ihren Hinweis", () => {
-    // Zeile steht unter „Heute“, Hinweis unter „Überfällig“ – zwei Abschnitte, zwei Aussagen.
+  it("„Heute“: heute fällige Aufgabe mit gestriger Deadline bekommt KEINEN Hinweis", () => {
+    // Ihre Zeile steht unter „Heute“ und trägt die verstrichene Deadline als roten Chip – ein
+    // zusätzlicher Hinweis unter „Überfällig“ wäre dieselbe Aussage ein zweites Mal.
     const tasks = [mk("a", { due: TODAY, scheduled: "2026-07-27" })];
-    expect(deadlineMarkers(tasks, rowsOverdue(TODAY)).map((t) => t.id)).toEqual(["a"]);
+    expect(deadlineMarkers(tasks, rowsInHeute(TODAY))).toEqual([]);
   });
 
-  it("„Überfällig“: bereits überfällige Aufgabe bekommt dort KEINEN zusätzlichen Hinweis", () => {
-    const tasks = [mk("a", { due: "2026-07-20", scheduled: "2026-07-22" })];
-    expect(deadlineMarkers(tasks, rowsOverdue(TODAY))).toEqual([]);
+  it("„Heute“: überfällige Aufgabe mit heutiger Deadline bekommt KEINEN Hinweis", () => {
+    // Gegenprobe zum Fall darüber – die Ansicht ist EIN Zeitraum, nicht zwei.
+    const tasks = [mk("a", { due: "2026-07-20", scheduled: TODAY })];
+    expect(deadlineMarkers(tasks, rowsInHeute(TODAY))).toEqual([]);
+  });
+
+  it("„Heute“: künftig fällige Aufgabe mit heutiger Deadline bekommt ihren Hinweis", () => {
+    // Sie hat in „Heute“ keine eigene Zeile – ohne den Hinweis wäre die Deadline hier unsichtbar.
+    const tasks = [mk("a", { due: "2026-08-05", scheduled: TODAY })];
+    expect(deadlineMarkers(tasks, rowsInHeute(TODAY)).map((t) => t.id)).toEqual(["a"]);
   });
 
   it("lässt erledigte und abgebrochene Aufgaben weg", () => {

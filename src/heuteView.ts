@@ -133,13 +133,16 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // hat sonst nichts, was ihn anstößt – das macht sonst nur der Kalender).
     plugin.gcalFeed?.setRange(today, today);
     const todayEv = dayEvents(plugin, today);
-    // Deadline-Hinweise: „Überfällig ist überfällig" – eine verstrichene Deadline gehört in DEN
-    // Abschnitt, eine heutige unter „Heute". Die Entdopplung hängt am Abschnitt (s. deadlineMarkers):
-    // in „Überfällig" steht die Aufgabe schon, wenn ihre Fälligkeit verstrichen ist, unter „Heute",
-    // wenn sie heute fällig ist. Eine heute fällige Aufgabe mit gestriger Deadline zeigt deshalb
-    // beides – Zeile unter „Heute", Hinweis unter „Überfällig".
-    const dlOverdue = deadlineMarkers(idx.deadlineOverdue(today), (tk) => !!tk.due && tk.due < today);
-    const dlToday = deadlineMarkers(idx.deadlineOn(today), (tk) => tk.due === today);
+    // Deadline-Hinweise: eine verstrichene Deadline gehört unter „Überfällig", eine heutige unter
+    // „Heute". Entdoppelt wird gegen die GANZE Ansicht, nicht gegen den einzelnen Abschnitt:
+    // „Heute" ist EIN Zeitraum („was jetzt ansteht"), und wer hier schon mit seiner Zeile steht,
+    // trägt die Deadline sichtbar als eingefärbten Chip in der Meta-Zeile – ein zusätzlicher
+    // Hinweis wäre dieselbe Aussage ein zweites Mal. Eine Zeile hat die Ansicht für jede Aufgabe
+    // mit `due <= heute` (Überfällig + Heute). In „Demnächst"/Kalender ist der Bezug dagegen der
+    // TAG, dort erscheint die Deadline sehr wohl an ihrem eigenen Tag.
+    const hasRowHere = (tk: Task): boolean => !!tk.due && tk.due <= today;
+    const dlOverdue = deadlineMarkers(idx.deadlineOverdue(today), hasRowHere);
+    const dlToday = deadlineMarkers(idx.deadlineOn(today), hasRowHere);
     if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length && !dlOverdue.length && !dlToday.length) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "calendar") {

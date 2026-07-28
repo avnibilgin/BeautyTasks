@@ -252,16 +252,18 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
  * Modell (wie Todoist): Die Deadline dupliziert die Aufgabe nicht, sie ist ein eigener, nicht
  * abhakbarer Eintrag, der auf die Aufgabe zeigt. Deshalb die Regel:
  *
- *   Ein Hinweis erscheint genau dann, wenn die Deadline in DIESEN Abschnitt fällt und die
- *   Aufgabe dort nicht ohnehin schon mit ihrer eigenen Zeile steht.
+ *   Ein Hinweis erscheint genau dann, wenn die Deadline in den betrachteten Zeitraum fällt und
+ *   die Aufgabe dort nicht ohnehin schon mit ihrer eigenen Zeile steht.
  *
- * `candidates` sind die Aufgaben, deren Deadline in den Abschnitt fällt (index.deadlineOn /
- * deadlineOverdue / deadlinesByDate). `rowsHere` beantwortet, ob die Aufgabe in diesem Abschnitt
- * schon eine eigene Zeile hat – in Tages-Abschnitten also „due === Tag", im Abschnitt
- * „Überfällig" dagegen „due < heute". Genau diese Verallgemeinerung („gleicher Abschnitt" statt
- * „gleicher Tag") sorgt dafür, dass eine heute fällige Aufgabe mit gestriger Deadline BEIDES
- * zeigt – Zeile unter „Heute", Hinweis unter „Überfällig" –, eine seit gestern überfällige mit
- * letzter Woche verstrichener Deadline aber nur ihre Zeile.
+ * `candidates` sind die Aufgaben, deren Deadline in den Zeitraum fällt (index.deadlineOn /
+ * deadlineOverdue / deadlinesByDate). `rowsHere` beantwortet, ob die Aufgabe dort schon eine
+ * eigene Zeile hat – und WAS der Zeitraum ist, entscheidet der Aufrufer:
+ *
+ *   • „Heute" ist EIN Zeitraum („was jetzt ansteht"): `due <= heute`. Wer hier schon steht, trägt
+ *     die Deadline als eingefärbten Chip in seiner Meta-Zeile; ein Hinweis wäre dieselbe Aussage
+ *     ein zweites Mal – auch über die Abschnittsgrenze Überfällig/Heute hinweg.
+ *   • „Demnächst" und Kalender rechnen je TAG (`due === Tag`): dort ist eine Deadline zwei Tage
+ *     nach der Fälligkeit eine eigene Aussage an einer eigenen Stelle der Agenda.
  *
  * Sortierung wie überall: nach Uhrzeit, Terminloses ans Tagesende ("99:99", s. sortTasks).
  */
