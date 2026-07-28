@@ -66,26 +66,26 @@ export function formatDateTime(iso: string, today = todayStr()): string {
 }
 
 /**
- * Deadline-Chip: wie formatDateTime, aber eine VERSTRICHENE Deadline steht als Abstand da
- * („vor 3 Tagen") statt als Datum („25. Jul").
+ * Deadline-Chip: wie formatDateTime, aber innerhalb einer Woche steht der ABSTAND da statt des
+ * Datums – „Vor 3 Tagen" rückwärts, „In 3 Tagen" vorwärts, „Gestern"/„Heute"/„Morgen" direkt daneben.
  *
- * Der Grund ist Lesbarkeit: Ein absolutes Datum in der Vergangenheit zwingt zum Kopfrechnen,
- * bevor man die Verspätung spürt – gerade dort, wo es darauf ankommt. Nur die Deadline wird so
- * geschrieben, die Fälligkeit behält ihr Datum.
+ * Der Grund ist Lesbarkeit: Ein absolutes Datum zwingt zum Kopfrechnen, bevor man Verspätung oder
+ * Dringlichkeit spürt – gerade dort, wo es darauf ankommt. Als Countdown liest sich eine Frist,
+ * wie man sie denkt. Nur die Deadline wird so geschrieben, die Fälligkeit behält ihr Datum.
  *
- * Ab Tag 8 zurück wieder das Datum: „vor 143 Tagen" ist weder kurz noch hilfreich, und die
+ * Jenseits einer Woche wieder das Datum: „In 143 Tagen" ist weder kurz noch hilfreich, und die
  * Distanzfarben hören ebenfalls bei Tag 7 auf.
  *
  * Formuliert wird über Intl.RelativeTimeFormat – das liefert für alle zehn Sprachen die richtige
  * Pluralform (im Russischen etwa „3 дня назад", aber „5 дней назад") ohne eine einzige eigene
- * Übersetzung. `numeric: "auto"` erzeugt bei -1 von sich aus das Wort („gestern"). Groß geschrieben
- * wird immer – der Chip ist eine Beschriftung, keine Satzmitte, und beginnt damit wie „Heute",
- * „Morgen" und „25. Jul" der übrigen Datumsangaben.
+ * Übersetzung. `numeric: "auto"` erzeugt bei -1/0/+1 von sich aus die Wörter („gestern", „heute",
+ * „morgen") – die Sonderfälle aus formatDate entfallen damit hier. Groß geschrieben wird immer:
+ * Der Chip ist eine Beschriftung, keine Satzmitte, und beginnt wie „25. Jul" der übrigen Angaben.
  */
 export function formatDeadline(iso: string, today = todayStr()): string {
   const off = dayOffset(iso, today);
   const tm = timeOf(iso);
-  if (off >= 0 || off < -7) return formatDateTime(iso, today);
+  if (off < -7 || off > 7) return formatDateTime(iso, today);
   const rel = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" }).format(off, "day");
   return rel.charAt(0).toUpperCase() + rel.slice(1) + (tm ? " · " + tm : "");
 }

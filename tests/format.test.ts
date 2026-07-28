@@ -47,13 +47,17 @@ describe("formatDeadline – verstrichene Deadlines als Abstand", () => {
   it("hängt eine vorhandene Uhrzeit an", () => {
     expect(formatDeadline("2026-06-12T14:30", today)).toBe("3 days ago · 14:30");
   });
-  it("fällt ab Tag 8 auf das Datum zurück – „vor 143 Tagen“ hülfe niemandem", () => {
-    expect(formatDeadline("2026-06-07", today)).toBe("7 Jun");
+  it("schreibt auch künftige Deadlines als Countdown", () => {
+    expect(formatDeadline("2026-06-18", today)).toBe("In 3 days");
+    expect(formatDeadline("2026-06-22", today)).toBe("In 7 days");
   });
-  it("lässt Heute und Künftiges unverändert (nur Verstrichenes wird umgeschrieben)", () => {
+  it("nutzt bei heute/morgen ebenfalls das Wort", () => {
     expect(formatDeadline("2026-06-15", today)).toBe("Today");
     expect(formatDeadline("2026-06-16", today)).toBe("Tomorrow");
-    expect(formatDeadline("2026-06-24", today)).toBe("24 Jun");
+  });
+  it("fällt jenseits einer Woche auf das Datum zurück – „In 143 Tagen“ hülfe niemandem", () => {
+    expect(formatDeadline("2026-06-07", today)).toBe("7 Jun");    // 8 Tage zurück
+    expect(formatDeadline("2026-06-23", today)).toBe("23 Jun");   // 8 Tage voraus
   });
   it("bildet die Pluralformen der Zielsprache – auch die russischen", () => {
     setLocale("ru");
