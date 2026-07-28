@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dueDist, dateOf, groupLab
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, deadlineMarkers, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, deadlineMarkers, deadlineDriven, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -125,7 +125,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const idx = plugin.index;
   if (view === "heute") {
     const opts = plugin.pageViewOptions();
-    const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
+    // „Heute" ist die Arbeitsliste: Neben den Fälligkeiten stehen hier auch Aufgaben, deren
+    // DEADLINE fällig ist – als vollwertige Aufgaben, nicht als Hinweis. Sie verlangen heute
+    // Aufmerksamkeit, und der eingefärbte Deadline-Chip in ihrer Meta-Zeile erklärt, warum sie
+    // hier stehen. Verstrichene Deadlines landen in „Überfällig" (das ist ihr Zustand), heutige
+    // unter „Heute". Wer schon über seine Fälligkeit hier steht, kommt nicht doppelt (s. deadlineDriven).
+    const overdueDue = idx.overdue(today);
+    const dl = deadlineDriven(idx.open(), today);
+    const overdue = [...overdueDue, ...dl.overdue], dueToday = [...idx.dueToday(today), ...dl.today];
     const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
     const open = [...overdue, ...dueToday];
     // Termine des Tages (read-only) zählen mit: sonst behauptete „Nichts für heute" leeren Tag,
@@ -133,17 +140,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // hat sonst nichts, was ihn anstößt – das macht sonst nur der Kalender).
     plugin.gcalFeed?.setRange(today, today);
     const todayEv = dayEvents(plugin, today);
-    // Deadline-Hinweise: eine verstrichene Deadline gehört unter „Überfällig", eine heutige unter
-    // „Heute". Entdoppelt wird gegen die GANZE Ansicht, nicht gegen den einzelnen Abschnitt:
-    // „Heute" ist EIN Zeitraum („was jetzt ansteht"), und wer hier schon mit seiner Zeile steht,
-    // trägt die Deadline sichtbar als eingefärbten Chip in der Meta-Zeile – ein zusätzlicher
-    // Hinweis wäre dieselbe Aussage ein zweites Mal. Eine Zeile hat die Ansicht für jede Aufgabe
-    // mit `due <= heute` (Überfällig + Heute). In „Demnächst"/Kalender ist der Bezug dagegen der
-    // TAG, dort erscheint die Deadline sehr wohl an ihrem eigenen Tag.
-    const hasRowHere = (tk: Task): boolean => !!tk.due && tk.due <= today;
-    const dlOverdue = deadlineMarkers(idx.deadlineOverdue(today), hasRowHere);
-    const dlToday = deadlineMarkers(idx.deadlineOn(today), hasRowHere);
-    if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length && !dlOverdue.length && !dlToday.length) {
+    if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
@@ -171,14 +168,15 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
-        if (visibleRows(overdue, present, ownRow).length || dlOverdue.length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow, dlOverdue);
-          // „Verschieben" nur, wenn es wirklich überfällige AUFGABEN gibt – ein Abschnitt, der nur
-          // Deadline-Hinweise trägt, hat nichts zu verschieben (die Hinweise sind fremde Zeilen).
-          if (overdue.length) rescheduleButton(overdueHead, plugin, overdue);   // ALLE überfälligen, auch verschachtelte
+        if (visibleRows(overdue, present, ownRow).length) {
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
+          // „Verschieben" wirkt NUR auf die über ihre Fälligkeit überfälligen Aufgaben. Die wegen
+          // einer verstrichenen Deadline hier stehenden haben keine oder eine künftige Fälligkeit –
+          // ein Sammelzug würde die ungefragt verschieben.
+          if (overdueDue.length) rescheduleButton(overdueHead, plugin, overdueDue);
         }
-        if (visibleRows(dueToday, present, ownRow).length || todayEv.length || dlToday.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow, dlToday);
+        if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
@@ -189,20 +187,15 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           .filter((g) => visibleRows(g.tasks, present, ownRow).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        // Ohne Datums-Split gibt es keinen Abschnitt, dem eine verstrichene Deadline eindeutig
-        // gehörte – hier bekommen alle Hinweise DEN einen vorhersagbaren Platz: die „Heute"-Box,
-        // die auch die Termine trägt.
-        const dlAll = [...dlOverdue, ...dlToday];
-        const extras = todayEv.length > 0 || dlAll.length > 0;
-        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow, dlAll); };
-        if (extras && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
+        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow); };
+        if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow, isToday ? dlAll : []);
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow);
           // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
           // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
           // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
-          if (extras && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
+          if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
       if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, doneHosts);
@@ -1707,7 +1700,12 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
 function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
   const today = todayStr();
-  if (id === "heute") return plugin.index.overdue(today).length + plugin.index.dueToday(today).length;
+  if (id === "heute") {
+    // Wie die Ansicht selbst: Fälligkeiten PLUS die wegen ihrer Deadline aufgenommenen Aufgaben –
+    // sonst wiche das Abzeichen von dem ab, was beim Öffnen wirklich dasteht.
+    const dl = deadlineDriven(plugin.index.open(), today);
+    return plugin.index.overdue(today).length + plugin.index.dueToday(today).length + dl.overdue.length + dl.today.length;
+  }
   if (id === "demnaechst") return plugin.index.upcoming(today).length;
   if (id === "wiederkehrend") return plugin.index.open().filter((tk) => tk.recurrence).length;
   return 0;

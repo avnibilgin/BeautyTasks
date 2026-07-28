@@ -255,15 +255,14 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
  *   Ein Hinweis erscheint genau dann, wenn die Deadline in den betrachteten Zeitraum fällt und
  *   die Aufgabe dort nicht ohnehin schon mit ihrer eigenen Zeile steht.
  *
- * `candidates` sind die Aufgaben, deren Deadline in den Zeitraum fällt (index.deadlineOn /
- * deadlineOverdue / deadlinesByDate). `rowsHere` beantwortet, ob die Aufgabe dort schon eine
- * eigene Zeile hat – und WAS der Zeitraum ist, entscheidet der Aufrufer:
+ * `candidates` sind die Aufgaben, deren Deadline auf den Tag fällt (index.deadlinesByDate bzw.
+ * die Tagesbündel des Kalenders). `rowsHere` beantwortet, ob die Aufgabe an diesem Tag schon eine
+ * eigene Zeile hat (`due === Tag`) – dann trägt diese Zeile die Deadline als Chip und der Hinweis
+ * entfällt.
  *
- *   • „Heute" ist EIN Zeitraum („was jetzt ansteht"): `due <= heute`. Wer hier schon steht, trägt
- *     die Deadline als eingefärbten Chip in seiner Meta-Zeile; ein Hinweis wäre dieselbe Aussage
- *     ein zweites Mal – auch über die Abschnittsgrenze Überfällig/Heute hinweg.
- *   • „Demnächst" und Kalender rechnen je TAG (`due === Tag`): dort ist eine Deadline zwei Tage
- *     nach der Fälligkeit eine eigene Aussage an einer eigenen Stelle der Agenda.
+ * NUR für die chronologischen Ansichten („Demnächst", Kalender). „Heute" ist eine Arbeitsliste und
+ * nimmt fällige Deadlines stattdessen als vollwertige Aufgaben auf (s. deadlineDriven) – als
+ * zweite volle Zeile in einer Zeitleiste wüsste man dagegen nicht, welche man abarbeiten soll.
  *
  * Sortierung wie überall: nach Uhrzeit, Terminloses ans Tagesende ("99:99", s. sortTasks).
  */
@@ -272,6 +271,36 @@ export function deadlineMarkers(candidates: Task[], rowsHere: (t: Task) => boole
     .filter((t) => !isDone(t.status) && !isTrashed(t.status) && !rowsHere(t))
     .sort((a, b) => (a.scheduledTime ?? "99:99").localeCompare(b.scheduledTime ?? "99:99")
       || a.title.localeCompare(b.title));
+}
+
+/**
+ * Aufgaben, die NUR wegen ihrer Deadline nach „Heute" gehören.
+ *
+ * „Heute" ist die Arbeitsliste: Was heute Aufmerksamkeit verlangt, steht dort als vollwertige
+ * Aufgabe – mit Checkbox, Meta-Zeile und allem. Eine fällige Deadline verlangt Aufmerksamkeit,
+ * also gehört die Aufgabe hinein, auch wenn sie erst später (oder gar nicht) fällig ist. Warum
+ * sie dort steht, erklärt der eingefärbte Deadline-Chip in ihrer Meta-Zeile.
+ *
+ * Ausgenommen sind Aufgaben, die schon ÜBER IHRE FÄLLIGKEIT in der Ansicht stehen (`due <= heute`):
+ * sie sind bereits da, ein zweiter Eintrag wäre eine Dopplung.
+ *
+ * Aufteilung auf die Abschnitte nach dem Zustand der Deadline: verstrichen -> „Überfällig"
+ * (das IST ihr Zustand), heute -> „Heute".
+ *
+ * Nur für „Heute". „Demnächst" und der Kalender sind chronologische Karten; dort steht die Aufgabe
+ * bereits an ihrem Fälligkeitstag und die Deadline erscheint als eigener Hinweis an ihrem eigenen
+ * Tag (s. deadlineMarkers) – als zweite vollwertige Zeile wüsste man nicht, welche der beiden man
+ * abarbeiten soll.
+ */
+export function deadlineDriven(tasks: Task[], today: string): { overdue: Task[]; today: Task[] } {
+  const out: { overdue: Task[]; today: Task[] } = { overdue: [], today: [] };
+  for (const t of tasks) {
+    if (isDone(t.status) || isTrashed(t.status)) continue;
+    if (!t.scheduled || t.scheduled > today) continue;      // keine oder künftige Deadline
+    if (t.due && t.due <= today) continue;                  // steht schon über die Fälligkeit hier
+    (t.scheduled < today ? out.overdue : out.today).push(t);
+  }
+  return out;
 }
 
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */

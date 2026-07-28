@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { Task } from "../src/types";
-import { deadlineMarkers } from "../src/filterEngine";
+import { deadlineMarkers, deadlineDriven } from "../src/filterEngine";
 import { initStatuses } from "../src/statuses";
 
 beforeAll(() => initStatuses());
@@ -17,13 +17,11 @@ function mk(id: string, o: Partial<Task> = {}): Task {
   };
 }
 
-/** „Demnächst"/Kalender rechnen je TAG: die Aufgabe steht dort, wenn sie an diesem Tag fällig ist. */
+/** „Demnächst"/Kalender rechnen je TAG: die Aufgabe steht dort, wenn sie an diesem Tag fällig ist.
+ *  (In „Heute" gibt es keine Hinweise mehr – dort greift deadlineDriven, s. unten.) */
 const rowsOnDay = (day: string) => (t: Task): boolean => t.due === day;
-/** „Heute" ist EIN Zeitraum: die Aufgabe steht dort, wenn sie heute oder früher fällig ist
- *  (Abschnitte Überfällig + Heute zusammen). */
-const rowsInHeute = (today: string) => (t: Task): boolean => !!t.due && t.due <= today;
 
-describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung im selben Abschnitt", () => {
+describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung am selben Tag", () => {
   it("zeigt den Hinweis, wenn die Aufgabe gar keine Fälligkeit hat", () => {
     const tasks = [mk("a", { scheduled: TODAY })];
     expect(deadlineMarkers(tasks, rowsOnDay(TODAY)).map((t) => t.id)).toEqual(["a"]);
@@ -45,25 +43,6 @@ describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung im selben Abschni
     expect(deadlineMarkers(tasks, rowsOnDay(TODAY)).map((t) => t.id)).toEqual(["a"]);
   });
 
-  it("„Heute“: heute fällige Aufgabe mit gestriger Deadline bekommt KEINEN Hinweis", () => {
-    // Ihre Zeile steht unter „Heute“ und trägt die verstrichene Deadline als roten Chip – ein
-    // zusätzlicher Hinweis unter „Überfällig“ wäre dieselbe Aussage ein zweites Mal.
-    const tasks = [mk("a", { due: TODAY, scheduled: "2026-07-27" })];
-    expect(deadlineMarkers(tasks, rowsInHeute(TODAY))).toEqual([]);
-  });
-
-  it("„Heute“: überfällige Aufgabe mit heutiger Deadline bekommt KEINEN Hinweis", () => {
-    // Gegenprobe zum Fall darüber – die Ansicht ist EIN Zeitraum, nicht zwei.
-    const tasks = [mk("a", { due: "2026-07-20", scheduled: TODAY })];
-    expect(deadlineMarkers(tasks, rowsInHeute(TODAY))).toEqual([]);
-  });
-
-  it("„Heute“: künftig fällige Aufgabe mit heutiger Deadline bekommt ihren Hinweis", () => {
-    // Sie hat in „Heute“ keine eigene Zeile – ohne den Hinweis wäre die Deadline hier unsichtbar.
-    const tasks = [mk("a", { due: "2026-08-05", scheduled: TODAY })];
-    expect(deadlineMarkers(tasks, rowsInHeute(TODAY)).map((t) => t.id)).toEqual(["a"]);
-  });
-
   it("lässt erledigte und abgebrochene Aufgaben weg", () => {
     const tasks = [mk("a", { scheduled: TODAY, status: "done" }), mk("b", { scheduled: TODAY, status: "cancelled" })];
     expect(deadlineMarkers(tasks, rowsOnDay(TODAY))).toEqual([]);
@@ -76,5 +55,44 @@ describe("deadlineMarkers – Deadline-Hinweise ohne Doppelung im selben Abschni
       mk("frueh", { scheduled: TODAY, scheduledTime: "08:30" }),
     ];
     expect(deadlineMarkers(tasks, rowsOnDay(TODAY)).map((t) => t.id)).toEqual(["frueh", "spaet", "ohne"]);
+  });
+});
+
+describe("deadlineDriven – wegen ihrer Deadline in „Heute“ aufgenommene Aufgaben", () => {
+  it("nimmt Aufgaben ohne Fälligkeit auf: Deadline heute -> „Heute“, verstrichen -> „Überfällig“", () => {
+    const r = deadlineDriven([
+      mk("heute", { scheduled: TODAY }),
+      mk("alt", { scheduled: "2026-07-20" }),
+    ], TODAY);
+    expect(r.today.map((t) => t.id)).toEqual(["heute"]);
+    expect(r.overdue.map((t) => t.id)).toEqual(["alt"]);
+  });
+
+  it("nimmt Aufgaben mit KÜNFTIGER Fälligkeit auf – sie stehen sonst nicht in der Ansicht", () => {
+    const r = deadlineDriven([mk("a", { due: "2026-08-05", scheduled: TODAY })], TODAY);
+    expect(r.today.map((t) => t.id)).toEqual(["a"]);
+  });
+
+  it("lässt Aufgaben weg, die schon über ihre Fälligkeit dort stehen (heute fällig oder überfällig)", () => {
+    // Sonst stünden sie doppelt: einmal wegen der Fälligkeit, einmal wegen der Deadline.
+    const r = deadlineDriven([
+      mk("heuteFaellig", { due: TODAY, scheduled: TODAY }),
+      mk("ueberfaellig", { due: "2026-07-20", scheduled: TODAY }),
+      mk("ueberfaellig2", { due: "2026-07-20", scheduled: "2026-07-22" }),
+    ], TODAY);
+    expect(r.today).toEqual([]);
+    expect(r.overdue).toEqual([]);
+  });
+
+  it("lässt künftige Deadlines weg (die gehören nach „Demnächst“)", () => {
+    expect(deadlineDriven([mk("a", { scheduled: "2026-08-05" })], TODAY)).toEqual({ overdue: [], today: [] });
+  });
+
+  it("lässt erledigte und abgebrochene Aufgaben weg", () => {
+    const r = deadlineDriven([
+      mk("d", { scheduled: TODAY, status: "done" }),
+      mk("c", { scheduled: TODAY, status: "cancelled" }),
+    ], TODAY);
+    expect(r).toEqual({ overdue: [], today: [] });
   });
 });

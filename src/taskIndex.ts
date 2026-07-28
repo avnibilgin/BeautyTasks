@@ -273,14 +273,11 @@ export class TaskIndex extends Component {
   upcoming(today: string): Task[] {
     return this.open().filter((t) => !!t.due && t.due > today).sort((a, b) => a.due!.localeCompare(b.due!));
   }
-  // ── Deadlines (`scheduled`) als Hinweis-Einträge in den Datums-Ansichten ──
-  // Rohe Auswahl nach Deadline-Datum – OHNE die Entdopplungs-Regel. Welche davon in einem
-  // Abschnitt wirklich als Hinweis erscheinen, entscheidet deadlineMarkers (filterEngine):
-  // die Regel hängt am Abschnitt, nicht an der Aufgabe, und gehört deshalb nicht hierher.
-  /** Offene Aufgaben mit verstrichener Deadline (für den Abschnitt „Überfällig"). */
-  deadlineOverdue(today: string): Task[] { return this.open().filter((t) => !!t.scheduled && t.scheduled < today); }
-  /** Offene Aufgaben mit Deadline an genau diesem Tag. */
-  deadlineOn(date: string): Task[] { return this.open().filter((t) => t.scheduled === date); }
+  // ── Deadlines (`scheduled`) als Hinweis-Einträge in den chronologischen Ansichten ──
+  // Rohe Auswahl nach Deadline-Datum – OHNE die Entdopplungs-Regel. Welche davon an einem Tag
+  // wirklich als Hinweis erscheinen, entscheidet deadlineMarkers (filterEngine): die Regel hängt
+  // am Tag, nicht an der Aufgabe, und gehört deshalb nicht hierher. In „Heute" gibt es keine
+  // Hinweise – dort werden fällige Deadlines zu vollwertigen Aufgaben (s. deadlineDriven).
   /** Künftige Deadlines nach Tag gebündelt (für „Demnächst"). */
   deadlinesByDate(today: string): Map<string, Task[]> {
     const m = new Map<string, Task[]>();
