@@ -364,9 +364,10 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
     body.empty();
     const draws: ((p: HTMLElement) => void)[] = [
       ...events.map((de) => (p: HTMLElement) => renderEventChip(p, de)),
-      ...tasks.map((tk) => (p: HTMLElement) => renderChip(p, plugin, tk)),
-      // Deadline-Hinweise nach den Aufgaben: sie sind Zeiger, keine Arbeit an diesem Tag.
+      // Deadline-Hinweise VOR den Aufgaben (wie in den Listen): sie sagen, was an diesem Tag zu
+      // Ende gehen muss, und rahmen damit die Arbeit darunter.
       ...deadlines.map((tk) => (p: HTMLElement) => { renderDeadlineRow(p, plugin, tk, today, { compact: true }); }),
+      ...tasks.map((tk) => (p: HTMLElement) => renderChip(p, plugin, tk)),
     ];
     const shown = shownChips(draws.length, fit);
     const list = body.createDiv({ cls: "bt-calview-chips" });
@@ -513,12 +514,12 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
       const cell = alldayCells.get(day)!;
       cell.empty();
       for (const de of allDayEventsOf(dayEvents)) renderEventChip(cell, de);
-      for (const tk of allDayOf(dayTasks)) renderChip(cell, plugin, tk);
       // Deadline-Hinweise in die Ganztägig-Zeile – AUCH die mit Uhrzeit. Eine Deadline belegt
       // keinen Zeitraum, sie ist ein Stichtag; als Block im Raster würde sie Breite von echter
       // Arbeit wegnehmen und eine Dauer vortäuschen, die es nicht gibt. Die Uhrzeit steht im
-      // Eintrag selbst.
+      // Eintrag selbst. Vor den ganztägigen Aufgaben, wie überall.
       for (const tk of deadlines.get(day) ?? []) renderDeadlineRow(cell, plugin, tk, today, { compact: true });
+      for (const tk of allDayOf(dayTasks)) renderChip(cell, plugin, tk);
 
       const col = cols.get(day)!;
       for (const old of Array.from(col.children)) {
