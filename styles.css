@@ -1084,6 +1084,9 @@ body {
   /* Kalender: Block und Panel-Karte vererben ihre Zeilenhöhe an die Checkbox -> 1lh stimmt bereits. */
   .bt-calview-block .bt-check.bt-check-sm,
   .bt-calview-panel-card .bt-check.bt-check-sm { margin-top: calc((1lh - 13px) / 2); }
+  /* Deadline-Aufklappfeld: wie die Liste – der Titel hat line-height 1.4, die Checkbox erbt sie
+     nicht. Ohne diese Zeile bliebe es beim festen 2px-Notnagel, und der Kreis säße zu hoch. */
+  .bt-dl-panel .bt-dl-panel-row > .bt-check { line-height: 1.4; margin-top: calc((1lh - 16px) / 2); }
 }
 .bt-check:hover { border-color: var(--text-muted); }
 /* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben ohne Status-Icon). */
