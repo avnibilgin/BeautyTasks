@@ -2569,7 +2569,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Der Behälter behält das Checkbox-Maß, damit die Titelspalte exakt dort beginnt wie in der
    Aufgabenzeile; der Überstand verteilt sich mittig, die Kreise sitzen auf derselben Achse. */
 .bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; color: var(--bt-sched); }
-.bt-deadline-ic svg { width: 19px; height: 19px; flex-shrink: 0; stroke-width: 2.5px; }
+.bt-deadline-ic svg { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 2.5px; }
 .bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-deadline-time { flex-shrink: 0; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 /* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. */
