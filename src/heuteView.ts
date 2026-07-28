@@ -127,14 +127,17 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const opts = plugin.pageViewOptions();
     // „Heute" ist die Arbeitsliste: Neben den Fälligkeiten stehen hier auch Aufgaben, deren
     // DEADLINE fällig ist – als vollwertige Aufgaben, nicht als Hinweis. Sie verlangen heute
-    // Aufmerksamkeit, und der eingefärbte Deadline-Chip in ihrer Meta-Zeile erklärt, warum sie
-    // hier stehen. Verstrichene Deadlines landen in „Überfällig" (das ist ihr Zustand), heutige
-    // unter „Heute". Wer schon über seine Fälligkeit hier steht, kommt nicht doppelt (s. deadlineDriven).
-    const overdueDue = idx.overdue(today);
-    const dl = deadlineDriven(idx.open(), today);
-    const overdue = [...overdueDue, ...dl.overdue], dueToday = [...idx.dueToday(today), ...dl.today];
+    // Aufmerksamkeit; wer schon über seine Fälligkeit hier steht, kommt nicht doppelt (deadlineDriven).
+    //
+    // Sie bekommen einen EIGENEN Abschnitt, statt sich unter „Überfällig"/„Heute" zu mischen: Diese
+    // Überschriften sagen etwas über die FÄLLIGKEIT, und eine morgen fällige Aufgabe unter
+    // „Überfällig" liest sich als Widerspruch. Ein Abschnitt, der den Grund nennt, stimmt dagegen
+    // für jede Variante – ob ohne Fälligkeit, morgen oder nächste Woche fällig. Dasselbe Muster
+    // nutzt OmniFocus in seiner Tagesansicht (Abschnitte „Due", „Deferred", „Flagged").
+    const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
+    const dlDue = deadlineDriven(idx.open(), today);
     const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
-    const open = [...overdue, ...dueToday];
+    const open = [...overdue, ...dueToday, ...dlDue];
     // Termine des Tages (read-only) zählen mit: sonst behauptete „Nichts für heute" leeren Tag,
     // obwohl der Kalender voller Meetings steckt. setRange meldet dem Feed den Zeitraum (Listen-Layout
     // hat sonst nichts, was ihn anstößt – das macht sonst nur der Kalender).
@@ -168,12 +171,18 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
+        // — Deadline — ganz oben: was heute zu Ende gehen muss, rahmt die Arbeit darunter.
+        // Sortiert nach Deadline (die Achse dieses Abschnitts), nicht nach opts.sort – die
+        // dringendste zuerst, so wie die Datums-Abschnitte chronologisch stehen.
+        // Eigene Zeile bekommt hier jede Aufgabe mit Deadline (agendaOwnRow „deadline"); ohne das
+        // verschwände eine Unteraufgabe unter ihrem Parent – also genau die, um die es hier geht.
+        const dlOwnRow = agendaOwnRow("deadline");
+        if (visibleRows(dlDue, present, dlOwnRow).length) {
+          section(root, plugin, t("chip_deadline"), sortTasks(dlDue, "deadline", "asc", orderKey(plugin)), today, false, false, present, [], "", dlOwnRow);
+        }
         if (visibleRows(overdue, present, ownRow).length) {
           const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
-          // „Verschieben" wirkt NUR auf die über ihre Fälligkeit überfälligen Aufgaben. Die wegen
-          // einer verstrichenen Deadline hier stehenden haben keine oder eine künftige Fälligkeit –
-          // ein Sammelzug würde die ungefragt verschieben.
-          if (overdueDue.length) rescheduleButton(overdueHead, plugin, overdueDue);
+          rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
         if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
           section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
@@ -1708,8 +1717,8 @@ function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
   if (id === "heute") {
     // Wie die Ansicht selbst: Fälligkeiten PLUS die wegen ihrer Deadline aufgenommenen Aufgaben –
     // sonst wiche das Abzeichen von dem ab, was beim Öffnen wirklich dasteht.
-    const dl = deadlineDriven(plugin.index.open(), today);
-    return plugin.index.overdue(today).length + plugin.index.dueToday(today).length + dl.overdue.length + dl.today.length;
+    return plugin.index.overdue(today).length + plugin.index.dueToday(today).length
+      + deadlineDriven(plugin.index.open(), today).length;
   }
   if (id === "demnaechst") return plugin.index.upcoming(today).length;
   if (id === "wiederkehrend") return plugin.index.open().filter((tk) => tk.recurrence).length;

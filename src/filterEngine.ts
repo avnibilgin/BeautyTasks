@@ -284,23 +284,19 @@ export function deadlineMarkers(candidates: Task[], rowsHere: (t: Task) => boole
  * Ausgenommen sind Aufgaben, die schon ÜBER IHRE FÄLLIGKEIT in der Ansicht stehen (`due <= heute`):
  * sie sind bereits da, ein zweiter Eintrag wäre eine Dopplung.
  *
- * Aufteilung auf die Abschnitte nach dem Zustand der Deadline: verstrichen -> „Überfällig"
- * (das IST ihr Zustand), heute -> „Heute".
+ * Sie bilden dort einen EIGENEN Abschnitt („Deadline"), statt sich unter „Überfällig"/„Heute" zu
+ * mischen – deren Überschriften sagen etwas über die Fälligkeit, und eine morgen fällige Aufgabe
+ * unter „Überfällig" läse sich als Widerspruch.
  *
  * Nur für „Heute". „Demnächst" und der Kalender sind chronologische Karten; dort steht die Aufgabe
  * bereits an ihrem Fälligkeitstag und die Deadline erscheint als eigener Hinweis an ihrem eigenen
  * Tag (s. deadlineMarkers) – als zweite vollwertige Zeile wüsste man nicht, welche der beiden man
  * abarbeiten soll.
  */
-export function deadlineDriven(tasks: Task[], today: string): { overdue: Task[]; today: Task[] } {
-  const out: { overdue: Task[]; today: Task[] } = { overdue: [], today: [] };
-  for (const t of tasks) {
-    if (isDone(t.status) || isTrashed(t.status)) continue;
-    if (!t.scheduled || t.scheduled > today) continue;      // keine oder künftige Deadline
-    if (t.due && t.due <= today) continue;                  // steht schon über die Fälligkeit hier
-    (t.scheduled < today ? out.overdue : out.today).push(t);
-  }
-  return out;
+export function deadlineDriven(tasks: Task[], today: string): Task[] {
+  return tasks.filter((t) => !isDone(t.status) && !isTrashed(t.status)
+    && !!t.scheduled && t.scheduled <= today      // Deadline fällig (heute oder verstrichen)
+    && !(t.due && t.due <= today));               // steht nicht schon über die Fälligkeit hier
 }
 
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
