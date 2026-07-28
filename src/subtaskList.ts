@@ -176,19 +176,20 @@ export class SubtaskList {
       const dist = dueDist(kid.due, todayStr());
       if (dist) chip.dataset.dist = dist;
     }
-    if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
-    // Erinnerung/Deadline/Anhänge wie in der Liste (renderTask, gleiche Reihenfolge): die
-    // Zeile im Modal soll dieselbe Meta-Zeile tragen wie dieselbe Aufgabe in der Liste.
+    // Deadline/Wiederholung/Erinnerung/Anhänge wie in der Liste (renderTask, gleiche Reihenfolge):
+    // die Zeile im Modal soll dieselbe Meta-Zeile tragen wie dieselbe Aufgabe in der Liste – also
+    // auch die Deadline direkt hinter der Fälligkeit.
     // Wiederverwendet werden die GLOBALEN Klassen .bt-remind/.bt-comments (Theme-Farben
     // --bt-c-remind/--bt-c-comments inklusive) – das Modal passt nur die Größe an (CSS).
+    if (kid.scheduled) {
+      meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDeadline(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
+    }
+    if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
     if (kid.reminders.length) {
       const rem = meta().createSpan({ cls: "bt-remind", attr: { "aria-label": kid.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
       setIcon(rem, "alarm-clock");
     }
     for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });
-    if (kid.scheduled) {
-      meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDeadline(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
-    }
     const comments = this.plugin.index.commentsOf(kid.path);
     if (comments > 0) {
       const chip = meta().createSpan({ cls: "bt-comments" });

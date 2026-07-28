@@ -1298,17 +1298,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       };
     }
   }
-  if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
-  // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.
-  if (task.reminders.length) {
-    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
-    setIcon(rem, "alarm-clock");
-  }
-  // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
-  // ALLE Labels der Aufgabe werden gezeigt – auch auf einer #Label-Seite bzw. bei Gruppierung nach Label
-  // das gleichnamige. Selektives Ausblenden verwirrt, sobald eine Aufgabe mehrere Labels hat (anders als
-  // beim @Projekt-Backlink, wo eine Aufgabe genau ein Projekt hat).
-  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
+  // Deadline DIREKT hinter der Fälligkeit: die beiden gehören zusammen („wann arbeite ich daran"
+  // und „wann muss es fertig sein") und werden meist im Vergleich gelesen. Zwischen ihnen standen
+  // vorher Wiederholung, Erinnerung und sämtliche Labels.
   if (task.scheduled) {
     // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
     // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).
@@ -1321,6 +1313,17 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
     }
   }
+  if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
+  // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.
+  if (task.reminders.length) {
+    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
+    setIcon(rem, "alarm-clock");
+  }
+  // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
+  // ALLE Labels der Aufgabe werden gezeigt – auch auf einer #Label-Seite bzw. bei Gruppierung nach Label
+  // das gleichnamige. Selektives Ausblenden verwirrt, sobald eine Aufgabe mehrere Labels hat (anders als
+  // beim @Projekt-Backlink, wo eine Aufgabe genau ein Projekt hat).
+  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
   const comments = plugin.index.commentsOf(task.path);
   if (comments > 0) {
