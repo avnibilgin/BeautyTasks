@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { openPopover } from "./popover";
-import { dueWhen } from "./format";
+import { combineDT, formatDateTime, dueWhen } from "./format";
 import { t } from "./i18n";
 
 /**
@@ -26,16 +26,21 @@ interface Panel { el: HTMLElement; close: () => void; }
 /** Aufklapp-Feld: die echte Aufgabenzeile mit Checkbox. Bewusst schlank nachgebaut statt
  *  renderTask zu importieren – das lebt in heuteView und ergäbe genau den Zyklus, den diese
  *  Datei vermeidet. Die Checkbox ist die ECHTE (renderCheck + Delegation), also voll bedienbar. */
-function openPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin, task: Task, onClose: () => void): Panel | null {
+function openPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, onClose: () => void): Panel | null {
   let panel: Panel | null = null;
   openPopover(anchor, (pop, close) => {
     panel = { el: pop, close };
     pop.addClass("bt-dl-panel");
     installCheckDelegation(pop, plugin);        // Popover hängt am Body, nicht in der View
-    // NUR Checkbox und Titel – kein Kopf mit Deadline-Datum: das steht bereits in der Zeile, an
-    // der das Feld hängt. Auch Fälligkeit, Labels und übrige Meta-Angaben bleiben bewusst weg; wer
-    // sie braucht, geht über „Zur Aufgabe". Das Feld soll eine Entscheidung ermöglichen (abhaken
-    // oder hingehen), keine zweite Aufgabenzeile sein.
+    // Kopf: worum es hier geht – die DEADLINE, mit Datum und (falls gesetzt) Uhrzeit. In der Zeile
+    // selbst steht bei künftigen Deadlines nur die Uhrzeit; hier ist das vollständige Datum ablesbar.
+    const head = pop.createDiv({ cls: "bt-dl-panel-head" });
+    if (task.scheduled) head.dataset.when = dueWhen(task.scheduled, today);
+    setIcon(head.createSpan({ cls: "bt-dl-panel-head-ic" }), "clock");
+    head.createSpan({ text: task.scheduled ? formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) : t("chip_deadline") });
+    // Darunter NUR Checkbox und Titel: Fälligkeit, Labels und übrige Meta-Angaben bleiben bewusst
+    // weg; wer sie braucht, geht über „Zur Aufgabe". Das Feld soll eine Entscheidung ermöglichen
+    // (abhaken oder hingehen), keine zweite Aufgabenzeile sein.
     const row = pop.createDiv({ cls: "bt-dl-panel-row" });
     renderCheck(row, plugin, task);
     row.createDiv({ cls: "bt-dl-panel-title", text: task.title });
@@ -86,7 +91,7 @@ export function renderDeadlineRow(parent: HTMLElement, plugin: BeautyTasksPlugin
     // Die Zeile kann zwischen Hover und Timerablauf neu gezeichnet worden sein – dann hinge das
     // Feld an einem gelösten Element und positionierte sich ins Leere.
     if (!row.isConnected || panel) return;
-    panel = openPanel(row, plugin, task, () => { panel = null; });
+    panel = openPanel(row, plugin, task, today, () => { panel = null; });
     // Wandert die Maus INS Feld, darf es nicht schließen; verlässt sie es, schließt es wie die Zeile.
     panel?.el.addEventListener("mouseenter", () => { if (closeTimer !== null) { window.clearTimeout(closeTimer); closeTimer = null; } });
     panel?.el.addEventListener("mouseleave", () => scheduleHide());
