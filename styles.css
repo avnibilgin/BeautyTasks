@@ -1087,6 +1087,10 @@ body {
   /* Deadline-Aufklappfeld: wie die Liste – der Titel hat line-height 1.4, die Checkbox erbt sie
      nicht. Ohne diese Zeile bliebe es beim festen 2px-Notnagel, und der Kreis säße zu hoch. */
   .bt-dl-panel .bt-dl-panel-row > .bt-check { line-height: 1.4; margin-top: calc((1lh - 16px) / 2); }
+  /* Deadline-Zeile: dieselbe Rechnung, nur gegen die 18px-Uhr. Die Zeile setzt line-height 1.4
+     bereits selbst, das Symbol erbt sie hier also – anders als die Checkbox in der Aufgabenzeile. */
+  .bt-deadline-row > .bt-deadline-ic { margin-top: calc((1lh - 18px) / 2); }
+  .bt-deadline-row.bt-deadline-sm > .bt-deadline-ic { margin-top: calc((1lh - 15px) / 2); }
 }
 .bt-check:hover { border-color: var(--text-muted); }
 /* Hover-Hinweis: dezentes Häkchen im Kreis (nur bei offenen Aufgaben ohne Status-Icon). */
@@ -2561,7 +2565,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    die Hinweise lauter machen als die Aufgaben, um die es eigentlich geht. */
 .bt-deadline-row {
   position: relative;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   padding: 5px 2px;
   cursor: pointer;
   line-height: 1.4;
@@ -2581,7 +2585,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    dessen Breite zusammengedrückt – die Vergrößerung bliebe wirkungslos.
    Der Behälter behält das Checkbox-Maß, damit die Titelspalte exakt dort beginnt wie in der
    Aufgabenzeile; der Überstand verteilt sich mittig, die Kreise sitzen auf derselben Achse. */
-.bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; }
+/* Ausrichtung wie an der Aufgabenzeile: oben ausrichten und das Symbol per Formel auf die Mitte
+   der ERSTEN Textzeile setzen – statt es über die ganze Zeile zu zentrieren. Sichtbar ist das
+   heute identisch (der Titel ist einzeilig abgeschnitten); der Unterschied greift, sobald die
+   Zeile je mehrzeilig würde. Dann bliebe das Symbol auf der ersten Zeile, wie die Checkbox. */
+.bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; align-self: start; margin-top: 2px; }
 .bt-deadline-ic svg { width: 18px; height: 18px; flex-shrink: 0; }
 .bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-deadline-time { flex-shrink: 0; font-size: 0.85em; color: var(--text-faint); font-variant-numeric: tabular-nums; }
