@@ -2547,38 +2547,37 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-color-settings.is-locked { opacity: 0.5; }
 
 /* ── Deadline-Hinweis ─────────────────────────────────────────────────────────
-   Kein Aufgaben-Ersatz, sondern ein Zeiger: Uhr-Symbol statt Abhak-Kreis, Titel
-   gedämpft, per Klick zur Aufgabe. Ausrichtung wie die Aufgabenzeile (links auf
-   der Achse der Checkbox), damit Zeilen und Hinweise eine Spalte bilden. */
+   Kein Aufgaben-Ersatz, sondern ein Zeiger: Uhr-Symbol statt Abhak-Kreis, per Klick zur Aufgabe.
+   Ausrichtung wie die Aufgabenzeile (links auf der Achse der Checkbox), damit Zeilen und Hinweise
+   eine Spalte bilden.
+   Der Titel sieht aus wie ein Aufgabentitel: geerbte Textfarbe und -größe, Zeilenhöhe 1.4 wie
+   .bt-title. Die Dringlichkeit trägt allein das Symbol – ein zusätzlich eingefärbter Titel würde
+   die Hinweise lauter machen als die Aufgaben, um die es eigentlich geht. */
 .bt-deadline-row {
   position: relative;
   display: flex; align-items: center; gap: 10px;
   padding: 5px 2px;
   cursor: pointer;
-  color: var(--text-muted);
-  font-size: 0.94em;
+  line-height: 1.4;
 }
 .bt-deadline-row:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 .bt-deadline-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
-/* Uhr auf Checkbox-Maß, kräftigerer Strich: Hinweis und Aufgabenzeile bilden links eine Spalte
-   gleicher optischer Gewichtung.
-   Die Zeichenfläche ist um die Umrandung der Checkbox (2 × 1.5px) größer als deren Kasten, weil
+/* Uhr optisch auf Checkbox-Maß: Die Zeichenfläche ist etwas größer als der Checkbox-Kasten, weil
    der Lucide-Kreis mit Rand INNERHALB seiner Fläche sitzt und sie nicht ausfüllt. `flex-shrink: 0`
    ist dabei Pflicht: Als Flex-Kind eines schmaleren Behälters würde die Uhr sonst wieder auf
    dessen Breite zusammengedrückt – die Vergrößerung bliebe wirkungslos.
    Der Behälter behält das Checkbox-Maß, damit die Titelspalte exakt dort beginnt wie in der
    Aufgabenzeile; der Überstand verteilt sich mittig, die Kreise sitzen auf derselben Achse. */
-.bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; color: var(--bt-sched); }
-.bt-deadline-ic svg { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 2.5px; }
+.bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; }
+.bt-deadline-ic svg { width: 18px; height: 18px; flex-shrink: 0; }
 .bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt-deadline-time { flex-shrink: 0; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.bt-deadline-time { flex-shrink: 0; font-size: 0.85em; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 /* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. EINE Variable,
    damit Symbol (Liste) und Umrandung (Kalender) nie auseinanderlaufen. */
 .bt-deadline-row { --bt-dl-tint: var(--bt-sched); }
 .bt-deadline-row[data-when="past"]  { --bt-dl-tint: var(--bt-dist-overdue); }
 .bt-deadline-row[data-when="today"] { --bt-dl-tint: var(--bt-today); }
 .bt-deadline-ic { color: var(--bt-dl-tint); }
-.bt-deadline-row[data-when="past"] .bt-deadline-title { color: var(--bt-dist-overdue); }
 
 /* Kalender-Variante: dieselbe Kachel wie ein Aufgaben-Chip (Maße, Radius, Schriftgrad, Tönung) –
    der EINE Unterschied ist die gestrichelte Umrandung ringsum statt des vollen Farbbalkens links.
