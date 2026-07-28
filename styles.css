@@ -1087,9 +1087,9 @@ body {
   /* Deadline-Aufklappfeld: wie die Liste – der Titel hat line-height 1.4, die Checkbox erbt sie
      nicht. Ohne diese Zeile bliebe es beim festen 2px-Notnagel, und der Kreis säße zu hoch. */
   .bt-dl-panel .bt-dl-panel-row > .bt-check { line-height: 1.4; margin-top: calc((1lh - 16px) / 2); }
-  /* Deadline-Zeile: dieselbe Rechnung gegen dasselbe 16px-Maß. Die Zeile setzt line-height 1.4
-     bereits selbst, das Symbol erbt sie hier also – anders als die Checkbox in der Aufgabenzeile. */
-  .bt-deadline-row > .bt-deadline-ic { margin-top: calc((1lh - 16px) / 2); }
+  /* Deadline-Zeile: dieselbe Rechnung, gegen die eigene Symbolgröße. Die Zeile setzt line-height
+     1.4 bereits selbst, das Symbol erbt sie hier also – anders als die Checkbox in der Aufgabenzeile. */
+  .bt-deadline-row > .bt-deadline-ic { margin-top: calc((1lh - 17px) / 2); }
   .bt-deadline-row.bt-deadline-sm > .bt-deadline-ic { margin-top: calc((1lh - 15px) / 2); }
 }
 .bt-check:hover { border-color: var(--text-muted); }
@@ -2579,14 +2579,16 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 }
 .bt-deadline-row:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 .bt-deadline-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
-/* Uhr auf Checkbox-Maß (16px, kompakt 15px). `flex-shrink: 0` bleibt gesetzt: Als Flex-Kind
-   würde die Uhr sonst auf die Behälterbreite zusammengedrückt, sobald sie größer als dieser ist. */
+/* Uhr einen Hauch über Checkbox-Maß (17px zu 16px, kompakt 15px): Der Lucide-Kreis sitzt mit Rand
+   INNERHALB seiner Zeichenfläche, wirkt bei gleicher Fläche also kleiner als der Checkbox-Kreis.
+   `flex-shrink: 0` ist dabei Pflicht: Als Flex-Kind würde die Uhr sonst wieder auf die schmalere
+   Behälterbreite zusammengedrückt und die Vergrößerung bliebe wirkungslos. */
 /* Ausrichtung wie an der Aufgabenzeile: oben ausrichten und das Symbol per Formel auf die Mitte
    der ERSTEN Textzeile setzen – statt es über die ganze Zeile zu zentrieren. Sichtbar ist das
    heute identisch (der Titel ist einzeilig abgeschnitten); der Unterschied greift, sobald die
    Zeile je mehrzeilig würde. Dann bliebe das Symbol auf der ersten Zeile, wie die Checkbox. */
 .bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; align-self: start; margin-top: 2px; }
-.bt-deadline-ic svg { width: 16px; height: 16px; flex-shrink: 0; }
+.bt-deadline-ic svg { width: 17px; height: 17px; flex-shrink: 0; }
 .bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-deadline-time { flex-shrink: 0; font-size: 0.85em; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 /* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. EINE Variable,
