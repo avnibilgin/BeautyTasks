@@ -1265,21 +1265,25 @@ body.bt-meta-colorado {
    Gilt AUCH für die Unteraufgaben-Zeilen im Aufgaben-Modal (.bt-st-chip, s. subtaskList):
    gleiche Variablen, damit dasselbe Datum auf beiden Flächen dieselbe Farbe trägt – vorher
    blieb das Modal beim alten data-when-Orange. */
-.bt-view .bt-due[data-dist="today"], .bt-task-modal .bt-st-chip.bt-due[data-dist="today"] { color: var(--bt-dist-today); }
-.bt-view .bt-due[data-dist="d1"],    .bt-task-modal .bt-st-chip.bt-due[data-dist="d1"]    { color: var(--bt-dist-d1); }
-.bt-view .bt-due[data-dist="d2"],    .bt-task-modal .bt-st-chip.bt-due[data-dist="d2"]    { color: var(--bt-dist-d2); }
-.bt-view .bt-due[data-dist="week"],  .bt-task-modal .bt-st-chip.bt-due[data-dist="week"]  { color: var(--bt-dist-week); }
-.bt-view .bt-due[data-dist="far"],   .bt-task-modal .bt-st-chip.bt-due[data-dist="far"]   { color: var(--bt-dist-far); }
+   Bewusst auf `[data-dist]` gescopet statt auf `.bt-due`: Das Attribut TRÄGT die Bedeutung, und
+   es setzt es nur, wer eine Tages-Distanz meint (Fälligkeit UND Deadline). So färben beide
+   Datumsangaben dieselbe Nähe gleich ein, ohne dass die Regeln je Chip verdoppelt werden. */
+.bt-view .bt-chip[data-dist="today"], .bt-task-modal .bt-st-chip[data-dist="today"] { color: var(--bt-dist-today); }
+.bt-view .bt-chip[data-dist="d1"],    .bt-task-modal .bt-st-chip[data-dist="d1"]    { color: var(--bt-dist-d1); }
+.bt-view .bt-chip[data-dist="d2"],    .bt-task-modal .bt-st-chip[data-dist="d2"]    { color: var(--bt-dist-d2); }
+.bt-view .bt-chip[data-dist="week"],  .bt-task-modal .bt-st-chip[data-dist="week"]  { color: var(--bt-dist-week); }
+.bt-view .bt-chip[data-dist="far"],   .bt-task-modal .bt-st-chip[data-dist="far"]   { color: var(--bt-dist-far); }
 
 /* Geplant/Deadline – Uhr-Icon. `.bt-view`-Präfix (Spezifität 0,2,0), sonst gewinnt die
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
 .bt-sched::before { -webkit-mask-image: var(--bt-clock); mask-image: var(--bt-clock); }
 .bt-view .bt-sched { color: var(--bt-c-sched); }
-/* Dringlichkeit tagesgenau (wie der Datums-Chip, nicht minutengenau): verstrichen rot, heute in
-   der Heute-Farbe, künftig behält die Deadline-Farbe. Vorher sah eine gerissene Deadline genauso
-   ruhig aus wie eine in drei Wochen. */
-.bt-view .bt-sched[data-when="past"]  { color: var(--bt-dist-overdue); }
-.bt-view .bt-sched[data-when="today"] { color: var(--bt-today); }
+/* Dringlichkeit tagesgenau (wie der Datums-Chip, nicht minutengenau): verstrichen rot – die
+   Nähe-Abstufung für heute/morgen/übermorgen/Tag 3–7 kommt aus den [data-dist]-Regeln weiter
+   oben, die Fälligkeit und Deadline gemeinsam bedienen. Jenseits einer Woche bleibt es bei der
+   Deadline-Farbe. Vorher sah eine gerissene Deadline genauso ruhig aus wie eine in drei Wochen. */
+.bt-view .bt-sched[data-when="past"],
+.bt-task-modal .bt-st-chip.bt-sched[data-when="past"] { color: var(--bt-dist-overdue); }
 
 /* Wiederholung – nur Icon. `.bt-view`-Präfix nötig (s. o.), sonst überschreibt die Chip-Basis. */
 .bt-view .bt-recur { color: var(--bt-c-recur); gap: 0; }

@@ -182,7 +182,12 @@ export class SubtaskList {
     // Wiederverwendet werden die GLOBALEN Klassen .bt-remind/.bt-comments (Theme-Farben
     // --bt-c-remind/--bt-c-comments inklusive) – das Modal passt nur die Größe an (CSS).
     if (kid.scheduled) {
-      meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDeadline(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
+      // Dringlichkeit wie in der Liste (data-when/data-dist, s. renderTask): dieselbe Deadline
+      // soll im Modal nicht ruhiger aussehen als in der Aufgabenliste.
+      const chip = meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDeadline(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
+      chip.dataset.when = dueWhen(kid.scheduled, todayStr());
+      const sdist = dueDist(kid.scheduled, todayStr());
+      if (sdist) chip.dataset.dist = sdist;
     }
     if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
     if (kid.reminders.length) {

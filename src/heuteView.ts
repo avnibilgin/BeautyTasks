@@ -1308,7 +1308,11 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
     if (!(schedHide && !task.scheduledTime)) {
       const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
-      chip.dataset.when = dueWhen(task.scheduled, today);   // verstrichen/heute einfärben (s. styles.css)
+      // Wie beim Datums-Chip: data-when trägt „verstrichen", data-dist die Nähe-Abstufung
+      // (heute/morgen/übermorgen/Tag 3–7). Beide Angaben lesen sich damit gleich (s. styles.css).
+      chip.dataset.when = dueWhen(task.scheduled, today);
+      const sdist = dueDist(task.scheduled, today);
+      if (sdist) chip.dataset.dist = sdist;
       chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDeadline(combineDT(task.scheduled, task.scheduledTime), today) });
       chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
     }
