@@ -5,11 +5,11 @@ import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
 import {
-  MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES, projectName,
+  MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
@@ -1115,7 +1115,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const page = this.currentPage();
     // Kalender-Tagesansicht: der angezeigte Tag, nicht zwingend heute (wie „+ Aufgabe" dort).
     const due = calendarDayAnchor(this, this.pageViewOptions());
-    if (page.kind === "project") return { project: projectName(page.key), today: false, due };
+    if (page.kind === "project") return { project: baseName(page.key), today: false, due };
     if (page.kind === "label") return { label: page.key, today: false, due };
     if (page.kind === "view" && page.key === "heute") return { today: true, due };
     return { today: false, due };
@@ -1294,7 +1294,7 @@ export default class BeautyTasksPlugin extends Plugin {
         await createTaskNote(this.app, this.settings, {
           title: task.title,
           priority: task.priority,
-          project: task.project ? projectName(task.project) : null,
+          project: task.project ? baseName(task.project) : null,
           labels: [...task.labels],
           due: next.due,
           dueTime: task.dueTime,             // Uhrzeit/Dauer in die nächste Instanz übernehmen
@@ -1331,11 +1331,11 @@ export default class BeautyTasksPlugin extends Plugin {
       scheduled: task.scheduled, scheduledTime: task.scheduledTime,
       duration: task.duration,
       priority: task.priority,
-      project: task.project ? projectName(task.project) : null,
+      project: task.project ? baseName(task.project) : null,
       labels: [...task.labels],
       recurrence: task.recurrence, recurBasis: task.recurBasis,
       reminders: [...task.reminders],
-      parent: task.parent ? projectName(task.parent) : null,
+      parent: task.parent ? baseName(task.parent) : null,
     });
     await this.duplicateSubtree(task.path, file.basename);
     new Notice(t("msg_duplicated"));
@@ -1363,7 +1363,7 @@ export default class BeautyTasksPlugin extends Plugin {
         scheduled: kid.scheduled, scheduledTime: kid.scheduledTime,
         duration: kid.duration,
         priority: kid.priority,
-        project: kid.project ? projectName(kid.project) : null,
+        project: kid.project ? baseName(kid.project) : null,
         labels: [...kid.labels],
         recurrence: kid.recurrence, recurBasis: kid.recurBasis,
         reminders: [...(kid.reminders ?? [])],

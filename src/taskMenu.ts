@@ -10,13 +10,12 @@ import { Task } from "./types";
 import { openPopover, openPopoverAt, popRow } from "./popover";
 import { openDatePicker, quickDates } from "./datePicker";
 import { CHIPS, PRIOS, PRIO_KEY, ChipHost } from "./chips";
-import { listProjectsAndAreas, isInboxLink, copyTaskLink, ProjItem } from "./taskService";
+import { listProjectsAndAreas, isInboxLink, copyTaskLink, ProjItem, baseName, INBOX_KEY } from "./taskService";
 import { ConfirmModal } from "./confirmModal";
 import { isTrashed } from "./statuses";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
-const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /** Icon-Button einer Schnellzeile (Datum/Priorität). Liefert den Button für Sonderfälle. */
 function iconButton(row: HTMLElement, label: string, active: boolean, onClick: () => void): HTMLElement {
@@ -84,13 +83,18 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
     };
 
     row("pencil", t("menu_edit_task"), () => plugin.openEditTask(task));
-    // „Zum Projekt" nur bei echtem Projekt/Bereich – mit dessen Icon in dessen Farbe.
-    if (task.project && !isInboxLink(task.project)) {
-      const name = baseName(task.project);
-      const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
-      const sel = [...bereiche, ...projekte].find((p) => p.name === name);
-      popRow(pop, sel?.icon ?? "folder", t("menu_goto_project"),
-        () => { close(); void plugin.activateProject(task.project!); }, false, sel?.color ?? undefined);
+    // „Zum Projekt": führt zur Liste, in der die Aufgabe liegt – auch zum Eingang, denn der ist
+    // hier eine Liste wie jede andere (nur ohne Notiz). Mit deren Icon in deren Farbe.
+    // Ausgeblendet nur, wenn der Eintrag nirgends hinführte: auf der Seite, die man ansieht.
+    const inbox = isInboxLink(task.project);
+    const listPath = inbox ? INBOX_KEY : task.project!;
+    if (plugin.currentProject !== listPath) {
+      const sel = inbox ? undefined
+        : (() => { const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+                   const n = baseName(task.project!); return [...bereiche, ...projekte].find((p) => p.name === n); })();
+      popRow(pop, inbox ? "inbox" : (sel?.icon ?? "folder"), t("menu_goto_project"),
+        () => { close(); void plugin.activateProject(listPath); }, false,
+        inbox ? "var(--bt-nav-inbox)" : (sel?.color ?? undefined));
     }
     pop.createDiv({ cls: "bt-plus-sep" });
 

@@ -6,17 +6,15 @@
 import { App, Platform, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus, ChipId, ChipTier, ChipSurface, ChipProfile, CHIP_IDS, BeautyTasksSettings } from "./types";
-import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
+import { formatDateTime, formatDeadline, formatDuration, combineDT, dateOf, timeOf } from "./format";
 import { boardStatuses, statusLabel, statusIcon, statusTint, firstOpenStatus, isTrashed } from "./statuses";
 import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
 import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
-import { slugify, todayIso } from "./taskService";
+import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
 
-/** Basename (ohne Ordner/.md) – Aufgaben verlinken Eltern/Projekt über den Basename. */
-const baseName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /**
  * Kompakt-Modus des vollen Editors: leere Chips zeigen nur ihr Icon, der Name wandert in den
@@ -332,7 +330,7 @@ export const CHIPS: Record<ChipId, ChipDef> = {
   deadline: {
     id: "deadline", icon: "clock", nameKey: "chip_deadline", kind: "value",
     isSet: (f) => !!f.scheduled,
-    valueLabel: (f) => formatDateTime(combineDT(f.scheduled!, f.scheduledTime)),
+    valueLabel: (f) => formatDeadline(combineDT(f.scheduled!, f.scheduledTime)),
     open: (host, a) => openDate(host, a, "scheduled"),
     clear: (host) => { host.f.scheduled = null; host.f.scheduledTime = null; },
   },

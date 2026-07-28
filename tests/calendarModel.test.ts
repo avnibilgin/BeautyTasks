@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   addDays, addMonths, startOfWeek, monthGrid, weekDays,
-  bucketByDue, minutesOf, layoutDay, allDayOf, DEFAULT_BLOCK_MIN, yearMonths, addYears,
+  bucketByDate, minutesOf, layoutDay, allDayOf, DEFAULT_BLOCK_MIN, yearMonths, addYears,
   chipsThatFit, shownChips,
   bucketEvents, layoutDayMixed, allDayEventsOf, layoutSlots,
 } from "../src/calendarModel";
@@ -73,20 +73,29 @@ describe("weekDays", () => {
   });
 });
 
-describe("bucketByDue", () => {
+describe("bucketByDate", () => {
   it("gruppiert nach Fälligkeitstag, ignoriert Aufgaben ohne Datum", () => {
     const a = mk({ title: "a", due: "2026-07-13" });
     const b = mk({ title: "b", due: "2026-07-13", dueTime: "09:00" });
     const c = mk({ title: "c", due: "2026-07-14" });
-    const d = mk({ title: "d" });                           // ohne due -> nicht im Kalender
-    const m = bucketByDue([a, b, c, d]);
+    const d = mk({ title: "d" });                           // weder due noch Deadline -> nicht im Kalender
+    const m = bucketByDate([a, b, c, d]);
     expect(m.get("2026-07-13")).toEqual([a, b]);
     expect(m.get("2026-07-14")).toEqual([c]);
     expect(m.size).toBe(2);
   });
   it("due mit Zeitanteil zählt zum richtigen Tag", () => {
-    const m = bucketByDue([mk({ due: "2026-07-13T23:30" })]);
+    const m = bucketByDate([mk({ due: "2026-07-13T23:30" })]);
     expect(m.get("2026-07-13")).toHaveLength(1);
+  });
+  it("ohne Fälligkeit zählt die Deadline – ohne Plan IST die Frist der Plan", () => {
+    const m = bucketByDate([mk({ title: "frist", scheduled: "2026-07-15" })]);
+    expect(m.get("2026-07-15")).toHaveLength(1);
+  });
+  it("mit Fälligkeit entscheidet allein die Fälligkeit – die Deadline verschiebt nichts", () => {
+    const m = bucketByDate([mk({ due: "2026-07-13", scheduled: "2026-07-15" })]);
+    expect(m.get("2026-07-13")).toHaveLength(1);
+    expect(m.has("2026-07-15")).toBe(false);   // NICHT zusätzlich am Fristtag
   });
 });
 
@@ -99,6 +108,18 @@ describe("minutesOf / allDayOf", () => {
   it("ohne Uhrzeit null (= ganztägig)", () => {
     expect(minutesOf(mk({ due: "2026-07-13" }))).toBeNull();
     expect(minutesOf(mk({ due: "2026-07-13", dueTime: "quatsch" }))).toBeNull();
+  });
+  it("ohne Fälligkeit zählt die Uhrzeit der Deadline – sie bekommt einen Zeitblock", () => {
+    expect(minutesOf(mk({ scheduled: "2026-07-15", scheduledTime: "14:00" }))).toBe(840);
+    expect(allDayOf([mk({ scheduled: "2026-07-15", scheduledTime: "14:00" })])).toEqual([]);
+  });
+  it("Deadline OHNE Uhrzeit gehört in die Ganztägig-Zeile", () => {
+    const t = mk({ title: "frist", scheduled: "2026-07-15" });
+    expect(minutesOf(t)).toBeNull();
+    expect(allDayOf([t])).toEqual([t]);
+  });
+  it("bei gesetzter Fälligkeit zählt DEREN Uhrzeit, nicht die der Deadline", () => {
+    expect(minutesOf(mk({ due: "2026-07-13", dueTime: "09:30", scheduled: "2026-07-15", scheduledTime: "14:00" }))).toBe(570);
   });
   it("allDayOf trennt die Ganztägigen ab", () => {
     const a = mk({ title: "a", due: "2026-07-13" });

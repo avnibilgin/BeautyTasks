@@ -1,8 +1,8 @@
-import { Task, Priority } from "./types";
+import { Task, Priority, agendaDate } from "./types";
 // Nur als Typ: taskIndex holt sich umgekehrt orderChain von hier. Ein `import type` wird beim
 // Kompilieren entfernt und schließt den Zyklus, bevor er zur Laufzeit einer wird.
 import type { TaskIndex } from "./taskIndex";
-import { isInboxLink, isInboxName } from "./taskService";
+import { isInboxLink, isInboxName, baseName } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { groupLabel } from "./format";
 import { isDone, isTrashed } from "./statuses";   // statuses importiert nur types+i18n -> kein Zyklus
@@ -147,7 +147,6 @@ export const LAYOUTS: PageLayout[] = ["list", "board", "calendar"];
 /** Prioritäten wie im Aufgaben-Picker (4 Stufen). */
 export const FILTER_PRIORITIES: Priority[] = ["highest", "high", "medium", "normal"];
 
-const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO_RANK: Record<Priority, number> = { highest: 0, high: 1, medium: 2, normal: 3, low: 4, lowest: 5 };
 
 /**
@@ -245,6 +244,37 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
       if (!seen.has(t.path) && !isTrashed(t.status)) { seen.add(t.path); out.push(t); }
   return out;
 }
+
+/**
+ * ── Die Regel für alle Zeit-Ansichten (Heute, Demnächst, Kalender) ──────────────────────────
+ *
+ *   Hat eine Aufgabe keine Fälligkeit, IST ihre Deadline die Fälligkeit.
+ *   Hat sie eine, entscheidet allein die Fälligkeit, wo sie steht.
+ *   Eine VERSTRICHENE Frist macht sie überfällig – auch bei künftigem Plan.
+ *
+ * Mehr ist es nicht. Eine Aufgabe erscheint dadurch immer an genau EINER Stelle, nie aus zwei
+ * Gründen gleichzeitig, und keine Abschnittsüberschrift kann ihrem sichtbaren Datum widersprechen.
+ * Die Deadline selbst ist nur noch ein Zustand an der Zeile (Chip mit Countdown und Farbe), keine
+ * zweite Platzierung – deshalb gibt es weder Hinweis-Zeilen noch einen Deadline-Abschnitt.
+ *
+ * Der letzte Satz ist die einzige Ausnahme von „die Fälligkeit entscheidet": Ein Plan für nächste
+ * Woche ist kein gültiger Plan mehr, wenn der Termin gestern war – die Aufgabe ist dann real zu
+ * spät, und „Überfällig" beschreibt genau das.
+ */
+export { agendaDate };
+/** Überfällig: Fälligkeit verstrichen – oder Frist verstrichen, sofern die Aufgabe nicht
+ *  ohnehin heute dran ist. Wer heute daran arbeitet, gewinnt nichts dadurch, unter „Überfällig"
+ *  zu stehen; dass die Frist gerissen ist, sagt der rote Chip in seiner Zeile. */
+export const isOverdueTask = (t: Task, today: string): boolean =>
+  (!!t.due && t.due < today) || (!!t.scheduled && t.scheduled < today && t.due !== today);
+/** Steht heute an: Agenda-Datum ist heute und nichts daran ist verstrichen. */
+export const isTodayTask = (t: Task, today: string): boolean =>
+  !isOverdueTask(t, today) && agendaDate(t) === today;
+/** Steht künftig an: Agenda-Datum liegt nach heute und nichts daran ist verstrichen. */
+export const isUpcomingTask = (t: Task, today: string): boolean => {
+  const d = agendaDate(t);
+  return !isOverdueTask(t, today) && !!d && d > today;
+};
 
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
 export const ORDER_GAP = 10;

@@ -1,10 +1,9 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath } from "./taskService";
+import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
-import { orderChain, severReferences } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
+import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
-const baseName = (p: string): string => p.split("/").pop()!.replace(/\.md$/, "");
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
 const asDate = (v: unknown): string | null =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
@@ -268,10 +267,13 @@ export class TaskIndex extends Component {
   isProjectArchived(project: string | null | undefined): boolean {
     return !!project && this.archivedProjects().has(baseName(project).toLowerCase());
   }
-  overdue(today: string): Task[] { return this.open().filter((t) => !!t.due && t.due < today); }
-  dueToday(today: string): Task[] { return this.open().filter((t) => t.due === today); }
+  // Zeit-Ansichten: Platzierung nach agendaDate (Fälligkeit, ersatzweise Deadline) und
+  // Überfälligkeit nach beiden Feldern – die EINE Regel steht in filterEngine.
+  overdue(today: string): Task[] { return this.open().filter((t) => isOverdueTask(t, today)); }
+  dueToday(today: string): Task[] { return this.open().filter((t) => isTodayTask(t, today)); }
   upcoming(today: string): Task[] {
-    return this.open().filter((t) => !!t.due && t.due > today).sort((a, b) => a.due!.localeCompare(b.due!));
+    return this.open().filter((t) => isUpcomingTask(t, today))
+      .sort((a, b) => agendaDate(a)!.localeCompare(agendaDate(b)!));
   }
   done(): Task[] {
     return this.all().filter((t) => isDone(t.status))
@@ -368,8 +370,9 @@ export class TaskIndex extends Component {
   upcomingByDate(today: string): { date: string; tasks: Task[] }[] {
     const groups = new Map<string, Task[]>();
     for (const t of this.upcoming(today)) {
-      const arr = groups.get(t.due!) ?? [];
-      arr.push(t); groups.set(t.due!, arr);
+      const d = agendaDate(t)!;
+      const arr = groups.get(d) ?? [];
+      arr.push(t); groups.set(d, arr);
     }
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, tasks]) => ({ date, tasks }));
   }

@@ -69,6 +69,19 @@ export interface Task {
 }
 
 /**
+ * Das Datum, an dem eine Aufgabe in den Zeit-Ansichten steht (Heute, Demnächst, Kalender):
+ * die Fälligkeit – und wenn es keine gibt, die Deadline. Ohne Plan IST die Frist der Plan.
+ * `null` = die Aufgabe hat dort keinen Platz (Eingang/Projekt).
+ *
+ * Steht hier und nicht in filterEngine, weil auch calendarModel sie braucht und ein Import
+ * dorthin einen Zyklus ergäbe (filterEngine holt sich CalMode von dort). Die vollständige Regel
+ * samt Überfälligkeit ist bei den Prädikaten in filterEngine dokumentiert.
+ */
+export const agendaDate = (t: Task): string | null => t.due ?? t.scheduled;
+/** Die Uhrzeit zum agendaDate – aus dem Feld, das das Datum liefert. */
+export const agendaTime = (t: Task): string | null => (t.due ? t.dueTime : t.scheduledTime);
+
+/**
  * Ein Termin aus einem verbundenen Google-Kalender. **Reine Anzeige-Schicht**: ein CalEvent wird
  * NIE eine Notiz, steht NIE im TaskIndex und hat kein Frontmatter — sonst würde `pushAll()` es als
  * berechtigte Aufgabe ansehen und ein zweites Event dafür anlegen (Rückkopplung). Siehe

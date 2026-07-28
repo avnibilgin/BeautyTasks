@@ -1,9 +1,9 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
+import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
+import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -124,6 +124,8 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const idx = plugin.index;
   if (view === "heute") {
     const opts = plugin.pageViewOptions();
+    // Auswahl vollständig über den Index – die Regel (Fälligkeit, ersatzweise Deadline; eine
+    // verstrichene Frist macht überfällig) lebt in filterEngine und gilt für alle Zeit-Ansichten.
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
     const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
     const open = [...overdue, ...dueToday];
@@ -330,7 +332,6 @@ function applyReadableWidth(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 }
 
 const byDue = (a: Task, b: Task) => (a.due ?? "").localeCompare(b.due ?? "");
-export const projectName = (path: string): string => path.split("/").pop()!.replace(/\.md$/, "");
 
 /** Einheitlicher Leerzustand für alle Boards: zentriert im Restraum, Icon + Text (Akzentfarbe).
  *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css. */
@@ -361,7 +362,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const isInbox = projectPath === INBOX_KEY;   // eingebaute Eingang-Ansicht (keine Notiz)
-  const name = isInbox ? "" : projectName(projectPath);
+  const name = isInbox ? "" : baseName(projectPath);
   // Kopf: Kebab-Menü (wie Sidebar-Rechtsklick); Eingang ist eine Systemansicht → kein Menü.
   const isArea = !isInbox && isAreaPath(plugin.app, projectPath);
   // ALLE (aktiv UND archiviert) durchsuchen: archivierte fehlen in listProjectsAndAreas, hätten also
@@ -377,7 +378,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   // Eingang = alle „nicht einsortierten" Aufgaben (kein Projekt ODER Verweis auf Inbox).
   const source = (): Task[] => isInbox
     ? plugin.index.inbox()
-    : plugin.index.all().filter((t) => t.project != null && projectName(t.project) === name);
+    : plugin.index.all().filter((t) => t.project != null && baseName(t.project) === name);
   const tasks = source();
   if (!tasks.length) {
     if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
@@ -595,7 +596,7 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
   const colorOf = new Map(([...bereiche, ...projekte]).map((p) => [p.name, p.color] as const));
   // Nur ECHTE Projekte werden Spalten – „nicht einsortierte" (kein Projekt ODER Inbox-Verweis)
   // landen alle im einen Eingang-Bucket (unten), nie in einer eigenen Inbox-Spalte.
-  const present = new Set(tasks.filter((t) => t.project && !isInboxLink(t.project)).map((t) => projectName(t.project!)));
+  const present = new Set(tasks.filter((t) => t.project && !isInboxLink(t.project)).map((t) => baseName(t.project!)));
   const ordered = [
     ...plugin.sortProjItems("areas", bereiche.filter((p) => present.has(p.name))),
     ...plugin.sortProjItems("projects", projekte.filter((p) => present.has(p.name))),
@@ -604,8 +605,8 @@ function projectColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd)
   for (const n of present) if (!names.includes(n)) names.push(n);   // Sicherheitsnetz (z. B. archivierte Liste)
   const cols: BoardColumn[] = names.map((name) => ({
     id: name, title: projectDisplayName(name), tint: colorOf.get(name) ?? "var(--bt-nav-project)", kind: "open",
-    has: (tk: Task) => !!tk.project && projectName(tk.project) === name,
-    onDrop: (tk: Task) => { if (!tk.project || projectName(tk.project) !== name) void plugin.setTaskProject(tk, name); },
+    has: (tk: Task) => !!tk.project && baseName(tk.project) === name,
+    onDrop: (tk: Task) => { if (!tk.project || baseName(tk.project) !== name) void plugin.setTaskProject(tk, name); },
     onAdd: () => plugin.openNewTask(name, add.label, add.today ?? false),
   }));
   if (tasks.some((t) => isInboxLink(t.project))) {
@@ -933,11 +934,12 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // (Kompakt-Thema blendet ihn dann aus, außer Uhrzeit). „Überfällig"/„ohne Datum" bleiben unberührt.
     const dateImplied = groupKey === "date";
     const deadlineImplied = groupKey === "deadline";   // Spalte = Deadline-Datum -> Deadline-Chip in Karte redundant
-    // Ist das Datum sichtbar (Board NICHT nach Datum gruppiert), nach Tages-Distanz einfärben – wie in der Liste.
-    const distColor = !dateImplied;
     // Bei Projekt-Gruppierung ist die Spalte das Projekt (col.id = Name bzw. NO_PROJECT) -> @Projekt weglassen.
     const hideProject = groupKey === "project" ? col.id : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, dateImplied, deadlineImplied, distColor, hideProject });
+    // Datums-Spalten heißen „d:<ISO>" (s. dateColumns); „Überfällig"/„ohne Datum" tragen kein
+    // einzelnes Datum und blenden deshalb nichts aus.
+    const impliedDate = dateImplied && col.id.startsWith("d:") ? col.id.slice(2) : undefined;
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1086,16 +1088,15 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   const key = plugin.currentPage().key;
   const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
   const deadlineImplied = o.group === "deadline";   // Sektionen = Deadline-Datum -> Deadline-Chip redundant
-  // „Kompakt": Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7), ÜBERALL wo das
-  // Datum sichtbar ist – also wo keine Datums-Sektionsüberschrift es trägt (!dateImplied). Das gilt bei
-  // „Keine" UND bei Gruppierung nach Label/Priorität/Projekt (dort gibt es keine eindeutige Datums-Sektion).
-  const distColor = !dateImplied;
   // Bei Projekt-Gruppierung: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
   // ableiten und den @Projekt-/@Eingang-Backlink weglassen (Sektionsüberschrift zeigt es schon). Labels
   // dagegen zeigen wir bei Label-Gruppierung ALLE (auch das Gruppen-Label), s. renderTask.
   const hideProject = o.group === "project" && top.length
-    ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideProject });
+    ? (isInboxLink(top[0].project) ? NO_PROJECT : baseName(top[0].project!)) : undefined;
+  // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
+  // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
+  const impliedDate = dateImplied && eventKey ? eventKey : undefined;
+  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
@@ -1173,7 +1174,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; dateImplied?: boolean; deadlineImplied?: boolean; distColor?: boolean; hideProject?: string } = {}): void {
+  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1245,35 +1246,58 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     }
   }
   if (task.due) {
-    // „Kompakt"-Thema (nur Liste, nur Top-Level): das Datum weglassen, wo die Sektionsüberschrift es
-    // schon zeigt – also überall dort, wo nach Datum gruppiert ist (opts.dateImplied, EINMAL je Sektion
-    // in section() bestimmt). Datierte Sektionen betreffen due >= heute; Überfällige liegen im Sammel-
-    // Bucket „Überfällig" ohne Datum -> dort NICHT ausblenden. Ohne Uhrzeit gar kein Chip (Icon UND Wort
-    // weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt), eingefärbt nach Tages-Distanz (s. u.).
-    // Gilt in Liste UND Board-Karten – aber nur, wenn dateImplied gesetzt ist (Datums-Sektion bzw.
-    // Datums-Spalte). Auf nicht-date-gruppierten Boards ist dateImplied nicht gesetzt -> nichts ausgeblendet.
-    const compactHide = depth === 0 && !!opts.dateImplied && task.due >= today;
+    // „Kompakt"-Thema (nur Top-Level): das Datum weglassen, wo die Sektionsüberschrift bzw. der
+    // Spaltenkopf GENAU DIESES Datum schon zeigt (opts.impliedDate, EINMAL je Sektion/Spalte
+    // bestimmt; ohne Datums-Gruppierung gar nicht gesetzt). Ohne Uhrzeit gar kein Chip (Icon UND
+    // Wort weg); mit Uhrzeit nur die Uhrzeit (Kalendericon bleibt), eingefärbt nach Tages-Distanz.
+    //
+    // Verglichen wird das Datum, NICHT bloß „liegt in der Zukunft": In „Heute" stehen seit der
+    // Deadline-Aufnahme auch Aufgaben, die erst später fällig sind. Deren Fälligkeit ist alles
+    // andere als redundant – sie ist der Grund, warum ihre Zeile dort überhaupt erklärbar ist.
+    const compactHide = depth === 0 && !!opts.impliedDate && task.due === opts.impliedDate;
     if (!(compactHide && !task.dueTime)) {
       const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
       const chip = meta.createSpan({ cls: "bt-chip bt-due" });
       chip.createSpan({ cls: "bt-meta-txt", text });   // Text im eigenen Span -> unabhängig vom Kalender-Icon justierbar
       chip.dataset.when = dueWhen(task.due, today);
-      // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7). Zwei Fälle:
-      //  • flache/nicht-datierte Liste (opts.distColor): der volle Datums-Chip trägt die Farbe.
-      //  • Datums-Gruppierung (compactHide): der Chip zeigt nur die Uhrzeit und ist DAS sichtbare
-      //    Datums-Element – auch er trägt die Tages-Farbe (sonst „greift" die Farbwahl hier nicht).
-      // Überfällig (< heute) behält seine data-when-Farbe (dist bleibt leer). compactHide ist nur bei
-      // due >= heute aktiv, dort ist off immer >= 0.
-      if (opts.distColor || compactHide) {
-        // Überfällig (< heute) behält seine rote data-when-Farbe (kein data-dist); ab Tag 8 heller Grau.
-        const dist = dueDist(task.due, today);
-        if (dist) chip.dataset.dist = dist;
-      }
+      // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7) – IMMER, wenn der
+      // Chip überhaupt gezeichnet wird. Früher hing das an einer Bedingung, die „Datum sichtbar"
+      // bloß annäherte (nicht datumsgruppiert ODER nur-Uhrzeit-Chip); seit in datierten Sektionen
+      // auch abweichende Fälligkeiten stehen können, hätte deren Datum sonst keine Distanzfarbe.
+      // Überfällig (< heute) behält seine rote data-when-Farbe (dueDist liefert dort ""); ab Tag 8
+      // heller Grau.
+      const dist = dueDist(task.due, today);
+      if (dist) chip.dataset.dist = dist;
       chip.onclick = (e) => {
         e.stopPropagation();
         openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),
           { value: task.duration, onChange: (d) => void plugin.setTaskDuration(task, d) });
       };
+    }
+  }
+  // Deadline DIREKT hinter der Fälligkeit: die beiden gehören zusammen („wann arbeite ich daran"
+  // und „wann muss es fertig sein") und werden meist im Vergleich gelesen. Zwischen ihnen standen
+  // vorher Wiederholung, Erinnerung und sämtliche Labels.
+  if (task.scheduled) {
+    // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
+    // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).
+    // Überfällige Deadlines (< heute) liegen im Sammel-Bucket „Überfällig" -> dort NICHT ausblenden.
+    // Anders als beim Datum genügt hier der Vergleich „nicht vergangen": Bei Gruppierung NACH
+    // DEADLINE bilden die Sektionen/Spalten sich aus genau diesem Feld, alle Zeilen einer Gruppe
+    // tragen also dieselbe Frist. Der einzige Sammel-Bucket ohne eigenes Datum ist „Überfällig"
+    // (scheduled < heute) – und dort soll der Chip ja gerade stehen bleiben. Ein Datumsvergleich
+    // wie bei impliedDate wäre möglich, verlangte aber, die Gruppen-Frist bis hierher zu reichen,
+    // ohne dass sich etwas am Ergebnis änderte.
+    const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
+    if (!(schedHide && !task.scheduledTime)) {
+      const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
+      // Wie beim Datums-Chip: data-when trägt „verstrichen", data-dist die Nähe-Abstufung
+      // (heute/morgen/übermorgen/Tag 3–7). Beide Angaben lesen sich damit gleich (s. styles.css).
+      chip.dataset.when = dueWhen(task.scheduled, today);
+      const sdist = dueDist(task.scheduled, today);
+      if (sdist) chip.dataset.dist = sdist;
+      chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDeadline(combineDT(task.scheduled, task.scheduledTime), today) });
+      chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
     }
   }
   if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
@@ -1287,17 +1311,6 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // das gleichnamige. Selektives Ausblenden verwirrt, sobald eine Aufgabe mehrere Labels hat (anders als
   // beim @Projekt-Backlink, wo eine Aufgabe genau ein Projekt hat).
   for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
-  if (task.scheduled) {
-    // Analog zum Datum: ist nach Deadline gruppiert (Sektion/Spalte = Deadline-Datum), ist der Deadline-
-    // Chip redundant -> im Kompakt-Thema ausblenden, außer es gibt eine Uhrzeit (dann nur Icon + Uhrzeit).
-    // Überfällige Deadlines (< heute) liegen im Sammel-Bucket „Überfällig" -> dort NICHT ausblenden.
-    const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
-    if (!(schedHide && !task.scheduledTime)) {
-      const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
-      chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
-      chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
-    }
-  }
   // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
   const comments = plugin.index.commentsOf(task.path);
   if (comments > 0) {
@@ -1345,7 +1358,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang);
     // „nicht einsortiert" = @Eingang.
     const inbox = isInboxLink(task.project);
-    const projName = inbox ? null : projectName(task.project!);
+    const projName = inbox ? null : baseName(task.project!);
     const backlink = !plugin.currentProject && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
     if (backlink) {
       const extras = row.createDiv({ cls: "bt-extras" });
@@ -1376,9 +1389,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // sie sich untereinander genauso einsortieren wie Hauptaufgaben.
     // Unteraufgaben zeigen IMMER ihr eigenes Datum distanz-gefärbt (nie ausgeblendet): die Sektions-/
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
-    // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. dateImplied wird bewusst
+    // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. impliedDate wird bewusst
     // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
-    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone, distColor: true });
+    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
   }
 }
 

@@ -1,4 +1,4 @@
-import { Task, CalEvent } from "./types";
+import { Task, CalEvent, agendaDate, agendaTime } from "./types";
 import { dateOf, timeOf } from "./format";
 
 /**
@@ -77,21 +77,26 @@ export function timeGridDays(mode: CalMode, anchor: string): string[] {
 /** Schrittweite (Tage) beim ‹/›-Blättern im Zeitraster-Modus: Tag 1 · 3 Tage 3 · Woche 7. */
 export const timeGridStep = (mode: CalMode): number => (mode === "week" ? 7 : mode === "3day" ? 3 : 1);
 
-/** Aufgaben auf ihren Fälligkeitstag verteilen. Ohne `due` = nicht im Kalender. */
-export function bucketByDue(tasks: Task[]): Map<string, Task[]> {
+/** Aufgaben auf ihren Agenda-Tag verteilen: Fälligkeit, ersatzweise Deadline (s. agendaDate).
+ *  Ohne beides = nicht im Kalender. */
+export function bucketByDate(tasks: Task[]): Map<string, Task[]> {
   const out = new Map<string, Task[]>();
   for (const tk of tasks) {
-    if (!tk.due) continue;
-    const key = dateOf(tk.due);
+    const d = agendaDate(tk);
+    if (!d) continue;
+    const key = dateOf(d);
     const arr = out.get(key);
     if (arr) arr.push(tk); else out.set(key, [tk]);
   }
   return out;
 }
 
-/** Minuten seit Mitternacht aus dueTime ("09:30" -> 570); ohne Uhrzeit null (= ganztägig). */
+/** Minuten seit Mitternacht aus der Uhrzeit des Agenda-Datums ("09:30" -> 570) – also aus
+ *  `dueTime`, bei Aufgaben ohne Fälligkeit aus `scheduledTime`. Ohne Uhrzeit null (= ganztägig):
+ *  DANN gehört die Aufgabe in die Ganztägig-Zeile, sonst bekommt sie einen Zeitblock. */
 export function minutesOf(task: Task): number | null {
-  const tm = task.dueTime ?? (task.due ? timeOf(task.due) : null);
+  const d = agendaDate(task);
+  const tm = agendaTime(task) ?? (d ? timeOf(d) : null);
   if (!tm) return null;
   const m = tm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return null;
