@@ -10,7 +10,7 @@ import { Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { createTaskNote, todayIso } from "./taskService";
-import { formatDateTime, combineDT, dueWhen, dueDist, todayStr } from "./format";
+import { formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, todayStr } from "./format";
 import { applyQuickEntry, emptyQuickEntryState } from "./quickEntry";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { formatReminder } from "./reminders";
@@ -187,7 +187,7 @@ export class SubtaskList {
     }
     for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });
     if (kid.scheduled) {
-      meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDateTime(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
+      meta().createSpan({ cls: "bt-st-chip bt-sched", text: formatDeadline(combineDT(kid.scheduled, kid.scheduledTime), todayStr()) });
     }
     const comments = this.plugin.index.commentsOf(kid.path);
     if (comments > 0) {

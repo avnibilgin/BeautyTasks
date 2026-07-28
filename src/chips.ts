@@ -6,7 +6,7 @@
 import { App, Platform, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus, ChipId, ChipTier, ChipSurface, ChipProfile, CHIP_IDS, BeautyTasksSettings } from "./types";
-import { formatDateTime, formatDuration, combineDT, dateOf, timeOf } from "./format";
+import { formatDateTime, formatDeadline, formatDuration, combineDT, dateOf, timeOf } from "./format";
 import { boardStatuses, statusLabel, statusIcon, statusTint, firstOpenStatus, isTrashed } from "./statuses";
 import { openDatePicker } from "./datePicker";
 import { formatReminder } from "./reminders";
@@ -332,7 +332,7 @@ export const CHIPS: Record<ChipId, ChipDef> = {
   deadline: {
     id: "deadline", icon: "clock", nameKey: "chip_deadline", kind: "value",
     isSet: (f) => !!f.scheduled,
-    valueLabel: (f) => formatDateTime(combineDT(f.scheduled!, f.scheduledTime)),
+    valueLabel: (f) => formatDeadline(combineDT(f.scheduled!, f.scheduledTime)),
     open: (host, a) => openDate(host, a, "scheduled"),
     clear: (host) => { host.f.scheduled = null; host.f.scheduledTime = null; },
   },

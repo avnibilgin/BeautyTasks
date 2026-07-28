@@ -65,6 +65,32 @@ export function formatDateTime(iso: string, today = todayStr()): string {
   return formatDate(iso, today) + (tm ? " · " + tm : "");
 }
 
+/**
+ * Deadline-Chip: wie formatDateTime, aber eine VERSTRICHENE Deadline steht als Abstand da
+ * („vor 3 Tagen") statt als Datum („25. Jul").
+ *
+ * Der Grund ist Lesbarkeit: Ein absolutes Datum in der Vergangenheit zwingt zum Kopfrechnen,
+ * bevor man die Verspätung spürt – gerade dort, wo es darauf ankommt. Nur die Deadline wird so
+ * geschrieben, die Fälligkeit behält ihr Datum.
+ *
+ * Ab Tag 8 zurück wieder das Datum: „vor 143 Tagen" ist weder kurz noch hilfreich, und die
+ * Distanzfarben hören ebenfalls bei Tag 7 auf.
+ *
+ * Formuliert wird über Intl.RelativeTimeFormat – das liefert für alle zehn Sprachen die richtige
+ * Pluralform (im Russischen etwa „3 дня назад", aber „5 дней назад") ohne eine einzige eigene
+ * Übersetzung. `numeric: "auto"` erzeugt bei -1 von sich aus das WORT („gestern"); nur dieses wird
+ * groß geschrieben, damit es zu „Heute"/„Morgen" der übrigen Chips passt. Die gezählten Formen
+ * bleiben klein („vor 3 Tagen") – ein „Vor" mitten im Satzbau sähe falsch aus.
+ */
+export function formatDeadline(iso: string, today = todayStr()): string {
+  const off = dayOffset(iso, today);
+  const tm = timeOf(iso);
+  if (off >= 0 || off < -7) return formatDateTime(iso, today);
+  const rel = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" }).format(off, "day");
+  const text = off === -1 ? rel.charAt(0).toUpperCase() + rel.slice(1) : rel;
+  return text + (tm ? " · " + tm : "");
+}
+
 /** Dauer in Minuten -> "30 min" / "1 h" / "1 h 30 min". */
 export function formatDuration(min: number): string {
   if (min < 60) return min + " min";

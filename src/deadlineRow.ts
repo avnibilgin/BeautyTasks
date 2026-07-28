@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { openPopover } from "./popover";
-import { combineDT, formatDateTime, dueWhen } from "./format";
+import { combineDT, formatDeadline, dueWhen } from "./format";
 import { t } from "./i18n";
 
 /**
@@ -37,7 +37,7 @@ function openPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin, task: Task, t
     const head = pop.createDiv({ cls: "bt-dl-panel-head" });
     if (task.scheduled) head.dataset.when = dueWhen(task.scheduled, today);
     setIcon(head.createSpan({ cls: "bt-dl-panel-head-ic" }), "clock");
-    head.createSpan({ text: task.scheduled ? formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) : t("chip_deadline") });
+    head.createSpan({ text: task.scheduled ? formatDeadline(combineDT(task.scheduled, task.scheduledTime), today) : t("chip_deadline") });
     // Darunter NUR Checkbox und Titel: Fälligkeit, Labels und übrige Meta-Angaben bleiben bewusst
     // weg; wer sie braucht, geht über „Zur Aufgabe". Das Feld soll eine Entscheidung ermöglichen
     // (abhaken oder hingehen), keine zweite Aufgabenzeile sein.
