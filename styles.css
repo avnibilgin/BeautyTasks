@@ -1268,6 +1268,11 @@ body.bt-meta-colorado {
    Chip-Basis `.bt-view .bt-chip { color: var(--text-muted) }` und die Farbe greift nicht. */
 .bt-sched::before { -webkit-mask-image: var(--bt-clock); mask-image: var(--bt-clock); }
 .bt-view .bt-sched { color: var(--bt-c-sched); }
+/* Dringlichkeit tagesgenau (wie der Datums-Chip, nicht minutengenau): verstrichen rot, heute in
+   der Heute-Farbe, künftig behält die Deadline-Farbe. Vorher sah eine gerissene Deadline genauso
+   ruhig aus wie eine in drei Wochen. */
+.bt-view .bt-sched[data-when="past"]  { color: var(--bt-dist-overdue); }
+.bt-view .bt-sched[data-when="today"] { color: var(--bt-today); }
 
 /* Wiederholung – nur Icon. `.bt-view`-Präfix nötig (s. o.), sonst überschreibt die Chip-Basis. */
 .bt-view .bt-recur { color: var(--bt-c-recur); gap: 0; }
@@ -2540,3 +2545,40 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Nicht im „User"-Theme: der Farbbereich ist gesperrt (Picker zeigen die Theme-Presets, sind aber
    nicht editierbar) – sichtbar abgedunkelt, damit „nicht änderbar" auf einen Blick klar ist. */
 .bt-color-settings.is-locked { opacity: 0.5; }
+
+/* ── Deadline-Hinweis ─────────────────────────────────────────────────────────
+   Kein Aufgaben-Ersatz, sondern ein Zeiger: Uhr-Symbol statt Abhak-Kreis, Titel
+   gedämpft, per Klick zur Aufgabe. Ausrichtung wie die Aufgabenzeile (links auf
+   der Achse der Checkbox), damit Zeilen und Hinweise eine Spalte bilden. */
+.bt-deadline-row {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.94em;
+}
+.bt-deadline-row:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
+.bt-deadline-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
+.bt-deadline-ic { display: inline-flex; flex-shrink: 0; width: 16px; justify-content: center; color: var(--bt-sched); }
+.bt-deadline-ic svg { width: 14px; height: 14px; }
+.bt-deadline-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-deadline-time { flex-shrink: 0; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+/* Dringlichkeit tagesgenau – dieselben Farben wie der Deadline-Chip an der Zeile. */
+.bt-deadline-row[data-when="past"]  .bt-deadline-ic { color: var(--bt-dist-overdue); }
+.bt-deadline-row[data-when="past"]  .bt-deadline-title { color: var(--bt-dist-overdue); }
+.bt-deadline-row[data-when="today"] .bt-deadline-ic { color: var(--bt-today); }
+/* Kalender-Variante (Chip/Block): kompakter, ohne eigene Hover-Fläche. */
+.bt-deadline-row.bt-deadline-sm { padding: 1px 3px; gap: 5px; font-size: 0.86em; }
+.bt-deadline-row.bt-deadline-sm .bt-deadline-ic { width: 12px; }
+.bt-deadline-row.bt-deadline-sm .bt-deadline-ic svg { width: 11px; height: 11px; }
+
+/* Aufklapp-Feld am Hinweis: die ECHTE Aufgabenzeile mit funktionierender Checkbox. */
+.bt-pop.bt-dl-panel { min-width: 240px; max-width: 380px; padding: 7px 9px; }
+.bt-dl-panel .bt-dl-panel-row { display: flex; align-items: flex-start; gap: 10px; }
+.bt-dl-panel .bt-dl-panel-body { min-width: 0; }
+.bt-dl-panel .bt-dl-panel-title { color: var(--text-normal); cursor: pointer; }
+.bt-dl-panel .bt-dl-panel-title:hover { text-decoration: underline; }
+.bt-dl-panel .bt-dl-panel-due { margin-top: 2px; font-size: 0.86em; color: var(--text-muted); }
+.bt-dl-panel .bt-dl-panel-due[data-when="past"]  { color: var(--bt-dist-overdue); }
+.bt-dl-panel .bt-dl-panel-due[data-when="today"] { color: var(--bt-today); }

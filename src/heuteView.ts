@@ -5,7 +5,7 @@ import { todayStr, formatDateTime, combineDT, dueWhen, dueDist, dateOf, groupLab
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, deadlineMarkers, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
@@ -18,6 +18,7 @@ import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen 
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
+import { renderDeadlineRow } from "./deadlineRow";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -132,7 +133,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // hat sonst nichts, was ihn anstößt – das macht sonst nur der Kalender).
     plugin.gcalFeed?.setRange(today, today);
     const todayEv = dayEvents(plugin, today);
-    if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length) {
+    // Deadline-Hinweise: „Überfällig ist überfällig" – eine verstrichene Deadline gehört in DEN
+    // Abschnitt, eine heutige unter „Heute". Die Entdopplung hängt am Abschnitt (s. deadlineMarkers):
+    // in „Überfällig" steht die Aufgabe schon, wenn ihre Fälligkeit verstrichen ist, unter „Heute",
+    // wenn sie heute fällig ist. Eine heute fällige Aufgabe mit gestriger Deadline zeigt deshalb
+    // beides – Zeile unter „Heute", Hinweis unter „Überfällig".
+    const dlOverdue = deadlineMarkers(idx.deadlineOverdue(today), (tk) => !!tk.due && tk.due < today);
+    const dlToday = deadlineMarkers(idx.deadlineOn(today), (tk) => tk.due === today);
+    if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length && !dlOverdue.length && !dlToday.length) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
@@ -160,12 +168,14 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // Leere Sektionen weglassen – wie der Datums-Zweig (filterGroups(...).filter(tasks.length)):
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
-        if (visibleRows(overdue, present, ownRow).length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
-          rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
+        if (visibleRows(overdue, present, ownRow).length || dlOverdue.length) {
+          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow, dlOverdue);
+          // „Verschieben" nur, wenn es wirklich überfällige AUFGABEN gibt – ein Abschnitt, der nur
+          // Deadline-Hinweise trägt, hat nichts zu verschieben (die Hinweise sind fremde Zeilen).
+          if (overdue.length) rescheduleButton(overdueHead, plugin, overdue);   // ALLE überfälligen, auch verschachtelte
         }
-        if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
+        if (visibleRows(dueToday, present, ownRow).length || todayEv.length || dlToday.length) {
+          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow, dlToday);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
@@ -176,15 +186,20 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           .filter((g) => visibleRows(g.tasks, present, ownRow).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow); };
-        if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
+        // Ohne Datums-Split gibt es keinen Abschnitt, dem eine verstrichene Deadline eindeutig
+        // gehörte – hier bekommen alle Hinweise DEN einen vorhersagbaren Platz: die „Heute"-Box,
+        // die auch die Termine trägt.
+        const dlAll = [...dlOverdue, ...dlToday];
+        const extras = todayEv.length > 0 || dlAll.length > 0;
+        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow, dlAll); };
+        if (extras && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow);
+          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow, isToday ? dlAll : []);
           // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
           // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
           // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
-          if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
+          if (extras && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
       if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, doneHosts);
@@ -200,7 +215,10 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const eventEnd = upcomingEventEnd(plugin, today);
     plugin.gcalFeed?.setRange(today, eventEnd);
     const evByDate = feedEventsByDate(plugin, today, eventEnd);
-    if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
+    // Künftige Deadlines: eigene Hinweis-Einträge an IHREM Tag. Ein Tag, an dem nur eine Deadline
+    // liegt, bekommt dadurch seine Gruppe – genau wie ein Tag mit nur einem Termin.
+    const dlByDate = idx.deadlinesByDate(today);
+    if (!groups.length && !evByDate.size && !dlByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
     } else if (opts.layout === "board") {
@@ -219,17 +237,21 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       const ownRow = agendaOwnRow(group);
       if (group === "date") {
         const tasksByDate = new Map(groups.map((g) => [g.date, g.tasks]));
-        // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen, chronologisch.
-        const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys()])].sort();
+        // Datums-Vereinigung: alle Aufgaben-Tage PLUS alle Tage mit Terminen PLUS alle Tage mit
+        // Deadlines, chronologisch.
+        const dates = [...new Set([...tasksByDate.keys(), ...evByDate.keys(), ...dlByDate.keys()])].sort();
         for (const date of dates) {
           // Innerhalb eines Tages nach der gewählten Sortierung ordnen (wie „Heute" seine Sektionen) –
           // die Tages-REIHENFOLGE bleibt chronologisch (Agenda).
           const dayTasks = sortTasks(tasksByDate.get(date) ?? [], opts.sort, opts.sortDir, orderKey(plugin));
           const dayEv = evByDate.get(date) ?? [];
+          // Am Tag D steht die Aufgabe schon, wenn sie an D fällig ist -> dann kein Hinweis, die
+          // Deadline hängt als Chip an ihrer Zeile.
+          const dayDl = deadlineMarkers(dlByDate.get(date) ?? [], (tk) => tk.due === date);
           // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
           // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
-          if (visibleRows(dayTasks, present, ownRow).length || dayEv.length)
-            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow);
+          if (visibleRows(dayTasks, present, ownRow).length || dayEv.length || dayDl.length)
+            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow, dayDl);
         }
       } else {
         const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
@@ -1066,7 +1088,7 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
 /** Zeichnet eine Sektion und gibt ihren Überschriften-Kopf zurück – daran hängen Aufrufer
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean): HTMLElement {
+function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean, markers: Task[] = []): HTMLElement {
   const top = trash ? tasks : visibleRows(tasks, present, ownRow);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
@@ -1097,6 +1119,9 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
     ? (isInboxLink(top[0].project) ? NO_PROJECT : projectName(top[0].project!)) : undefined;
   for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, dateImplied, deadlineImplied, distColor, hideProject });
   annotateSubtaskTree(list);
+  // Deadline-Hinweise NACH den Aufgaben: sie sind Hinweise, keine Arbeit – und sie zählen wie die
+  // Termine nicht in die Kopfzahl (die beantwortet „wie viel steht hier an").
+  for (const m of markers) renderDeadlineRow(list, plugin, m, today);
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
@@ -1294,6 +1319,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
     if (!(schedHide && !task.scheduledTime)) {
       const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
+      chip.dataset.when = dueWhen(task.scheduled, today);   // verstrichen/heute einfärben (s. styles.css)
       chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDateTime(combineDT(task.scheduled, task.scheduledTime), today) });
       chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
     }

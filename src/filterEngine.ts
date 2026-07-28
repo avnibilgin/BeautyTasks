@@ -246,6 +246,32 @@ export function collectTrashTargets(roots: Task[], descendantsOf: (path: string)
   return out;
 }
 
+/**
+ * Welche Deadlines in EINEM Abschnitt als eigener Hinweis-Eintrag erscheinen.
+ *
+ * Modell (wie Todoist): Die Deadline dupliziert die Aufgabe nicht, sie ist ein eigener, nicht
+ * abhakbarer Eintrag, der auf die Aufgabe zeigt. Deshalb die Regel:
+ *
+ *   Ein Hinweis erscheint genau dann, wenn die Deadline in DIESEN Abschnitt fällt und die
+ *   Aufgabe dort nicht ohnehin schon mit ihrer eigenen Zeile steht.
+ *
+ * `candidates` sind die Aufgaben, deren Deadline in den Abschnitt fällt (index.deadlineOn /
+ * deadlineOverdue / deadlinesByDate). `rowsHere` beantwortet, ob die Aufgabe in diesem Abschnitt
+ * schon eine eigene Zeile hat – in Tages-Abschnitten also „due === Tag", im Abschnitt
+ * „Überfällig" dagegen „due < heute". Genau diese Verallgemeinerung („gleicher Abschnitt" statt
+ * „gleicher Tag") sorgt dafür, dass eine heute fällige Aufgabe mit gestriger Deadline BEIDES
+ * zeigt – Zeile unter „Heute", Hinweis unter „Überfällig" –, eine seit gestern überfällige mit
+ * letzter Woche verstrichener Deadline aber nur ihre Zeile.
+ *
+ * Sortierung wie überall: nach Uhrzeit, Terminloses ans Tagesende ("99:99", s. sortTasks).
+ */
+export function deadlineMarkers(candidates: Task[], rowsHere: (t: Task) => boolean): Task[] {
+  return candidates
+    .filter((t) => !isDone(t.status) && !isTrashed(t.status) && !rowsHere(t))
+    .sort((a, b) => (a.scheduledTime ?? "99:99").localeCompare(b.scheduledTime ?? "99:99")
+      || a.title.localeCompare(b.title));
+}
+
 /** Abstand beim Durchnummerieren. Lücken, damit spätere Züge reine Mittelwerte sind. */
 export const ORDER_GAP = 10;
 /** Ein zu schreibender Positionswert. */

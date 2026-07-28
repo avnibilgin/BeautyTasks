@@ -1,7 +1,8 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, CalEvent } from "./types";
-import { ViewOptions } from "./filterEngine";
+import { ViewOptions, deadlineMarkers } from "./filterEngine";
+import { renderDeadlineRow } from "./deadlineRow";
 import { t, getLocale, projectDisplayName } from "./i18n";
 import { isInboxLink } from "./taskService";
 import { combineDT, todayStr } from "./format";
@@ -58,7 +59,28 @@ export interface CalendarAdd { project?: string | null; label?: string }
 
 /** Jeder Modus-Zeichner liefert diese Füll-Funktion: Aufgaben UND Termine des Zeitraums, jeweils
  *  nach Tag gebündelt. Das Gerüst bleibt stehen, nur der Inhalt wird neu gezeichnet. */
-type GridFiller = (tasks: Map<string, Task[]>, events: Map<string, DayEvent[]>) => void;
+type GridFiller = (tasks: Map<string, Task[]>, events: Map<string, DayEvent[]>, deadlines: Map<string, Task[]>) => void;
+
+/**
+ * Deadline-Hinweise je Tag (Modell s. deadlineRow.ts): Eine Aufgabe, die an Tag D fällig ist,
+ * steht dort schon mit ihrem Block – dann trägt sie die Deadline als Chip und bekommt KEINEN
+ * eigenen Hinweis. Fällt die Deadline auf einen anderen Tag, erscheint sie dort als eigener,
+ * nicht abhakbarer Eintrag.
+ */
+function bucketDeadlines(list: Task[]): Map<string, Task[]> {
+  const raw = new Map<string, Task[]>();
+  for (const tk of list) {
+    if (!tk.scheduled) continue;
+    const arr = raw.get(tk.scheduled);
+    if (arr) arr.push(tk); else raw.set(tk.scheduled, [tk]);
+  }
+  const out = new Map<string, Task[]>();
+  for (const [day, tasks] of raw) {
+    const marks = deadlineMarkers(tasks, (tk) => tk.due === day);
+    if (marks.length) out.set(day, marks);
+  }
+  return out;
+}
 
 /**
  * ── Inkrementelles Nachzeichnen ──────────────────────────────────────────────────────────────
@@ -202,7 +224,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
    *  ohne dass die Kontext-Signatur die (ständig wechselnde) Terminmenge kennen müsste. */
   const paint = (list: Task[]): void => {
     const unsched = unscheduledOf(list);
-    fillGrid(bucketByDue(list), feedEvents());
+    fillGrid(bucketByDue(list), feedEvents(), bucketDeadlines(list));
     fillPanel?.(unsched);
     setPanelCount(unsched.length);
   };
@@ -338,11 +360,13 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
 
   // Termine zuerst (sie sind der Kontext des Tages: „so viel ist schon belegt"), dann die Aufgaben.
   // „+N weitere" zählt beide zusammen, damit die Zelle nicht überläuft.
-  const fillCell = (day: string, body: HTMLElement, events: DayEvent[], tasks: Task[], fit: ChipFit): void => {
+  const fillCell = (day: string, body: HTMLElement, events: DayEvent[], tasks: Task[], deadlines: Task[], fit: ChipFit): void => {
     body.empty();
     const draws: ((p: HTMLElement) => void)[] = [
       ...events.map((de) => (p: HTMLElement) => renderEventChip(p, de)),
       ...tasks.map((tk) => (p: HTMLElement) => renderChip(p, plugin, tk)),
+      // Deadline-Hinweise nach den Aufgaben: sie sind Zeiger, keine Arbeit an diesem Tag.
+      ...deadlines.map((tk) => (p: HTMLElement) => { renderDeadlineRow(p, plugin, tk, today, { compact: true }); }),
     ];
     const shown = shownChips(draws.length, fit);
     const list = body.createDiv({ cls: "bt-calview-chips" });
@@ -366,6 +390,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
   let fit: ChipFit | null = null;
   let last: Map<string, Task[]> = new Map();
   let lastEv: Map<string, DayEvent[]> = new Map();
+  let lastDl: Map<string, Task[]> = new Map();
 
   /** Passende Chip-Zahl für die aktuelle Zellenhöhe. Ohne Höhe (View noch nicht sichtbar) oder ohne
    *  Aufgabe zum Messen bleibt es beim Notnagel – der ResizeObserver zieht nach, sobald es liegt. */
@@ -379,7 +404,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
 
   const draw = (): void => {
     fit = currentFit();
-    for (const { day, body } of cells) fillCell(day, body, lastEv.get(day) ?? [], sortDay(last.get(day) ?? []), fit);
+    for (const { day, body } of cells) fillCell(day, body, lastEv.get(day) ?? [], sortDay(last.get(day) ?? []), lastDl.get(day) ?? [], fit);
   };
 
   // Zellenhöhe ändert sich mit dem Fenster, der Sidebar und der Zoomstufe – ohne Datenänderung.
@@ -391,9 +416,10 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
   });
   ro.observe(grid);
 
-  return (buckets, events) => {
+  return (buckets, events, deadlines) => {
     last = buckets;
     lastEv = events;
+    lastDl = deadlines;
     draw();
   };
 }
@@ -479,7 +505,7 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
   // Füller: Ganztägig-Zeile (Aufgaben + Termine) und Zeitblöcke (gemeinsam angeordnet) – Gerüst,
   // Stundenraster und Scrollposition bleiben. Termine sind read-only, teilen sich aber die Breite
   // mit den Aufgabenblöcken (ein Meeting schiebt den Aufgabenblock zur Seite, statt ihn zu verdecken).
-  return (buckets, events) => {
+  return (buckets, events, deadlines) => {
     for (const day of days) {
       const dayTasks = sortDay(buckets.get(day) ?? []);
       const dayEvents = events.get(day) ?? [];
@@ -488,6 +514,11 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
       cell.empty();
       for (const de of allDayEventsOf(dayEvents)) renderEventChip(cell, de);
       for (const tk of allDayOf(dayTasks)) renderChip(cell, plugin, tk);
+      // Deadline-Hinweise in die Ganztägig-Zeile – AUCH die mit Uhrzeit. Eine Deadline belegt
+      // keinen Zeitraum, sie ist ein Stichtag; als Block im Raster würde sie Breite von echter
+      // Arbeit wegnehmen und eine Dauer vortäuschen, die es nicht gibt. Die Uhrzeit steht im
+      // Eintrag selbst.
+      for (const tk of deadlines.get(day) ?? []) renderDeadlineRow(cell, plugin, tk, today, { compact: true });
 
       const col = cols.get(day)!;
       for (const old of Array.from(col.children)) {
