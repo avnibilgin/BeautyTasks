@@ -2560,6 +2560,13 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   cursor: pointer;
   line-height: 1.4;
 }
+/* Trennlinie wie an der Aufgabenzeile (.bt-task::after), gleicher Versatz von 28px: Hinweise und
+   Aufgaben stehen in EINER Liste, also darf zwischen ihnen keine Linie fehlen. Nicht in der
+   Kalender-Variante – dort sind es eigenständige Kacheln, keine Listenzeilen. */
+.bt-deadline-row:not(.bt-deadline-sm)::after {
+  content: ""; position: absolute; left: 28px; right: 0; bottom: 0;
+  border-top: 1px solid var(--bt-line-faint);
+}
 .bt-deadline-row:hover { background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent); border-radius: 6px; }
 .bt-deadline-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 6px; }
 /* Uhr optisch auf Checkbox-Maß: Die Zeichenfläche ist etwas größer als der Checkbox-Kasten, weil
