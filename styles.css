@@ -2313,25 +2313,37 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-calview-block.is-resizing .bt-calview-resize:hover { background: none; opacity: 0; }
 
 /* ── Google-Termine (read-only) ──────────────────────────────────────────────────
-   Bewusst ANDERS als der Aufgaben-Block: eine Aufgabe ist eine gefüllte Fläche mit Abhak-Kreis,
-   ein Termin eine NEUTRALE Fläche mit kräftigem Farbbalken links (Kalenderfarbe). So liest sich
-   auf einen Blick „gehört nicht mir, ist nur belegt" – kein Kreis, kein Ziehen, kein Griff. */
+   Bewusst ANDERS als der Aufgaben-Block: eine Aufgabe ist eine getönte Fläche mit Abhak-Kreis,
+   ein Termin eine NEUTRALE Fläche (Seitenhintergrund + dezenter Rahmen) mit kräftigem Farbbalken
+   links (Kalenderfarbe). So liest sich auf einen Blick „gehört nicht mir, ist nur belegt" – kein
+   Kreis, kein Ziehen, kein Griff. Eigene Fläche statt transparent, damit der Termin im Raster als
+   abgegrenzte Kachel steht und die Stundenlinien nicht durch ihn hindurchlaufen. */
 .bt-calview-ev {
   position: absolute; z-index: 1; display: flex; overflow: hidden; box-sizing: border-box;
-  padding: 3px 6px 3px 9px; border-radius: 4px; cursor: pointer;
-  background: transparent;   /* keine Füllung – die Farbe trägt allein der Balken (wie der Ganztags-Chip) */
+  padding: 2px 5px 2px 8px; border-radius: 4px; cursor: pointer;   /* Radius wie .bt-calview-block */
+  /* Deckende Fläche in Grundfarbe (hell = weiß, dunkel = Themehintergrund) + neutraler Rahmen.
+     Rahmen bewusst NICHT in der Kalenderfarbe: sonst hätte jeder Kalender eine andere Kantenstärke –
+     die Farbe trägt allein der Balken links. Der 1px-Rahmen frisst je Seite 1px, deshalb ist das
+     Padding gegenüber der randlosen Fassung um 1px kleiner: Text bleibt an gleicher Stelle. */
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
   font-size: 0.84em; line-height: 1.35;
 }
-/* Farbbalken (echte Google-Kalenderfarbe) bündig am linken Rand. Oben/unten bis zum Beginn des
-   Eckbogens (= border-radius 4px) einrücken, damit die Enden symmetrisch sind und nicht in die
-   gebogene Ecke laufen; runde Enden wie beim Ganztags-Balken. */
+/* Farbbalken (echte Google-Kalenderfarbe) bündig innen am linken Rahmen. Oben/unten bis zum Beginn
+   des Eckbogens (Innenradius = 4px − 1px Rahmen = 3px) einrücken, damit die Enden symmetrisch sind
+   und nicht in die gebogene Ecke laufen; runde Enden wie beim Ganztags-Balken. */
 .bt-calview-ev::before {
-  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
+  content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 3px;
   border-radius: 999px;
   background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
   background: hsl(from var(--bt-ev-color) h 60% 52%);   /* Kalender-Hue, kräftiger + mittlere Helligkeit → in Light UND Dark lesbar */
 }
-.bt-calview-ev:hover { background: var(--background-modifier-hover); }
+/* Hover deckend mischen statt --background-modifier-hover (halbtransparent) darüberzulegen –
+   sonst schimmern Stundenraster und „Heute"-Tönung durch die Kachel. */
+.bt-calview-ev:hover {
+  background: color-mix(in srgb, var(--text-normal) 6%, var(--background-primary));
+  border-color: var(--background-modifier-border-hover);
+}
 .bt-calview-ev-in { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .bt-calview-ev.is-compact .bt-calview-ev-in { flex-direction: row; align-items: center; gap: 5px; }
 .bt-calview-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); font-weight: 500; }
