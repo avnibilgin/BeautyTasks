@@ -1473,10 +1473,12 @@ function navItem(c: HTMLElement, plugin: BeautyTasksPlugin, o: NavItemOpts): voi
 
 /**
  * Einen Seitenleisten-Eintrag als Ablage für Aufgaben verdrahten: Eine Aufgabe aus der Liste (oder
- * vom Board) hierher zu ziehen verschiebt sie – „schnell mal in ein anderes Projekt".
+ * vom Board) hierher zu ziehen wendet die Bedeutung des Ziels auf sie an.
  *
- * Nur Projekte, Bereiche und Eingang bekommen das. Labels wären dieselbe Geste mit ANDERER
- * Bedeutung (hinzufügen statt verschieben), Filter sind Suchanfragen ohne setzbares Feld.
+ * WAS geschieht, entscheidet die Aufrufstelle, nicht diese Funktion: Projekt, Bereich und Eingang
+ * VERSCHIEBEN die Aufgabe (sie hat genau eine Liste), ein Label ERGÄNZT sie (sie kann mehrere
+ * tragen und bleibt, wo sie ist). Filter bleiben außen vor – sie sind Suchanfragen und haben kein
+ * Feld, das sich setzen ließe.
  *
  * Die Aufgabe kommt aus dem Modul-Zustand `dragPath` (denselben benutzen Board und Kalender);
  * `dataTransfer` trägt sie zusätzlich, weil ein Zug ohne Nutzlast in manchen Umgebungen gar nicht
@@ -1754,6 +1756,10 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
         cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
         active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
+        // Anders als bei Projekt/Bereich/Eingang wird hier nichts VERSCHOBEN, sondern ERGÄNZT:
+        // Die Aufgabe bleibt, wo sie ist, und bekommt das Label dazu. Sichtbar wird das sofort am
+        // neuen Chip in ihrer Meta-Zeile. Trägt sie es schon, bleibt der Zug folgenlos.
+        onDropTask: (task) => { if (!task.labels.includes(name)) void plugin.swapTaskLabel(task, null, name); },
       });
     }
     if (!plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
