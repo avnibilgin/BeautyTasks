@@ -867,6 +867,13 @@ body {
    aktive Eintrag, damit beide Zustände unterscheidbar bleiben. */
 .bt-nav-item:hover { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
 .bt-nav-item.is-active { background: color-mix(in srgb, var(--interactive-accent) 18%, transparent); font-weight: 600; }
+/* Ablage beim Ziehen einer Aufgabe hierher: deutlicher als „aktiv", damit man beim Loslassen
+   sicher ist, welchen Eintrag man trifft – gefüllt UND umrandet, in der Akzentfarbe. */
+.bt-nav-item.is-drop-task {
+  background: color-mix(in srgb, var(--interactive-accent) 26%, transparent);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+  border-radius: 6px;
+}
 .bt-nav-ic { display: inline-flex; flex-shrink: 0; }
 .bt-nav-ic svg { width: 16px; height: 16px; }
 /* Seitenleisten-Icon-Farben: Boards einzeln, Labels/Bereiche/Projekte je gemeinsam.

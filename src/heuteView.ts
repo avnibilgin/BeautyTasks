@@ -942,7 +942,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // Datums-Spalten heißen „d:<ISO>" (s. dateColumns); „Überfällig"/„ohne Datum" tragen kein
     // einzelnes Datum und blenden deshalb nichts aus.
     const impliedDate = dateImplied && col.id.startsWith("d:") ? col.id.slice(2) : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, draggable: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
+    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1177,7 +1177,7 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
 }
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
-  opts: { flat?: boolean; draggable?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
+  opts: { flat?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
@@ -1198,8 +1198,13 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     attachTaskReorder(row, grip, list, task, plugin);
   }
 
-  // Kanban-Karte: per HTML5-Drag zwischen Status-Spalten verschiebbar (Desktop).
-  if (opts.draggable && !trash) {
+  // Per HTML5-Drag verschiebbar (Desktop): auf dem Board zwischen den Spalten, in der LISTE auf
+  // einen Eintrag der Seitenleiste (Projekt/Bereich/Eingang – s. navItem/onDropTask). Beides
+  // derselbe Zug, deshalb dieselbe Verdrahtung; die Papierkorb-Ansicht bleibt außen vor.
+  //
+  // Der Zieh-Griff der Handsortierung kommt sich damit nicht ins Gehege: Er ruft in `pointerdown`
+  // `preventDefault()`, und das unterbindet den nativen Zug, bevor er beginnt.
+  if (!trash) {
     row.setAttr("draggable", "true");
     row.addEventListener("dragstart", (e) => {
       dragPath = task.path;
@@ -1214,6 +1219,9 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       dragPath = null; dragFromCol = null;
       row.removeClass("is-dragging");
       clearDropTarget(list);
+      // Abbruch per Escape über einem Seitenleisten-Eintrag liefert dort kein `dragleave` – die
+      // Hervorhebung bliebe sonst stehen. `dragend` ist der eine Punkt, der jedes Ende sicher sieht.
+      row.ownerDocument.querySelectorAll(".is-drop-task").forEach((el) => el.removeClass("is-drop-task"));
     });
   }
 
@@ -1399,7 +1407,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
 }
 
 // ── Linke Navigation ─────────────────────────────────────────────
-interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; countKey?: string; active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; }
+interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; countKey?: string; active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; onDropTask?: (task: Task) => void; }
 
 /** Div klick- UND tastaturbedienbar machen (role=button/tabindex kommen vom Aufrufer):
  *  Klick + Enter/Space lösen dieselbe Aktion aus. So bleibt die Optik 1:1 wie zuvor. */
@@ -1409,7 +1417,7 @@ function activate(el: HTMLElement, handler: () => void): void {
 }
 
 /** Ein Nav-Eintrag (Div wie bisher, aber per role=button/tabindex tastaturbedienbar). */
-function navItem(c: HTMLElement, o: NavItemOpts): void {
+function navItem(c: HTMLElement, plugin: BeautyTasksPlugin, o: NavItemOpts): void {
   const item = c.createDiv({ cls: "bt-nav-item" + (o.active ? " is-active" : "") + (o.cls ? " " + o.cls : ""), attr: { role: "button", tabindex: "0" } });
   const ic = item.createSpan({ cls: "bt-nav-ic" }); setIcon(ic, o.icon); if (o.iconColor) ic.setCssStyles({ color: o.iconColor });
   item.createSpan({ cls: "bt-nav-lbl", text: o.label });
@@ -1421,6 +1429,38 @@ function navItem(c: HTMLElement, o: NavItemOpts): void {
   }
   activate(item, o.onClick);
   if (o.onContext) item.oncontextmenu = (e) => { e.preventDefault(); o.onContext!(e); };   // Rechtsklick = Kontextmenü
+  if (o.onDropTask) attachTaskDrop(item, plugin, o.onDropTask);
+}
+
+/**
+ * Einen Seitenleisten-Eintrag als Ablage für Aufgaben verdrahten: Eine Aufgabe aus der Liste (oder
+ * vom Board) hierher zu ziehen verschiebt sie – „schnell mal in ein anderes Projekt".
+ *
+ * Nur Projekte, Bereiche und Eingang bekommen das. Labels wären dieselbe Geste mit ANDERER
+ * Bedeutung (hinzufügen statt verschieben), Filter sind Suchanfragen ohne setzbares Feld.
+ *
+ * Die Aufgabe kommt aus dem Modul-Zustand `dragPath` (denselben benutzen Board und Kalender);
+ * `dataTransfer` trägt sie zusätzlich, weil ein Zug ohne Nutzlast in manchen Umgebungen gar nicht
+ * erst startet. Gelesen wird der Modul-Zustand – er überlebt auch Züge über View-Grenzen hinweg.
+ */
+function attachTaskDrop(el: HTMLElement, plugin: BeautyTasksPlugin, onDrop: (task: Task) => void): void {
+  const clear = (): void => el.removeClass("is-drop-task");
+  el.addEventListener("dragover", (e) => {
+    if (!dragPath) return;                  // fremder Zug (Datei aus dem Vault o. Ä.) -> nicht anfassen
+    e.preventDefault();                     // ohne das lehnt der Browser den Drop ab
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    el.addClass("is-drop-task");
+  });
+  // Beim Wechsel auf ein KIND des Eintrags (Symbol, Beschriftung, Zähler) feuert ebenfalls
+  // `dragleave` – ohne diese Prüfung flackerte die Hervorhebung, während man über dem Eintrag steht.
+  el.addEventListener("dragleave", (e) => { if (!el.contains(e.relatedTarget as Node | null)) clear(); });
+  el.addEventListener("drop", (e) => {
+    clear();
+    if (!dragPath) return;
+    e.preventDefault();
+    const task = plugin.index.get(dragPath);
+    if (task) onDrop(task);
+  });
 }
 
 /** Dezente Empty-State-Zeile unter einem Sektionskopf („+ … erstellen"). */
@@ -1597,24 +1637,26 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
   // „Aufgabe hinzufügen" ganz oben: öffnet die kompakte Schnell-Erfassung.
   // Folgt dem Kontext der geöffneten Seite – wie der Command und der „+ Aufgabe"-Knopf (addContext).
-  navItem(c, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
+  navItem(c, plugin, { cls: "bt-nav-add-task", icon: "bt-add-task", label: t("btn_add_task"), onClick: () => plugin.openQuickAddHere() });
 
   // „Suchen" darunter: öffnet die Aufgaben-Suche (Command-Palette-Stil).
-  navItem(c, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
+  navItem(c, plugin, { cls: "bt-nav-search", icon: "search", label: t("nav_search"), onClick: () => plugin.openSearch() });
 
   // Eingang ganz oben, OHNE Abschnittsüberschrift (über den Ansichten). Eingebaute Systemansicht
   // (keine Notiz) – KEIN volles Menü, nur der Kalender-Sync-Ein/Ausschalter (falls mit Google verbunden).
-  navItem(c, {
+  navItem(c, plugin, {
     cls: "bt-nav-inbox", icon: "inbox", label: t("nav_inbox"),
     count: plugin.index.inboxOpen().length, countKey: "p:" + INBOX_KEY, active: plugin.currentProject === INBOX_KEY,
     onClick: () => void plugin.activateProject(INBOX_KEY),
     onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, INBOX_KEY)) m.showAtMouseEvent(e); },
+    // Hierher gezogen = aus dem Projekt herausnehmen; „kein Projekt" IST der Eingang.
+    onDropTask: (task) => { if (task.project) void plugin.setTaskProject(task, null); },
   });
 
   for (const id of VIEW_IDS) {
     const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;
     // Klasse pro Board (bt-nav-heute …) für einzeln themebare Icon-Farben.
-    navItem(c, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id, active, onClick: () => void plugin.activateView(id) });
+    navItem(c, plugin, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id, active, onClick: () => void plugin.activateView(id) });
   }
 
   // cls = Kategorie-Klasse (bt-nav-area / bt-nav-project) für eine gemeinsame Icon-Farbe je Gruppe.
@@ -1627,11 +1669,14 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       return;
     }
     for (const p of visible) {
-      navItem(c, {
+      navItem(c, plugin, {
         cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name,
         count: plugin.index.byProject(p.path).length, countKey: "p:" + p.path,
         active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec, key: p.path, name: p.name, hidden: p.hidden, color: p.color, type: kind }); m.showAtMouseEvent(e); },
+        // Verweise laufen über den Basename (s. setTaskProject); liegt die Aufgabe schon hier,
+        // bleibt der Zug folgenlos statt die Notiz unnötig neu zu schreiben.
+        onDropTask: (task) => { if (task.project !== p.path) void plugin.setTaskProject(task, p.name); },
       });
     }
     // Leer (frisches Setup): dezenter „+ …erstellen"-Hinweis wie bei Labels/Filtern.
@@ -1648,7 +1693,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   } else if (!filtersCollapsed) {
     for (const fl of filters) {
       if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
-      navItem(c, {
+      navItem(c, plugin, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
         count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
         active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
@@ -1666,7 +1711,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   } else if (!labelsCollapsed) {
     for (const name of plugin.getVisibleLabels()) {
       const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
-      navItem(c, {
+      navItem(c, plugin, {
         cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
         active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
