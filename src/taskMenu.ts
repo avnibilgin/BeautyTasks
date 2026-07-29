@@ -83,6 +83,12 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
     };
 
     row("pencil", t("menu_edit_task"), () => plugin.openEditTask(task));
+    // Nur an Unteraufgaben: Sprung zu ihrer Hauptaufgabe. `index.get` beantwortet Verweis UND
+    // Existenz in einem Zug – auf eine gelöschte Hauptaufgabe gäbe es kein Sprungziel.
+    // `corner-left-up` markiert diese Beziehung im Plugin bereits an der Zeile, in der Brotkrume
+    // des Modals und in dessen „+"-Menü.
+    const parent = task.parent ? plugin.index.get(task.parent) : undefined;
+    if (parent) row("corner-left-up", t("menu_goto_parent"), () => plugin.openEditTask(parent));
     // „Zum Projekt": führt zur Liste, in der die Aufgabe liegt – auch zum Eingang, denn der ist
     // hier eine Liste wie jede andere (nur ohne Notiz). Mit deren Icon in deren Farbe.
     // Ausgeblendet nur, wenn der Eintrag nirgends hinführte: auf der Seite, die man ansieht.
