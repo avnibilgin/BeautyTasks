@@ -148,6 +148,20 @@ describe("sortTasks", () => {
     // zwischen ihnen zu landen („Wäsche machen" läge sonst zwischen Bunt- und Weißwäsche).
     expect(sortTasks(list, "smart").map((t) => t.id)).toEqual(["eltern", "kindA", "kindB"]);
   });
+  it("smart: bei gleicher Sekunde führt die Hauptaufgabe ihre Kinder an (Duplizieren)", () => {
+    // Beim Duplizieren entstehen Elter und Unterbaum in DERSELBEN Sekunde – `created` ist damit
+    // gleich, und alphabetisch stünde „Wäsche machen" zwischen seinen eigenen Kindern.
+    // Die Positionskette entscheidet: die des Elters ist der Anfang der des Kindes.
+    const SEK = "2026-07-29T09:00:00";
+    const eltern = mk({ id: "eltern", title: "Wäsche machen", due: TODAY, created: SEK });
+    const kindA = mk({ id: "kindA", title: "Buntwäsche waschen", due: TODAY, created: SEK, parent: "Items/eltern.md" });
+    const kindB = mk({ id: "kindB", title: "Weißwäsche waschen", due: TODAY, created: SEK, parent: "Items/eltern.md" });
+    // Ketten wie im Index: Elter ohne Handposition, Kinder mit den Lücken aus duplicateSubtree.
+    const chains: Record<string, number[]> = { eltern: [Infinity], kindA: [Infinity, 10], kindB: [Infinity, 20] };
+    const order = (t: Task): number[] => chains[t.id];
+    expect(sortTasks([kindB, kindA, eltern], "smart", "asc", order).map((t) => t.id))
+      .toEqual(["eltern", "kindA", "kindB"]);
+  });
   it("smart: gleiche Erstellungszeit (Altbestand ohne Uhrzeit) fällt auf den Titel zurück", () => {
     const list = [
       mk({ id: "z", title: "Zebra", due: TODAY, created: "2026-07-01" }),

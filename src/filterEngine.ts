@@ -430,18 +430,22 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc",
   const byPrio = (a: Task, b: Task): number => s * (PRIO_RANK[a.priority] - PRIO_RANK[b.priority]);
   const byTitle = (a: Task, b: Task): number => a.title.localeCompare(b.title);   // Gleichstand: stabil, ohne Richtung
 
-  // Handreihenfolge: Positionsketten lexikografisch. Eine kürzere Kette gewinnt bei Gleichstand,
-  // damit der Elter vor seinen Kindern steht ([3] vor [3,1]). Ohne Schlüssel: Rückfall auf created.
+  // Positionsketten lexikografisch vergleichen. Eine kürzere Kette gewinnt bei Gleichstand, damit
+  // der Elter vor seinen Kindern steht ([3] vor [3,1]) – DAS ist die Eigenschaft, wegen der auch
+  // „smart" sie als Entscheider nutzt (s. u.). Richtungsfrei: ein Schlüsselvergleich, keine Wertung.
+  const byChain = (a: Task, b: Task): number => {
+    if (!orderKey) return 0;
+    const ka = orderKey(a), kb = orderKey(b);
+    for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+      const va = ka[i] ?? -Infinity, vb = kb[i] ?? -Infinity;   // fehlende Ebene = weiter oben
+      if (va !== vb) return va < vb ? -1 : 1;
+    }
+    return 0;
+  };
+
+  // Handreihenfolge. Ohne Schlüssel: Rückfall auf created.
   if (sort === "manual") {
     if (!orderKey) return arr.sort((a, b) => (a.created ?? "").localeCompare(b.created ?? "") || byTitle(a, b));
-    const byChain = (a: Task, b: Task): number => {
-      const ka = orderKey(a), kb = orderKey(b);
-      for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
-        const va = ka[i] ?? -Infinity, vb = kb[i] ?? -Infinity;   // fehlende Ebene = weiter oben
-        if (va !== vb) return va < vb ? -1 : 1;
-      }
-      return 0;
-    };
     return arr.sort((a, b) => byChain(a, b) || (a.created ?? "").localeCompare(b.created ?? "") || byTitle(a, b));
   }
   if (sort === "due") return arr.sort((a, b) => byDue(a, b) || byTitle(a, b));
@@ -467,7 +471,7 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc",
     if (!kb) return -1;
     return ka.localeCompare(kb);
   };
-  // Dritter und vierter Entscheider: Erstellungszeit, dann Titel – beide richtungsfrei wie der Rest.
+  // Dritter bis fünfter Entscheider: Erstellungszeit, Positionskette, Titel – alle richtungsfrei.
   //
   // Ohne sie war die Reihenfolge bei vollständigem Gleichstand (gleicher Tag, keine Uhrzeit,
   // gleiche Priorität) dem Zufall überlassen: Die stabile Sortierung ließ dann die Reihenfolge
@@ -475,12 +479,21 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc",
   // Dateiliste. Nach jedem Neuladen des Plugins konnte sie anders ausfallen.
   //
   // Erstellungszeit VOR Titel, weil das die natürlichere Ordnung ergibt: Unteraufgaben entstehen
-  // aus dem Modal ihrer Hauptaufgabe und folgen ihr damit von selbst. Alphabetisch stünde eine
-  // Hauptaufgabe mitten in ihren eigenen Kindern. Der Titel bleibt als letzter Rückfall nötig,
-  // weil `created` in Altbeständen ein reines Datum ohne Uhrzeit ist (s. Kommentar bei "created").
+  // aus dem Modal ihrer Hauptaufgabe und folgen ihr damit von selbst.
+  //
+  // Sie reicht aber nicht: `localStamp` schreibt SEKUNDENgenau, und beim Duplizieren entstehen
+  // Hauptaufgabe und Unterbaum in derselben Sekunde – dann stünde die Hauptaufgabe alphabetisch
+  // mitten in ihren eigenen Kindern („Wäsche machen" zwischen „Buntwäsche" und „Weißwäsche").
+  // Deshalb davor die Positionskette: Die des Elters ist der Anfang der des Kindes, die kürzere
+  // gewinnt – die Familie bleibt beisammen und der Elter führt sie an. Für nicht verwandte
+  // Aufgaben ist der Vergleich meist gleichwertig und fällt auf den Titel durch.
+  //
+  // Der Titel bleibt als letzter Rückfall nötig, weil `created` in Altbeständen ein reines Datum
+  // ohne Uhrzeit ist (s. Kommentar bei "created").
   return arr.sort((a, b) => dueAsc(a, b)
     || (PRIO_RANK[a.priority] - PRIO_RANK[b.priority])
     || (a.created ?? "").localeCompare(b.created ?? "")
+    || byChain(a, b)
     || byTitle(a, b));
 }
 
