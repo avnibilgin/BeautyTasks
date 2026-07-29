@@ -136,6 +136,25 @@ describe("sortTasks", () => {
     const list = [mk({ id: "a", due: null }), mk({ id: "b", due: "2026-07-10" }), mk({ id: "c", due: "2026-07-08" })];
     expect(sortTasks(list, "smart").map((t) => t.id)).toEqual(["c", "b", "a"]);
   });
+  it("smart: bei vollständigem Gleichstand entscheidet die Erstellungszeit, dann der Titel", () => {
+    // Ohne diese beiden Stufen lag die Reihenfolge bei der Einfügereihenfolge des Index – und die
+    // entsteht beim Aufbau aus Obsidians Dateiliste, ist nach einem Neuladen also nicht garantiert.
+    const list = [
+      mk({ id: "kindB", title: "Weißwäsche", due: TODAY, created: "2026-07-01T10:05" }),
+      mk({ id: "kindA", title: "Buntwäsche", due: TODAY, created: "2026-07-01T10:02" }),
+      mk({ id: "eltern", title: "Wäsche machen", due: TODAY, created: "2026-07-01T10:00" }),
+    ];
+    // Erstellungszeit VOR Titel: die Hauptaufgabe führt ihre Kinder an, statt alphabetisch
+    // zwischen ihnen zu landen („Wäsche machen" läge sonst zwischen Bunt- und Weißwäsche).
+    expect(sortTasks(list, "smart").map((t) => t.id)).toEqual(["eltern", "kindA", "kindB"]);
+  });
+  it("smart: gleiche Erstellungszeit (Altbestand ohne Uhrzeit) fällt auf den Titel zurück", () => {
+    const list = [
+      mk({ id: "z", title: "Zebra", due: TODAY, created: "2026-07-01" }),
+      mk({ id: "a", title: "Apfel", due: TODAY, created: "2026-07-01" }),
+    ];
+    expect(sortTasks(list, "smart").map((t) => t.id)).toEqual(["a", "z"]);
+  });
   it("priority: höchste zuerst", () => {
     const list = [mk({ id: "a", priority: "normal" }), mk({ id: "b", priority: "highest" }), mk({ id: "c", priority: "medium" })];
     expect(sortTasks(list, "priority").map((t) => t.id)).toEqual(["b", "c", "a"]);

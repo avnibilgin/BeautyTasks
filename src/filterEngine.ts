@@ -467,7 +467,21 @@ export function sortTasks(list: Task[], sort: FilterSort, dir: SortDir = "asc",
     if (!kb) return -1;
     return ka.localeCompare(kb);
   };
-  return arr.sort((a, b) => dueAsc(a, b) || (PRIO_RANK[a.priority] - PRIO_RANK[b.priority]));
+  // Dritter und vierter Entscheider: Erstellungszeit, dann Titel – beide richtungsfrei wie der Rest.
+  //
+  // Ohne sie war die Reihenfolge bei vollständigem Gleichstand (gleicher Tag, keine Uhrzeit,
+  // gleiche Priorität) dem Zufall überlassen: Die stabile Sortierung ließ dann die Reihenfolge
+  // stehen, in der der Index die Aufgaben führt – und die entsteht beim Aufbau aus Obsidians
+  // Dateiliste. Nach jedem Neuladen des Plugins konnte sie anders ausfallen.
+  //
+  // Erstellungszeit VOR Titel, weil das die natürlichere Ordnung ergibt: Unteraufgaben entstehen
+  // aus dem Modal ihrer Hauptaufgabe und folgen ihr damit von selbst. Alphabetisch stünde eine
+  // Hauptaufgabe mitten in ihren eigenen Kindern. Der Titel bleibt als letzter Rückfall nötig,
+  // weil `created` in Altbeständen ein reines Datum ohne Uhrzeit ist (s. Kommentar bei "created").
+  return arr.sort((a, b) => dueAsc(a, b)
+    || (PRIO_RANK[a.priority] - PRIO_RANK[b.priority])
+    || (a.created ?? "").localeCompare(b.created ?? "")
+    || byTitle(a, b));
 }
 
 /**
