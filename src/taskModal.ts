@@ -219,7 +219,7 @@ export class TaskModal extends Modal {
   private renderParentCrumb(contentEl: HTMLElement): void {
     const parent = this.existing ? this.parentTask() : null;
     if (!parent) return;
-    const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0", "aria-label": t("menu_show_parent") } });
+    const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0", "aria-label": t("menu_goto_parent") } });
     setIcon(crumb.createSpan({ cls: "bt-parent-ic" }), "corner-left-up");
     crumb.createSpan({ cls: "bt-parent-lbl", text: parent.title });
     const open = (): void => {
@@ -386,7 +386,7 @@ export class TaskModal extends Modal {
         // Weg zu genau dieser Zeile – zwei getrennte Strings würden über zehn Sprachen hinweg
         // frueher oder spaeter auseinanderlaufen.
         row("corner-down-right", t("sub_add"), () => this.addSubtask());
-        if (this.parentTask()) row("corner-left-up", t("menu_show_parent"), () => this.showParent());
+        if (this.parentTask()) row("corner-left-up", t("menu_goto_parent"), () => this.showParent());
         row("copy", t("menu_duplicate"), () => void this.duplicate());
         pop.createDiv({ cls: "bt-plus-sep" });
         row("link", t("menu_copy_link"), () => this.copyLink());
