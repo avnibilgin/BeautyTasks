@@ -1326,19 +1326,25 @@ body.bt-meta-colorado {
    Sichtfelds, weil der Browser sie gerendert im Dokument braucht, um sein Bild davon zu ziehen.
    Die Klasse `bt-view` liefert der Kopie ihre Gestaltung – deren Maße hier bewusst neutralisiert.
 
-   Zwei Dinge fehlen hier ABSICHTLICH, weil der Abzug exakt an der Außenkante endet:
-   • Kein Schlagschatten. Er läge außerhalb und würde hart abgeschnitten – sichtbar als kantiger
-     grauer Keil an der unteren Ecke statt als weiches Auslaufen.
-   • Kein Rahmen an der Außenkante, sondern ein Ring NACH INNEN. Ein 1px-Rahmen auf der Kante fällt
-     bei fraktionaler Bildschirmskalierung je nach Position mal in den Abzug und mal heraus – die
-     Umrandung flackerte dann. Innen gezeichnet, kann sie gar nicht erst herausfallen. */
+   Der Abzug endet exakt an der Außenkante der Hülle – deshalb ist die Hülle DURCHSICHTIG und
+   trägt nur einen Rand (padding: GHOST_PAD in heuteView.ts). Alles Sichtbare liegt in der Karte
+   darin, also mit Abstand zur Kante:
+   • Kein Schlagschatten. Er läge außerhalb der Karte und würde hart abgeschnitten – sichtbar als
+     kantiger grauer Keil an der unteren Ecke statt als weiches Auslaufen.
+   • Die Umrandung sitzt als Ring INNERHALB der Karte. Läge sie auf der Abzugskante, verschwände
+     sie bei jeder Bewegung neu: Auf einer skalierten Anzeige sitzt das Bild an gebrochenen
+     Gerätepixeln, und die äußerste Pixelreihe fällt dann mal weg und mal nicht. */
 .bt-drag-ghost {
   position: fixed; top: -9999px; left: -9999px;
+  padding: 4px;                /* == GHOST_PAD */
+  background: transparent;
+  scrollbar-gutter: auto;      /* .bt-view reserviert sonst Scrollbalken-Platz auf beiden Seiten */
+}
+.bt-drag-ghost-card {
   box-sizing: border-box; padding: 4px 10px; overflow: hidden;
   background: var(--background-primary);
   box-shadow: inset 0 0 0 1px var(--background-modifier-border);
   border-radius: 8px;
-  scrollbar-gutter: auto;   /* .bt-view reserviert sonst Scrollbalken-Platz auf beiden Seiten */
 }
 .bt-drag-ghost .bt-task { cursor: grabbing; }
 /* Die Trennlinie gehört zur Liste, nicht auf eine einzelne Karte. */

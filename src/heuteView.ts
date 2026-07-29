@@ -1194,16 +1194,25 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
  */
 function attachDragGhost(e: DragEvent, row: HTMLElement): void {
   if (!e.dataTransfer) return;
+  // Zwei Ebenen: eine DURCHSICHTIGE Hülle mit Rand, darin die eigentliche Karte. Der Abzug endet an
+  // der Hüllenkante – und dort liegt jetzt nur noch Nichts. Läge die Umrandung selbst auf dieser
+  // Kante, verschwände sie bei jeder Bewegung neu: Das Bild wird auf einer skalierten Anzeige an
+  // gebrochenen Gerätepixeln abgesetzt, und die äußerste Pixelreihe fällt dann mal weg, mal nicht.
   const ghost = row.ownerDocument.body.createDiv({ cls: "bt-view bt-drag-ghost" });
-  ghost.style.width = row.offsetWidth + "px";
+  const card = ghost.createDiv({ cls: "bt-drag-ghost-card" });
+  card.style.width = row.offsetWidth + "px";
   const clone = row.cloneNode(true) as HTMLElement;
   clone.removeClass("is-focus");   // ein Suchtreffer-Rahmen gehört nicht ans Zugbild
-  ghost.appendChild(clone);
-  // Greifpunkt beibehalten: Die Karte hängt dort am Zeiger, wo man die Zeile angefasst hat.
+  card.appendChild(clone);
+  // Greifpunkt beibehalten: Die Karte hängt dort am Zeiger, wo man die Zeile angefasst hat – plus
+  // den Rand der Hülle. GERUNDET, damit das Bild auf ganzen Pixeln sitzt und nicht bei jeder
+  // Bewegung neu verrechnet wird (dieselbe Rundung wie bei den Popovers).
   const r = row.getBoundingClientRect();
-  e.dataTransfer.setDragImage(ghost, e.clientX - r.left, e.clientY - r.top);
+  e.dataTransfer.setDragImage(ghost, Math.round(e.clientX - r.left) + GHOST_PAD, Math.round(e.clientY - r.top) + GHOST_PAD);
   window.setTimeout(() => ghost.remove(), 0);
 }
+/** Durchsichtiger Rand der Zughülle – muss zum `padding` von `.bt-drag-ghost` passen. */
+const GHOST_PAD = 4;
 
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
   opts: { flat?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
