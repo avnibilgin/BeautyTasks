@@ -200,8 +200,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
     // Gruppe – „Demnächst" wird so zur ehrlichen Wochenplanungs-Fläche.
     const eventEnd = upcomingEventEnd(plugin, today);
-    plugin.gcalFeed?.setRange(today, eventEnd);
-    const evByDate = feedEventsByDate(plugin, today, eventEnd);
+    plugin.gcalFeed?.setRange(today, eventEnd);   // LADEN ab heute – „Heute" braucht denselben Feed
+    // ANZEIGEN erst ab morgen: „Demnächst" beginnt bei morgen, und das muss für Termine genauso
+    // gelten wie für Aufgaben. Sonst entstand allein wegen eines heutigen Termins eine „Heute"-
+    // Gruppe in einer Ansicht, die Heutiges gar nicht zeigt – doppelt zur Heute-Liste.
+    const evByDate = feedEventsByDate(plugin, addDays(today, 1), eventEnd);
     if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "calendar") {
       renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
