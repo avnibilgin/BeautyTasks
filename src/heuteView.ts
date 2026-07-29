@@ -1176,6 +1176,35 @@ function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: stri
   });
 }
 
+/**
+ * Eigenes Zugbild statt des Browser-Abzugs der Zeile.
+ *
+ * Der Abzug erbt zwei Dinge, die ihn unbrauchbar machen: die halbe Deckkraft von `is-dragging`
+ * (der Browser zieht sein Bild ERST NACH dem Start-Ereignis, die Klasse sitzt dann schon) und den
+ * fehlenden Hintergrund der Zeile – über der Seitenleiste blieb dadurch schwebender Text übrig,
+ * der sich mit deren Einträgen überlagerte.
+ *
+ * Stattdessen eine undurchsichtige Karte mit demselben Inhalt: eine KOPIE der Zeile, damit Checkbox,
+ * Titel, Meta-Zeile und Projekt-Verweis genau so aussehen wie in der Liste. Die Hülle trägt die
+ * Klasse `bt-view`, weil ein Teil der Zeilen-Gestaltung darunter gescopet ist (Chip-Farben) und die
+ * Icon-Masken als Variablen dort hängen – am nackten `body` wären die Meta-Chips farb- und symbollos.
+ *
+ * Die Karte wird außerhalb des Sichtfelds erzeugt (der Browser braucht sie gerendert im Dokument)
+ * und sofort danach wieder entfernt: Das Bild ist zu diesem Zeitpunkt längst gezogen.
+ */
+function attachDragGhost(e: DragEvent, row: HTMLElement): void {
+  if (!e.dataTransfer) return;
+  const ghost = row.ownerDocument.body.createDiv({ cls: "bt-view bt-drag-ghost" });
+  ghost.style.width = row.offsetWidth + "px";
+  const clone = row.cloneNode(true) as HTMLElement;
+  clone.removeClass("is-focus");   // ein Suchtreffer-Rahmen gehört nicht ans Zugbild
+  ghost.appendChild(clone);
+  // Greifpunkt beibehalten: Die Karte hängt dort am Zeiger, wo man die Zeile angefasst hat.
+  const r = row.getBoundingClientRect();
+  e.dataTransfer.setDragImage(ghost, e.clientX - r.left, e.clientY - r.top);
+  window.setTimeout(() => ghost.remove(), 0);
+}
+
 function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
   opts: { flat?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
@@ -1209,6 +1238,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     row.addEventListener("dragstart", (e) => {
       dragPath = task.path;
       dragFromCol = opts.colId ?? null;   // Quell-Spalte (Status-ID bzw. Label) für die Drop-Semantik
+      attachDragGhost(e, row);            // VOR is-dragging: sonst zöge die Karte dessen Dimmung mit
       row.addClass("is-dragging");
       e.dataTransfer?.setData("text/plain", task.path);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
