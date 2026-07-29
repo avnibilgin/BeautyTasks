@@ -13,7 +13,7 @@ import {
   CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDate, layoutDayMixed, allDayOf,
   addDays, addMonths, addYears, sameMonth, parseISO, DEFAULT_BLOCK_MIN,
   ChipMetrics, ChipFit, chipsThatFit, shownChips,
-  DayEvent, bucketEvents, allDayEventsOf,
+  DayEvent, bucketEvents, allDayEventsOf, pageShowsEvents,
 } from "./calendarModel";
 
 /**
@@ -185,10 +185,17 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   const gridDays: string[] = mode === "year" ? []
     : mode === "month" ? monthGrid(anchor)
       : timeGridDays(mode, anchor);   // Tag = 1, 3 Tage = 3, Woche = 7
+  // Termine gehören zu „Heute"/„Demnächst", nicht zu einem Projekt (s. pageShowsEvents).
+  // Auf allen anderen Seiten wird der Feed weder ANGEZEIGT noch ANGESTOSSEN: ein setRange für ein
+  // Raster, das die Termine ohnehin nicht zeichnet, holte nur unnötig Monate von Google.
+  const showsEvents = pageShowsEvents(plugin.currentPage().key);
   // Der Feed holt genau diesen Zeitraum nach (Cache/Snapshot füllt sofort, Rest im Hintergrund).
-  if (gridDays.length) plugin.gcalFeed?.setRange(gridDays[0], gridDays[gridDays.length - 1]);
+  if (showsEvents && gridDays.length) plugin.gcalFeed?.setRange(gridDays[0], gridDays[gridDays.length - 1]);
+  // Einziger Zulauf für Termine: Jahr, Monat und Zeitraster bekommen sie ausschließlich über die
+  // events-Map in fillGrid. Der Riegel hier deckt damit Monats-Chips, Ganztägig-Zeile, Zeitblöcke
+  // und das „+N weitere"-Popover in einem ab.
   const feedEvents = (): Map<string, DayEvent[]> => {
-    if (!gridDays.length || !plugin.gcalFeed?.isActive()) return new Map();
+    if (!showsEvents || !gridDays.length || !plugin.gcalFeed?.isActive()) return new Map();
     return bucketEvents(plugin.gcalFeed.eventsIn(gridDays[0], gridDays[gridDays.length - 1]), gridDays);
   };
 
