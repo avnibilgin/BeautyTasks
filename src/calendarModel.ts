@@ -202,6 +202,20 @@ export function layoutDayMixed(tasks: Task[], events: DayEvent[]): Laid<DayBlock
 /** Termine eines Tages, die ganztägig belegen (Ganztägig-Zeile). */
 export const allDayEventsOf = (events: DayEvent[]): DayEvent[] => events.filter((e) => e.startMin === null);
 
+/**
+ * Zeigt diese Seite Google-Termine? Nur „Heute" und „Demnächst" – die beiden Ansichten, die den
+ * ganzen Tag bzw. die kommenden Tage meinen. Ein Projekt-, Bereichs-, Label- oder Filterkalender
+ * zeigt die Aufgaben SEINER Menge; ein Meeting gehört keinem Projekt an und würde dort nur eine
+ * Zugehörigkeit behaupten, die es nicht gibt.
+ *
+ * Positivliste, KEIN `kind === "view"`: der Eingang läuft als eingebaute Ansicht ebenfalls unter
+ * „view" (currentPage() in main.ts) und bekäme sonst weiter Termine – ausgerechnet die Seite, die
+ * ausschließlich unsortierte Aufgaben zeigen soll.
+ *
+ * Erwartet den Schlüssel aus `currentPage().key` (nicht den Kalender-pageKey mit „|cal").
+ */
+export const pageShowsEvents = (pageKey: string): boolean => pageKey === "heute" || pageKey === "demnaechst";
+
 /** Minuten seit Mitternacht aus "YYYY-MM-DDTHH:mm"; ohne Zeitanteil null. */
 const minutesIn = (stamp: string): number | null => {
   const m = stamp.match(/T(\d{2}):(\d{2})/);
