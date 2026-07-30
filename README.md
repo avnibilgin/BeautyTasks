@@ -266,7 +266,7 @@ many notes it affects:
 
 Projects, areas and saved filters are Markdown notes too — and **their body belongs to you**. BeautyTasks stores what it needs in the frontmatter and writes nothing into the text, so the note is a natural place for everything that belongs to that project: a brief, links, meeting notes, images.
 
-Reach it from the **context menu** of the sidebar entry, or from the **⋯ menu** on the project page → **To the project note** (or area / filter note). It is worth opening: because every task points at it with `project: "[[Name]]"`, that note is already where Obsidian's backlinks and graph converge.
+Reach it from the **context menu** of the sidebar entry, or from the **⋯ menu** on the project page → **Open project note** (or area / filter note). It is worth opening: because every task points at it with `project: "[[Name]]"`, that note is already where Obsidian's backlinks and graph converge.
 
 A **description** in the frontmatter is shown above the task list — the one-line answer to “what is this for”. Set it in the project's edit dialog; the long version goes in the body.
 
