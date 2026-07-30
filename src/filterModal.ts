@@ -104,10 +104,9 @@ export class FilterModal extends Modal {
     // Status: einwertig wie Priorität, also nur ✓ und − (kein „alle"). Nimmt ALLE Status – auch
     // erledigte und abgebrochene –, denn genau das macht diese Facette möglich: eine Ansicht auf
     // „was ist gerade in Arbeit", „was habe ich abgebrochen" oder einen selbst angelegten Status.
-    const statusIds = allStatuses().map((s) => s.id);
+    const staleStatus = orphanKeys(allStatuses().map((s) => s.id), [...this.c.statuses, ...this.c.statusesNot]);
     this.facet(contentEl, t("filter_statuses"),
-      [...allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })),
-       ...this.orphanOpts(statusIds, [...this.c.statuses, ...this.c.statusesNot])], {
+      [...allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })), ...this.staleOpts(staleStatus)], {
         modeOf: (k) => this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null,
         toggle: (k, pen) => {
           const was = this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null;
@@ -116,7 +115,7 @@ export class FilterModal extends Modal {
           if (was !== pen) (pen === "none" ? this.c.statusesNot : this.c.statuses).push(k);
         },
         clear: () => { this.c.statuses = []; this.c.statusesNot = []; },
-        pens: ["any", "none"],
+        pens: ["any", "none"], orphans: staleStatus,
       });
 
     this.facet(contentEl, t("filter_priorities"),
@@ -134,8 +133,8 @@ export class FilterModal extends Modal {
       });
 
     const labelNames = this.plugin.getLabels().map((l) => l.name);
-    const labels = [...labelNames.map((n) => ({ key: n, label: n })),
-      ...this.orphanOpts(labelNames, [...this.c.labels, ...this.c.labelsAll, ...this.c.labelsNot])];
+    const staleLabels = orphanKeys(labelNames, [...this.c.labels, ...this.c.labelsAll, ...this.c.labelsNot]);
+    const labels = [...labelNames.map((n) => ({ key: n, label: n })), ...this.staleOpts(staleLabels)];
     if (labels.length) this.facet(contentEl, t("filter_labels"), labels, {
       modeOf: (k) => this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null,
       toggle: (k, pen) => {
@@ -146,7 +145,7 @@ export class FilterModal extends Modal {
         if (was !== pen) (pen === "all" ? this.c.labelsAll : pen === "none" ? this.c.labelsNot : this.c.labels).push(k);
       },
       clear: () => { this.c.labels = []; this.c.labelsAll = []; this.c.labelsNot = []; },
-      pens: ["any", "all", "none"],
+      pens: ["any", "all", "none"], orphans: staleLabels,
     });
 
     const { bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
@@ -155,9 +154,10 @@ export class FilterModal extends Modal {
     // Der Eingang kann unter mehreren Namen gespeichert sein („Inbox"/„Eingang", s. isInboxName) –
     // die Engine matcht ihn trotzdem, also ist er nie verwaist.
     const projUsed = [...this.c.projects, ...this.c.projectsNot].filter((k) => !isInboxName(k));
+    const staleProj = orphanKeys(projNames, projUsed);
     const projOpts = [{ key: "Inbox", label: t("nav_inbox") },
       ...[...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) })),
-      ...this.orphanOpts(projNames, projUsed)];
+      ...this.staleOpts(staleProj)];
     if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
       modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
       toggle: (k, pen) => {
@@ -167,7 +167,7 @@ export class FilterModal extends Modal {
         if (was !== pen) (pen === "none" ? this.c.projectsNot : this.c.projects).push(k);
       },
       clear: () => { this.c.projects = []; this.c.projectsNot = []; },
-      pens: ["any", "none"],
+      pens: ["any", "none"], orphans: staleProj,
     });
 
     // Unteraufgaben: dieselbe Frage, die Todoist mit subtask / !subtask beantwortet.
@@ -202,8 +202,8 @@ export class FilterModal extends Modal {
   /** Einträge für Kriterien, deren Ziel es nicht mehr gibt (gelöschtes Label, umbenanntes Projekt,
    *  entfernter Status). Sie erscheinen am Ende der Liste, als „… (nicht vorhanden)" gekennzeichnet,
    *  und lassen sich dort abwählen. Ohne sie zeigte die Zeile „Alle", obwohl sie filtert. */
-  private orphanOpts(known: readonly string[], used: readonly string[]): { key: string; label: string }[] {
-    return orphanKeys(known, used).map((k) => ({ key: k, label: t("filter_missing", k) }));
+  private staleOpts(keys: readonly string[]): { key: string; label: string }[] {
+    return keys.map((k) => ({ key: k, label: t("filter_missing", k) }));
   }
 
   private facet(parent: HTMLElement, label: string, opts: { key: string; label: string }[], ctl: {
@@ -211,6 +211,7 @@ export class FilterModal extends Modal {
     toggle: (k: string, pen: MatchMode) => void;
     clear: () => void;
     pens: MatchMode[];
+    orphans?: readonly string[];   // Werte ohne Ziel – markieren den Button, s. syncLbl
   }): void {
     const btn = filterRow(parent, label).createEl("button", { cls: "bt-facet-dd" });
     const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
@@ -219,6 +220,9 @@ export class FilterModal extends Modal {
     const syncLbl = (): void => {   // Zusammenfassung: „N Kriterien gewählt" (Gesamtzahl)
       const n = opts.filter((o) => ctl.modeOf(o.key)).length;
       lbl.setText(n ? t("filter_n_criteria", n) : t("filter_all"));
+      // Rahmen markieren, solange ein Kriterium ohne Ziel gewählt ist – wird beim Abwählen von
+      // selbst wieder normal, weil syncLbl nach jedem Umschalten läuft.
+      btn.toggleClass("is-stale", (ctl.orphans ?? []).some((k) => !!ctl.modeOf(k)));
     };
     syncLbl();
 
