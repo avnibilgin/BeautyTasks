@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice, Platform, ColorComponent, ExtraButtonComponent } from "obsidian";
+import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath, setIcon, Notice, Platform, ButtonComponent, ColorComponent, ExtraButtonComponent, TextComponent } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { ChipId, ChipTier, ChipSurface, MetaColorKey, DEFAULT_SETTINGS } from "./types";
 import { CHIPS, chipsCompact, resolveChipOrder, chipTierOf } from "./chips";
@@ -318,20 +318,34 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     const fieldLabel: Record<FieldId, string> = { type: t("set_field_type"), title: t("set_field_title") };
     const fieldDesc: Record<FieldId, string> = { type: t("set_field_type_desc"), title: t("set_field_title_desc") };
     for (const id of FIELD_IDS) {
+      // Bewusst KEIN Auslösen beim Verlassen des Feldes: Der Wechsel schreibt den halben Vault um,
+      // das gehört an einen Klick und nicht daran, dass man zufällig woanders hinklickt (beim
+      // Fokuswechsel aus dem Fenster landete die Rückfrage sonst unerreichbar hinter den
+      // Einstellungen). Der Knopf ist nur aktiv, wenn der eingegebene Name gültig UND anders ist.
+      let input: TextComponent | null = null;
+      let apply: ButtonComponent | null = null;
+      const shown = (): string => allFieldNames()[id];
+      /** Der einzusetzende Name – oder null, wenn unbrauchbar, vergeben oder unverändert. */
+      const pending = (): string | null => {
+        const typed = (input?.getValue() ?? "").trim();
+        const next = normalizeFieldName(id, typed, allFieldNames());
+        return next === typed && next !== shown() ? next : null;
+      };
+      const sync = (): void => { apply?.setDisabled(pending() === null); };
+      const run = (): void => {
+        const next = pending();
+        if (next) p.changeFieldName(id, next, () => { input?.setValue(shown()); sync(); });
+      };
       new Setting(containerEl).setName(fieldLabel[id]).setDesc(fieldDesc[id])
         .addText((text) => {
-          const shown = () => allFieldNames()[id];
+          input = text;
           text.setValue(shown());
-          text.inputEl.addEventListener("blur", () => {
-            const typed = text.getValue().trim();
-            const next = normalizeFieldName(id, typed, allFieldNames());
-            text.setValue(shown());   // bis zur Bestätigung den gespeicherten Stand zeigen
-            // Unbrauchbar oder schon vergeben? Eingabe verwerfen, statt still auf die Vorgabe
-            // zurückzufallen – sonst käme aus einem Tippfehler eine Rückfrage zum Umbenennen.
-            if (next !== typed || next === shown()) return;
-            p.changeFieldName(id, next, () => { text.setValue(shown()); });
+          text.onChange(() => sync());
+          text.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (e.key === "Enter") { e.preventDefault(); run(); }
           });
-        });
+        })
+        .addButton((b) => { apply = b; b.setButtonText(t("btn_change")).onClick(() => run()); sync(); });
     }
 
     // ── Import & Export ──
