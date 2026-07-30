@@ -1802,7 +1802,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-page-desc {
   /* Bewusst blass: Die Beschreibung ist Beiwerk und soll dem Aufgabentext nicht die Aufmerksamkeit
      nehmen. Platzhalter und echter Text tragen dieselbe Farbe – der Unterschied liegt im Inhalt. */
-  color: var(--text-faint); font-size: var(--font-ui-small); line-height: 1.45;
+  color: var(--text-faint); font-size: var(--font-ui-medium); line-height: 1.45;
   margin: 6px 0 10px; max-width: 70ch;   /* etwas Luft zur Überschrift, damit sie nicht klebt */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
