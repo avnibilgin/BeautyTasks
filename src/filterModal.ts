@@ -40,6 +40,7 @@ export class FilterModal extends Modal {
   private c: FilterCriteria;
   private o: ViewOptions;
   private color: string | null;
+  private description: string;
   private visible: boolean;
   private readonly wasVisible: boolean;
   private readonly editPath: string | null;
@@ -54,6 +55,7 @@ export class FilterModal extends Modal {
     this.c = { ...DEFAULT_CRITERIA, ...(existing?.criteria ?? {}) };
     this.o = { ...DEFAULT_OPTIONS, ...(existing?.options ?? {}) };
     this.color = existing?.color ?? null;
+    this.description = existing?.description ?? "";
     this.visible = existing ? !existing.hidden : true;   // neuer Filter: standardmäßig sichtbar
     this.wasVisible = this.visible;
   }
@@ -72,6 +74,12 @@ export class FilterModal extends Modal {
     nameIn.placeholder = t("filter_name_ph");
     nameIn.value = this.name;
     nameIn.oninput = () => { this.name = nameIn.value; };
+
+    // Beschreibung: kurzer Text im Frontmatter der Filternotiz, erscheint über der Aufgabenliste.
+    const descIn = filterRow(contentEl, t("new_description")).createEl("textarea", { cls: "bt-filter-input bt-new-desc", attr: { rows: "2" } });
+    descIn.placeholder = t("new_description_ph");
+    descIn.value = this.description;
+    descIn.oninput = () => { this.description = descIn.value; };
 
     // Farbe direkt unter dem Namen (gleiche Swatch-Reihe wie im Neu-Modal).
     const colorField = contentEl.createDiv({ cls: "bt-new-field bt-filter-color" });
@@ -312,9 +320,10 @@ export class FilterModal extends Modal {
         path = (slash >= 0 ? this.editPath.slice(0, slash + 1) : "") + base + ".md";
       }
       await this.plugin.updateFilter(path, this.c, this.o, this.color);
+      await this.plugin.setProjectDescription(path, this.description);   // gleiches Frontmatter-Feld
       if (this.visible !== this.wasVisible) await this.plugin.setFilterVisible(path, this.visible);
     } else {
-      await this.plugin.createFilter(name, this.c, this.o, this.color, !this.visible);
+      await this.plugin.createFilter(name, this.c, this.o, this.color, !this.visible, this.description);
     }
     this.close();
   }

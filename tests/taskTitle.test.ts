@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmTitle, resolveTitle, firstH1, titleTarget, findH1Line, findH1LineInBody, replaceHeadingLine, titleToStore, dropHeadingLine, newTaskBody } from "../src/taskTitle";
+import { fmTitle, resolveTitle, firstH1, titleTarget, findH1Line, findH1LineInBody, replaceHeadingLine, renameHeadingLine, titleToStore, dropHeadingLine, newTaskBody } from "../src/taskTitle";
 
 const fm = (yaml: string): string => "---\n" + yaml + "\n---\n";
 
@@ -143,5 +143,34 @@ describe("dropHeadingLine – entfernt nur die echte Titel-Zeile", () => {
     const c = FM + "\nKein Titel\n";
     expect(dropHeadingLine(c, null, "Blogpost")).toBe(c);
     expect(dropHeadingLine(c, 4, "Blogpost")).toBe(c);
+  });
+});
+
+describe("renameHeadingLine – Überschrift nur mitziehen, wenn sie noch den alten Namen trägt", () => {
+  const FM = "---\ntype: project\n---\n";
+
+  it("zieht die Überschrift mit, solange sie der alte Name ist", () => {
+    const c = FM + "\n# Website Relaunch\n\nMeine Notizen\n";
+    expect(renameHeadingLine(c, 4, "Website Relaunch", "Q3 Relaunch"))
+      .toBe(FM + "\n# Q3 Relaunch\n\nMeine Notizen\n");
+  });
+
+  it("lässt eine eigene Überschrift des Nutzers stehen", () => {
+    const c = FM + "\n# Meine Struktur\n\nInhalt\n";
+    expect(renameHeadingLine(c, 4, "Website Relaunch", "Q3 Relaunch")).toBe(c);
+  });
+
+  it("behält die Überschriftenebene bei", () => {
+    expect(renameHeadingLine("## Alt\n", 0, "Alt", "Neu")).toBe("## Neu\n");
+  });
+
+  it("tut nichts ohne Überschrift – neue Notizen haben gar keine mehr", () => {
+    const c = FM + "\nNur Text\n";
+    expect(renameHeadingLine(c, null, "Alt", "Neu")).toBe(c);
+    expect(renameHeadingLine(c, 99, "Alt", "Neu")).toBe(c);
+  });
+
+  it("vergleicht getrimmt – zusätzliche Leerzeichen brechen den Abgleich nicht", () => {
+    expect(renameHeadingLine("#   Alt  \n", 0, "Alt", "Neu")).toBe("# Neu\n");
   });
 });

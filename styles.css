@@ -1793,6 +1793,14 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Facette enthält ein Kriterium, dessen Ziel es nicht mehr gibt (gelöschtes Label/Projekt/Status).
    Gestrichelt statt durchgezogen, weil durchgezogenes Rot oben schon den AUSSCHLUSS markiert –
    beides muss auf einen Blick unterscheidbar bleiben. Steht nach is-exclude/is-all, gewinnt also. */
+/* Kurzbeschreibung unter dem Seitentitel (Projekt/Bereich/Filter). Zwei Zeilen, dann Ellipse –
+   der Kopf soll die Aufgabenliste nicht nach unten drücken. */
+.bt-page-desc {
+  color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.45;
+  margin: -2px 0 10px; max-width: 70ch;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
 .bt-facet-dd.is-stale { border-color: var(--text-error); border-style: dashed; }
 /* … und die Zeile im Popover, die den Grund nennt. */
 .bt-facet-pop .bt-row.is-stale .bt-row-lbl { color: var(--text-error); }

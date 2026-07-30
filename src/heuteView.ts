@@ -375,6 +375,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const top = pageTop(c, plugin.pageViewOptions().layout);
   pageHeader(top, plugin, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
     meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type, archived: meta.archived } } : {});
+  pageDesc(top, meta?.description);
   // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
   addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
 
@@ -479,6 +480,7 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   pageHeader(top, plugin, top.createEl("h1", { text: filter.name }), {
     menu: { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color },
   });
+  pageDesc(top, filter.description);
   addBar(top, plugin, () => plugin.openNewTask(undefined, undefined, false, undefined, addDue(plugin)));
 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
@@ -505,6 +507,13 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
     kebab.onclick = (e) => { e.stopPropagation(); const m = new Menu(); buildItemMenu(m, plugin, it, "board"); m.showAtMouseEvent(e); };
   }
   anzeigeButton(actions, plugin);
+}
+
+/** Kurzbeschreibung unter dem Seitentitel – die eine Zeile aus dem Frontmatter der Projekt-,
+ *  Bereichs- oder Filternotiz. Ohne Text entsteht gar kein Element, damit der Kopf nicht wächst. */
+function pageDesc(root: HTMLElement, text: string | undefined): void {
+  const t2 = (text ?? "").trim();
+  if (t2) root.createDiv({ cls: "bt-page-desc", text: t2 });
 }
 
 /** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter

@@ -12,6 +12,7 @@ import { isKnownStatus } from "./statuses";
 /** Ein gespeicherter Filter (`type: filter`-Notiz im Vault). */
 export interface FilterItem {
   name: string; path: string; icon: string; color: string | null; hidden: boolean;
+  description: string;   // kurze Beschreibung aus dem Frontmatter
   criteria: FilterCriteria; options: ViewOptions;
 }
 
@@ -43,6 +44,7 @@ function toItem(f: TFile, fm: Record<string, unknown>): FilterItem {
     name: f.basename, path: f.path,
     icon: "tag",   // fest (noch kein Icon-Picker) – gilt auch für Alt-Filter mit gespeichertem icon
     color: typeof fm.color === "string" ? fm.color : null,
+    description: typeof fm.description === "string" ? fm.description : "",
     hidden: !!fm.nav_hidden,
     criteria: readCriteria(fm), options: readOptions(fm),
   };
@@ -87,7 +89,7 @@ function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: V
 
 /** Neue Filter-Notiz anlegen; gibt den Basenamen zurück. */
 export async function createFilterNote(
-  app: App, settings: BeautyTasksSettings, name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null, hidden = false,
+  app: App, settings: BeautyTasksSettings, name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null, hidden = false, description = "",
 ): Promise<string> {
   const folder = settings.filtersFolder;
   await ensureFolder(app, folder);
@@ -97,8 +99,10 @@ export async function createFilterNote(
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
   const fm: Record<string, unknown> = { [fieldKey("type")]: "filter", id: newId("f"), created: todayIso() };
   if (hidden) fm.nav_hidden = true;
+  if (description.trim()) fm.description = description.trim();
   applyToFrontmatter(fm, criteria, options, color);
-  await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");
+  // Kein „# Name" im Body: Der Name kommt aus dem Dateinamen; der Body gehört dem Nutzer.
+  await app.vault.create(dest, buildFrontmatter(fm) + "\n");
   return base;
 }
 
@@ -113,14 +117,15 @@ export async function updateFilterNote(app: App, path: string, criteria: FilterC
 export async function renameFilterNote(app: App, path: string, newName: string): Promise<string | null> {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof TFile)) return null;
+  const oldName = f.basename;   // vor dem Umbenennen merken
   const base = slugify(newName);
   const folder = f.parent?.path ?? "";
   let dest = normalizePath((folder ? folder + "/" : "") + base + ".md");
   if (dest !== path && app.vault.getAbstractFileByPath(dest)) return null;   // Kollision
   await app.fileManager.renameFile(f, dest);
-  // „# Überschrift" nachziehen, falls vorhanden.
+  // „# Überschrift" nachziehen, aber nur solange sie noch den alten Namen trägt.
   const nf = app.vault.getAbstractFileByPath(dest);
-  if (nf instanceof TFile) await retitleHeading(app, nf, newName);
+  if (nf instanceof TFile) await retitleHeading(app, nf, oldName, newName);
   return base;
 }
 
