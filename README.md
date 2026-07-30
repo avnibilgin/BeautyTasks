@@ -268,7 +268,7 @@ Projects, areas and saved filters are Markdown notes too — and **their body be
 
 Reach it from the **context menu** of the sidebar entry, or from the **⋯ menu** on the project page → **Open project note** (or area / filter note). It is worth opening: because every task points at it with `project: "[[Name]]"`, that note is already where Obsidian's backlinks and graph converge.
 
-A **description** in the frontmatter is shown above the task list — the one-line answer to “what is this for”. Set it in the project's edit dialog; the long version goes in the body.
+A **description** in the frontmatter is shown above the task list (switch it off under Settings → *Show description on project pages*) — the one-line answer to “what is this for”. Set it in the project's edit dialog; the long version goes in the body.
 
 ```yaml
 ---
@@ -365,7 +365,7 @@ Assign hotkeys to any of these under **Settings → Hotkeys**.
 - **Statuses** — add, rename, reorder, recolor and re-icon your workflow statuses.
 - **Colors** — a muted or a colorful meta style, or set every accent yourself.
 - **Text size** — scale task text, sidebar entries and headings independently.
-- **Icons-only chips** and **description preview in lists**.
+- **Icons-only chips**, **description preview in lists**, and the **description on project pages**.
 - **Google Calendar** — connect your account, choose the target calendar and sync options (see above).
 - **Import & Export** — JSON backup/restore, plus import from TaskNotes or the Tasks/Lists format.
 

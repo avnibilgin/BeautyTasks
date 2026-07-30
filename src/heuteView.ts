@@ -105,6 +105,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   // Heute/Demnächst: Kopf mit „Anzeige"-Knopf (leichtes Panel). Wiederkehrend: nur Titel.
@@ -362,6 +363,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const isInbox = projectPath === INBOX_KEY;   // eingebaute Eingang-Ansicht (keine Notiz)
@@ -401,6 +403,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const top = pageTop(c, plugin.pageViewOptions().layout);
@@ -473,6 +476,7 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const filter = readFilter(plugin.app, filterPath);
@@ -516,15 +520,25 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
  *  Bearbeiten-Dialog führt, in dem das Feld liegt – so ist das Feld auffindbar, ohne dass man das
  *  Kontextmenü kennt. Ohne Eintrag (Eingang, eingebaute Ansichten) entsteht gar nichts. */
 function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | undefined, item: NavMenuItem | null): void {
+  // Abgeschaltet: gar nichts rendern – und damit auch keine bt-has-desc-Markierung. Die Seite
+  // bekommt dann exakt die Abstände der Systemansichten, sodass „+ Aufgabe hinzufügen" beim
+  // Wechsel zwischen Eingang und Projekt nicht springt.
+  if (!plugin.settings.showProjectDescription) return;
   const t2 = (text ?? "").trim();
   if (!t2 && !item) return;
   const el = root.createDiv({ cls: "bt-page-desc" + (t2 ? "" : " is-empty"), text: t2 || t("desc_add") });
+  // Nur Seiten MIT Beschreibungszeile rücken Bar und erste Sektion enger zusammen – die
+  // Systemansichten (Heute, Demnächst, Eingang, Labels …) behalten ihre Abstände.
+  root.closest<HTMLElement>(".bt-view")?.addClass("bt-has-desc");
   if (!item) return;   // ohne Eintrag kein Ziel – dann bleibt es reiner Text
   // Auch die gefüllte Beschreibung führt in den Dialog: Wer sie ändern will, klickt sie an,
-  // statt den Umweg über das Kontextmenü zu suchen. Der Tooltip nennt das Ziel.
+  // statt den Umweg über das Kontextmenü zu suchen.
   el.setAttr("role", "button");
   el.setAttr("tabindex", "0");
-  el.setAttr("aria-label", t("menu_edit"));
+  // Der Tooltip zeigt den VOLLEN Text – die Zeile ist auf eine Zeile begrenzt, Längeres wäre
+  // sonst nur in der Notiz zu lesen. Beim Platzhalter gibt es nichts zu zeigen, dort nennt er
+  // stattdessen das Ziel des Klicks.
+  el.setAttr("aria-label", t2 || t("menu_edit"));
   el.setAttr("data-tooltip-position", "top");
   el.onclick = () => openEdit(plugin, item);
   el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };

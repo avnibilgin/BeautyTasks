@@ -994,6 +994,15 @@ body {
 
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
+/* Seiten MIT Beschreibungszeile (Projekt, Bereich, Filter) gleichen deren Höhe an EINER Stelle
+   wieder aus. Die Rechnung, und die beiden Zahlen unten MÜSSEN zusammenpassen:
+     6px Rand + 20px Zeilenhöhe − 1px (engerer Abstand zur Bar) = 25px Zuwachs
+   also verliert die erste Sektion genau 25px. Beide Zustände ergeben damit dieselbe Summe – ohne
+   Beschreibung 2.2em, mit Beschreibung 25px + (2.2em − 25px). Die erste Sektionsüberschrift sitzt
+   in Systemansichten und auf Projektseiten auf derselben Höhe, unabhängig von Theme und Zoom.
+   Zwischen zwei Sektionen bleibt es überall bei 2.2em, das gliedert die Liste. */
+.bt-has-desc .bt-board-bar { margin-top: 19px; }   /* 1px enger an die Beschreibung */
+.bt-has-desc .bt-section:first-child { margin-top: calc(2.2em - 25px); }
 .bt-section-title {
   font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
   color: var(--text-normal);
@@ -1796,20 +1805,22 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Kurzbeschreibung unter dem Seitentitel (Projekt/Bereich/Filter). Zwei Zeilen, dann Ellipse –
    der Kopf soll die Aufgabenliste nicht nach unten drücken. */
 .bt-page-desc {
-  /* Dasselbe Grau wie die ungefärbten Meta-Icons (Minimalisdo) – eine Ruhefarbe für Beiwerk. */
-  color: var(--bt-meta-gray); font-size: var(--font-ui-small); line-height: 1.45;
-  margin: -2px 0 10px; max-width: 70ch;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  /* Bewusst blass: Die Beschreibung ist Beiwerk und soll dem Aufgabentext nicht die Aufmerksamkeit
+     nehmen. Platzhalter und echter Text tragen dieselbe Farbe – der Unterschied liegt im Inhalt. */
+  color: var(--text-faint); font-size: var(--font-ui-medium);
+  /* Feste Zeilenhöhe statt eines Faktors: 1.45 mal Schriftgröße ergibt einen gebrochenen Wert,
+     den kein ganzzahliger Ausgleich unten trifft. So ist der Block exakt 6 + 20 = 26px hoch.
+     Kein unterer Rand – er würde ohnehin mit den 20px über der Bar kollabieren und nichts tun. */
+  line-height: 20px; margin: 6px 0 0; max-width: 70ch;
+  /* EINE Zeile: Nur so ist der Block immer 26px hoch und der Ausgleich unten stimmt in jedem Fall.
+     Bei zwei erlaubten Zeilen verschöbe eine lange Beschreibung die Liste um 20px. */
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* Beschreibung UND Platzhalter führen in den Bearbeiten-Dialog – im Ruhezustand sieht man das
    nicht (Text ist Inhalt, kein Link), beim Überfahren schon. */
 .bt-page-desc[role="button"] { cursor: pointer; width: fit-content; }
-.bt-page-desc[role="button"]:hover { text-decoration: underline; }
+.bt-page-desc[role="button"]:hover { color: var(--bt-meta-gray); text-decoration: underline; }
 .bt-page-desc[role="button"]:focus-visible { outline: 1px solid var(--background-modifier-border-focus); outline-offset: 2px; border-radius: 3px; }
-/* Noch keine Beschreibung: eine Stufe blasser als der echte Text – auffindbar, aber ohne etwas
-   zu behaupten. Beim Überfahren rückt er auf die Farbe einer echten Beschreibung. */
-.bt-page-desc.is-empty { color: var(--text-faint); }
-.bt-page-desc.is-empty:hover { color: var(--bt-meta-gray); }
 
 .bt-facet-dd.is-stale { border-color: var(--text-error); border-style: dashed; }
 /* … und die Zeile im Popover, die den Grund nennt. */
