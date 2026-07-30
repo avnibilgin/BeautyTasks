@@ -6,14 +6,14 @@ import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority } from "./types";
 import { todayStr } from "./format";
-import { listProjectsAndAreas } from "./taskService";
+import { listProjectsAndAreas, isInboxName } from "./taskService";
 import { openPopover } from "./popover";
 import { projectDisplayName, t } from "./i18n";
 import { PRIO_KEY } from "./taskModal";
 import { allStatuses, statusLabel } from "./statuses";
 import {
   FilterCriteria, ViewOptions, MatchMode, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
-  RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter, applyFilter, activeFacetCount,
+  RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter, applyFilter, activeFacetCount, orphanKeys,
 } from "./filterEngine";
 import { readFilter } from "./filterService";
 import { buildSwatchRow } from "./colorSwatches";
@@ -104,8 +104,10 @@ export class FilterModal extends Modal {
     // Status: einwertig wie Priorität, also nur ✓ und − (kein „alle"). Nimmt ALLE Status – auch
     // erledigte und abgebrochene –, denn genau das macht diese Facette möglich: eine Ansicht auf
     // „was ist gerade in Arbeit", „was habe ich abgebrochen" oder einen selbst angelegten Status.
+    const statusIds = allStatuses().map((s) => s.id);
     this.facet(contentEl, t("filter_statuses"),
-      allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })), {
+      [...allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })),
+       ...this.orphanOpts(statusIds, [...this.c.statuses, ...this.c.statusesNot])], {
         modeOf: (k) => this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null,
         toggle: (k, pen) => {
           const was = this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null;
@@ -131,7 +133,9 @@ export class FilterModal extends Modal {
         pens: ["any", "none"],
       });
 
-    const labels = this.plugin.getLabels().map((l) => ({ key: l.name, label: l.name }));
+    const labelNames = this.plugin.getLabels().map((l) => l.name);
+    const labels = [...labelNames.map((n) => ({ key: n, label: n })),
+      ...this.orphanOpts(labelNames, [...this.c.labels, ...this.c.labelsAll, ...this.c.labelsNot])];
     if (labels.length) this.facet(contentEl, t("filter_labels"), labels, {
       modeOf: (k) => this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null,
       toggle: (k, pen) => {
@@ -147,8 +151,13 @@ export class FilterModal extends Modal {
 
     const { bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
     // Eingang = eingebaute Option (Key „Inbox"; die Engine matcht ihn via isInboxName).
+    const projNames = ["Inbox", ...[...bereiche, ...projekte].map((p) => p.name)];
+    // Der Eingang kann unter mehreren Namen gespeichert sein („Inbox"/„Eingang", s. isInboxName) –
+    // die Engine matcht ihn trotzdem, also ist er nie verwaist.
+    const projUsed = [...this.c.projects, ...this.c.projectsNot].filter((k) => !isInboxName(k));
     const projOpts = [{ key: "Inbox", label: t("nav_inbox") },
-      ...[...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) }))];
+      ...[...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) })),
+      ...this.orphanOpts(projNames, projUsed)];
     if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
       modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
       toggle: (k, pen) => {
@@ -190,6 +199,13 @@ export class FilterModal extends Modal {
   /** Mehrfachauswahl mit PRO-WERT-Marker. Der Modus oben (eines/alle/keines) ist nur der „Stift":
    *  Ein Klick auf einen Wert setzt/entfernt ihn im aktuellen Stift; jeder Wert behält seinen Marker
    *  (✓ = eines/ODER · + = alle/UND · − = keines/NICHT), auch wenn der Stift gewechselt wird. */
+  /** Einträge für Kriterien, deren Ziel es nicht mehr gibt (gelöschtes Label, umbenanntes Projekt,
+   *  entfernter Status). Sie erscheinen am Ende der Liste, als „… (nicht vorhanden)" gekennzeichnet,
+   *  und lassen sich dort abwählen. Ohne sie zeigte die Zeile „Alle", obwohl sie filtert. */
+  private orphanOpts(known: readonly string[], used: readonly string[]): { key: string; label: string }[] {
+    return orphanKeys(known, used).map((k) => ({ key: k, label: t("filter_missing", k) }));
+  }
+
   private facet(parent: HTMLElement, label: string, opts: { key: string; label: string }[], ctl: {
     modeOf: (k: string) => MatchMode | null;   // aktueller Marker eines Werts, null = nicht gewählt
     toggle: (k: string, pen: MatchMode) => void;

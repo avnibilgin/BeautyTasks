@@ -349,6 +349,18 @@ export function activeFacetCount(c: FilterCriteria): number {
   return n;
 }
 
+/** Kriterien-Werte, die es nicht (mehr) gibt – ein gelöschtes Label, ein umbenanntes Projekt, ein
+ *  entfernter Status. Ohne sie wäre die Facette im Dialog leer („Alle"), obwohl sie filtert: Der
+ *  Filter liefert dann scheinbar grundlos nichts. Sichtbar gemacht, lassen sie sich entfernen.
+ *  Bewusst NICHT automatisch verworfen – das änderte gespeicherte Filter ohne Zutun des Nutzers.
+ *  Reihenfolge stabil (erstes Auftreten), Duplikate zusammengefasst. */
+export function orphanKeys(known: readonly string[], used: readonly string[]): string[] {
+  const have = new Set(known);
+  const out: string[] = [];
+  for (const k of used) if (!have.has(k) && !out.includes(k)) out.push(k);
+  return out;
+}
+
 /** Zeitraum-Pruefung fuer EIN Datumsfeld. Bewusst ueber den Wert statt ueber die Aufgabe:
  *  dieselbe Regel gilt fuer Faelligkeit (due) und Deadline (scheduled). */
 function inRange(date: string | null, range: FilterRange, today: string): boolean {
