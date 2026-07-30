@@ -1800,20 +1800,17 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Kurzbeschreibung unter dem Seitentitel (Projekt/Bereich/Filter). Zwei Zeilen, dann Ellipse –
    der Kopf soll die Aufgabenliste nicht nach unten drücken. */
 .bt-page-desc {
-  /* Dasselbe Grau wie die ungefärbten Meta-Icons (Minimalisdo) – eine Ruhefarbe für Beiwerk. */
-  color: var(--bt-meta-gray); font-size: var(--font-ui-small); line-height: 1.45;
+  /* Bewusst blass: Die Beschreibung ist Beiwerk und soll dem Aufgabentext nicht die Aufmerksamkeit
+     nehmen. Platzhalter und echter Text tragen dieselbe Farbe – der Unterschied liegt im Inhalt. */
+  color: var(--text-faint); font-size: var(--font-ui-small); line-height: 1.45;
   margin: 6px 0 10px; max-width: 70ch;   /* etwas Luft zur Überschrift, damit sie nicht klebt */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* Beschreibung UND Platzhalter führen in den Bearbeiten-Dialog – im Ruhezustand sieht man das
    nicht (Text ist Inhalt, kein Link), beim Überfahren schon. */
 .bt-page-desc[role="button"] { cursor: pointer; width: fit-content; }
-.bt-page-desc[role="button"]:hover { text-decoration: underline; }
+.bt-page-desc[role="button"]:hover { color: var(--bt-meta-gray); text-decoration: underline; }
 .bt-page-desc[role="button"]:focus-visible { outline: 1px solid var(--background-modifier-border-focus); outline-offset: 2px; border-radius: 3px; }
-/* Noch keine Beschreibung: eine Stufe blasser als der echte Text – auffindbar, aber ohne etwas
-   zu behaupten. Beim Überfahren rückt er auf die Farbe einer echten Beschreibung. */
-.bt-page-desc.is-empty { color: var(--text-faint); }
-.bt-page-desc.is-empty:hover { color: var(--bt-meta-gray); }
 
 .bt-facet-dd.is-stale { border-color: var(--text-error); border-style: dashed; }
 /* … und die Zeile im Popover, die den Grund nennt. */
