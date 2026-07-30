@@ -9,9 +9,9 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
-import { titleKey, initTitleKey, normalizeTitleKey, fmTitle, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
+import { titleKey, initTitleKey, normalizeTitleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
@@ -991,15 +991,16 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Bestehende Notiz zur Aufgabe machen: `type: task` + Kanon-Felder setzen. Ohne Projekt –
    *  landet damit (Variante A) automatisch im Eingang, bis der Nutzer sie zuordnet. */
   async convertActiveNoteToTask(f: TFile): Promise<void> {
-    // Hat die Notiz keine H1, gibt es im Text keinen Titel (s. taskTitle.ts). Dann wird der
-    // DATEINAME als `title:` festgeschrieben – sonst würde eine beliebige Zwischenüberschrift
-    // zum Aufgabentitel, und jedes spätere Umbenennen müsste im Body herumschreiben.
-    const noH1 = findH1Line(await this.app.vault.cachedRead(f)) === null;
+    // Umwandeln ist ADDITIV: Es macht eine bestehende Notiz ZUSÄTZLICH zu einer Aufgabe. An ihrem
+    // Text wird deshalb nichts geändert – eine Überschrift dort hat der Nutzer geschrieben, sie
+    // gehört seinem Dokument und nicht uns. Der Aufgabentitel zieht ins Frontmatter: der Text der
+    // H1, wenn es eine gibt, sonst der Dateiname (eine `##`-Zwischenüberschrift ist kein Titel).
+    const title = (firstH1(this.app.metadataCache.getFileCache(f)?.headings) ?? "").trim() || f.basename;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
       fm.type = "task";
       ensureCanonicalFm(fm);
       if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
-      if (noH1 && fmTitle(fm[titleKey()]) === null) fm[titleKey()] = f.basename;
+      if (fmTitle(fm[titleKey()]) === null) fm[titleKey()] = title;
     });
     await this.reconcileTaskDescription(f);   // Body → Beschreibung/Dokument einsortieren
     new Notice(t("notice_made_task"));
@@ -1067,6 +1068,12 @@ export default class BeautyTasksPlugin extends Plugin {
    *
    *  Notizen, die `title:` schon führen, werden gar nicht erst angefasst. Damit ist die Migration
    *  idempotent: ein zweiter Lauf findet nichts mehr. */
+  /** Liegt die Notiz im Aufgaben-Ordner? Dann hat BeautyTasks sie selbst angelegt (createTaskNote
+   *  schreibt ausschließlich dorthin) – nur solche Notizen räumt die Titel-Migration im Body auf. */
+  private isOwnTaskNote(path: string): boolean {
+    return isUnderFolder(path, this.settings.itemsFolder);
+  }
+
   async migrateTitles(opts: { silent?: boolean } = {}): Promise<void> {
     let moved = 0;
     for (const tk of this.index.all()) {
@@ -1084,10 +1091,14 @@ export default class BeautyTasksPlugin extends Plugin {
       if (!wrote) continue;
       // Erst NACH dem Frontmatter-Schreiben in den Body greifen: die H1-Zeile wird auf dem dann
       // aktuellen Inhalt gesucht, kann also nicht durch verschobene Zeilennummern danebengehen.
-      // Notizen mit EIGENEM Inhalt behalten ihre Überschrift – dort ist sie Teil eines Dokuments
-      // und nicht bloß die Titelzeile eines Datensatzes. Aufgeräumt wird nur, was BeautyTasks
-      // selbst angelegt hat.
-      if (plan.dropH1) await this.app.vault.process(f, (c) =>
+      //
+      // Entfernt wird eine Titel-Überschrift nur in EIGENEN Notizen – die liegen im Aufgaben-Ordner,
+      // dort hat BeautyTasks sie samt „# Titel" angelegt und bis 1.30.0 auch gepflegt. Alles
+      // außerhalb kam von woanders (umgewandelt, von Hand geschrieben, importiert); dessen
+      // Überschrift gehört dem Nutzer und bleibt stehen. Der Ordner ist ein Herkunftsnachweis,
+      // die Textlänge wäre nur eine Schätzung. `hasOwnContent` bleibt als zweites Netz: auch in
+      // eigenen Notizen wird nichts entfernt, wenn dort inzwischen ein Dokument steht.
+      if (plan.dropH1 && this.isOwnTaskNote(f.path)) await this.app.vault.process(f, (c) =>
         hasOwnContent(c) ? c : dropHeadingLine(c, findH1Line(c), plan.title));
       moved++;
     }

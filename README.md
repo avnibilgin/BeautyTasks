@@ -213,10 +213,14 @@ note that already has a title there — a level-1 heading as its first heading.*
 starts with `## Something`, or has no heading at all, the title is stored as `title:` in the
 frontmatter instead and your text is left alone. Notes with a structure of their own keep it.
 
+**Turning a note into a task never touches its text.** The command only adds `title:` to the
+frontmatter — taken from the note's level-1 heading, or its file name if there is none. Whatever
+you wrote in the body stays exactly as it is, heading included.
+
 Upgrading from an earlier version? A one-time pass moves existing titles from the heading into
-`title:`. It removes that heading line only when it really was the title line and the note holds
-nothing but a task — a note carrying **its own content** (sections, images, longer text) keeps its
-heading untouched. No task changes the title it displays.
+`title:`. It removes that heading line only in notes BeautyTasks created itself — those live in
+your tasks folder — and only when the line really was the title. Everything you wrote yourself
+keeps its heading, and no task changes the title it displays.
 
 Already using `title:` for something else? Settings → **Title property** lets you point
 BeautyTasks at a different field, for example `bt_title`. When you switch, it offers to copy

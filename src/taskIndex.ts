@@ -1,6 +1,6 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName } from "./taskService";
+import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName, isUnderFolder } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { titleKey, fmTitle, firstH1, resolveTitle } from "./taskTitle";
 import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
@@ -53,11 +53,7 @@ export class TaskIndex extends Component {
   /** Liegt der Pfad in einem der Ausschluss-Ordner? Dann gilt die Notiz NIE als Aufgabe –
    *  Schutz vor fremden `type: task`-Notizen (z. B. anderer Plugins) im Vault-weiten Scan. */
   private isExcluded(path: string): boolean {
-    for (const raw of this.getSettings().excludeFolders) {
-      const dir = raw.replace(/\/+$/, "").trim();
-      if (dir && (path === dir || path.startsWith(dir + "/"))) return true;
-    }
-    return false;
+    return this.getSettings().excludeFolders.some((dir) => isUnderFolder(path, dir));
   }
 
   /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
