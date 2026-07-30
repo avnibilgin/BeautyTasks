@@ -532,10 +532,13 @@ function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | u
   root.closest<HTMLElement>(".bt-view")?.addClass("bt-has-desc");
   if (!item) return;   // ohne Eintrag kein Ziel – dann bleibt es reiner Text
   // Auch die gefüllte Beschreibung führt in den Dialog: Wer sie ändern will, klickt sie an,
-  // statt den Umweg über das Kontextmenü zu suchen. Der Tooltip nennt das Ziel.
+  // statt den Umweg über das Kontextmenü zu suchen.
   el.setAttr("role", "button");
   el.setAttr("tabindex", "0");
-  el.setAttr("aria-label", t("menu_edit"));
+  // Der Tooltip zeigt den VOLLEN Text – die Zeile ist auf eine Zeile begrenzt, Längeres wäre
+  // sonst nur in der Notiz zu lesen. Beim Platzhalter gibt es nichts zu zeigen, dort nennt er
+  // stattdessen das Ziel des Klicks.
+  el.setAttr("aria-label", t2 || t("menu_edit"));
   el.setAttr("data-tooltip-position", "top");
   el.onclick = () => openEdit(plugin, item);
   el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
