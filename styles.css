@@ -1798,7 +1798,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-page-desc {
   /* Dasselbe Grau wie die ungefärbten Meta-Icons (Minimalisdo) – eine Ruhefarbe für Beiwerk. */
   color: var(--bt-meta-gray); font-size: var(--font-ui-small); line-height: 1.45;
-  margin: -2px 0 10px; max-width: 70ch;
+  margin: 6px 0 10px; max-width: 70ch;   /* etwas Luft zur Überschrift, damit sie nicht klebt */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* Beschreibung UND Platzhalter führen in den Bearbeiten-Dialog – im Ruhezustand sieht man das
