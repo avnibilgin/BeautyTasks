@@ -2,6 +2,7 @@ import { App, FuzzySuggestModal, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged, baseName } from "./taskService";
+import { titleKey, newTaskBody } from "./taskTitle";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
@@ -135,6 +136,7 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
   const fm = buildFrontmatter({
     type: "task",
     id: et.id || newId("t"),
+    [titleKey()]: et.title,
     status: et.status || "todo",
     priority: et.priority && et.priority !== "normal" ? et.priority : undefined,
     due: et.due ? combineDT(et.due, et.dueTime) : null,
@@ -153,7 +155,7 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
     external_id: et.externalId ?? null,
     description: (et.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
-  await app.vault.create(dest, fm + "\n# " + et.title + "\n");
+  await app.vault.create(dest, fm + newTaskBody(et.title, true));
 }
 
 /** Eine importierte Liste mit KORREKTEM Typ (Projekt/Bereich) + Farbe/Archiv-Status anlegen. */

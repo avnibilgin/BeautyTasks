@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody, LOG_HEADING, rebuildWithLog } from "../src/detailLog";
+import { parseDetailLog, serializeDetailLog, splitContent, composeContent, nowLogTs, formatLogTime, isDocumentBody, hasOwnContent, LOG_HEADING, rebuildWithLog } from "../src/detailLog";
 import { setLocale } from "../src/i18n";
 
 beforeEach(() => setLocale("en"));
@@ -115,6 +115,36 @@ describe("splitContent / composeContent (Beschreibung ↔ Log)", () => {
   it("ohne Log keine Log-Überschrift", () => {
     const out = composeContent(FM, "# Titel", "Nur Inhalt", "");
     expect(out).not.toContain(LOG_HEADING);
+  });
+
+  it("ohne H1 wird KEINE Überschrift erfunden (Titel steht dann im Frontmatter/Dateinamen)", () => {
+    const out = composeContent(FM, "", "Nur Inhalt", "");
+    expect(out).toBe(FM + "\nNur Inhalt\n");
+    expect(out).not.toContain("#");
+  });
+
+  it("Round-Trip auf einer Notiz OHNE Überschrift ist verlustfrei", () => {
+    const content = FM + "\n## Topic\n\nEigener Aufbau\n";
+    const { fm, title, description, log } = splitContent(content);
+    expect(title).toBe("");                          // `##` ist kein Titel
+    expect(description).toBe("## Topic\n\nEigener Aufbau");
+    expect(composeContent(fm, title, description, log)).toBe(content);
+  });
+
+  it("hasOwnContent erkennt Dokument-Notizen – deren Überschrift bleibt bei der Migration stehen", () => {
+    const FM2 = "---\ntype: task\n---\n";
+    expect(hasOwnContent(FM2 + "\n# Titel\n")).toBe(false);                       // reine Aufgabe
+    expect(hasOwnContent(FM2 + "\n# Titel\n\nKurzer Zusatz\n")).toBe(false);      // nur Beschreibung
+    expect(hasOwnContent(FM2 + "\n# Titel\n\n> [!log] x\n> K\n")).toBe(false);    // nur Logbuch
+    expect(hasOwnContent(FM2 + "\n# Titel\n\n## Abschnitt\n\nText\n")).toBe(true);   // eigene Gliederung
+    expect(hasOwnContent(FM2 + "\n# Titel\n\n![[bild.png]]\n")).toBe(true);          // Einbettung
+  });
+
+  it("splitContent hält eine `#`-Zeile im Code-Block NICHT für den Titel", () => {
+    const content = FM + "\n```bash\n# nur ein Kommentar\n```\n";
+    const r = splitContent(content);
+    expect(r.title).toBe("");
+    expect(r.description).toBe("```bash\n# nur ein Kommentar\n```");
   });
 });
 

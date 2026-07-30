@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform, HoverPopover } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, TaskFields, baseName } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, setTaskTitle, TaskFields, baseName } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
@@ -410,6 +410,7 @@ export class TaskModal extends Modal {
     await this.persist();   // laufende Bearbeitung sichern, bevor kopiert wird
     const file = await createTaskNote(this.app, this.plugin.settings, {
       ...this.f, title: title + " " + t("copy_suffix"), status: firstOpenStatus(),
+      titleInFrontmatter: this.existing?.titleInFm,   // Kopie hält es wie das Original
       parent: this.f.parent ?? this.opts.parent ?? null,
     });
     await this.log.flush(file);
@@ -647,11 +648,10 @@ export class TaskModal extends Modal {
           set("reminders", this.f.reminders);
           set("description", (this.f.description ?? "").trim() || null);   // leer => Feld entfernen
         });
-        if (title !== this.existing.title) {
-          // Titel steckt in der „# Überschrift" (ungekürzt); Dateiname bleibt der Slug
-          // -> kein Umbenennen (bricht sonst Eltern-Links) und keine Längenbegrenzung.
-          await this.app.vault.process(file, (c) => c.replace(/^#\s+.*$/m, () => "# " + title));
-        }
+        // Titel-Kaskade (s. taskTitle.ts): `title:` im Frontmatter, sonst die erste H1 – der
+        // Dateiname bleibt der Slug (kein Umbenennen, sonst brechen Eltern-Links; keine
+        // Längenbegrenzung). Notizen mit eigener Struktur behalten so ihren Body.
+        if (title !== this.existing.title) await setTaskTitle(this.app, file, title);
       }
     } else {
       const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null });

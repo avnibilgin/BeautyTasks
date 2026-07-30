@@ -175,6 +175,7 @@ Every task is a Markdown note with frontmatter. Nothing proprietary:
 ---
 type: task
 id: t-8f3a1
+title: Write the launch blog post
 status: todo            # todo | doing | done | cancelled
 priority: high
 due: 2026-07-10T09:00
@@ -187,12 +188,39 @@ recurrence: every week
 recur_basis: due        # due | done
 reminders: ["-30m", "2026-07-10T08:00"]
 created: 2026-07-04
+description: Free-form text shown under the title
 ---
-
-# Write the launch blog post
-
-Free-form Markdown description here…
 ```
+
+The body is yours — BeautyTasks keeps its own notes (comments, attachments) in a collapsible
+`###### BeautyTasks Details` section at the bottom and leaves everything above it alone.
+
+### Where the title comes from
+
+Tasks keep their title in `title:`. If a note doesn't have that field, BeautyTasks falls back,
+in this order:
+
+1. **`title:` in the frontmatter**
+2. the **first level-1 heading** in the note
+3. the **file name**
+
+Renaming a task writes the new title back to wherever it came from, so the two never drift.
+The file name is never changed — it is the note's identity, and links to projects and parent
+tasks resolve through it.
+
+That gives you one guarantee worth spelling out: **BeautyTasks only writes into the body of a
+note that already has a title there — a level-1 heading as its first heading.** If your note
+starts with `## Something`, or has no heading at all, the title is stored as `title:` in the
+frontmatter instead and your text is left alone. Notes with a structure of their own keep it.
+
+Upgrading from an earlier version? A one-time pass moves existing titles from the heading into
+`title:`. It removes that heading line only when it really was the title line and the note holds
+nothing but a task — a note carrying **its own content** (sections, images, longer text) keeps its
+heading untouched. No task changes the title it displays.
+
+Already using `title:` for something else? Settings → **Title property** lets you point
+BeautyTasks at a different field, for example `bt_title`. When you switch, it offers to copy
+existing titles over — your original field is never moved or cleared.
 
 By default, notes live under these folders (all configurable in settings):
 

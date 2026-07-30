@@ -10,7 +10,8 @@ import {
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
-import { splitContent, isDocumentBody, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
+import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
+import { titleKey, initTitleKey, normalizeTitleKey, fmTitle, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
@@ -182,6 +183,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.addCommand({ id: "import-tasknotes", name: t("cmd_import_tasknotes"), callback: () => this.importFromTaskNotes() });
     this.addCommand({ id: "migrate-descriptions", name: t("cmd_migrate_desc"), callback: () => void this.migrateDescriptions() });
     this.addCommand({ id: "remove-inbox-note", name: t("cmd_remove_inbox"), callback: () => void this.migrateInboxRemoval() });
+    this.addCommand({ id: "migrate-titles", name: t("cmd_migrate_titles"), callback: () => void this.migrateTitles() });
     this.addCommand({
       id: "import-from-lists", name: t("cmd_import"),
       callback: async () => {
@@ -989,10 +991,15 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Bestehende Notiz zur Aufgabe machen: `type: task` + Kanon-Felder setzen. Ohne Projekt –
    *  landet damit (Variante A) automatisch im Eingang, bis der Nutzer sie zuordnet. */
   async convertActiveNoteToTask(f: TFile): Promise<void> {
+    // Hat die Notiz keine H1, gibt es im Text keinen Titel (s. taskTitle.ts). Dann wird der
+    // DATEINAME als `title:` festgeschrieben – sonst würde eine beliebige Zwischenüberschrift
+    // zum Aufgabentitel, und jedes spätere Umbenennen müsste im Body herumschreiben.
+    const noH1 = findH1Line(await this.app.vault.cachedRead(f)) === null;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
       fm.type = "task";
       ensureCanonicalFm(fm);
       if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
+      if (noH1 && fmTitle(fm[titleKey()]) === null) fm[titleKey()] = f.basename;
     });
     await this.reconcileTaskDescription(f);   // Body → Beschreibung/Dokument einsortieren
     new Notice(t("notice_made_task"));
@@ -1011,8 +1018,8 @@ export default class BeautyTasksPlugin extends Plugin {
     // Inhalt VOR der ersten „# Überschrift" getrennt betrachten: splitContent verwirft ihn, also
     // darf er NIE über den (rewritenden) „moved"-Zweig laufen – sonst ginge er verloren.
     const afterFm = content.replace(/^---\n[\s\S]*?\n---\n/, "");
-    const h1 = afterFm.search(/^#\s+/m);
-    const preH1 = (h1 > 0 ? afterFm.slice(0, h1) : "").trim();
+    const h1 = findH1LineInBody(afterFm);                       // fence-sicher, wie splitContent
+    const preH1 = (h1 === null ? "" : afterFm.split("\n").slice(0, h1).join("\n")).trim();
     const bodyDesc = splitContent(content).description;         // zwischen H1 und Log
     const combined = (preH1 + "\n" + bodyDesc).trim();
     if (!combined) return "none";
@@ -1047,6 +1054,97 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!opts.silent) { window.setTimeout(() => this.index.build(), 400); new Notice(t("notice_desc_migrated", moved, docs)); }
   }
 
+  /** Einmalige Migration „Titel ins Frontmatter": Seit 1.31.0 führen Aufgaben ihren Titel im
+   *  Frontmatter statt in einer „# Überschrift". Diese Migration holt den Bestand nach, damit es
+   *  im Vault EIN System gibt statt zweier nebeneinander.
+   *
+   *  Zwei Regeln halten sie ungefährlich:
+   *  - Geschrieben wird immer der Titel, den die Notiz BISHER angezeigt hat (erste Überschrift,
+   *    sonst Dateiname). Niemandem ändert sich damit ein Titel.
+   *  - Aus dem Body verschwindet nur eine H1, die auch wirklich die Titel-Zeile war – geprüft
+   *    Zeile für Zeile gegen den geschriebenen Titel. Zwischenüberschriften des Nutzers und
+   *    Notizen mit eigener Struktur bleiben unangetastet.
+   *
+   *  Notizen, die `title:` schon führen, werden gar nicht erst angefasst. Damit ist die Migration
+   *  idempotent: ein zweiter Lauf findet nichts mehr. */
+  async migrateTitles(opts: { silent?: boolean } = {}): Promise<void> {
+    let moved = 0;
+    for (const tk of this.index.all()) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (!(f instanceof TFile)) continue;
+      const cache = this.app.metadataCache.getFileCache(f);
+      const plan = titleToStore(cache?.frontmatter?.[titleKey()], cache?.headings, f.basename);
+      if (!plan) continue;
+      let wrote = false;
+      await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        if (fmTitle(fm[titleKey()]) !== null) return;   // lebende Quelle entscheidet
+        fm[titleKey()] = plan.title;
+        wrote = true;
+      });
+      if (!wrote) continue;
+      // Erst NACH dem Frontmatter-Schreiben in den Body greifen: die H1-Zeile wird auf dem dann
+      // aktuellen Inhalt gesucht, kann also nicht durch verschobene Zeilennummern danebengehen.
+      // Notizen mit EIGENEM Inhalt behalten ihre Überschrift – dort ist sie Teil eines Dokuments
+      // und nicht bloß die Titelzeile eines Datensatzes. Aufgeräumt wird nur, was BeautyTasks
+      // selbst angelegt hat.
+      if (plan.dropH1) await this.app.vault.process(f, (c) =>
+        hasOwnContent(c) ? c : dropHeadingLine(c, findH1Line(c), plan.title));
+      moved++;
+    }
+    this.settings.didTitleMigration = true;
+    await this.saveSettings();
+    if (!opts.silent) { window.setTimeout(() => this.index.build(), 400); new Notice(t("notice_titles_moved", moved)); }
+  }
+
+  /** Titel-Eigenschaft umstellen (Einstellungen). Der Wechsel selbst ist harmlos – aber die Titel,
+   *  die BeautyTasks bisher im ALTEN Feld geführt hat, wären danach unsichtbar (die Aufgabe zeigte
+   *  wieder ihre Überschrift oder ihren Dateinamen). Deshalb die Rückfrage mit Übernahme-Häkchen.
+   *
+   *  Übernommen wird per KOPIE: der alte Wert bleibt stehen. Verschieben wäre falsch – wer das Feld
+   *  wechselt, tut das in der Regel genau deshalb, weil `title:` ihm selbst gehört. Kopiert wird nur
+   *  in Aufgaben-Notizen und nur dort, wo das neue Feld noch leer ist. */
+  changeTitleProperty(next: string, done?: () => void): void {
+    const prev = this.settings.titleProperty;
+    if (next === prev) { done?.(); return; }
+    const carry = this.index.all().filter((tk) => {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (!(f instanceof TFile)) return false;
+      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+      return fmTitle(fm?.[prev]) !== null && fmTitle(fm?.[next]) === null;
+    });
+    new ConfirmModal(this.app, {
+      title: t("set_title_prop_confirm_t"),
+      message: t("set_title_prop_confirm_m", next, prev, carry.length),
+      confirmText: t("btn_save"),
+      destructive: false,
+      checkbox: { label: t("set_title_prop_copy"), checked: carry.length > 0 },
+    }, (copy: boolean) => {
+      void (async () => {
+        let copied = 0;
+        if (copy) {
+          for (const tk of carry) {
+            const f = this.app.vault.getAbstractFileByPath(tk.path);
+            if (!(f instanceof TFile)) continue;
+            await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+              const from = fmTitle(fm[prev]);
+              if (from !== null && fmTitle(fm[next]) === null) fm[next] = from;   // lebende Quelle
+            });
+            copied++;
+          }
+        }
+        this.settings.titleProperty = next;
+        initTitleKey(next);
+        await this.saveSettings();
+        this.index.build();
+        this.renderAll();
+        new Notice(t("set_title_prop_done", next, copied));
+        done?.();
+      })();
+    }).open();
+    // Abbruch schließt das Modal ohne Rückruf – das Eingabefeld setzt der Aufrufer beim nächsten
+    // Zeichnen ohnehin auf den gespeicherten Wert zurück.
+  }
+
   /** Einmalige Migration „Inbox-Notiz entfernen": übernimmt View-Optionen + GCal-Ausschluss der
    *  alten Inbox-Notiz in die Settings, löst `[[Inbox]]`-Verweise auf (kein Projekt) und verschiebt
    *  die Notiz in Obsidians Papierkorb. Idempotent (setzt `didInboxRemoval`); auch manuell aufrufbar. */
@@ -1076,11 +1174,12 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Beim ERSTEN Start nach einem Update die ausstehenden Einmal-Migrationen automatisch ausführen
    *  (per Flag abgesichert, nie doppelt). Für neue Vaults sind beide No-Ops (keine Alt-Daten). */
   private async runPendingMigrations(): Promise<void> {
-    if (this.settings.didDescriptionMigration && this.settings.didInboxRemoval) return;   // nichts offen
+    if (this.settings.didDescriptionMigration && this.settings.didInboxRemoval && this.settings.didTitleMigration) return;   // nichts offen
     // Frischer Vault ohne Alt-Daten? -> Flags still setzen, aber keine Notice/kein Neuaufbau.
     const hasData = this.index.all().length > 0 || inboxNotePath(this.app) !== null;
     if (!this.settings.didDescriptionMigration) await this.migrateDescriptions({ silent: true });
     if (!this.settings.didInboxRemoval) await this.migrateInboxRemoval({ silent: true });
+    if (!this.settings.didTitleMigration) await this.migrateTitles({ silent: true });
     if (hasData) { this.index.build(); this.renderAll(); new Notice(t("notice_auto_migrated")); }
   }
 
@@ -1293,6 +1392,7 @@ export default class BeautyTasksPlugin extends Plugin {
       if (next && (next.due || next.scheduled)) {
         await createTaskNote(this.app, this.settings, {
           title: task.title,
+          titleInFrontmatter: task.titleInFm,   // nächste Instanz wie die Vorlage
           priority: task.priority,
           project: task.project ? baseName(task.project) : null,
           labels: [...task.labels],
@@ -1325,6 +1425,7 @@ export default class BeautyTasksPlugin extends Plugin {
   async duplicateTask(task: Task): Promise<void> {
     const file = await createTaskNote(this.app, this.settings, {
       title: task.title + " " + t("copy_suffix"),
+      titleInFrontmatter: task.titleInFm,   // Kopie hält es wie das Original
       description: task.description,
       status: firstOpenStatus(),
       due: task.due, dueTime: task.dueTime,
@@ -1357,6 +1458,7 @@ export default class BeautyTasksPlugin extends Plugin {
     for (const kid of kids) {
       const copy = await createTaskNote(this.app, this.settings, {
         title: kid.title,
+        titleInFrontmatter: kid.titleInFm,
         description: kid.description,
         status: firstOpenStatus(),
         due: kid.due, dueTime: kid.dueTime,
@@ -1456,6 +1558,10 @@ export default class BeautyTasksPlugin extends Plugin {
     // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
+    // Titel-Feld aus den Einstellungen; normalizeTitleKey fängt Vertipptes und reservierte Felder
+    // ab und fällt auf "title" zurück – eine kaputte Einstellung darf nie Daten treffen.
+    this.settings.titleProperty = normalizeTitleKey(this.settings.titleProperty);
+    initTitleKey(this.settings.titleProperty);
     // Google-Kalender-Sub-Objekt mit Defaults auffüllen (fehlende/neue Felder ergänzen,
     // gespeicherte Werte behalten). Lebendes Objekt – Auth/Engine mutieren tokens/lastSynced darin.
     this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);

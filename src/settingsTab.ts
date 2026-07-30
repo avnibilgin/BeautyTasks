@@ -5,6 +5,7 @@ import { CHIPS, chipsCompact, resolveChipOrder, chipTierOf } from "./chips";
 import { VIEW_IDS, viewTitle } from "./heuteView";
 import { renderStatusEditor } from "./statusEditor";
 import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
+import { normalizeTitleKey } from "./taskTitle";
 import { t } from "./i18n";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
@@ -305,6 +306,19 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
           await p.saveSettings();
         });
         ta.inputEl.addEventListener("blur", () => { p.index.build(); p.renderAll(); });
+      });
+
+    // Titel-Eigenschaft: welches Frontmatter-Feld den Aufgabentitel führt (Default „title"). Wer
+    // `title` schon für Eigenes belegt, stellt hier um. Die Änderung greift erst beim Verlassen des
+    // Feldes und geht über eine Rückfrage – sie entscheidet, ob vorhandene Titel mitkommen.
+    new Setting(containerEl).setName(t("set_title_prop")).setDesc(t("set_title_prop_desc"))
+      .addText((text) => {
+        text.setValue(p.settings.titleProperty);
+        text.inputEl.addEventListener("blur", () => {
+          const next = normalizeTitleKey(text.getValue());
+          text.setValue(p.settings.titleProperty);   // Feld zeigt bis zur Bestätigung den gespeicherten Stand
+          if (next !== p.settings.titleProperty) p.changeTitleProperty(next, () => { text.setValue(p.settings.titleProperty); });
+        });
       });
 
     // ── Import & Export ──
