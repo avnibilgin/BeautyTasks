@@ -121,6 +121,7 @@ export interface BeautyTasksSettings {
   fontHeadingPct: number;  // Skalierung Sektionsüberschriften der Seitenleiste in % (100 = Standard)
   fontSectionPct: number;  // Skalierung Datums-/Abschnittsüberschriften in den Listen in % (100 = Standard)
   showDescriptionInList: boolean;  // Beschreibungs-Vorschau unter dem Titel in Listen
+  showProjectDescription: boolean; // Beschreibung unter dem Seitentitel von Projekt/Bereich/Filter
   metaTheme: "minimalisdo" | "colorado" | "user";  // Meta-Farbstil: Minimalisdo (grau) / Colorado (farbig) / User (eigene Farben aus metaColors)
   metaColors: Partial<Record<MetaColorKey, string>>;   // einzeln überschreibbare Meta-Farben (s. MetaColorKey)
   navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
@@ -162,6 +163,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   fontHeadingPct: 100,
   fontSectionPct: 100,
   showDescriptionInList: true,
+  showProjectDescription: true,
   metaTheme: "minimalisdo",
   metaColors: {},
   navCollapsed: {},

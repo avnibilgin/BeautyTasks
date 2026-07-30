@@ -520,6 +520,10 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
  *  Bearbeiten-Dialog führt, in dem das Feld liegt – so ist das Feld auffindbar, ohne dass man das
  *  Kontextmenü kennt. Ohne Eintrag (Eingang, eingebaute Ansichten) entsteht gar nichts. */
 function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | undefined, item: NavMenuItem | null): void {
+  // Abgeschaltet: gar nichts rendern – und damit auch keine bt-has-desc-Markierung. Die Seite
+  // bekommt dann exakt die Abstände der Systemansichten, sodass „+ Aufgabe hinzufügen" beim
+  // Wechsel zwischen Eingang und Projekt nicht springt.
+  if (!plugin.settings.showProjectDescription) return;
   const t2 = (text ?? "").trim();
   if (!t2 && !item) return;
   const el = root.createDiv({ cls: "bt-page-desc" + (t2 ? "" : " is-empty"), text: t2 || t("desc_add") });
