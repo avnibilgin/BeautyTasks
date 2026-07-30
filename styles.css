@@ -1801,11 +1801,15 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
   margin: -2px 0 10px; max-width: 70ch;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-/* Noch keine Beschreibung: blasser Platzhalter, der in den Bearbeiten-Dialog führt. Eine Stufe
-   heller als der echte Text – er soll auffindbar sein, aber nichts behaupten. */
-.bt-page-desc.is-empty { color: var(--text-faint); cursor: pointer; width: fit-content; }
-.bt-page-desc.is-empty:hover { color: var(--bt-meta-gray); text-decoration: underline; }
-.bt-page-desc.is-empty:focus-visible { outline: 1px solid var(--background-modifier-border-focus); outline-offset: 2px; border-radius: 3px; }
+/* Beschreibung UND Platzhalter führen in den Bearbeiten-Dialog – im Ruhezustand sieht man das
+   nicht (Text ist Inhalt, kein Link), beim Überfahren schon. */
+.bt-page-desc[role="button"] { cursor: pointer; width: fit-content; }
+.bt-page-desc[role="button"]:hover { text-decoration: underline; }
+.bt-page-desc[role="button"]:focus-visible { outline: 1px solid var(--background-modifier-border-focus); outline-offset: 2px; border-radius: 3px; }
+/* Noch keine Beschreibung: eine Stufe blasser als der echte Text – auffindbar, aber ohne etwas
+   zu behaupten. Beim Überfahren rückt er auf die Farbe einer echten Beschreibung. */
+.bt-page-desc.is-empty { color: var(--text-faint); }
+.bt-page-desc.is-empty:hover { color: var(--bt-meta-gray); }
 
 .bt-facet-dd.is-stale { border-color: var(--text-error); border-style: dashed; }
 /* … und die Zeile im Popover, die den Grund nennt. */
