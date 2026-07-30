@@ -995,12 +995,14 @@ body {
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
 /* Seiten MIT Beschreibungszeile (Projekt, Bereich, Filter) gleichen deren Höhe an EINER Stelle
-   wieder aus: Die Zeile ist exakt 26px hoch (6px Rand + 20px Zeilenhöhe), also verliert die erste
-   Sektion genau 26px. Beide Zustände ergeben damit dieselbe Summe – ohne Beschreibung 2.2em, mit
-   Beschreibung 26px + (2.2em − 26px). Die erste Sektionsüberschrift sitzt in Systemansichten und
-   auf Projektseiten auf derselben Höhe, unabhängig von Theme und Zoom.
+   wieder aus. Die Rechnung, und die beiden Zahlen unten MÜSSEN zusammenpassen:
+     6px Rand + 20px Zeilenhöhe − 1px (engerer Abstand zur Bar) = 25px Zuwachs
+   also verliert die erste Sektion genau 25px. Beide Zustände ergeben damit dieselbe Summe – ohne
+   Beschreibung 2.2em, mit Beschreibung 25px + (2.2em − 25px). Die erste Sektionsüberschrift sitzt
+   in Systemansichten und auf Projektseiten auf derselben Höhe, unabhängig von Theme und Zoom.
    Zwischen zwei Sektionen bleibt es überall bei 2.2em, das gliedert die Liste. */
-.bt-has-desc .bt-section:first-child { margin-top: calc(2.2em - 26px); }
+.bt-has-desc .bt-board-bar { margin-top: 19px; }   /* 1px enger an die Beschreibung */
+.bt-has-desc .bt-section:first-child { margin-top: calc(2.2em - 25px); }
 .bt-section-title {
   font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
   color: var(--text-normal);
