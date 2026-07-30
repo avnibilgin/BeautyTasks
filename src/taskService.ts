@@ -269,14 +269,14 @@ export function listManaged(app: App): { active: ProjItem[]; archived: ProjItem[
 
 /** Neues Projekt (oder mit asArea=true direkt einen Bereich) anlegen; gibt den Basenamen
  *  zurück. Bereiche entstehen sonst per Umwandeln eines Projekts (setProjectType). */
-export async function createProjectNote(app: App, settings: BeautyTasksSettings, name: string, asArea = false, color: string | null = null, hidden = false): Promise<string> {
+export async function createProjectNote(app: App, settings: BeautyTasksSettings, name: string, asArea = false, color: string | null = null, hidden = false, description = ""): Promise<string> {
   const folder = settings.projectsFolder;
   await ensureFolder(app, folder);
   const base = slugify(name);
   let dest = normalizePath(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
-  const fm = buildFrontmatter({ [fieldKey("type")]: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, nav_hidden: hidden ? true : undefined, created: todayIso() });
+  const fm = buildFrontmatter({ [fieldKey("type")]: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, description: description.trim() || undefined, nav_hidden: hidden ? true : undefined, created: todayIso() });
   // Kein „# Name" mehr im Body: Der Name kommt aus dem Dateinamen, die Überschrift wäre redundant –
   // und der Body gehört ab hier vollständig dem Nutzer (s. „Projektnotiz öffnen").
   await app.vault.create(dest, fm + "\n");

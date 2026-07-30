@@ -425,8 +425,8 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Neues Projekt (oder direkt Bereich) anlegen. Nav/Board lesen den metadataCache, der
    *  nach create erst kurz später aktualisiert wird -> einmaliger „changed"-Listener zeichnet
    *  dann neu, damit der neue Eintrag sofort in der Seitenleiste erscheint. */
-  async createProject(name: string, asArea = false, color: string | null = null, hidden = false): Promise<void> {
-    await createProjectNote(this.app, this.settings, name, asArea, color, hidden);
+  async createProject(name: string, asArea = false, color: string | null = null, hidden = false, description = ""): Promise<void> {
+    await createProjectNote(this.app, this.settings, name, asArea, color, hidden, description);
     const ref = this.app.metadataCache.on("changed", () => { this.app.metadataCache.offref(ref); this.renderAll(); });
     this.registerEvent(ref);
   }

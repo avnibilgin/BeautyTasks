@@ -149,7 +149,7 @@ export class NewItemModal extends Modal {
         if (this.color) await this.plugin.setLabelColor(nu, this.color);
       }
     } else {
-      await this.plugin.createProject(name, this.kind === "area", this.color, !this.visible);
+      await this.plugin.createProject(name, this.kind === "area", this.color, !this.visible, this.description);
     }
   }
 
