@@ -1,35 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { fmTitle, resolveTitle, firstH1, titleTarget, findH1Line, findH1LineInBody, replaceHeadingLine, titleToStore, dropHeadingLine, newTaskBody, normalizeTitleKey, initTitleKey, titleKey, DEFAULT_TITLE_KEY } from "../src/taskTitle";
-
-afterEach(() => initTitleKey(null));   // Registry nach jedem Test zurücksetzen
-
-describe("normalizeTitleKey – eine vertippte Einstellung darf nie Daten treffen", () => {
-  it("nimmt gültige Feldnamen unverändert", () => {
-    expect(normalizeTitleKey("bt_title")).toBe("bt_title");
-    expect(normalizeTitleKey("  Titel-Feld  ")).toBe("Titel-Feld");
-    expect(normalizeTitleKey("title")).toBe("title");
-  });
-  it("fällt bei unbrauchbaren Namen auf die Vorgabe zurück", () => {
-    for (const bad of ["", "   ", "2titel", "mein feld", "feld:x", "feld#1", undefined, null, 42])
-      expect(normalizeTitleKey(bad)).toBe(DEFAULT_TITLE_KEY);
-  });
-  it("sperrt Felder, die BeautyTasks oder Obsidian selbst führen", () => {
-    for (const reserved of ["type", "status", "due", "project", "parent", "labels", "id", "description", "tags", "aliases", "STATUS"])
-      expect(normalizeTitleKey(reserved)).toBe(DEFAULT_TITLE_KEY);
-  });
-});
-
-describe("Titel-Registry", () => {
-  it("liefert die Vorgabe, solange nichts gesetzt ist", () => {
-    expect(titleKey()).toBe("title");
-  });
-  it("übernimmt einen gültigen Schlüssel und normalisiert dabei", () => {
-    initTitleKey("bt_title");
-    expect(titleKey()).toBe("bt_title");
-    initTitleKey("status");            // reserviert
-    expect(titleKey()).toBe("title");
-  });
-});
+import { describe, it, expect } from "vitest";
+import { fmTitle, resolveTitle, firstH1, titleTarget, findH1Line, findH1LineInBody, replaceHeadingLine, titleToStore, dropHeadingLine, newTaskBody } from "../src/taskTitle";
 
 const fm = (yaml: string): string => "---\n" + yaml + "\n---\n";
 

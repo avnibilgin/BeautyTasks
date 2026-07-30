@@ -2,6 +2,7 @@ import { App, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, TaskStatus, Priority } from "./types";
 import { todayIso } from "./taskService";
 import { titleKey } from "./taskTitle";
+import { fieldKey } from "./fieldNames";
 
 const PRIO_MAP: Record<string, Priority> = {
   "🔺": "highest", "⏫": "high", "🔼": "medium", "🔽": "low", "⏬": "lowest",
@@ -101,7 +102,7 @@ export async function runMigration(app: App, settings: BeautyTasksSettings): Pro
     // Projekt-Notiz anlegen, falls fehlt.
     const projPath = normalizePath(settings.projectsFolder + "/" + slugify(projectName) + ".md");
     if (!app.vault.getAbstractFileByPath(projPath)) {
-      await app.vault.create(projPath, frontmatter({ type: "project", id: newId("p"), status: "active", icon: "folder" }) + "\n# " + projectName + "\n");
+      await app.vault.create(projPath, frontmatter({ [fieldKey("type")]: "project", id: newId("p"), status: "active", icon: "folder" }) + "\n# " + projectName + "\n");
     }
 
     const lines = (await app.vault.read(list)).split("\n");
@@ -121,7 +122,7 @@ export async function runMigration(app: App, settings: BeautyTasksSettings): Pro
       if (app.vault.getAbstractFileByPath(dest)) continue;
 
       const fm = frontmatter({
-        type: "task",
+        [fieldKey("type")]: "task",
         id: newId("t"),
         [titleKey()]: p.title,
         status: p.status,

@@ -3,6 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged, baseName } from "./taskService";
 import { titleKey, newTaskBody } from "./taskTitle";
+import { fieldKey } from "./fieldNames";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
@@ -134,7 +135,7 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(settings.itemsFolder + "/" + slug + " " + n + ".md"); n++; if (n > 500) break; }
   const fm = buildFrontmatter({
-    type: "task",
+    [fieldKey("type")]: "task",
     id: et.id || newId("t"),
     [titleKey()]: et.title,
     status: et.status || "todo",
@@ -167,7 +168,7 @@ async function writeImportedList(app: App, settings: BeautyTasksSettings, list: 
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
   const fm = buildFrontmatter({
-    type: list.type === "area" ? "area" : "project",
+    [fieldKey("type")]: list.type === "area" ? "area" : "project",
     id: newId("p"),
     status: list.archived ? "archived" : "active",
     color: list.color ?? undefined,
@@ -180,7 +181,7 @@ async function writeImportedList(app: App, settings: BeautyTasksSettings, list: 
 function existingListNames(app: App): Set<string> {
   const out = new Set<string>();
   for (const f of app.vault.getMarkdownFiles()) {
-    const type = app.metadataCache.getFileCache(f)?.frontmatter?.type as unknown;
+    const type = app.metadataCache.getFileCache(f)?.frontmatter?.[fieldKey("type")] as unknown;
     if (type === "project" || type === "area") out.add(f.basename.toLowerCase());
   }
   return out;

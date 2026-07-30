@@ -11,40 +11,11 @@
 //
 // Alles hier ist rein (keine App, kein obsidian-Import) und damit vollständig testbar.
 
-/** Frontmatter-Schlüssel des Titels, Vorgabe. `title` ist der Ökosystem-Standard (andere Werkzeuge
- *  lesen und schreiben dasselbe Feld) – wer es für etwas Eigenes belegt, stellt in den Einstellungen
- *  einen anderen Namen ein. */
-export const DEFAULT_TITLE_KEY = "title";
+import { fieldKey } from "./fieldNames";
 
-/** Frontmatter-Felder, die BeautyTasks auf Aufgaben-Notizen selbst führt, plus die von Obsidian
- *  belegten. Als Titel-Feld gesperrt – sonst würde die App beim Umbenennen ihre eigenen Daten
- *  (oder die Tags des Nutzers) überschreiben. */
-const RESERVED_KEYS = new Set([
-  "type", "id", "status", "priority", "due", "scheduled", "start", "duration", "project", "parent",
-  "labels", "recurrence", "recur_basis", "reminders", "sort_order", "created", "completed",
-  "cancelled", "description", "external_id", "gcal_event_id", "gcal_calendar_id", "gcal_sync",
-  "icon", "color", "nav_hidden",
-  "tags", "aliases", "cssclasses", "cssclass", "publish", "permalink",
-]);
-
-/** Einen eingegebenen Schlüsselnamen auf einen brauchbaren reduzieren. Erlaubt sind Namen, die in
- *  YAML ohne Anführungszeichen auskommen (Buchstabe voran, dann Buchstaben/Ziffern/_/-); alles
- *  andere und jedes reservierte Feld fällt auf die Vorgabe zurück. So kann eine vertippte
- *  Einstellung nie Daten zerstören. */
-export function normalizeTitleKey(raw: unknown): string {
-  const s = typeof raw === "string" ? raw.trim() : "";
-  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(s)) return DEFAULT_TITLE_KEY;
-  return RESERVED_KEYS.has(s.toLowerCase()) ? DEFAULT_TITLE_KEY : s;
-}
-
-// ── Lebende Registry ────────────────────────────────────────────────
-// Wie bei den Status (statuses.ts) und der Sprache (i18n.ts): EINE Quelle zur Laufzeit, von
-// main.loadSettings() gesetzt. Die reinen Helfer hier und die Aufrufer in Index/Service lesen
-// den Getter – so braucht keine dieser Stellen die Einstellungen durchgereicht zu bekommen.
-let CURRENT_KEY = DEFAULT_TITLE_KEY;
-
-export function initTitleKey(raw?: string | null): void { CURRENT_KEY = normalizeTitleKey(raw); }
-export function titleKey(): string { return CURRENT_KEY; }
+// Der Name des Titel-Feldes lebt NICHT hier, sondern in fieldNames.ts – er ist eine Frage der
+// Feldnamen, nicht des Titel-Modells. `titleKey()` ist nur eine bequeme Abkürzung dorthin.
+export const titleKey = (): string => fieldKey("title");
 
 /** Minimal-Form eines Überschriften-Eintrags aus dem metadataCache (strukturell kompatibel zu
  *  HeadingCache). Bewusst lokal definiert, damit dieses Modul ohne obsidian-Import auskommt. */

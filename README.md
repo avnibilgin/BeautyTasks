@@ -228,6 +228,26 @@ Already using `title:` for something else? Settings → **Title property** lets 
 BeautyTasks at a different field, for example `bt_title`. When you switch, it offers to copy
 existing titles over — your original field is never moved or cleared.
 
+### Field names
+
+Two frontmatter fields carry BeautyTasks' own meaning, and both are popular property names:
+
+| Field | What it does |
+| --- | --- |
+| `type` | marks a note as a task, project, area or filter |
+| `title` | holds the task title |
+
+If you already use one of these names for something else, Settings → **Field names** points
+BeautyTasks at your own field instead, e.g. `bt_type`. Changing a name asks first and shows how
+many notes it affects:
+
+- **`type`** — your notes are rewritten to the new field and the old one is removed. Notes in
+  excluded folders are never touched, and neither are foreign values: a note with `type: meeting`
+  stays exactly as it is. Your own Dataview or Bases queries on the old field will find nothing
+  afterwards, so adjust those yourself.
+- **`title`** — existing titles are *copied* to the new field on request; your original field is
+  never moved or cleared.
+
 By default, notes live under these folders (all configurable in settings):
 
 | Content | Default folder |
