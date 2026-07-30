@@ -994,6 +994,10 @@ body {
 
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
+/* Die ERSTE Sektion sitzt direkt unter „+ Aufgabe hinzufügen" und braucht dort nicht denselben
+   Abstand wie zwischen zwei Sektionen – der Kopf darüber trägt schon genug Luft. Nur der erste
+   Abstand schrumpft, die Gliederung der Liste bleibt unverändert. */
+.bt-section:first-child { margin-top: calc(2.2em - 16px); }
 .bt-section-title {
   font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
   color: var(--text-normal);
