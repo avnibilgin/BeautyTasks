@@ -1794,6 +1794,8 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Gestrichelt statt durchgezogen, weil durchgezogenes Rot oben schon den AUSSCHLUSS markiert –
    beides muss auf einen Blick unterscheidbar bleiben. Steht nach is-exclude/is-all, gewinnt also. */
 .bt-facet-dd.is-stale { border-color: var(--text-error); border-style: dashed; }
+/* … und die Zeile im Popover, die den Grund nennt. */
+.bt-facet-pop .bt-row.is-stale .bt-row-lbl { color: var(--text-error); }
 /* Modus-Popover: feste Breite, damit der Live-Satz das Popover nicht breiter macht. */
 .bt-facet-pop.bt-mode-pop { width: 240px; }
 /* Modus-Segment oben im Facetten-Popover: „Aufgabe hat … eines | alle | keines".
