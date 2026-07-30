@@ -517,13 +517,17 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
  *  Kontextmenü kennt. Ohne Eintrag (Eingang, eingebaute Ansichten) entsteht gar nichts. */
 function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | undefined, item: NavMenuItem | null): void {
   const t2 = (text ?? "").trim();
-  if (t2) { root.createDiv({ cls: "bt-page-desc", text: t2 }); return; }
-  if (!item) return;
-  const add = root.createDiv({ cls: "bt-page-desc is-empty", text: t("desc_add") });
-  add.setAttr("role", "button");
-  add.setAttr("tabindex", "0");
-  add.onclick = () => openEdit(plugin, item);
-  add.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
+  if (!t2 && !item) return;
+  const el = root.createDiv({ cls: "bt-page-desc" + (t2 ? "" : " is-empty"), text: t2 || t("desc_add") });
+  if (!item) return;   // ohne Eintrag kein Ziel – dann bleibt es reiner Text
+  // Auch die gefüllte Beschreibung führt in den Dialog: Wer sie ändern will, klickt sie an,
+  // statt den Umweg über das Kontextmenü zu suchen. Der Tooltip nennt das Ziel.
+  el.setAttr("role", "button");
+  el.setAttr("tabindex", "0");
+  el.setAttr("aria-label", t("menu_edit"));
+  el.setAttr("data-tooltip-position", "top");
+  el.onclick = () => openEdit(plugin, item);
+  el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
 }
 
 /** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter
