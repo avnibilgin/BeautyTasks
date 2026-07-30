@@ -105,6 +105,7 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   // Heute/Demnächst: Kopf mit „Anzeige"-Knopf (leichtes Panel). Wiederkehrend: nur Titel.
@@ -362,6 +363,7 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const isInbox = projectPath === INBOX_KEY;   // eingebaute Eingang-Ansicht (keine Notiz)
@@ -401,6 +403,7 @@ export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, 
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const top = pageTop(c, plugin.pageViewOptions().layout);
@@ -473,6 +476,7 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
+  c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
   const filter = readFilter(plugin.app, filterPath);
@@ -519,6 +523,9 @@ function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | u
   const t2 = (text ?? "").trim();
   if (!t2 && !item) return;
   const el = root.createDiv({ cls: "bt-page-desc" + (t2 ? "" : " is-empty"), text: t2 || t("desc_add") });
+  // Nur Seiten MIT Beschreibungszeile rücken Bar und erste Sektion enger zusammen – die
+  // Systemansichten (Heute, Demnächst, Eingang, Labels …) behalten ihre Abstände.
+  root.closest<HTMLElement>(".bt-view")?.addClass("bt-has-desc");
   if (!item) return;   // ohne Eintrag kein Ziel – dann bleibt es reiner Text
   // Auch die gefüllte Beschreibung führt in den Dialog: Wer sie ändern will, klickt sie an,
   // statt den Umweg über das Kontextmenü zu suchen. Der Tooltip nennt das Ziel.

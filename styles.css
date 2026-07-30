@@ -282,7 +282,7 @@ body {
 }
 
 /* Board-Kopfzeile: „+ Add task" links, dezenter ListManager-Link rechts. */
-.bt-board-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 6px; }
+.bt-board-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 14px; }
 .bt-board-bar .bt-add { margin: 0; }   /* Abstand kommt von der Bar */
 .bt-board-link {
   display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
@@ -994,10 +994,12 @@ body {
 
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
-/* Die ERSTE Sektion sitzt direkt unter „+ Aufgabe hinzufügen" und braucht dort nicht denselben
-   Abstand wie zwischen zwei Sektionen – der Kopf darüber trägt schon genug Luft. Nur der erste
-   Abstand schrumpft, die Gliederung der Liste bleibt unverändert. */
-.bt-section:first-child { margin-top: calc(2.2em - 16px); }
+/* Seiten MIT Beschreibungszeile (Projekt, Bereich, Filter) rücken „+ Aufgabe hinzufügen" und die
+   erste Sektion enger zusammen – die Beschreibung bringt oben schon Luft mit. Systemansichten
+   (Heute, Demnächst, Eingang, Labels) behalten ihre Abstände. Zwischen zwei Sektionen bleibt es
+   überall bei 2.2em, das gliedert die Liste. */
+.bt-has-desc .bt-board-bar { margin-bottom: 6px; }
+.bt-has-desc .bt-section:first-child { margin-top: calc(2.2em - 16px); }
 .bt-section-title {
   font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
   color: var(--text-normal);
