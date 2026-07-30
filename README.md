@@ -146,7 +146,7 @@ Prefer full control? Open the Todoist-style task editor with its chip row for da
 ### Reminders
 Attach one or more reminders to a task — either **relative** (“at time of task”, 10 min / 30 min / 1 h / 1 day before) or an **absolute** date & time. When a reminder is due, BeautyTasks shows a **system notification** on desktop (even when Obsidian is in the background) and an in-app notice; clicking it opens the task.
 
-> **Good to know:** in-app reminders fire while Obsidian is running (on desktop that includes the background; on mobile while the app is open). To be notified even when Obsidian is **fully closed**, turn on **Google Calendar sync** — reminders are pushed onto the calendar event, so your phone or OS notifies you. A standalone `.ics`/VALARM export is also on the roadmap.
+> **Good to know:** in-app reminders fire while Obsidian is running (on desktop that includes the background; on mobile while the app is open). To be notified even when Obsidian is **fully closed**, turn on **Google Calendar sync** — reminders are pushed onto the calendar event, so your phone or OS notifies you.
 
 ### Notes, comments & attachments
 Every task has a **Details** panel for the story behind the task:
@@ -390,12 +390,9 @@ Individual projects, areas, labels and filters can have their own color. Pick on
 
 ## Roadmap
 
-BeautyTasks is under active development. The following are **planned and not yet available** — listed here so you know where it's headed:
+BeautyTasks is under active development. This one is **planned and not yet available** — listed here so you know where it's headed:
 
 - **Task & project templates** — reusable structures with relative dates (“three days after the start”), so a recurring set-up is one click instead of ten.
-- **Reminders that survive a closed app** — `.ics` (VALARM) export so your OS or phone notifies you even when Obsidian isn't running.
-- **All-day reminders in Google Calendar** — a reminder at a time you choose on all-day tasks.
-- **Sync** — a first-class way to keep tasks in sync across devices.
 
 Recently shipped: **calendar layout** (year / month / week / day), **configurable field names**, **titles in the frontmatter**, **read-only Google events**, **drag & drop onto projects and labels**, and a **context menu on every task row**.
 
