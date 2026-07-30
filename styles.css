@@ -282,7 +282,7 @@ body {
 }
 
 /* Board-Kopfzeile: „+ Add task" links, dezenter ListManager-Link rechts. */
-.bt-board-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 14px; }
+.bt-board-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 6px; }
 .bt-board-bar .bt-add { margin: 0; }   /* Abstand kommt von der Bar */
 .bt-board-link {
   display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
