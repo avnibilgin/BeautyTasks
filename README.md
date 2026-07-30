@@ -13,6 +13,7 @@ A Todoist-style task & project manager that lives **inside** Obsidian — with a
 - **One note per task.** Each task is a normal Markdown file with YAML frontmatter. Nothing is locked in a proprietary database — search it, edit it by hand, sync it, or version it with Git.
 - **A real task app, natively.** A Todoist-inspired dashboard with sidebar navigation, a chip-based task editor, quick capture and keyboard-friendly flows — all rendered inside Obsidian, popout-window compatible.
 - **Zero plugin dependencies, local-first.** No other plugin and no account required. Your tasks are plain Markdown in your vault — the one optional online feature is two-way **Google Calendar sync**, which stays off until you set it up.
+- **Your frontmatter stays yours.** The two field names BeautyTasks needs — `type` and `title` — are configurable, so it never has to claim a property you already use. Turning an existing note into a task adds frontmatter and nothing else; your text is never rewritten.
 - **Fully themeable.** Every color is a CSS variable; works with your theme, CSS snippets, or the Style Settings plugin — including a monochrome mode.
 - **10 languages.** The interface is available in English, German, Spanish, Portuguese (Brazil), French, Italian, Turkish, Russian, Simplified Chinese and Japanese (auto-detected from Obsidian, or set in settings). Natural-language **dates and times** work in all of them except Turkish, where English keywords (`tomorrow`, `next monday`) still do. English keywords work in every language, alongside your own.
 
@@ -52,7 +53,7 @@ A single dashboard with a left sidebar:
 - **Upcoming** — a forward-looking, date-sorted agenda.
 - **Recurring** — all repeating tasks at a glance.
 - **Done** — completed tasks, with a built-in **Trash** for soft-deleted items.
-- **Projects, Areas, Labels & Filters** — collapsible sections in the sidebar; open any project, area or label as its own **list or Kanban board**.
+- **Projects, Areas, Labels & Filters** — collapsible sections in the sidebar; open any project, area, label or saved filter as a **list, Kanban board or calendar**.
 - **Search** — fast fuzzy search across all tasks; jump straight to a task and highlight it in place.
 - **Manage** — a ListManager with separate **Projects**, **Areas**, **Labels** and **Filters** tabs: create, rename, recolor, hide, archive or delete each, and restore or permanently remove trashed items.
 
@@ -61,17 +62,26 @@ Every sidebar entry has a **right-click menu** (edit, recolor, convert, hide, re
 **Projects vs. Areas.** Organize tasks into **projects** or **areas** — two independent kinds, each with its own tab in the ListManager and its own `+` in the sidebar, so you can **create, archive and delete either one directly**. An **Area** is a fixed section that keeps its own place in the sidebar — ideal for long-running responsibilities that should never be “finished” — while a **project** is for work that eventually wraps up. You can convert one into the other at any time.
 
 ### Saved filters & smart views
-Build custom queries — by project/area, label, priority, status, date range and more — and **save them to the sidebar** as reusable smart views, each with its own color. Per-view display options (grouping, sorting, show completed) are remembered.
+Build custom queries — by project/area, label, priority, status, date range and more — and **save them to the sidebar** as reusable smart views, each with its own color. Per-view display options (layout, grouping, sorting, show completed) are remembered.
 
-### Kanban board
-Any project, area or label board can switch between a **List** and a **Board** layout with a quiet toggle in its header. The board’s columns follow your **statuses** (which you can fully customize — see below), so you see your workflow at a glance:
+If a saved filter points at something you later deleted — a label, a project, a custom status — BeautyTasks doesn't quietly return nothing. The affected dropdown is **outlined in red** and the entry is listed as *“… (missing)”*, so you can see the cause and remove it with one click.
+
+### Three layouts: list, board or calendar
+
+Every page — projects, areas, labels, saved filters, and Today / Upcoming / Inbox — can be shown in one of three ways. The choice is **remembered per page**, so a project can stay a board while Today stays a list.
+
+**List** — the classic, with grouping (by date, deadline, priority, label, project or status), sorting, and optional completed tasks.
+
+**Board** — a Kanban whose columns follow your **statuses** (fully customizable, see below):
 
 - **Drag & drop** a card between columns to change its status instantly.
 - **Group the board** by status, label, priority or project — not just status.
 - **Reorder columns** by dragging their headers (saved per board), and add a task straight into a column with its `+`.
 - Columns **stack vertically** on narrow panes and mobile, so the board stays usable on the phone.
 
-Because columns map to the task’s `status` field, moving a card is just a normal edit to its Markdown note — nothing lives in a separate board file.
+**Calendar** — your tasks on a **year, month, week or day** grid, with a side panel for undated tasks. Drag a task onto a day to schedule it. In Today and Upcoming, your **Google events** can appear alongside them (read-only, see below).
+
+Because columns map to the task's `status` field and days map to its date, moving a card or a task is just a normal edit to its Markdown note — nothing lives in a separate board file.
 
 ### Custom statuses
 Define your own workflow beyond the built-in *To-Do · In progress · Done · Cancelled*. In *Settings → Statuses* you can **add, rename, reorder, recolor and change the icon** of statuses, grouped into three categories — **open · done · cancelled** — that drive behavior (completion timestamps, recurrence, trash). The in-progress state shows as a **half-filled checkbox** everywhere.
@@ -82,9 +92,9 @@ Each task can carry:
 - **Status** — the built-in *To-Do · In progress · Done* (plus a *Cancelled* trash state), or your **own custom statuses**. Set one by **right-clicking** the checkbox (or **long-pressing** it on mobile), from the **status chip** in the task editor, or by dragging on the Kanban board — a left-click still simply completes the task.
 - **Priority** (highest → lowest) with colored checkbox rings (P1/P2/P3).
 - **Due date & time** and an optional **duration** (event length).
-- A separate **deadline / scheduled** date & time.
+- A separate **deadline / scheduled** date & time. A task with only a deadline still shows up in Today and Upcoming when it comes due — one rule, no task hiding because you filled in the “wrong” date field. Deadlines are written as a countdown (*“in 3 days”*) and coloured by distance.
 - **Project** and **Area** assignment.
-- **Sub-tasks** — nest tasks under a parent, drawn with clean connector lines.
+- **Sub-tasks** — nest tasks under a parent, drawn with clean connector lines. Choose per view how they appear: compact (as progress on the parent), indented beneath it, or standing on their own.
 - **Labels** (`#tags`).
 - **Recurrence** — “every day / week / 3 months …”, repeating from either the **due date** or the **completion date**.
 - **Reminders** — get notified before or at a task’s time (see below).
@@ -148,12 +158,19 @@ Every task has a **Details** panel for the story behind the task:
 
 Because it all lives in the task note’s own Markdown body, your comments and attachments stay readable and portable outside the plugin, too.
 
+### Right-click anything
+Every task row — in lists, on the board and in the calendar — has a **context menu** with the things you reach for most: set a date or priority in one click, add a reminder, move it to another project, area or the inbox, jump to its parent task, duplicate it, copy a deep link, open the note in Obsidian, or send it to the trash.
+
+### Drag & drop
+Drag a task onto a **project, area or the inbox** in the sidebar to move it there, or onto a **label** to add that label. On the board, drag between columns; in the calendar, drag onto a day.
+
 ### Everyday conveniences
 - **Recolor & organize** projects, areas, labels and filters — set a color, convert a project ↔ area, hide, reorder or archive, all from the right-click menu or the Manage screen.
 - **Duplicate** a task, **copy a deep link** (`obsidian://`) to it, or **print** a clean copy.
 - **Soft delete** to Trash, then restore or empty it — nothing is lost by accident (Trash and Done are ordered newest-first).
 - **Export & import all tasks as JSON** — a lossless backup of your task data (fields and description) that you can restore or move to another vault. Import from within the vault or from a file on disk; re-importing is **idempotent** (existing tasks are matched by id and skipped), and missing projects, areas and labels are recreated. Attachments and the comment log stay as separate files in your vault (back them up with the folder).
 - **Import from TaskNotes** — migrate tasks from the TaskNotes plugin (non-destructive, idempotent), or import existing checkboxes from the Tasks/Lists format.
+- **Order by hand** — switch sorting to *Manual* and drag rows by their handle or cards on the board. The order is stored in the notes and holds in every view.
 - **Icons-only chips** for a more compact editor, and an optional **description preview** under task titles in lists.
 - Localized in **10 languages**, mobile-friendly, and **popout-window compatible**.
 
@@ -193,7 +210,7 @@ description: Free-form text shown under the title
 ```
 
 The body is yours — BeautyTasks keeps its own notes (comments, attachments) in a collapsible
-`###### BeautyTasks Details` section at the bottom and leaves everything above it alone.
+`###### BeautyTasks Details-Logbuch` section at the bottom and leaves everything above it alone.
 
 ### Where the title comes from
 
@@ -223,10 +240,6 @@ Upgrading from an earlier version? A one-time pass moves existing titles from th
 `title:`. It removes that heading line only in notes BeautyTasks created itself — those live in
 your tasks folder — and only when the line really was the title. Everything you wrote yourself
 keeps its heading, and no task changes the title it displays.
-
-Already using `title:` for something else? Settings → **Title property** lets you point
-BeautyTasks at a different field, for example `bt_title`. When you switch, it offers to copy
-existing titles over — your original field is never moved or cleared.
 
 ### Field names
 
@@ -289,6 +302,12 @@ The required permissions (`calendar.events`, `calendar.readonly`, `calendar.app.
 - Existence is Obsidian-driven: an event deleted in Google is recreated as long as the task still has a date. To remove it for good, change the task in Obsidian or exclude its list.
 - Exclude a project/area from sync via its right-click menu, the icon in the management list, or the edit dialog.
 
+### Show your Google events
+
+Separate from the sync, and read-only: switch on **Show events in BeautyTasks** and your Google appointments appear in **Today** and **Upcoming**, next to the tasks due that day. Pick which calendars to show, hide events you declined, and set the text size. Nothing is written back and no note is created — an event never becomes a task.
+
+Project, label and filter pages deliberately stay free of them: those are about your own work, not your day's appointments.
+
 ### Where credentials live
 
 Your Client ID/secret and the OAuth token are stored locally in `.obsidian/plugins/beautytasks/data.json` (git-ignored). **Disconnect** in settings revokes the token with Google and deletes it locally. If you sync your vault by other means (Obsidian Sync, Dropbox, iCloud…), this file travels with it.
@@ -301,6 +320,7 @@ Your Client ID/secret and the OAuth token are stored locally in `.obsidian/plugi
 | Open Today / Upcoming / Recurring / Done | Jump straight to a view |
 | New task | Open the full task editor |
 | Quick add task | Fast natural-language capture |
+| Turn current note into a task | Make the open note a task — adds frontmatter only, never touches your text |
 | Search tasks | Fuzzy search |
 | Count tasks | Show total / open count |
 | Export tasks (JSON) | Save all tasks to a JSON file in your vault |
@@ -309,17 +329,21 @@ Your Client ID/secret and the OAuth token are stored locally in `.obsidian/plugi
 | Import from Tasks/Lists | Migrate existing checkbox tasks |
 | Sync with Google Calendar now | Run a calendar sync on demand |
 | Show what’s new | Open the release highlights |
+| Move titles to the frontmatter | Re-run the one-time title conversion (safe to repeat) |
 
 Assign hotkeys to any of these under **Settings → Hotkeys**.
 
 ## Settings
 
-- **Folders** for tasks, projects and attachments.
+- **Folders** for tasks, projects, filters and attachments — plus **excluded folders**, whose notes are never treated as tasks.
+- **Field names** — which frontmatter fields BeautyTasks uses for `type` and `title` (see above).
 - **Language** — auto (follow Obsidian) or pick one of 10 languages (English, German, Spanish, Portuguese, French, Italian, Turkish, Russian, Simplified Chinese, Japanese).
 - **Start view** — which view opens by default (or the last used one).
 - **Natural-language parsing** — toggle date/label/priority detection in titles.
 - **Task actions (chips)** — show, hide and reorder the attribute chips, separately for quick add and the full editor.
 - **Statuses** — add, rename, reorder, recolor and re-icon your workflow statuses.
+- **Colors** — a muted or a colorful meta style, or set every accent yourself.
+- **Text size** — scale task text, sidebar entries and headings independently.
 - **Icons-only chips** and **description preview in lists**.
 - **Google Calendar** — connect your account, choose the target calendar and sync options (see above).
 - **Import & Export** — JSON backup/restore, plus import from TaskNotes or the Tasks/Lists format.
@@ -366,12 +390,14 @@ Individual projects, areas, labels and filters can have their own color. Pick on
 
 ## Roadmap
 
-BeautyTasks is under active development. The following are **planned and not yet available** — listed here so you know where it’s headed:
+BeautyTasks is under active development. The following are **planned and not yet available** — listed here so you know where it's headed:
 
+- **Task & project templates** — reusable structures with relative dates (“three days after the start”), so a recurring set-up is one click instead of ten.
+- **Reminders that survive a closed app** — `.ics` (VALARM) export so your OS or phone notifies you even when Obsidian isn't running.
+- **All-day reminders in Google Calendar** — a reminder at a time you choose on all-day tasks.
 - **Sync** — a first-class way to keep tasks in sync across devices.
-- **Reminders that survive a closed app** — `.ics` (VALARM) export so your OS or phone notifies you even when Obsidian isn’t running (pairs with Sync).
-- **Calendar view** — see due/scheduled tasks on a month/week grid.
-- **Task templates** — create recurring structures and checklists from reusable templates.
+
+Recently shipped: **calendar layout** (year / month / week / day), **configurable field names**, **titles in the frontmatter**, **read-only Google events**, **drag & drop onto projects and labels**, and a **context menu on every task row**.
 
 Have an idea or a request? Open an issue — feedback shapes the priorities.
 
