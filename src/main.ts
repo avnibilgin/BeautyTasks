@@ -1002,7 +1002,10 @@ export default class BeautyTasksPlugin extends Plugin {
       if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
       if (fmTitle(fm[titleKey()]) === null) fm[titleKey()] = title;
     });
-    await this.reconcileTaskDescription(f);   // Body → Beschreibung/Dokument einsortieren
+    // Bewusst KEIN reconcileTaskDescription mehr: Das verschob einen kurzen Text aus der Notiz ins
+    // Feld `description` (und entfernte ihn dort) bzw. hängte einen „Notiz öffnen"-Kommentar an –
+    // beides Eingriffe in einen fremden Body. Eine Beschreibung tippt man im Dialog, und zur Notiz
+    // führt „In Obsidian öffnen" im Zeilenmenü. Die Funktion bleibt für die Alt-Migration bestehen.
     new Notice(t("notice_made_task"));
   }
 
