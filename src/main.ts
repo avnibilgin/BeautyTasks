@@ -1126,31 +1126,34 @@ export default class BeautyTasksPlugin extends Plugin {
   changeFieldName(id: FieldId, next: string, done?: () => void): void {
     const prev = fieldKey(id);
     if (next === prev) { done?.(); return; }
-    const move = id === "type";                      // verschieben statt kopieren
+    // Der Wert wird IMMER übernommen – sonst verlöre man mit einem Häkchen alle Titel bzw. alle
+    // Aufgaben. Zur Wahl steht nur, ob das alte Feld danach verschwindet: Bei `type` gehört der
+    // Wert uns, da wird ohne Rückfrage aufgeräumt. Bei `title` gehört das Feld meist dem Nutzer,
+    // deshalb bleibt es stehen, solange er das Häkchen nicht setzt.
+    const move = id === "type";
     const targets = this.fieldRenameTargets(id, prev, next);
     new ConfirmModal(this.app, {
       title: t("set_field_confirm_t"),
       message: t(move ? "set_field_confirm_type" : "set_field_confirm_title", next, prev, targets.length),
       confirmText: t("btn_save"),
       destructive: false,
-      checkbox: move ? undefined : { label: t("set_field_copy"), checked: targets.length > 0 },
-    }, (checked: boolean) => {
+      checkbox: move ? undefined : { label: t("set_field_drop_old", prev), checked: false },
+    }, (dropOld: boolean) => {
       void (async () => {
         let done_ = 0, failed = 0;
-        if (move || checked) {
-          for (const path of targets) {
-            const f = this.app.vault.getAbstractFileByPath(path);
-            if (!(f instanceof TFile)) continue;
-            try {
-              await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-                const from = fm[prev];                            // lebende Quelle entscheidet
-                if (from === undefined || fm[next] !== undefined) return;
-                fm[next] = from;
-                if (move) delete fm[prev];
-              });
-              done_++;
-            } catch (err) { failed++; console.error("BeautyTasks: field rename failed", path, err); }
-          }
+        const remove = move || dropOld;
+        for (const path of targets) {
+          const f = this.app.vault.getAbstractFileByPath(path);
+          if (!(f instanceof TFile)) continue;
+          try {
+            await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+              const from = fm[prev];                            // lebende Quelle entscheidet
+              if (from === undefined || fm[next] !== undefined) return;
+              fm[next] = from;
+              if (remove) delete fm[prev];
+            });
+            done_++;
+          } catch (err) { failed++; console.error("BeautyTasks: field rename failed", path, err); }
         }
         // Erst jetzt die Einstellung – s. Kommentar oben.
         this.settings.fieldNames = { ...allFieldNames(), [id]: next };

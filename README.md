@@ -245,8 +245,9 @@ many notes it affects:
   excluded folders are never touched, and neither are foreign values: a note with `type: meeting`
   stays exactly as it is. Your own Dataview or Bases queries on the old field will find nothing
   afterwards, so adjust those yourself.
-- **`title`** — existing titles are *copied* to the new field on request; your original field is
-  never moved or cleared.
+- **`title`** — existing titles always move over, so nothing can get lost. Whether the old field
+  is removed afterwards is a checkbox, off by default: if `title` is yours, it stays exactly as it
+  is.
 
 By default, notes live under these folders (all configurable in settings):
 
