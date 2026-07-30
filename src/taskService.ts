@@ -46,6 +46,15 @@ export function buildFrontmatter(obj: Record<string, unknown>): string {
   return "---\n" + stringifyYaml(clean) + "---\n";
 }
 
+/** Liegt `path` in diesem Ordner (oder IST er es)? Leerer/ungültiger Ordner = nein. Die EINE
+ *  Quelle für Ordner-Zugehörigkeit: genutzt von den Ausschluss-Ordnern (taskIndex) und von der
+ *  Herkunftsfrage der Titel-Migration (main). Rein – ohne App, damit testbar. */
+export function isUnderFolder(path: string, folder: string): boolean {
+  const dir = normalizePath(folder ?? "").replace(/\/+$/, "").trim();
+  if (!dir || dir === ".") return false;
+  return path === dir || path.startsWith(dir + "/");
+}
+
 export async function ensureFolder(app: App, path: string): Promise<void> {
   const p = normalizePath(path);
   if (!app.vault.getAbstractFileByPath(p)) {
