@@ -994,12 +994,13 @@ body {
 
 /* Sektionen */
 .bt-section { margin-top: 2.2em; }
-/* Seiten MIT Beschreibungszeile (Projekt, Bereich, Filter) rücken „+ Aufgabe hinzufügen" und die
-   erste Sektion enger zusammen – die Beschreibung bringt oben schon Luft mit. Systemansichten
-   (Heute, Demnächst, Eingang, Labels) behalten ihre Abstände. Zwischen zwei Sektionen bleibt es
-   überall bei 2.2em, das gliedert die Liste. */
-.bt-has-desc .bt-board-bar { margin-bottom: 6px; }
-.bt-has-desc .bt-section:first-child { margin-top: calc(2.2em - 16px); }
+/* Seiten MIT Beschreibungszeile (Projekt, Bereich, Filter) gleichen deren Höhe an EINER Stelle
+   wieder aus: Die Zeile ist exakt 26px hoch (6px Rand + 20px Zeilenhöhe), also verliert die erste
+   Sektion genau 26px. Beide Zustände ergeben damit dieselbe Summe – ohne Beschreibung 2.2em, mit
+   Beschreibung 26px + (2.2em − 26px). Die erste Sektionsüberschrift sitzt in Systemansichten und
+   auf Projektseiten auf derselben Höhe, unabhängig von Theme und Zoom.
+   Zwischen zwei Sektionen bleibt es überall bei 2.2em, das gliedert die Liste. */
+.bt-has-desc .bt-section:first-child { margin-top: calc(2.2em - 26px); }
 .bt-section-title {
   font-size: calc(0.9em * var(--bt-section-scale, 1)); font-weight: 700; margin: 8px 0 0;   /* Basis = Faktor der Seitenleisten-Einträge; über Einstellungen skalierbar */
   color: var(--text-normal);
@@ -1804,8 +1805,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-page-desc {
   /* Bewusst blass: Die Beschreibung ist Beiwerk und soll dem Aufgabentext nicht die Aufmerksamkeit
      nehmen. Platzhalter und echter Text tragen dieselbe Farbe – der Unterschied liegt im Inhalt. */
-  color: var(--text-faint); font-size: var(--font-ui-medium); line-height: 1.45;   /* eine Stufe ueber .bt-add */
-  margin: 6px 0 10px; max-width: 70ch;   /* etwas Luft zur Überschrift, damit sie nicht klebt */
+  color: var(--text-faint); font-size: var(--font-ui-medium);
+  /* Feste Zeilenhöhe statt eines Faktors: 1.45 mal Schriftgröße ergibt einen gebrochenen Wert,
+     den kein ganzzahliger Ausgleich unten trifft. So ist der Block exakt 6 + 20 = 26px hoch.
+     Kein unterer Rand – er würde ohnehin mit den 20px über der Bar kollabieren und nichts tun. */
+  line-height: 20px; margin: 6px 0 0; max-width: 70ch;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* Beschreibung UND Platzhalter führen in den Bearbeiten-Dialog – im Ruhezustand sieht man das
