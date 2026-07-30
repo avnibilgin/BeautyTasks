@@ -97,7 +97,9 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
   // — Notiz öffnen — (Projekte, Bereiche, Filter). Labels haben keine Notiz: Ihr `key` ist der
   // Label-Name, kein Pfad. Der Body dieser Notiz gehört dem Nutzer – hier ist der Weg dorthin.
   if (item.sec !== "labels") {
-    menu.addItem((m) => m.setSection("bt-open").setTitle(t("menu_open_note")).setIcon("file-text")
+    const noteKey = item.sec === "filters" ? "menu_open_filter_note"
+      : item.type === "area" ? "menu_open_area_note" : "menu_open_project_note";
+    menu.addItem((m) => m.setSection("bt-open").setTitle(t(noteKey)).setIcon("file-text")
       .onClick(() => {
         const f = plugin.app.vault.getAbstractFileByPath(item.key);
         if (f instanceof TFile) void plugin.app.workspace.getLeaf("tab").openFile(f);

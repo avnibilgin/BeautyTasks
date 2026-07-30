@@ -57,7 +57,7 @@ A single dashboard with a left sidebar:
 - **Search** — fast fuzzy search across all tasks; jump straight to a task and highlight it in place.
 - **Manage** — a ListManager with separate **Projects**, **Areas**, **Labels** and **Filters** tabs: create, rename, recolor, hide, archive or delete each, and restore or permanently remove trashed items.
 
-Every sidebar entry has a **right-click menu** (open its note, edit, recolor, convert, hide, reorder, archive, delete), and you can **reorder** sections by drag or sort them **manually, by name or by task count**.
+Every sidebar entry has a **right-click menu** (go to its note, edit, recolor, convert, hide, reorder, archive, delete), and you can **reorder** sections by drag or sort them **manually, by name or by task count**.
 
 **Projects vs. Areas.** Organize tasks into **projects** or **areas** — two independent kinds, each with its own tab in the ListManager and its own `+` in the sidebar, so you can **create, archive and delete either one directly**. An **Area** is a fixed section that keeps its own place in the sidebar — ideal for long-running responsibilities that should never be “finished” — while a **project** is for work that eventually wraps up. You can convert one into the other at any time.
 
@@ -266,7 +266,7 @@ many notes it affects:
 
 Projects, areas and saved filters are Markdown notes too — and **their body belongs to you**. BeautyTasks stores what it needs in the frontmatter and writes nothing into the text, so the note is a natural place for everything that belongs to that project: a brief, links, meeting notes, images.
 
-Reach it from the **context menu** of the sidebar entry, or from the **⋯ menu** on the project page → **Open note**. It is worth opening: because every task points at it with `project: "[[Name]]"`, that note is already where Obsidian's backlinks and graph converge.
+Reach it from the **context menu** of the sidebar entry, or from the **⋯ menu** on the project page → **To the project note** (or area / filter note). It is worth opening: because every task points at it with `project: "[[Name]]"`, that note is already where Obsidian's backlinks and graph converge.
 
 A **description** in the frontmatter is shown above the task list — the one-line answer to “what is this for”. Set it in the project's edit dialog; the long version goes in the body.
 

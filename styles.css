@@ -1796,7 +1796,8 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Kurzbeschreibung unter dem Seitentitel (Projekt/Bereich/Filter). Zwei Zeilen, dann Ellipse –
    der Kopf soll die Aufgabenliste nicht nach unten drücken. */
 .bt-page-desc {
-  color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.45;
+  /* Dasselbe Grau wie die ungefärbten Meta-Icons (Minimalisdo) – eine Ruhefarbe für Beiwerk. */
+  color: var(--bt-meta-gray); font-size: var(--font-ui-small); line-height: 1.45;
   margin: -2px 0 10px; max-width: 70ch;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
