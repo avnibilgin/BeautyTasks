@@ -1,6 +1,7 @@
 import { App, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, TaskStatus, Priority } from "./types";
 import { todayIso } from "./taskService";
+import { titleKey } from "./taskTitle";
 
 const PRIO_MAP: Record<string, Priority> = {
   "🔺": "highest", "⏫": "high", "🔼": "medium", "🔽": "low", "⏬": "lowest",
@@ -122,6 +123,7 @@ export async function runMigration(app: App, settings: BeautyTasksSettings): Pro
       const fm = frontmatter({
         type: "task",
         id: newId("t"),
+        [titleKey()]: p.title,
         status: p.status,
         priority: p.priority === "normal" ? undefined : p.priority,
         due: p.due,
@@ -133,7 +135,7 @@ export async function runMigration(app: App, settings: BeautyTasksSettings): Pro
         completed: p.completed,
         cancelled: p.cancelled,
       });
-      let body = "# " + p.title + "\n";
+      let body = "";
       if (p.detailsBase) {
         const db = await detailBody(app, p.detailsBase);
         if (db) body += "\n" + db + "\n";

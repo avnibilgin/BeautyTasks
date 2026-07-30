@@ -1,6 +1,6 @@
 import { App, TFile, normalizePath } from "obsidian";
 import { BeautyTasksSettings, Priority } from "./types";
-import { buildFrontmatter, ensureFolder, newId, todayIso, slugify } from "./taskService";
+import { buildFrontmatter, ensureFolder, newId, todayIso, slugify, retitleHeading } from "./taskService";
 import {
   FilterCriteria, ViewOptions, FilterRange,
   DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter,
@@ -119,11 +119,7 @@ export async function renameFilterNote(app: App, path: string, newName: string):
   await app.fileManager.renameFile(f, dest);
   // „# Überschrift" nachziehen, falls vorhanden.
   const nf = app.vault.getAbstractFileByPath(dest);
-  if (nf instanceof TFile) {
-    const body = await app.vault.read(nf);
-    const replaced = body.replace(/^# .*$/m, "# " + newName);
-    if (replaced !== body) await app.vault.modify(nf, replaced);
-  }
+  if (nf instanceof TFile) await retitleHeading(app, nf, newName);
   return base;
 }
 

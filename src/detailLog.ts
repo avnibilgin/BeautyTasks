@@ -1,5 +1,6 @@
 import { App, TFile } from "obsidian";
 import { getLocale } from "./i18n";
+import { findH1LineInBody } from "./taskTitle";
 
 // Kommentar-Log (Details) – 1:1 zum alten BeautyTasks (tasks-utils.js). Einträge stehen
 // als [!log]-Callouts; im neuen Modell leben sie im BODY der Aufgaben-Notiz (statt in
@@ -90,7 +91,7 @@ export function splitContent(content: string): { fm: string; title: string; desc
   const fm = fmMatch ? fmMatch[1] : "";
   const body = content.slice(fm.length);
   const lines = body.split("\n");
-  const idx = lines.findIndex((l) => /^#\s+/.test(l));           // Titel-Überschrift (nur H1)
+  const idx = findH1LineInBody(body) ?? -1;                      // Titel-Überschrift (nur H1, fence-sicher)
   const title = idx === -1 ? "" : lines[idx];
   const rest = idx === -1 ? lines : lines.slice(idx + 1);
   // Log-Region beginnt bei der Log-Überschrift ODER (falls keine da) beim ersten [!log].
@@ -103,9 +104,11 @@ export function splitContent(content: string): { fm: string; title: string; desc
   return { fm, title, description, log };
 }
 
-/** Body neu zusammensetzen: Frontmatter, Titel, Beschreibung/Inhalt, Log-Überschrift, Log. */
+/** Body neu zusammensetzen: Frontmatter, Titel, Beschreibung/Inhalt, Log-Überschrift, Log.
+ *  Leerer Titel = die Notiz hat keine H1: dann wird auch keine erfunden (der Titel steht dann
+ *  im Frontmatter oder ist der Dateiname, s. taskTitle.ts). */
 export function composeContent(fm: string, title: string, description: string, log: string): string {
-  let out = fm + "\n" + title + "\n";
+  let out = fm + (title ? "\n" + title + "\n" : "");
   const desc = description.replace(/^\n+|\n+$/g, "");
   if (desc) out += "\n" + desc + "\n";
   if (log) out += "\n" + LOG_HEADING + "\n\n" + log + "\n";
@@ -149,12 +152,13 @@ export async function writeLog(app: App, file: TFile, entries: LogEntry[]): Prom
   await app.vault.process(file, (content) => rebuildWithLog(content, entries));
 }
 
-/** Beschreibung in den Body schreiben (Frontmatter, Titel, Log bleiben erhalten). */
+/** Beschreibung in den Body schreiben (Frontmatter, Titel, Log bleiben erhalten). Hat die Notiz
+ *  keine H1, bekommt sie auch keine: früher wurde hier `# <Dateiname>` erfunden – eine Überschrift,
+ *  die der Nutzer nie geschrieben hat. */
 export async function writeDescription(app: App, file: TFile, description: string): Promise<void> {
   await app.vault.process(file, (content) => {
     const { fm, title, log } = splitContent(content);
-    const head = title || "# " + file.basename;
-    return composeContent(fm, head, description, log);
+    return composeContent(fm, title, description, log);
   });
 }
 
@@ -167,6 +171,14 @@ export function isDocumentBody(s: string): boolean {
     || /^\s{0,3}#{1,6}\s/m.test(t)              // Überschrift
     || t.length > 300                            // längerer Text
     || (t.match(/\n\s*\n/g)?.length ?? 0) >= 2;  // mehrere Absätze
+}
+
+/** Trägt diese Notiz EIGENEN Inhalt – also mehr als Titel, kurze Beschreibung und Logbuch?
+ *  Solche Notizen sind Dokumente, keine reinen Aufgaben-Datensätze; an ihrem Body wird nichts
+ *  umgeräumt (s. Titel-Migration in main.ts). Kombiniert die beiden vorhandenen Bausteine, damit
+ *  die Regel an EINER Stelle steht und testbar bleibt. */
+export function hasOwnContent(content: string): boolean {
+  return isDocumentBody(splitContent(content).description);
 }
 
 /** Idempotent EINEN „Notiz öffnen"-Kommentar (Selbst-Wikilink) an den Log anhängen. Nutzt das

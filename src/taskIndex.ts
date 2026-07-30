@@ -2,6 +2,7 @@ import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
 import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
+import { titleKey, fmTitle, firstH1, resolveTitle } from "./taskTitle";
 import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -200,11 +201,14 @@ export class TaskIndex extends Component {
       const dest = m ? this.app.metadataCache.getFirstLinkpathDest(m[1].trim(), f.path) : null;
       return dest ? dest.path : null;
     };
+    const fromFm = fmTitle(fm[titleKey()]);
     return {
       id: String(fm.id ?? f.path),
       path: f.path,
-      // Titel aus der „# Überschrift" (ungekürzt) – der Dateiname ist nur ein Slug (max. 80).
-      title: cache?.headings?.[0]?.heading ?? f.basename,
+      // Titel-Kaskade (s. taskTitle.ts): `title:` -> erste H1 -> Dateiname. Ungekürzt; der
+      // Dateiname ist nur ein Slug (max. 80) und bleibt die Identität.
+      title: resolveTitle(fromFm, firstH1(cache?.headings), f.basename),
+      titleInFm: fromFm !== null,
       // Unbekannter/leerer Status -> erste offene Phase, damit die Aufgabe sichtbar bleibt (statt
       // Status-Limbo). Ausnahme: der reservierte Sentinel "cancelled" bleibt erhalten, sonst würden
       // abgebrochene Aufgaben ohne definierten Abgebrochen-Status wieder als aktiv auftauchen.

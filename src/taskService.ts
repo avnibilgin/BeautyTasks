@@ -2,6 +2,7 @@ import { App, Notice, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { combineDT, localStamp } from "./format";
 import { firstOpenStatus } from "./statuses";
+import { titleKey, fmTitle, findH1Line, replaceHeadingLine, newTaskBody } from "./taskTitle";
 import { t } from "./i18n";
 
 export const slugify = (s: string): string =>
@@ -54,6 +55,9 @@ export async function ensureFolder(app: App, path: string): Promise<void> {
 
 export interface TaskFields {
   title: string;
+  titleInFrontmatter?: boolean;  // Titel ins Frontmatter (Default) statt in eine „# Überschrift".
+                                 // Explizit false setzen die Kopier-Wege, wenn das Original seinen
+                                 // Titel im Text führt – die Kopie hält es dann genauso.
   description?: string | null;  // freier Markdown-Text (Body, zwischen Titel und Log)
   status?: TaskStatus;
   due?: string | null;          // Datums-Teil (YYYY-MM-DD)
@@ -86,6 +90,9 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
   const fm = buildFrontmatter({
     type: "task",
     id: newId("t"),
+    // Regelfall: der Titel steht hier. Nur wenn er ausdrücklich in den Text soll, bleibt das
+    // Feld leer (null wird von buildFrontmatter verworfen) und newTaskBody schreibt die H1.
+    [titleKey()]: f.titleInFrontmatter === false ? null : f.title,
     status: f.status ?? firstOpenStatus(),
     priority: f.priority && f.priority !== "normal" ? f.priority : undefined,
     due: f.due ? combineDT(f.due, f.dueTime) : null,
@@ -104,7 +111,45 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     created: localStamp(),
     description: (f.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
-  return app.vault.create(dest, fm + "\n# " + f.title + "\n");
+  return app.vault.create(dest, fm + newTaskBody(f.title, f.titleInFrontmatter !== false));
+}
+
+/** Titel einer bestehenden Aufgaben-Notiz setzen – nach der Kaskade aus taskTitle.ts.
+ *
+ *  Der Reihenfolge liegt eine Zusage zugrunde: Steht der Titel im Frontmatter, wird der Body
+ *  NICHT angefasst. Ob `title:` existiert, entscheidet deshalb processFrontMatter (die lebende
+ *  Quelle) und nicht der metadataCache – ein veralteter Cache dürfte diese Zusage nie brechen.
+ *  Die H1 dagegen wird auf dem frischen Dateiinhalt INNERHALB von process() gesucht, kann also
+ *  nicht veralten; passt die Zeile wider Erwarten nicht mehr, landet der Titel im Frontmatter,
+ *  statt blind irgendwohin geschrieben zu werden. Der Dateiname bleibt unberührt (Slug/Identität). */
+export async function setTaskTitle(app: App, file: TFile, title: string): Promise<void> {
+  let inFm = false;
+  await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+    inFm = fmTitle(fm[titleKey()]) !== null;
+    if (inFm) fm[titleKey()] = title;
+  });
+  if (inFm) return;
+  let wrote = false;
+  await app.vault.process(file, (c) => {
+    const line = findH1Line(c);
+    if (line === null) return c;
+    const out = replaceHeadingLine(c, line, title);
+    if (out === null) return c;
+    wrote = true;
+    return out;
+  });
+  if (!wrote) await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { fm[titleKey()] = title; });
+}
+
+/** Erste H1 einer Notiz umschreiben, falls vorhanden – für Notizen, deren Name aus dem DATEINAMEN
+ *  kommt (Projekte, Bereiche, gespeicherte Filter). Dort ist die Überschrift reine Kosmetik: gibt
+ *  es keine, passiert nichts (es wird auch keine angelegt). Zeilengenau statt per Regex über den
+ *  ganzen Text – sonst träfe es auch ein „# …" in einem Code-Block. */
+export async function retitleHeading(app: App, file: TFile, title: string): Promise<void> {
+  await app.vault.process(file, (c) => {
+    const line = findH1Line(c);
+    return line === null ? c : (replaceHeadingLine(c, line, title) ?? c);
+  });
 }
 
 /** Obsidian-Deeplink (obsidian://) zur Aufgabe in die Zwischenablage kopieren –
@@ -275,9 +320,7 @@ export async function renameProjectNote(app: App, path: string, newName: string)
   if (app.vault.getAbstractFileByPath(dest)) return null;   // Namenskollision
   await app.fileManager.renameFile(file, dest);
   const renamed = app.vault.getAbstractFileByPath(dest);
-  if (renamed instanceof TFile) {
-    await app.vault.process(renamed, (c) => c.replace(/^#\s+.*$/m, "# " + newName));
-  }
+  if (renamed instanceof TFile) await retitleHeading(app, renamed, newName);
   return base;
 }
 
