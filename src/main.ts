@@ -9,7 +9,7 @@ import {
 } from "./heuteView";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget } from "./fieldNames";
@@ -336,8 +336,8 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Gespeicherte Filter (type:filter-Notizen) ──
   /** Neuen Filter anlegen und öffnen. Wie createProject wartet ein einmaliger „changed"-
    *  Listener auf den frisch geparsten Frontmatter, bevor zum neuen Filter-Board gewechselt wird. */
-  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null, hidden = false): Promise<void> {
-    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color, hidden);
+  async createFilter(name: string, criteria: FilterCriteria, options: ViewOptions, color: string | null = null, hidden = false, description = ""): Promise<void> {
+    const base = await createFilterNote(this.app, this.settings, name, criteria, options, color, hidden, description);
     const ref = this.app.metadataCache.on("changed", () => {
       this.app.metadataCache.offref(ref);
       const created = listFilters(this.app).find((fl) => fl.name === base);
@@ -461,6 +461,23 @@ export default class BeautyTasksPlugin extends Plugin {
   clearColorPreview(): void { if (this.colorPreview) { this.colorPreview = null; this.renderNav(); } }
 
   /** Icon-Farbe eines Projekts/Bereichs setzen (null = keine), refresh nach Cache-Update. */
+  /** Steht in der Notiz mehr als Frontmatter und eine Titelzeile? Nur zum Anzeigen eines Hinweises
+   *  beim Löschen – gelesen wird über den Metadaten-Cache-Pfad, geschrieben wird nichts. */
+  private noteHasOwnBody(path: string): boolean {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return false;
+    const cache = this.app.metadataCache.getFileCache(f);
+    // Überschriften jenseits der Titelzeile ODER irgendein Abschnitt außer Frontmatter/Titel.
+    const heads = cache?.headings ?? [];
+    const secs = (cache?.sections ?? []).filter((x) => x.type !== "yaml" && x.type !== "heading");
+    return secs.length > 0 || heads.length > 1;
+  }
+
+  async setProjectDescription(path: string, description: string): Promise<void> {
+    await setProjectDescription(this.app, path, description);
+    this.renderAll();
+  }
+
   async setProjectColor(path: string, color: string | null): Promise<void> {
     this.colorPreview = null;   // Vorschau verwerfen; der Cache-Refresh zeigt gleich die echte Farbe
     this.refreshOnChange(path);
@@ -509,9 +526,15 @@ export default class BeautyTasksPlugin extends Plugin {
     // was standardmäßig passiert (bleiben erhalten -> Eingang; das Häkchen ist die Alternative ->
     // Papierkorb). Ohne Aufgaben kein Text – keine falsche Endgültigkeits-Behauptung.
     const hasDone = targets.some((tk) => isDone(tk.status));
+    // Hat der Nutzer eigene Inhalte in die Projektnotiz geschrieben? Dann sagen, dass sie mitgeht –
+    // sie landet im Obsidian-Papierkorb, ist also wiederherstellbar, aber unerwähnt bleiben soll es
+    // nicht. Der Body wird nur gelesen, nie angefasst.
+    const own = this.noteHasOwnBody(path);
+    const body = [count > 0 ? t("confirm_delete_project_body") : "", own ? t("confirm_delete_note_body") : ""]
+      .filter(Boolean).join(" ");
     new ConfirmModal(this.app, {
       title: t("confirm_delete_title", name),
-      message: count > 0 ? t("confirm_delete_project_body") : undefined,
+      message: body || undefined,
       checkbox: count > 0 ? { label: t(hasDone ? "confirm_delete_with_tasks_done" : "confirm_delete_with_tasks", count) } : undefined,
     }, (withTasks) => {
       void (async () => {

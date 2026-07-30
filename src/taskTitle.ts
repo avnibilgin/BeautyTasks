@@ -117,6 +117,19 @@ export function dropHeadingLine(content: string, line: number | null, title: str
   return lines.join("\n");
 }
 
+/** Titel-Zeile umschreiben – aber NUR, wenn sie noch genau den alten Titel trägt. Für Notizen,
+ *  deren Name aus dem DATEINAMEN kommt (Projekte, Bereiche, Filter): Dort ist die Überschrift
+ *  reine Kosmetik, und wer sie durch eigene Struktur ersetzt hat, soll sie behalten. Trägt die
+ *  Zeile etwas anderes, bleibt der Inhalt unverändert. */
+export function renameHeadingLine(content: string, line: number | null, oldTitle: string, newTitle: string): string {
+  if (line === null) return content;
+  const lines = content.split("\n");
+  const m = lines[line]?.match(/^(#{1,6})\s+(.*)$/);
+  if (!m || m[2].trim() !== oldTitle.trim()) return content;
+  lines[line] = m[1] + " " + newTitle;
+  return lines.join("\n");
+}
+
 /** Migration „Titel ins Frontmatter": Was ist für DIESE Notiz zu tun? null = nichts.
  *
  *  Angefasst werden nur Notizen ohne `title:` – wer das Feld schon führt, hat es bewusst gesetzt.

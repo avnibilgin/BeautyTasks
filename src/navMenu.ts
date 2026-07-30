@@ -1,7 +1,7 @@
 // Gemeinsamer Kontextmenü-Baukasten für Seitenleisten-Einträge (Projekt/Bereich/Label/Filter).
 // EINE Quelle der Wahrheit – genutzt vom Sidebar-Rechtsklick (heuteView) UND vom ListManager-Kebab
 // (manageView). Alle Aktionen rufen bestehende Plugin-Methoden; das Menü ist reine Verdrahtung.
-import { Menu } from "obsidian";
+import { Menu, TFile } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { NavSection } from "./types";
 import { NewItemModal } from "./newItemModal";
@@ -43,7 +43,8 @@ export function addGcalSyncItem(menu: Menu, plugin: BeautyTasksPlugin, path: str
 function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
   if (item.sec === "filters") { new FilterModal(plugin, item.key).open(); return; }
   const kind = item.sec === "labels" ? "label" : (item.type ?? "project");
-  new NewItemModal(plugin, kind, { key: item.key, name: item.name, color: item.color ?? null, visible: !item.hidden }).open();
+  const desc = listManaged(plugin.app).active.concat(listManaged(plugin.app).archived).find((p) => p.path === item.key)?.description ?? "";
+  new NewItemModal(plugin, kind, { key: item.key, name: item.name, color: item.color ?? null, visible: !item.hidden, description: desc }).open();
 }
 
 function setVisible(plugin: BeautyTasksPlugin, sec: NavSection, key: string, visible: boolean): Promise<void> {
@@ -91,6 +92,16 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
     menu.addItem((m) => m.setSection("bt-archive").setTitle(t("btn_delete_forever")).setIcon("trash-2").setWarning(true)
       .onClick(() => plugin.confirmDeleteProject(item.key, item.name)));
     return;
+  }
+
+  // — Notiz öffnen — (Projekte, Bereiche, Filter). Labels haben keine Notiz: Ihr `key` ist der
+  // Label-Name, kein Pfad. Der Body dieser Notiz gehört dem Nutzer – hier ist der Weg dorthin.
+  if (item.sec !== "labels") {
+    menu.addItem((m) => m.setSection("bt-open").setTitle(t("menu_open_note")).setIcon("file-text")
+      .onClick(() => {
+        const f = plugin.app.vault.getAbstractFileByPath(item.key);
+        if (f instanceof TFile) void plugin.app.workspace.getLeaf("tab").openFile(f);
+      }));
   }
 
   // — Zur Übersicht — (nur auf der Einzelseite; ersetzt den früheren „list-plus"-Kopf-Button)

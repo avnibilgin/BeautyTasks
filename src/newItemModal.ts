@@ -10,7 +10,7 @@ import { t } from "./i18n";
 
 export type NewItemKind = "project" | "area" | "label";
 /** Referenz auf einen bestehenden Eintrag (Bearbeiten). key = Notiz-Pfad (Projekt/Bereich) bzw. Label-Name. */
-export interface EditRef { key: string; name: string; color: string | null; visible: boolean; }
+export interface EditRef { key: string; name: string; color: string | null; visible: boolean; description?: string; }
 
 const ICON: Record<NewItemKind, string> = { project: "folder", area: "circle", label: "hash" };
 const TITLE: Record<NewItemKind, string> = { project: "new_project_title", area: "new_area_title", label: "new_label_title" };
@@ -19,6 +19,7 @@ const PH: Record<NewItemKind, string> = { project: "placeholder_project_name", a
 
 export class NewItemModal extends Modal {
   private name: string;
+  private description: string;
   private color: string | null;
   private visible: boolean;
   private syncExcluded = false;              // aktueller Stand des Sync-Toggles
@@ -29,6 +30,7 @@ export class NewItemModal extends Modal {
   constructor(private plugin: BeautyTasksPlugin, private kind: NewItemKind, private edit?: EditRef) {
     super(plugin.app);
     this.name = edit?.name ?? "";
+    this.description = edit?.description ?? "";
     this.color = edit?.color ?? null;
     this.visible = edit ? edit.visible : true;   // beim Anlegen standardmäßig sichtbar
   }
@@ -50,6 +52,16 @@ export class NewItemModal extends Modal {
     const colorField = contentEl.createDiv({ cls: "bt-new-field" });
     colorField.createEl("label", { text: t("status_pick_color") });
     buildSwatchRow(colorField.createDiv({ cls: "bt-color-box" }), this.color, (c) => { this.color = c; this.updatePreview(); });
+
+    // Beschreibung: kurzer Text im FRONTMATTER der Projekt-/Bereichsnotiz, angezeigt über der
+    // Aufgabenliste. Labels haben keine Notiz, dort entfällt das Feld.
+    if (this.kind !== "label") {
+      const descField = contentEl.createDiv({ cls: "bt-new-field" });
+      descField.createEl("label", { text: t("new_description") });
+      const desc = descField.createEl("textarea", { cls: "bt-new-input bt-new-desc", attr: { rows: "2", placeholder: t("new_description_ph") } });
+      desc.value = this.description;
+      desc.oninput = () => { this.description = desc.value; };
+    }
 
     // Sichtbarkeit in der Seitenleiste (Schalter)
     const visRow = contentEl.createDiv({ cls: "bt-new-row" });
@@ -152,6 +164,8 @@ export class NewItemModal extends Modal {
       if (this.color !== e.color) await this.plugin.setProjectColor(e.key, this.color);
       if (this.visible !== e.visible) await this.plugin.setProjectVisible(e.key, this.visible);
       if (this.syncExcludedInit !== null && this.syncExcluded !== this.syncExcludedInit) await this.plugin.setListGcalExcluded(e.key, this.syncExcluded);
+      if (this.description.trim() !== (e.description ?? "").trim()) await this.plugin.setProjectDescription(e.key, this.description);
+      // Zuletzt: Umbenennen ändert den Pfad, e.key wäre danach veraltet.
       if (name !== e.name) await this.plugin.renameProject(e.key, name);
     }
   }

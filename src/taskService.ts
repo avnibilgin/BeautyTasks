@@ -2,7 +2,7 @@ import { App, Notice, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { combineDT, localStamp } from "./format";
 import { firstOpenStatus } from "./statuses";
-import { titleKey, fmTitle, findH1Line, replaceHeadingLine, newTaskBody } from "./taskTitle";
+import { titleKey, fmTitle, findH1Line, replaceHeadingLine, renameHeadingLine, newTaskBody } from "./taskTitle";
 import { fieldKey } from "./fieldNames";
 import { t } from "./i18n";
 
@@ -151,15 +151,13 @@ export async function setTaskTitle(app: App, file: TFile, title: string): Promis
   if (!wrote) await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { fm[titleKey()] = title; });
 }
 
-/** Erste H1 einer Notiz umschreiben, falls vorhanden – für Notizen, deren Name aus dem DATEINAMEN
- *  kommt (Projekte, Bereiche, gespeicherte Filter). Dort ist die Überschrift reine Kosmetik: gibt
- *  es keine, passiert nichts (es wird auch keine angelegt). Zeilengenau statt per Regex über den
+/** Erste H1 einer Notiz umschreiben – für Notizen, deren Name aus dem DATEINAMEN kommt (Projekte,
+ *  Bereiche, gespeicherte Filter). Dort ist die Überschrift reine Kosmetik. Angefasst wird sie nur,
+ *  wenn sie noch den ALTEN Namen trägt: Neue Notizen bekommen gar keine mehr, und wer in einer
+ *  bestehenden seine eigene Struktur angelegt hat, behält sie. Zeilengenau statt per Regex über den
  *  ganzen Text – sonst träfe es auch ein „# …" in einem Code-Block. */
-export async function retitleHeading(app: App, file: TFile, title: string): Promise<void> {
-  await app.vault.process(file, (c) => {
-    const line = findH1Line(c);
-    return line === null ? c : (replaceHeadingLine(c, line, title) ?? c);
-  });
+export async function retitleHeading(app: App, file: TFile, oldTitle: string, newTitle: string): Promise<void> {
+  await app.vault.process(file, (c) => renameHeadingLine(c, findH1Line(c), oldTitle, newTitle));
 }
 
 /** Obsidian-Deeplink (obsidian://) zur Aufgabe in die Zwischenablage kopieren –
@@ -183,6 +181,7 @@ export function listProjects(app: App): string[] {
 export interface ProjItem {
   name: string; path: string; icon: string; color: string | null;
   type: "project" | "area"; hidden: boolean; archived: boolean;
+  description: string;   // kurze Beschreibung aus dem Frontmatter (Body bleibt dem Nutzer)
 }
 
 const byName = (a: ProjItem, b: ProjItem) => a.name.localeCompare(b.name, "de");
@@ -236,6 +235,7 @@ function allProjItems(app: App): ProjItem[] {
       // Projekte: eigenes icon-Frontmatter respektieren, sonst Default „folder".
       icon: type === "area" ? "circle-small" : (typeof fm?.icon === "string" && fm.icon ? fm.icon : "folder"),
       color: typeof fm?.color === "string" ? fm.color : null,
+      description: typeof fm?.description === "string" ? fm.description : "",
       hidden: !!fm?.nav_hidden, archived: fm?.status === "archived",
     }];
   });
@@ -277,7 +277,9 @@ export async function createProjectNote(app: App, settings: BeautyTasksSettings,
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
   const fm = buildFrontmatter({ [fieldKey("type")]: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, nav_hidden: hidden ? true : undefined, created: todayIso() });
-  await app.vault.create(dest, fm + "\n# " + name + "\n");
+  // Kein „# Name" mehr im Body: Der Name kommt aus dem Dateinamen, die Überschrift wäre redundant –
+  // und der Body gehört ab hier vollständig dem Nutzer (s. „Projektnotiz öffnen").
+  await app.vault.create(dest, fm + "\n");
   return base;
 }
 
@@ -320,10 +322,23 @@ export async function setProjectColor(app: App, path: string, color: string | nu
   await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { if (color) fm.color = color; else delete fm.color; });
 }
 
-/** Projekt umbenennen: Datei umbenennen (Obsidian aktualisiert Links) + H1-Überschrift. */
+/** Kurzbeschreibung eines Projekts/Bereichs setzen (Frontmatter `description`; leer = entfernen).
+ *  Bewusst im Frontmatter und nicht im Body – der gehört dem Nutzer (s. „Notiz öffnen"). */
+export async function setProjectDescription(app: App, path: string, description: string): Promise<void> {
+  const file = app.vault.getAbstractFileByPath(path);
+  if (!(file instanceof TFile)) return;
+  const text = description.trim();
+  await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+    if (text) fm.description = text; else delete fm.description;
+  });
+}
+
+/** Projekt umbenennen: Datei umbenennen (Obsidian aktualisiert Links) + ggf. die H1-Überschrift,
+ *  solange sie noch den alten Namen trägt (s. retitleHeading). */
 export async function renameProjectNote(app: App, path: string, newName: string): Promise<string | null> {
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return null;
+  const oldName = file.basename;   // vor dem Umbenennen merken – danach heißt die Datei anders
   const base = slugify(newName);
   if (!base || base === file.basename) return file.basename;
   const dir = file.parent?.path ?? "";
@@ -331,7 +346,7 @@ export async function renameProjectNote(app: App, path: string, newName: string)
   if (app.vault.getAbstractFileByPath(dest)) return null;   // Namenskollision
   await app.fileManager.renameFile(file, dest);
   const renamed = app.vault.getAbstractFileByPath(dest);
-  if (renamed instanceof TFile) await retitleHeading(app, renamed, newName);
+  if (renamed instanceof TFile) await retitleHeading(app, renamed, oldName, newName);
   return base;
 }
 
