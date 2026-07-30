@@ -142,7 +142,7 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
     const mvRow = popRow(pop, "corner-up-right", t("menu_move_project"), () => openMovePicker(plugin, task, mvRow, close));
     row("copy", t("menu_duplicate"), () => void plugin.duplicateTask(task));
     row("link", t("menu_copy_link"), () => copyTaskLink(plugin.app, task.path));
-    row("file-text", t("menu_open_obsidian"), () => {
+    row("file-text", t("menu_open_task_note"), () => {
       const f = plugin.app.vault.getAbstractFileByPath(task.path);
       if (f instanceof TFile) void plugin.app.workspace.getLeaf("tab").openFile(f);
     });
