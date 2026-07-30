@@ -390,7 +390,7 @@ export class TaskModal extends Modal {
         row("copy", t("menu_duplicate"), () => void this.duplicate());
         pop.createDiv({ cls: "bt-plus-sep" });
         row("link", t("menu_copy_link"), () => this.copyLink());
-        row("file-text", t("menu_open_obsidian"), () => this.openInObsidian());
+        row("file-text", t("menu_open_task_note"), () => this.openInObsidian());
         if (!Platform.isMobile) row("external-link", t("menu_open_editor"), () => this.openInEditor());
         if (!Platform.isMobile) { pop.createDiv({ cls: "bt-plus-sep" }); row("printer", t("menu_print"), () => this.printTask()); }
         pop.createDiv({ cls: "bt-plus-sep" });
