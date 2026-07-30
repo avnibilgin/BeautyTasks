@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Task, Priority } from "../src/types";
 import {
-  matchesTask, sortTasks, activeFacetCount, addDays, hasSortDir, DEFAULT_CRITERIA, FilterCriteria,
+  matchesTask, sortTasks, activeFacetCount, addDays, hasSortDir, orphanKeys, DEFAULT_CRITERIA, FilterCriteria,
 } from "../src/filterEngine";
 
 const TODAY = "2026-07-07";
@@ -272,5 +272,25 @@ describe("sortTasks: Uhrzeit am selben Tag", () => {
   it("Uhrzeit schlägt nicht über Tagesgrenzen hinweg", () => {
     const list = [mkD("morgenFrüh", "2026-07-15", "08:00"), mkD("heuteSpät", "2026-07-14", "23:00")];
     expect(sortTasks(list, "due", "asc").map((t) => t.title)).toEqual(["heuteSpät", "morgenFrüh"]);
+  });
+});
+
+describe("orphanKeys – Kriterien, deren Ziel es nicht mehr gibt", () => {
+  it("findet den gelöschten Wert und lässt die bekannten weg", () => {
+    expect(orphanKeys(["work", "health"], ["work", "irgendwann"])).toEqual(["irgendwann"]);
+  });
+
+  it("liefert nichts, wenn alles bekannt ist", () => {
+    expect(orphanKeys(["work", "health"], ["work", "health"])).toEqual([]);
+    expect(orphanKeys(["work"], [])).toEqual([]);
+  });
+
+  it("fasst Duplikate zusammen und behält die Reihenfolge des ersten Auftretens", () => {
+    // Ein Label kann in mehreren Kriterien-Listen stehen (labels, labelsAll, labelsNot).
+    expect(orphanKeys([], ["b", "a", "b"])).toEqual(["b", "a"]);
+  });
+
+  it("alles verwaist, wenn es gar keine bekannten Werte mehr gibt", () => {
+    expect(orphanKeys([], ["irgendwann"])).toEqual(["irgendwann"]);
   });
 });
