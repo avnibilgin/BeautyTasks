@@ -8,7 +8,7 @@ import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, NavMenuItem } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, openEdit, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { ConfirmModal } from "./confirmModal";
@@ -373,9 +373,12 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   const meta = isInbox ? null
     : (() => { const { active, archived } = listManaged(plugin.app); return [...active, ...archived].find((p) => p.path === projectPath) ?? null; })();
   const top = pageTop(c, plugin.pageViewOptions().layout);
+  const projItem: NavMenuItem | null = meta
+    ? { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type, archived: meta.archived }
+    : null;
   pageHeader(top, plugin, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
-    meta ? { menu: { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type, archived: meta.archived } } : {});
-  pageDesc(top, meta?.description);
+    projItem ? { menu: projItem } : {});
+  pageDesc(top, plugin, meta?.description, projItem);
   // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
   addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
 
@@ -477,10 +480,9 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
 
   // Kopf: Titel + [Stift Kriterien-Editor] [Link „Filter"] [Anzeige].
   const top = pageTop(c, filter.options.layout);
-  pageHeader(top, plugin, top.createEl("h1", { text: filter.name }), {
-    menu: { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color },
-  });
-  pageDesc(top, filter.description);
+  const filterItem: NavMenuItem = { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color };
+  pageHeader(top, plugin, top.createEl("h1", { text: filter.name }), { menu: filterItem });
+  pageDesc(top, plugin, filter.description, filterItem);
   addBar(top, plugin, () => plugin.openNewTask(undefined, undefined, false, undefined, addDue(plugin)));
 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
@@ -510,10 +512,18 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
 }
 
 /** Kurzbeschreibung unter dem Seitentitel – die eine Zeile aus dem Frontmatter der Projekt-,
- *  Bereichs- oder Filternotiz. Ohne Text entsteht gar kein Element, damit der Kopf nicht wächst. */
-function pageDesc(root: HTMLElement, text: string | undefined): void {
+ *  Bereichs- oder Filternotiz. Ist sie leer, steht dort ein blasser Platzhalter, der in denselben
+ *  Bearbeiten-Dialog führt, in dem das Feld liegt – so ist das Feld auffindbar, ohne dass man das
+ *  Kontextmenü kennt. Ohne Eintrag (Eingang, eingebaute Ansichten) entsteht gar nichts. */
+function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | undefined, item: NavMenuItem | null): void {
   const t2 = (text ?? "").trim();
-  if (t2) root.createDiv({ cls: "bt-page-desc", text: t2 });
+  if (t2) { root.createDiv({ cls: "bt-page-desc", text: t2 }); return; }
+  if (!item) return;
+  const add = root.createDiv({ cls: "bt-page-desc is-empty", text: t("desc_add") });
+  add.setAttr("role", "button");
+  add.setAttr("tabindex", "0");
+  add.onclick = () => openEdit(plugin, item);
+  add.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
 }
 
 /** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter

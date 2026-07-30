@@ -40,7 +40,9 @@ export function addGcalSyncItem(menu: Menu, plugin: BeautyTasksPlugin, path: str
   return true;
 }
 
-function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
+/** Bearbeiten-Dialog des Eintrags – Filter bekommen ihren eigenen. Exportiert, weil auch der
+ *  Beschreibungs-Platzhalter auf der Seite dorthin führt (das Feld liegt in diesem Dialog). */
+export function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
   if (item.sec === "filters") { new FilterModal(plugin, item.key).open(); return; }
   const kind = item.sec === "labels" ? "label" : (item.type ?? "project");
   const desc = listManaged(plugin.app).active.concat(listManaged(plugin.app).archived).find((p) => p.path === item.key)?.description ?? "";
