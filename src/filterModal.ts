@@ -242,8 +242,8 @@ export class FilterModal extends Modal {
           }
           pop.createDiv({ cls: "bt-mode-sentence", text: t("filter_mode_s_" + pen) });   // beschreibt den aktiven Stift
         }
-        const rowEl = (active: boolean, icon: string | null, text: string, onClick: () => void): void => {
-          const r = pop.createDiv({ cls: "bt-row" + (active ? " is-active" : "") });
+        const rowEl = (active: boolean, icon: string | null, text: string, onClick: () => void, stale = false): void => {
+          const r = pop.createDiv({ cls: "bt-row" + (active ? " is-active" : "") + (stale ? " is-stale" : "") });
           const ic = r.createSpan({ cls: "bt-row-ic" });   // Slot immer da -> Beschriftungen bündig
           if (icon) setIcon(ic, icon);
           r.createSpan({ cls: "bt-row-lbl", text });
@@ -253,7 +253,9 @@ export class FilterModal extends Modal {
         rowEl(empty, empty ? "check" : null, t("filter_all"), () => { ctl.clear(); syncLbl(); this.refresh(); render(); });
         for (const o of opts) {
           const m = ctl.modeOf(o.key);
-          rowEl(!!m, m ? iconOf(m) : null, o.label, () => { ctl.toggle(o.key, pen); syncLbl(); this.refresh(); render(); });
+          rowEl(!!m, m ? iconOf(m) : null, o.label,
+            () => { ctl.toggle(o.key, pen); syncLbl(); this.refresh(); render(); },
+            (ctl.orphans ?? []).includes(o.key));
         }
       };
       render();
