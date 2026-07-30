@@ -1,6 +1,7 @@
 import { App, TFile, normalizePath } from "obsidian";
 import { BeautyTasksSettings, Priority } from "./types";
 import { buildFrontmatter, ensureFolder, newId, todayIso, slugify, retitleHeading } from "./taskService";
+import { fieldKey } from "./fieldNames";
 import {
   FilterCriteria, ViewOptions, FilterRange,
   DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter,
@@ -52,7 +53,7 @@ function toItem(f: TFile, fm: Record<string, unknown>): FilterItem {
 export function listFilters(app: App): FilterItem[] {
   return app.vault.getMarkdownFiles().flatMap((f) => {
     const fm = app.metadataCache.getFileCache(f)?.frontmatter;
-    return fm?.type === "filter" ? [toItem(f, fm)] : [];
+    return fm?.[fieldKey("type")] === "filter" ? [toItem(f, fm)] : [];
   }).sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
@@ -61,7 +62,7 @@ export function readFilter(app: App, path: string): FilterItem | null {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof TFile)) return null;
   const fm = app.metadataCache.getFileCache(f)?.frontmatter;
-  return fm?.type === "filter" ? toItem(f, fm) : null;
+  return fm?.[fieldKey("type")] === "filter" ? toItem(f, fm) : null;
 }
 
 /** Kriterien + Optionen (+ Farbe) als Frontmatter-Felder schreiben (nur nicht-leere). */
@@ -94,7 +95,7 @@ export async function createFilterNote(
   let dest = normalizePath(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
-  const fm: Record<string, unknown> = { type: "filter", id: newId("f"), created: todayIso() };
+  const fm: Record<string, unknown> = { [fieldKey("type")]: "filter", id: newId("f"), created: todayIso() };
   if (hidden) fm.nav_hidden = true;
   applyToFrontmatter(fm, criteria, options, color);
   await app.vault.create(dest, buildFrontmatter(fm) + "\n# " + name + "\n");

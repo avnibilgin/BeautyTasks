@@ -3,6 +3,7 @@ import { Task, Priority, BeautyTasksSettings } from "./types";
 import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName, isUnderFolder } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { titleKey, fmTitle, firstH1, resolveTitle } from "./taskTitle";
+import { fieldKey } from "./fieldNames";
 import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -69,7 +70,7 @@ export class TaskIndex extends Component {
     if (this.projPathDirty) {
       const m = new Map<string, string>();
       for (const f of this.app.vault.getMarkdownFiles()) {
-        const ty: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+        const ty: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.[fieldKey("type")];
         if (isProjectType(ty)) m.set(f.basename.toLowerCase(), f.path);
       }
       this.projPathSet = m; this.projPathDirty = false;
@@ -139,7 +140,7 @@ export class TaskIndex extends Component {
       // Nicht-Aufgabe sofort aus (der Pfad steht ja nicht im Index) und würde weder den Cache
       // verwerfen noch melden – der Archiv-Zustand bliebe veraltet, bis zufällig etwas anderes
       // eine Meldung auslöst. Deshalb hier gezielt anstoßen.
-      const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+      const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.[fieldKey("type")];
       // Ist die Notiz ein Projekt/Bereich ODER war sie es zuletzt (type gerade entfernt)? Dann
       // die Auflösungs-Karte neu bauen lassen und die Views anstoßen (Archiv/Zähler/Zuordnung).
       const proj = isProjectType(type) || this.isMappedProjectPath(f.path);
@@ -191,7 +192,7 @@ export class TaskIndex extends Component {
     if (this.isExcluded(f.path)) return null;   // Notizen in Ausschluss-Ordnern sind keine Aufgaben
     const cache = this.app.metadataCache.getFileCache(f);
     const fm = cache?.frontmatter;
-    if (!fm || fm.type !== "task") return null;
+    if (!fm || fm[fieldKey("type")] !== "task") return null;
     const link = (v: unknown): string | null => {
       const m = typeof v === "string" ? v.match(/\[\[([^\]|#]+)/) : null;
       const dest = m ? this.app.metadataCache.getFirstLinkpathDest(m[1].trim(), f.path) : null;

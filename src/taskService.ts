@@ -3,6 +3,7 @@ import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { combineDT, localStamp } from "./format";
 import { firstOpenStatus } from "./statuses";
 import { titleKey, fmTitle, findH1Line, replaceHeadingLine, newTaskBody } from "./taskTitle";
+import { fieldKey } from "./fieldNames";
 import { t } from "./i18n";
 
 export const slugify = (s: string): string =>
@@ -97,7 +98,7 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     if (n > 200) break;
   }
   const fm = buildFrontmatter({
-    type: "task",
+    [fieldKey("type")]: "task",
     id: newId("t"),
     // Regelfall: der Titel steht hier. Nur wenn er ausdrücklich in den Text soll, bleibt das
     // Feld leer (null wird von buildFrontmatter verworfen) und newTaskBody schreibt die H1.
@@ -174,7 +175,7 @@ export function copyTaskLink(app: App, path: string): void {
 /** Vorhandene Projekte (Basename, alphabetisch) für den Picker. */
 export function listProjects(app: App): string[] {
   return app.vault.getMarkdownFiles()
-    .filter((file) => app.metadataCache.getFileCache(file)?.frontmatter?.type === "project")
+    .filter((file) => app.metadataCache.getFileCache(file)?.frontmatter?.[fieldKey("type")] === "project")
     .map((file) => file.basename)
     .sort((a, b) => a.localeCompare(b, "de"));
 }
@@ -226,7 +227,8 @@ export const isInboxLink = (project: string | null | undefined): boolean =>
 function allProjItems(app: App): ProjItem[] {
   return app.vault.getMarkdownFiles().flatMap((f) => {
     const fm = app.metadataCache.getFileCache(f)?.frontmatter;
-    const type: "project" | "area" | null = fm?.type === "area" ? "area" : fm?.type === "project" ? "project" : null;
+    const ty: unknown = fm?.[fieldKey("type")];
+    const type: "project" | "area" | null = ty === "area" ? "area" : ty === "project" ? "project" : null;
     if (!type) return [];
     return [{
       name: f.basename, path: f.path, type,
@@ -274,7 +276,7 @@ export async function createProjectNote(app: App, settings: BeautyTasksSettings,
   let dest = normalizePath(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
-  const fm = buildFrontmatter({ type: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, nav_hidden: hidden ? true : undefined, created: todayIso() });
+  const fm = buildFrontmatter({ [fieldKey("type")]: asArea ? "area" : "project", id: newId("p"), status: "active", color: color ?? undefined, nav_hidden: hidden ? true : undefined, created: todayIso() });
   await app.vault.create(dest, fm + "\n# " + name + "\n");
   return base;
 }
@@ -284,7 +286,7 @@ export async function createProjectNote(app: App, settings: BeautyTasksSettings,
 export async function setProjectType(app: App, path: string, toArea: boolean): Promise<void> {
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return;
-  await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { fm.type = toArea ? "area" : "project"; });
+  await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { fm[fieldKey("type")] = toArea ? "area" : "project"; });
 }
 
 /** Ist die Notiz an diesem Pfad ein Bereich (type: area)? */
@@ -292,7 +294,7 @@ export function isAreaPath(app: App, path: string): boolean {
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return false;
   const fm = app.metadataCache.getFileCache(file)?.frontmatter;
-  return fm?.type === "area";
+  return fm?.[fieldKey("type")] === "area";
 }
 
 /** Projekt archivieren/wiederherstellen (status: archived|active). */

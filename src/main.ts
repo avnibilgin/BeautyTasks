@@ -11,7 +11,8 @@ import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
-import { titleKey, initTitleKey, normalizeTitleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
+import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
+import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget } from "./fieldNames";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
@@ -165,7 +166,7 @@ export default class BeautyTasksPlugin extends Plugin {
         if (!f || f.extension !== "md") return false;
         // Nur „normale" Notizen: bereits eine Aufgabe ODER eine BeautyTasks-Entität
         // (Projekt/Bereich/Filter) NICHT anbieten – sonst würde der Typ überschrieben.
-        const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.type;
+        const type: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.[fieldKey("type")];
         if (type === "task" || type === "project" || type === "area" || type === "filter") return false;
         if (!checking) void this.convertActiveNoteToTask(f);
         return true;
@@ -624,7 +625,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Reagiert auf jedes Umbenennen einer verwalteten Notiz und zieht alle Referenzen selbst nach. */
   private async onNoteRenamed(file: TAbstractFile, oldPath: string): Promise<void> {
     if (!(file instanceof TFile) || file.extension !== "md") return;
-    const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.type as unknown;
+    const type = this.app.metadataCache.getFileCache(file)?.frontmatter?.[fieldKey("type")] as unknown;
     if (type !== "project" && type !== "area" && type !== "filter" && type !== "task") return;
 
     const oldBase = oldPath.split("/").pop()!.replace(/\.md$/i, "");
@@ -997,7 +998,7 @@ export default class BeautyTasksPlugin extends Plugin {
     // H1, wenn es eine gibt, sonst der Dateiname (eine `##`-Zwischenüberschrift ist kein Titel).
     const title = (firstH1(this.app.metadataCache.getFileCache(f)?.headings) ?? "").trim() || f.basename;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-      fm.type = "task";
+      fm[fieldKey("type")] = "task";
       ensureCanonicalFm(fm);
       if (typeof fm.status !== "string" || !fm.status) fm.status = firstOpenStatus();
       if (fmTitle(fm[titleKey()]) === null) fm[titleKey()] = title;
@@ -1110,53 +1111,87 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!opts.silent) { window.setTimeout(() => this.index.build(), 400); new Notice(t("notice_titles_moved", moved)); }
   }
 
-  /** Titel-Eigenschaft umstellen (Einstellungen). Der Wechsel selbst ist harmlos – aber die Titel,
-   *  die BeautyTasks bisher im ALTEN Feld geführt hat, wären danach unsichtbar (die Aufgabe zeigte
-   *  wieder ihre Überschrift oder ihren Dateinamen). Deshalb die Rückfrage mit Übernahme-Häkchen.
+  /** Feldnamen umstellen (Einstellungen). Der Wechsel selbst ist eine Zeile – gefährlich ist, was
+   *  danach in den Notizen steht. Deshalb IMMER erst zählen, rückfragen, umschreiben; und erst wenn
+   *  die Dateien durch sind, die Einstellung setzen. Bricht der Lauf ab, zeigt die Einstellung noch
+   *  auf den alten Schlüssel – ein zweiter Versuch findet dann genau die Restmenge, statt dass
+   *  halb umgeschriebene Notizen unsichtbar werden.
    *
-   *  Übernommen wird per KOPIE: der alte Wert bleibt stehen. Verschieben wäre falsch – wer das Feld
-   *  wechselt, tut das in der Regel genau deshalb, weil `title:` ihm selbst gehört. Kopiert wird nur
-   *  in Aufgaben-Notizen und nur dort, wo das neue Feld noch leer ist. */
-  changeTitleProperty(next: string, done?: () => void): void {
-    const prev = this.settings.titleProperty;
+   *  Zwei Felder, zwei Regeln (deshalb parametrisiert statt zweimal geschrieben):
+   *  - `type` entscheidet, ob eine Notiz überhaupt zu BeautyTasks gehört. Betroffen ist der ganze
+   *    Vault (Projekte, Bereiche und Filter stehen nicht im Aufgaben-Index), und der Wert wird
+   *    VERSCHOBEN – `task` gehört uns, ihn stehen zu lassen konservierte die Kollision.
+   *  - `title` betrifft nur Aufgaben, und der Wert wird KOPIERT: Wer das Feld wechselt, tut das in
+   *    der Regel, weil `title` ihm selbst gehört. */
+  changeFieldName(id: FieldId, next: string, done?: () => void): void {
+    const prev = fieldKey(id);
     if (next === prev) { done?.(); return; }
-    const carry = this.index.all().filter((tk) => {
-      const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (!(f instanceof TFile)) return false;
-      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
-      return fmTitle(fm?.[prev]) !== null && fmTitle(fm?.[next]) === null;
-    });
+    // Der Wert wird IMMER übernommen – sonst verlöre man mit einem Häkchen alle Titel bzw. alle
+    // Aufgaben. Zur Wahl steht nur, ob das alte Feld danach verschwindet: Bei `type` gehört der
+    // Wert uns, da wird ohne Rückfrage aufgeräumt. Bei `title` gehört das Feld meist dem Nutzer,
+    // deshalb bleibt es stehen, solange er das Häkchen nicht setzt.
+    const move = id === "type";
+    const targets = this.fieldRenameTargets(id, prev, next);
     new ConfirmModal(this.app, {
-      title: t("set_title_prop_confirm_t"),
-      message: t("set_title_prop_confirm_m", next, prev, carry.length),
+      title: t("set_field_confirm_t"),
+      message: t(move ? "set_field_confirm_type" : "set_field_confirm_title", next, prev, targets.length),
       confirmText: t("btn_save"),
       destructive: false,
-      checkbox: { label: t("set_title_prop_copy"), checked: carry.length > 0 },
-    }, (copy: boolean) => {
+      checkbox: move ? undefined : { label: t("set_field_drop_old", prev), checked: false },
+    }, (dropOld: boolean) => {
       void (async () => {
-        let copied = 0;
-        if (copy) {
-          for (const tk of carry) {
-            const f = this.app.vault.getAbstractFileByPath(tk.path);
-            if (!(f instanceof TFile)) continue;
+        let done_ = 0, failed = 0;
+        const remove = move || dropOld;
+        for (const path of targets) {
+          const f = this.app.vault.getAbstractFileByPath(path);
+          if (!(f instanceof TFile)) continue;
+          try {
             await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-              const from = fmTitle(fm[prev]);
-              if (from !== null && fmTitle(fm[next]) === null) fm[next] = from;   // lebende Quelle
+              const from = fm[prev];                            // lebende Quelle entscheidet
+              if (from === undefined || fm[next] !== undefined) return;
+              fm[next] = from;
+              if (remove) delete fm[prev];
             });
-            copied++;
-          }
+            done_++;
+          } catch (err) { failed++; console.error("BeautyTasks: field rename failed", path, err); }
         }
-        this.settings.titleProperty = next;
-        initTitleKey(next);
+        // Erst jetzt die Einstellung – s. Kommentar oben.
+        this.settings.fieldNames = { ...allFieldNames(), [id]: next };
+        initFieldNames(this.settings.fieldNames);
+        this.settings.fieldNames = allFieldNames();
         await this.saveSettings();
         this.index.build();
         this.renderAll();
-        new Notice(t("set_title_prop_done", next, copied));
+        new Notice(failed ? t("set_field_done_failed", next, done_, failed) : t("set_field_done", next, done_));
         done?.();
       })();
     }).open();
     // Abbruch schließt das Modal ohne Rückruf – das Eingabefeld setzt der Aufrufer beim nächsten
     // Zeichnen ohnehin auf den gespeicherten Wert zurück.
+  }
+
+  /** Pfade der Notizen, die ein Feldnamen-Wechsel anfassen würde. `type` geht vault-weit über die
+   *  vier BeautyTasks-Werte; `title` nur über Aufgaben mit einem brauchbaren Wert. Notizen, die den
+   *  neuen Schlüssel schon führen, bleiben außen vor – das macht den Lauf wiederholbar. Notizen in
+   *  Ausschluss-Ordnern werden nie angefasst: Dort hat der Nutzer erklärt, dass sie uns nicht
+   *  gehören. */
+  private fieldRenameTargets(id: FieldId, prev: string, next: string): string[] {
+    const out: string[] = [];
+    if (id === "type") {
+      for (const f of this.app.vault.getMarkdownFiles()) {
+        if (this.settings.excludeFolders.some((dir) => isUnderFolder(f.path, dir))) continue;
+        const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+        if (isTypeRenameTarget(fm, prev, next)) out.push(f.path);
+      }
+      return out;
+    }
+    for (const tk of this.index.all()) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (!(f instanceof TFile)) continue;
+      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+      if (fmTitle(fm?.[prev]) !== null && fmTitle(fm?.[next]) === null) out.push(f.path);
+    }
+    return out;
   }
 
   /** Einmalige Migration „Inbox-Notiz entfernen": übernimmt View-Optionen + GCal-Ausschluss der
@@ -1572,10 +1607,14 @@ export default class BeautyTasksPlugin extends Plugin {
     // ein versehentlich gelöschter Papierkorb-Status. Danach die Registry setzen.
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
-    // Titel-Feld aus den Einstellungen; normalizeTitleKey fängt Vertipptes und reservierte Felder
-    // ab und fällt auf "title" zurück – eine kaputte Einstellung darf nie Daten treffen.
-    this.settings.titleProperty = normalizeTitleKey(this.settings.titleProperty);
-    initTitleKey(this.settings.titleProperty);
+    // Feldnamen: früheres einzelnes `titleProperty` (1.31.x) in die Namenstabelle übernehmen.
+    if (typeof legacy.titleProperty === "string" && !this.settings.fieldNames) {
+      this.settings.fieldNames = { title: legacy.titleProperty };
+    }
+    // resolveFieldNames fängt Vertipptes, feste und doppelt vergebene Namen ab und fällt auf die
+    // Vorgabe zurück – eine kaputte Einstellung darf nie Daten treffen.
+    initFieldNames(this.settings.fieldNames);
+    this.settings.fieldNames = allFieldNames();
     // Google-Kalender-Sub-Objekt mit Defaults auffüllen (fehlende/neue Felder ergänzen,
     // gespeicherte Werte behalten). Lebendes Objekt – Auth/Engine mutieren tokens/lastSynced darin.
     this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);

@@ -129,7 +129,7 @@ export interface BeautyTasksSettings {
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   showUnfiledInInbox: boolean;    // projektlose offene Aufgaben (auch handgeschriebene type:task-Notizen) im Eingang zeigen
   excludeFolders: string[];       // Ordner-Präfixe: Notizen darin gelten NIE als Aufgabe (Schutz vor fremden type:task-Notizen)
-  titleProperty: string;          // Frontmatter-Feld, das den Aufgabentitel führt (Default "title"; s. taskTitle.ts)
+  fieldNames?: Partial<Record<import("./fieldNames").FieldId, string>>;   // eigene Namen für `type`/`title` (s. fieldNames.ts)
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
   chipProfiles?: Partial<Record<ChipSurface, ChipProfile>>;   // Chip-Konfiguration je Fläche (Editor/Schnelleingabe)
   boardLayout: "list" | "board";   // Projekt-/Label-Boards als Liste oder Kanban (Spalten = Status)
@@ -170,7 +170,6 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   parseNaturalLanguage: true,
   showUnfiledInInbox: true,
   excludeFolders: [],
-  titleProperty: "title",
   chipsIconsOnly: false,
   boardLayout: "list",
   reminderLastScan: 0,
