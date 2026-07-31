@@ -2029,8 +2029,13 @@ export class MainView extends ItemView {
     if (layout) this.local.layout = layout;
     if (typeof s.calPanel === "boolean") this.local.calPanel = s.calPanel;
     // Die Rolle hängt am TAB, nicht an der Seite: Ein Seitenwechsel im Planungs-Split lässt ihn
-    // ein Planungs-Split bleiben – deshalb steht das hier außerhalb des `changed`-Zweigs.
-    this.planRole = oneOfState<"list" | "calendar">(s.planRole, ["list", "calendar"]);
+    // ein Planungs-Split bleiben. Deshalb wird sie NUR übernommen, wenn der Zustand wirklich eine
+    // mitbringt (Wiederherstellung aus der Workspace-Datei) – eine gewöhnliche Navigation reicht
+    // nur {kind, key} herein und darf die Rolle nicht stillschweigend löschen. Genau das tat sie:
+    // Nach einem Klick in der Seitenleiste fand „Planen" seine Hälften nicht mehr wieder und
+    // spaltete eine dritte Ansicht ab.
+    const role = oneOfState<"list" | "calendar">(s.planRole, ["list", "calendar"]);
+    if (role) this.planRole = role;
     const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
     if (done) this.tab.doneTab = done;
     const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);

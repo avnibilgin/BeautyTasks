@@ -354,7 +354,7 @@ export default class BeautyTasksPlugin extends Plugin {
     else left = await this.openPage(target, "tab");
     // Vor dem Abspalten den Fokus auf die Liste legen – nur so entsteht der neue Tab NEBEN ihr
     // und nicht neben irgendeinem anderen, der zufällig zuletzt aktiv war.
-    if (left) await this.app.workspace.revealLeaf(left.leaf);
+    if (left) this.focusMain(left);
 
     let right = known("calendar");
     if (right) right.openPage(target); else right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
@@ -367,7 +367,20 @@ export default class BeautyTasksPlugin extends Plugin {
     right?.useLocal({ layout: "calendar", calPanel: false }, "calendar");
     // Fokus zurück auf die Liste: Sie ist die Quelle des Zugs und die Seite, auf der man arbeitet.
     // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste, nicht den Kalender.
-    if (left && left !== right) await this.app.workspace.revealLeaf(left.leaf);
+    if (left && left !== right) this.focusMain(left);
+  }
+
+  /**
+   * Einen Dashboard-Tab wirklich AKTIV machen.
+   *
+   * revealLeaf reicht dafür nicht: Es holt einen Leaf „in den Vordergrund" (und klappt eine
+   * Seitenleiste auf) – bei zwei nebeneinanderliegenden Panes sind aber beide längst sichtbar,
+   * also tut es schlicht nichts. Der zuletzt erzeugte Split blieb dadurch der aktive Leaf, und
+   * die Seitenleiste navigierte anschließend den KALENDER statt der Liste.
+   */
+  private focusMain(view: MainView): void {
+    this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
+    this.lastMain = view;
   }
 
   // Bequeme Namen für die Seitenleiste, Menüs und Commands – alle landen in openPage().
