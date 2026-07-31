@@ -53,7 +53,9 @@ export function addOpenItems(menu: Menu, plugin: BeautyTasksPlugin, page: PageRe
   // kennen keine Kalender-Ansicht (tier "none"). Dort wäre der Eintrag ein leeres Versprechen –
   // er stünde im Menü und lieferte zweimal dieselbe Liste.
   if (pageInfo(page).tier !== "none") {
-    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("plan_open")).setIcon("split-square-horizontal")
+    // „square-split-horizontal" ist der aktuelle Lucide-Name; „split-square-horizontal" ist der
+    // Alt-Alias von vor der Umbenennung (2024) und wird nur noch aus Kompatibilität mitgeführt.
+    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("plan_open")).setIcon("square-split-horizontal")
       .onClick(() => void plugin.openPlanSplit(page)));
   }
 }
