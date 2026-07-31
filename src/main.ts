@@ -336,14 +336,35 @@ export default class BeautyTasksPlugin extends Plugin {
     // (der Eintrag fehlt dort), über die Befehlspalette schon: dann wird die Startansicht geplant.
     const target: PageRef = wanted && pageInfo(wanted).tier !== "none"
       ? wanted : { kind: "view", key: this.startView() };
-    const left = await this.openPage(target);
-    left?.useLocal({ layout: "list" });
-    const right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
+    // Steht schon ein Planungs-Split? Dann DIESE beiden Tabs weiterverwenden statt neben ihnen
+    // einen weiteren aufzumachen: „Planen" für eine andere Seite ersetzt die Anordnung, es legt
+    // keine zweite an. Ohne das wuchs die Zahl der Ansichten mit jedem Aufruf (Heute-Liste blieb
+    // links stehen, rechts daneben kamen Liste UND Kalender des Projekts).
+    const open = this.mainViews();
+    const known = (role: "list" | "calendar"): MainView | null => open.find((v) => v.planRole === role) ?? null;
+
+    // Die Listen-Hälfte: die bekannte, sonst der zuletzt benutzte Tab, sonst ein frischer.
+    let left = known("list");
+    const active = this.activeMain();
+    // Ausdrücklich NICHT die Kalender-Hälfte zur Liste umwidmen – das käme vor, wenn man die
+    // Liste geschlossen und den Kalender behalten hat. Dann lieber einen neuen Tab, damit der
+    // Kalender Kalender bleibt und nicht beide Rollen auf denselben Tab fallen.
+    if (!left && active && active.planRole !== "calendar") left = active;
+    if (left) left.openPage(target);
+    else left = await this.openPage(target, "tab");
+    // Vor dem Abspalten den Fokus auf die Liste legen – nur so entsteht der neue Tab NEBEN ihr
+    // und nicht neben irgendeinem anderen, der zufällig zuletzt aktiv war.
+    if (left) await this.app.workspace.revealLeaf(left.leaf);
+
+    let right = known("calendar");
+    if (right) right.openPage(target); else right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
+
+    left?.useLocal({ layout: "list" }, "list");
     // Seitenspalte („Nicht terminiert") zu: Der Split halbiert die Breite, und ihre Aufgabe
     // erfüllt hier die LISTE links – sie ist die Quelle, aus der man ins Raster zieht. Offen
     // bliebe ein zweiter Vorrat, der dem Kalender genau den Platz nimmt, für den man geteilt hat.
     // Nur für diesen Tab: der Seiten-Standard („offen") gilt beim normalen Öffnen weiter.
-    right?.useLocal({ layout: "calendar", calPanel: false });
+    right?.useLocal({ layout: "calendar", calPanel: false }, "calendar");
     // Fokus zurück auf die Liste: Sie ist die Quelle des Zugs und die Seite, auf der man arbeitet.
     // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste, nicht den Kalender.
     if (left && left !== right) await this.app.workspace.revealLeaf(left.leaf);

@@ -1944,6 +1944,14 @@ export class MainView extends ItemView {
   page: PageRef;
   /** Die Wahl DIESES Tabs; was hier fehlt, kommt vom Seiten-Standard (s. setLocal/useLocal). */
   private local: Partial<LocalOptions> = {};
+  /**
+   * Rolle dieses Tabs im Planungs-Split, sonst null. Ohne diese Merkung legte jeder Aufruf von
+   * „Planen" eine WEITERE Anordnung an: Der Befehl übernahm irgendeinen Tab und spaltete einen
+   * neuen ab, während die Hälften des vorigen Splits stehen blieben – nach zwei Aufrufen standen
+   * drei Ansichten nebeneinander. Mit der Rolle findet der Befehl seine eigenen Tabs wieder und
+   * schickt sie beide auf die neue Seite. Wandert in getState: die Paarung übersteht den Neustart.
+   */
+  planRole: "list" | "calendar" | null = null;
   /** Umschaltbarer Unterzustand der Seite. Bewusst ein eigenes OBJEKT: der Kontext hält eine
    *  Referenz darauf und liest per Getter mit – ein Abzug wäre veraltet, sobald ein Umschalter
    *  ihn setzt und mit demselben Kontext neu zeichnet (Verwaltungs-Tabs machen genau das). */
@@ -1991,7 +1999,7 @@ export class MainView extends ItemView {
     return {
       kind: this.page.kind, key: this.page.key,
       layout: this.local.layout ?? null, calPanel: this.local.calPanel ?? null,
-      doneTab: this.tab.doneTab, manageTab: this.tab.manageTab,
+      doneTab: this.tab.doneTab, manageTab: this.tab.manageTab, planRole: this.planRole,
     };
   }
 
@@ -2020,6 +2028,9 @@ export class MainView extends ItemView {
     const layout = oneOfState<PageLayout>(s.layout, LAYOUTS);
     if (layout) this.local.layout = layout;
     if (typeof s.calPanel === "boolean") this.local.calPanel = s.calPanel;
+    // Die Rolle hängt am TAB, nicht an der Seite: Ein Seitenwechsel im Planungs-Split lässt ihn
+    // ein Planungs-Split bleiben – deshalb steht das hier außerhalb des `changed`-Zweigs.
+    this.planRole = oneOfState<"list" | "calendar">(s.planRole, ["list", "calendar"]);
     const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
     if (done) this.tab.doneTab = done;
     const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);
@@ -2049,8 +2060,9 @@ export class MainView extends ItemView {
    * sagt nichts darüber, wie sie beim nächsten Öffnen aussehen soll.
    * Weil es nur den eigenen Tab betrifft, braucht es hier auch kein Einfrieren der Nachbarn.
    */
-  useLocal(patch: Partial<LocalOptions>): void {
+  useLocal(patch: Partial<LocalOptions>, planRole: "list" | "calendar" | null = this.planRole): void {
     Object.assign(this.local, patch);
+    this.planRole = planRole;
     this.plugin.app.workspace.requestSaveLayout();   // die Anordnung übersteht den Neustart
     this.draw();
   }
