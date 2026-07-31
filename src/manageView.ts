@@ -1,5 +1,6 @@
 import { setIcon, Notice, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
+import { PageCtx } from "./pageCtx";
 import { listManaged, ProjItem } from "./taskService";
 import { listFilters, FilterItem } from "./filterService";
 import { applyFilter } from "./filterEngine";
@@ -82,31 +83,35 @@ export function iconBtn(parent: HTMLElement, icon: string, label: string, onClic
   return b;
 }
 
-export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
+export function renderManageInto(c: HTMLElement, ctx: PageCtx): void {
+  const plugin = ctx.plugin;
+  // Welcher Bereich gezeigt wird, steht in der SEITE dieses Tabs (page.key) – zwei Tabs können
+  // so gleichzeitig Projekte und Labels verwalten.
+  const section = ctx.page.key;
   c.empty();
   c.addClass("bt-view");
   const root = c.createDiv({ cls: "bt-sizer" });
-  const redraw = () => renderManageInto(c, plugin);
+  const redraw = () => renderManageInto(c, ctx);
 
   // Kopf: nur die Überschrift der aktuellen Sektion. Die Navigation zwischen den Sektionen
   // läuft jetzt über die (dauerhaft sichtbaren) Seitenleisten-Köpfe – keine Tab-Reihe mehr.
   const header = root.createDiv({ cls: "bt-manage-header" });
-  const titleKey = plugin.manageSection === "filters" ? "nav_filters"
-    : plugin.manageSection === "labels" ? "tab_labels"
-      : plugin.manageSection === "areas" ? "group_area" : "group_project";
+  const titleKey = section === "filters" ? "nav_filters"
+    : section === "labels" ? "tab_labels"
+      : section === "areas" ? "group_area" : "group_project";
   header.createEl("h1", { text: t(titleKey) });
   // Aktiv/Archiv oben rechts (nur Projekte/Bereiche) – an der Stelle der früheren Tab-Reihe.
-  if (plugin.manageSection === "projects" || plugin.manageSection === "areas") {
+  if (section === "projects" || section === "areas") {
     const tabs = header.createDiv({ cls: "bt-tabs" });
     const mkTab = (id: "active" | "archive", label: string) => {
-      const b = tabs.createEl("button", { cls: "bt-tab" + (plugin.manageTab === id ? " is-active" : ""), text: label });
-      b.onclick = () => { plugin.manageTab = id; renderManageInto(c, plugin); };
+      const b = tabs.createEl("button", { cls: "bt-tab" + (ctx.manageTab === id ? " is-active" : ""), text: label });
+      b.onclick = () => { ctx.setManageTab(id); redraw(); };
     };
     mkTab("active", t("tab_active"));
     mkTab("archive", t("tab_archive"));
   }
 
-  if (plugin.manageSection === "filters") {
+  if (section === "filters") {
     // „+ Neuer Filter" öffnet den Editor (ein Filter braucht mehr als nur einen Namen).
     const add = root.createDiv({ cls: "bt-manage-add" });
     const btn = add.createDiv({ cls: "bt-add" });
@@ -118,23 +123,23 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
     if (!filters.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_filters") }); return; }
     const manual = plugin.navSortMode("filters") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
-    filters.forEach((fl) => filterRow(list, plugin, fl, redraw, manual ? "filters" : undefined));
+    filters.forEach((fl) => filterRow(list, ctx, fl, redraw, manual ? "filters" : undefined));
     return;
   }
 
-  if (plugin.manageSection === "labels") {
+  if (section === "labels") {
     addRow(root, t("add_label"), t("placeholder_label"), (v) => plugin.addLabel(v), redraw);
     sortControl(root, plugin, "labels");
     const labels = plugin.sortLabels(plugin.getLabels());
     if (!labels.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_labels") }); return; }
     const manual = plugin.navSortMode("labels") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
-    labels.forEach((l) => labelRow(list, plugin, l, redraw, manual ? "labels" : undefined));
+    labels.forEach((l) => labelRow(list, ctx, l, redraw, manual ? "labels" : undefined));
     return;
   }
 
   // Projekte- ODER Bereiche-Tab: eigener Anlege-Weg je Typ (kein Umwandeln nötig mehr).
-  const isAreaSection = plugin.manageSection === "areas";
+  const isAreaSection = section === "areas";
   const wantType = isAreaSection ? "area" : "project";
   // Über plugin.createProject anlegen: das wartet per einmaligem metadataCache-„changed" auf
   // das geparste Frontmatter und zeichnet dann neu. Direktes createProjectNote + sofortiges
@@ -145,11 +150,11 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
 
   const { active, archived } = listManaged(plugin.app);
 
-  if (plugin.manageTab === "archive") {
+  if (ctx.manageTab === "archive") {
     const items = archived.filter((p) => p.type === wantType);
     if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t("manage_empty_archive") }); return; }
     const list = root.createDiv({ cls: "bt-manage-list" });
-    for (const it of items) archiveRow(list, plugin, it, redraw);
+    for (const it of items) archiveRow(list, ctx, it, redraw);
     return;
   }
 
@@ -159,7 +164,7 @@ export function renderManageInto(c: HTMLElement, plugin: BeautyTasksPlugin): voi
   if (!items.length) { root.createEl("p", { cls: "bt-empty", text: t(isAreaSection ? "manage_empty_areas" : "manage_empty_projects") }); return; }
   const manual = plugin.navSortMode(sec) === "manual";
   const list = root.createDiv({ cls: "bt-manage-list" });
-  items.forEach((it) => activeRow(list, plugin, it, redraw, manual ? sec : undefined));
+  items.forEach((it) => activeRow(list, ctx, it, redraw, manual ? sec : undefined));
 }
 
 /** „+ Neu"-Zeile: Button, der sich beim Klick in ein Eingabefeld verwandelt (Enter = anlegen). */
@@ -228,14 +233,15 @@ function rowMenu(actions: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem):
   };
 }
 
-function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void, reorderSec?: NavSection): void {
+function activeRow(list: HTMLElement, ctx: PageCtx, it: ProjItem, redraw: () => void, reorderSec?: NavSection): void {
+  const plugin = ctx.plugin;
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorderSec) reorderHandle(row, list, plugin, reorderSec, it.path);
   const isArea = it.type === "area";
 
   colorDot(row, plugin, it.color, it.path, isArea ? "var(--bt-nav-area)" : "var(--bt-nav-project)", (c) => void plugin.setProjectColor(it.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
-  name.onclick = () => void plugin.activateProject(it.path);
+  name.onclick = () => ctx.open({ kind: "project", key: it.path });
 
   // Hover-Aktionen LINKS neben Zähler + Schalter; „Umwandeln" im Kebab; Schalter ganz rechts.
   const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
@@ -249,21 +255,23 @@ function activeRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, r
   visSwitch(row, !it.hidden, () => void plugin.setProjectVisible(it.path, it.hidden));
 }
 
-function archiveRow(list: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem, redraw: () => void): void {
+function archiveRow(list: HTMLElement, ctx: PageCtx, it: ProjItem, redraw: () => void): void {
+  const plugin = ctx.plugin;
   const row = list.createDiv({ cls: "bt-manage-row is-archived" });
   const name = row.createSpan({ cls: "bt-manage-name", text: it.name });
-  name.onclick = () => void plugin.activateProject(it.path);
+  name.onclick = () => ctx.open({ kind: "project", key: it.path });
   const actions = row.createDiv({ cls: "bt-manage-actions" });
   iconBtn(actions, "archive-restore", t("btn_restore"), () => void plugin.archiveProject(it.path, false));
   iconBtn(actions, "trash-2", t("btn_delete_forever"), () => plugin.confirmDeleteProject(it.path, it.name, redraw));
 }
 
-function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: string; count: number }, redraw: () => void, reorderSec?: NavSection): void {
+function labelRow(list: HTMLElement, ctx: PageCtx, l: { name: string; count: number }, redraw: () => void, reorderSec?: NavSection): void {
+  const plugin = ctx.plugin;
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorderSec) reorderHandle(row, list, plugin, reorderSec, l.name);
   colorDot(row, plugin, plugin.getLabelColor(l.name), l.name, "var(--bt-nav-label)", (c) => void plugin.setLabelColor(l.name, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: "#" + l.name });
-  name.onclick = () => void plugin.activateLabel(l.name);   // Klick öffnet das Label-Board
+  name.onclick = () => ctx.open({ kind: "label", key: l.name });   // Klick öffnet das Label-Board
   const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "pencil", t("btn_rename"), () => startLabelRename(row, plugin, l, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteLabel(l.name), redraw));
@@ -273,12 +281,13 @@ function labelRow(list: HTMLElement, plugin: BeautyTasksPlugin, l: { name: strin
 
 /** Filter-Zeile im ListManager: Name (Klick öffnet das Board) · Anzahl · Sichtbarkeit ·
  *  Bearbeiten (öffnet den Filter-Editor) · Löschen. Sichtbarkeit wie bei Projekten (nav_hidden). */
-function filterRow(list: HTMLElement, plugin: BeautyTasksPlugin, fl: FilterItem, redraw: () => void, reorderSec?: NavSection): void {
+function filterRow(list: HTMLElement, ctx: PageCtx, fl: FilterItem, redraw: () => void, reorderSec?: NavSection): void {
+  const plugin = ctx.plugin;
   const row = list.createDiv({ cls: "bt-manage-row" });
   if (reorderSec) reorderHandle(row, list, plugin, reorderSec, fl.path);
   colorDot(row, plugin, fl.color, fl.path, "var(--text-muted)", (c) => void plugin.setFilterColor(fl.path, c));
   const name = row.createSpan({ cls: "bt-manage-name", text: fl.name });
-  name.onclick = () => void plugin.activateFilter(fl.path);
+  name.onclick = () => ctx.open({ kind: "filter", key: fl.path });
   const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());   // Kriterien-Editor
   iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));

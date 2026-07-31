@@ -6,6 +6,7 @@
 // Alle Aktionen rufen bestehende Plugin-Methoden; das Menü ist reine Verdrahtung.
 import { setIcon, TFile } from "obsidian";
 import type BeautyTasksPlugin from "./main";
+import { PageCtx } from "./pageCtx";
 import { Task } from "./types";
 import { openPopover, openPopoverAt, popRow } from "./popover";
 import { openDatePicker, quickDates } from "./datePicker";
@@ -65,7 +66,8 @@ function openMovePicker(plugin: BeautyTasksPlugin, task: Task, anchor: HTMLEleme
 let holdPath: string | null = null;
 export const menuHoldPath = (): string | null => holdPath;
 
-export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y: number, doc: Document): void {
+export function showTaskMenu(ctx: PageCtx, task: Task, x: number, y: number, doc: Document): void {
+  const plugin = ctx.plugin;
   // Die auslösende Zeile „gehovert" halten, bis das Menü schließt – sonst ist nach dem Öffnen
   // nicht mehr erkennbar, WELCHER Aufgabe das Menü gehört. Über den Pfad statt das Element:
   // ein Neuzeichnen bei offenem Menü (z. B. Erinnerung ergänzt) ersetzt die Zeile; renderTask
@@ -94,12 +96,14 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
     // Ausgeblendet nur, wenn der Eintrag nirgends hinführte: auf der Seite, die man ansieht.
     const inbox = isInboxLink(task.project);
     const listPath = inbox ? INBOX_KEY : task.project!;
-    if (plugin.currentProject !== listPath) {
+    // „Bin ich schon dort?" ist eine Frage an DIESEN Tab – seit es mehrere gibt, kann das Plugin
+    // sie nicht mehr für alle beantworten.
+    if (!(ctx.page.kind === "project" && ctx.page.key === listPath)) {
       const sel = inbox ? undefined
         : (() => { const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
                    const n = baseName(task.project!); return [...bereiche, ...projekte].find((p) => p.name === n); })();
       popRow(pop, inbox ? "inbox" : (sel?.icon ?? "folder"), t("menu_goto_project"),
-        () => { close(); void plugin.activateProject(listPath); }, false,
+        () => { close(); ctx.open({ kind: "project", key: listPath }); }, false,
         inbox ? "var(--bt-nav-inbox)" : (sel?.color ?? undefined));
     }
     pop.createDiv({ cls: "bt-plus-sep" });
@@ -168,8 +172,9 @@ export function showTaskMenu(plugin: BeautyTasksPlugin, task: Task, x: number, y
  * Kalender-Chip/-Block); NICHT auf der Checkbox (Status-Menü) und nicht im Papierkorb
  * (dort gibt es Wiederherstellen/Löschen als Zeilen-Buttons).
  */
-export function installTaskMenuDelegation(root: HTMLElement, plugin: BeautyTasksPlugin): void {
+export function installTaskMenuDelegation(root: HTMLElement, getCtx: () => PageCtx): void {
   const doc = root.ownerDocument;
+  const plugin = getCtx().plugin;
   const taskOf = (e: Event): Task | null => {
     const target = e.target as HTMLElement | null;
     const el = target?.closest<HTMLElement>("[data-path]");
@@ -184,7 +189,7 @@ export function installTaskMenuDelegation(root: HTMLElement, plugin: BeautyTasks
     if (!task) return;
     e.preventDefault(); e.stopPropagation();
     clear();   // falls die Plattform zum Long-Press zusätzlich contextmenu feuert
-    showTaskMenu(plugin, task, e.clientX, e.clientY, doc);
+    showTaskMenu(getCtx(), task, e.clientX, e.clientY, doc);
   }, true);
 
   // Touch: Long-Press (~500 ms) öffnet dasselbe Menü (auf Mobile gibt es keinen Rechtsklick).
@@ -197,7 +202,7 @@ export function installTaskMenuDelegation(root: HTMLElement, plugin: BeautyTasks
     const p = e.touches[0];
     const x = p.clientX, y = p.clientY;
     longFired = false;
-    timer = window.setTimeout(() => { timer = null; longFired = true; showTaskMenu(plugin, task, x, y, doc); }, 500);
+    timer = window.setTimeout(() => { timer = null; longFired = true; showTaskMenu(getCtx(), task, x, y, doc); }, 500);
   }, { passive: true, capture: true });
   root.addEventListener("touchend", clear);
   root.addEventListener("touchmove", clear);

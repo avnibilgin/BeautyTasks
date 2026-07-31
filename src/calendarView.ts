@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
+import { PageCtx } from "./pageCtx";
 import { Task, CalEvent, agendaDate } from "./types";
 import { ViewOptions } from "./filterEngine";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -38,10 +39,17 @@ const MIN_DUR = 15;
 const TWO_LINE_PX = 34;          // darunter passen Uhrzeit + Titel nicht untereinander -> eine Zeile
 const DAY_START_HOUR = 7;        // Startansicht der Wochenansicht (nicht Mitternacht)
 
-// Angezeigter Zeitraum je Seite (transient wie boardScroll – ein Reload startet wieder bei „heute“).
+// Angezeigter Zeitraum je Seite UND TAB (transient wie boardScroll – ein Reload startet wieder
+// bei „heute“). Der Tab gehört in den Schlüssel: zwei Kalender-Tabs derselben Seite blätterten
+// sonst gemeinsam, obwohl man sie gerade aufgemacht hat, um zwei Zeiträume zu vergleichen.
 const anchors = new Map<string, string>();
-const pageKey = (plugin: BeautyTasksPlugin): string =>
-  (plugin.currentProject ?? plugin.currentLabel ?? plugin.currentFilter ?? plugin.currentView ?? "") + "|cal";
+const pageKey = (ctx: PageCtx): string => ctx.id + "|" + ctx.pageKey + "|cal";
+/** Anker eines Tabs verwerfen – ruft heuteView beim Schließen bzw. Seitenwechsel auf.
+ *  Ohne das wüchse die Map mit jedem geschlossenen Tab weiter (die Kennung kommt nie wieder). */
+export function dropCalendarAnchors(id: string): void {
+  const prefix = id + "|";
+  for (const k of [...anchors.keys()]) if (k.startsWith(prefix)) anchors.delete(k);
+}
 
 // Drag-Zustand (nur eigene Chips, kein Vault-Drag)
 let dragPath: string | null = null;
@@ -85,20 +93,20 @@ interface CalMount {
 const mounts = new WeakMap<HTMLElement, CalMount>();
 
 /** Signatur des Kalender-Kontexts. Gleich = derselbe Rahmen, nur andere Aufgaben. */
-function calSignature(plugin: BeautyTasksPlugin, opts: ViewOptions): string {
-  const key = pageKey(plugin);
+function calSignature(ctx: PageCtx, opts: ViewOptions): string {
+  const key = pageKey(ctx);
   const today = todayStr();
   return [key, opts.calMode, anchors.get(key) ?? today, opts.showDone, opts.calPanel, today].join("|");
 }
 
 /** Versucht, den bereits gezeichneten Kalender in `c` nur nachzufüllen. true = erledigt,
  *  der Aufrufer darf das Neuzeichnen überspringen. */
-export function tryPatchCalendar(c: HTMLElement, plugin: BeautyTasksPlugin): boolean {
+export function tryPatchCalendar(c: HTMLElement, ctx: PageCtx): boolean {
   const m = mounts.get(c);
   if (!m || !m.root.isConnected) return false;
-  const opts = plugin.pageViewOptions();
+  const opts = ctx.opts;
   if (opts.layout !== "calendar") return false;
-  if (m.sig !== calSignature(plugin, opts)) return false;
+  if (m.sig !== calSignature(ctx, opts)) return false;
   m.paint(m.source());
   return true;
 }
@@ -108,15 +116,16 @@ export function tryPatchCalendar(c: HTMLElement, plugin: BeautyTasksPlugin): boo
  * in Woche/Monat/Jahr wäre die Wahl willkürlich. Damit weiß auch „+ Aufgabe hinzufügen"
  * außerhalb des Kalenders, auf welches Datum es vorbelegen soll.
  */
-export function calendarDayAnchor(plugin: BeautyTasksPlugin, opts: ViewOptions): string | null {
+export function calendarDayAnchor(ctx: PageCtx, opts: ViewOptions): string | null {
   if (opts.layout !== "calendar" || opts.calMode !== "day") return null;
-  return anchors.get(pageKey(plugin)) ?? todayStr();
+  return anchors.get(pageKey(ctx)) ?? todayStr();
 }
 
 /** Kalender zeichnen. `source` liefert die Aufgaben der Seite – als Funktion, damit der
  *  Patch-Pfad sie später frisch nachladen kann, ohne die Seiten-Logik zu kennen. */
-export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, source: () => Task[], today: string,
+export function renderCalendar(root: HTMLElement, ctx: PageCtx, source: () => Task[], today: string,
   opts: ViewOptions, redraw: () => void, add: CalendarAdd = {}): void {
+  const plugin = ctx.plugin;
   const tasks = source();
   root.addClass("bt-sizer-board");            // volle Pane-Breite (wie das Kanban)
   root.addClass("bt-calview-host");           // + volle Pane-HÖHE (Flex-Kette bis zum unteren Rand)
@@ -125,7 +134,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   // JEDER DOM-Änderung im Teilbaum muss die Bedingung neu geprüft werden (im Profil: 72 ms
   // Recalculate Style je Neuzeichnung). Eine schlichte Klasse kostet nichts.
   root.parentElement?.addClass("bt-view-calendar");
-  const key = pageKey(plugin);
+  const key = pageKey(ctx);
   const anchor = anchors.get(key) ?? today;
   const mode: CalMode = opts.calMode;
 
@@ -154,7 +163,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   const seg = head.createDiv({ cls: "bt-tabs bt-calview-seg" });
   for (const m of CAL_MODES) {
     const b = seg.createEl("button", { cls: "bt-tab" + (mode === m ? " is-active" : ""), text: t("cal_mode_" + m) });
-    b.onclick = () => void plugin.setPageViewOption({ calMode: m });
+    b.onclick = () => ctx.setOption({ calMode: m });
   }
 
   // Undatierte der Seite = Quelle der Seitenleiste: weder Fälligkeit noch Deadline. Sie fallen
@@ -174,11 +183,11 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
     setIcon(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "calendar-off");
     const n = tgl.createSpan({ cls: "bt-calview-panel-n" });
     setPanelCount = (count: number) => n.setText(count ? String(count) : "");
-    tgl.onclick = () => void plugin.setPageViewOption({ calPanel: !opts.calPanel });
+    tgl.onclick = () => ctx.setOption({ calPanel: !opts.calPanel });
   }
 
   // In eine feinere Ansicht springen: Anker zuerst setzen, dann den Modus (der rendert neu).
-  const zoom = (next: string, m: CalMode): void => { anchors.set(key, next); void plugin.setPageViewOption({ calMode: m }); };
+  const zoom = (next: string, m: CalMode): void => { anchors.set(key, next); ctx.setOption({ calMode: m }); };
 
   // Sichtbare Tage des Rasters – Grundlage für den Termin-Abruf (setRange) und das Zuschneiden
   // (bucketEvents). Das Jahr zeigt in v1 keine Termine, dort bleibt die Liste leer.
@@ -188,7 +197,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   // Termine gehören zu „Heute"/„Demnächst", nicht zu einem Projekt (s. pageShowsEvents).
   // Auf allen anderen Seiten wird der Feed weder ANGEZEIGT noch ANGESTOSSEN: ein setRange für ein
   // Raster, das die Termine ohnehin nicht zeichnet, holte nur unnötig Monate von Google.
-  const showsEvents = pageShowsEvents(plugin.currentPage().key);
+  const showsEvents = pageShowsEvents(ctx.pageKey);
   // Der Feed holt genau diesen Zeitraum nach (Cache/Snapshot füllt sofort, Rest im Hintergrund).
   if (showsEvents && gridDays.length) plugin.gcalFeed?.setRange(gridDays[0], gridDays[gridDays.length - 1]);
   // Einziger Zulauf für Termine: Jahr, Monat und Zeitraster bekommen sie ausschließlich über die
@@ -204,7 +213,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
   // Jeder Zeichner baut sein GERÜST und liefert eine Funktion zurück, die nur die Aufgaben füllt.
   // Tag, 3 Tage und Woche sind dasselbe Zeitraster – nur mit 1, 3 oder 7 Spalten.
   const fillGrid = mode === "year" ? renderYear(body, plugin, anchor, today, zoom)
-    : mode === "month" ? renderMonth(body, plugin, anchor, today, add)
+    : mode === "month" ? renderMonth(body, ctx, anchor, today, add)
       : renderTimeGrid(body, plugin, timeGridDays(mode, anchor), today, add);
   const fillPanel = panelUseful && opts.calPanel ? renderUnscheduled(body, plugin, add) : null;
 
@@ -221,7 +230,7 @@ export function renderCalendar(root: HTMLElement, plugin: BeautyTasksPlugin, sou
 
   // Für das nächste Mal merken: gleiche Signatur -> nur noch paint() statt Neuaufbau.
   const host = root.parentElement;
-  if (host) mounts.set(host, { sig: calSignature(plugin, opts), root, source, paint });
+  if (host) mounts.set(host, { sig: calSignature(ctx, opts), root, source, paint });
 }
 
 /** Kopftitel je Modus: „2026" | „Juli 2026" | „13. – 19. Juli 2026" | „Montag, 13. Juli 2026". */
@@ -316,8 +325,9 @@ const firstTask = (buckets: Map<string, Task[]>): Task | null => {
   return null;
 };
 
-function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
+function renderMonth(root: HTMLElement, ctx: PageCtx,
   anchor: string, today: string, add: CalendarAdd): GridFiller {
+  const plugin = ctx.plugin;
   const wrap = root.createDiv({ cls: "bt-calview bt-calview-month" });
   const wd = wrap.createDiv({ cls: "bt-calview-weekdays" });
   for (const i of [1, 2, 3, 4, 5, 6, 0]) wd.createDiv({ cls: "bt-calview-wd", text: weekdayShort(i) });
@@ -365,7 +375,7 @@ function renderMonth(root: HTMLElement, plugin: BeautyTasksPlugin,
         openPopover(more, (pop) => {                       // alle Termine + Aufgaben des Tages im Popover
           pop.addClass("bt-calview-pop");
           installCheckDelegation(pop, plugin);             // Popovers hängen am Body, nicht in der View
-          installTaskMenuDelegation(pop, plugin);          // Zeilen-Kontextmenü auch hier
+          installTaskMenuDelegation(pop, () => ctx);       // Zeilen-Kontextmenü auch hier
           pop.createDiv({ cls: "bt-pop-head", text: dayTitle(day) });
           for (const d of draws) d(pop);
         });

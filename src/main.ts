@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Component, Platform, moment, setIcon, addIcon } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Platform, moment, setIcon, addIcon } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
@@ -7,6 +7,7 @@ import { runMigration } from "./migrate";
 import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
 } from "./heuteView";
+import { PageRef, pageInfo, samePage } from "./pageCtx";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
@@ -50,20 +51,13 @@ export default class BeautyTasksPlugin extends Plugin {
   gcalFeed!: GCalFeed;
   private gcalStatusBar: HTMLElement | null = null;
   private feedRedrawTimer: number | null = null;
-  currentView: ViewId = "heute";
-  currentProject: string | null = null;
-  currentLabel: string | null = null;                   // aktives Label-Board
-  currentFilter: string | null = null;                  // aktiver gespeicherter Filter (type:filter-Pfad)
+  // WELCHE SEITE OFFEN IST, steht NICHT mehr hier: das gehört seit 1.34 dem jeweiligen Tab
+  // (MainView.page, s. pageCtx.ts). Am Plugin bleibt nur, was es wirklich nur einmal gibt.
   colorPreview: { key: string; color: string } | null = null;   // Live-Vorschau der Icon-Farbe (Farb-Picker), NICHT persistiert
   reorderSec: NavSection | null = null;                 // aktiver Drag-Sortiermodus in der Seitenleiste (transient, nur Sichtbare)
-  doneCollapsed = true;                                  // „Erledigt"-Sektionen eingeklappt (Default)
-  manageOpen = false;                                   // Verwaltungs-Ansicht aktiv?
-  manageSection: "projects" | "areas" | "labels" | "filters" = "projects";    // welcher Bereich im ListManager
-  manageTab: "active" | "archive" = "active";           // Unterteilung nur bei Projekten
-  doneTab: "done" | "trash" = "done";                   // „Erledigt"-Ansicht: Liste vs. Papierkorb
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
   flashScrolled = false;                                 // pro Sprung nur einmal ins Bild scrollen
-  titleRenderComp: Component | null = null;              // Lifecycle für Markdown-Titel (Links), von MainView pro Zeichnung gesetzt
+  private lastMain: MainView | null = null;              // zuletzt benutzter Dashboard-Tab (s. activeMain)
   private reminderScan = 0;                              // Obergrenze des zuletzt geprüften Zeitfensters (Epoch-ms)
 
   async onload(): Promise<void> {
@@ -78,7 +72,6 @@ export default class BeautyTasksPlugin extends Plugin {
         "--bt-c-recur", "--bt-c-remind", "--bt-c-sched", "--bt-c-label", "--bt-c-comments", "--bt-c-subs", "--bt-c-parent", "--bt-c-backlink"]) document.body.style.removeProperty(n);
       document.body.removeClasses(["bt-meta-minimalisdo", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
     });
-    this.currentView = this.resolveStartView();   // Startansicht aus den Einstellungen
 
     this.index = new TaskIndex(this.app, () => this.settings);
     this.addChild(this.index);
@@ -143,6 +136,17 @@ export default class BeautyTasksPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("layout-change", () => {
       this.renderAll();
       this.gcalFeed?.refreshIfStale();   // Ansicht wieder sichtbar -> Termine auffrischen (falls alt)
+    }));
+    // Tab-Wechsel merken: welcher Dashboard-Tab ist gemeint, wenn die Seitenleiste navigiert?
+    // Bewusst NUR bei einem Dashboard-Leaf reagieren – wechselt der Fokus in die Seitenleiste
+    // (also genau beim Klick dorthin), bleibt alles stehen. Ein renderNav() an dieser Stelle
+    // führe c.empty() mitten in der Klick-Geste aus und schluckte den Klick (s. layout-change).
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
+      if (!(leaf?.view instanceof MainView)) return;
+      leaf.view.drawIfDirty();   // war der Tab verdeckt, ist seine Zeichnung nachzuholen
+      if (this.lastMain === leaf.view) return;
+      this.lastMain = leaf.view;
+      this.renderNav();   // Markierung folgt dem Tab im Vordergrund
     }));
     // Referenz-Integrität bei JEDEM Umbenennen (nativ ODER über das Plugin) selbst sicherstellen –
     // unabhängig von Obsidians „interne Links aktualisieren"-Einstellung (die Klartext-Kriterien in
@@ -221,10 +225,31 @@ export default class BeautyTasksPlugin extends Plugin {
     }
   }
 
+  /** Alle offenen Dashboard-Tabs. */
+  mainViews(): MainView[] {
+    return this.app.workspace.getLeavesOfType(VIEW_MAIN)
+      .map((l) => l.view).filter((v): v is MainView => v instanceof MainView);
+  }
+  /**
+   * Der Tab, dem Navigation aus der Seitenleiste folgt und dessen Seite dort markiert wird.
+   *
+   * Bewusst NICHT getActiveViewOfType: sobald man in die Seitenleiste klickt, ist DIE der aktive
+   * Leaf und die Antwort wäre null – ein Klick auf ein Projekt landete dann immer im ersten Tab
+   * statt in dem, den man gerade angesehen hat. Gemeint ist der ZULETZT benutzte Dashboard-Tab,
+   * den `lastMain` mitschreibt (s. active-leaf-change in onload).
+   */
+  activeMain(): MainView | null {
+    const views = this.mainViews();
+    const last = this.lastMain;
+    return (last && views.includes(last)) ? last : views[0] ?? null;
+  }
+  /** Seite des aktiven Tabs – Grundlage der Markierung in der Seitenleiste (s. renderNavInto). */
+  activePage(): PageRef | null { return this.activeMain()?.page ?? null; }
+
   // ── Öffnen / Navigieren ──
   async openBeautyTasks(): Promise<void> {
     await this.activateNav();
-    await this.activateView(this.resolveStartView());
+    await this.openPage({ kind: "view", key: this.startView() });
   }
 
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
@@ -233,15 +258,22 @@ export default class BeautyTasksPlugin extends Plugin {
     setLocale(this.settings.locale === "auto" ? moment.locale() : this.settings.locale);
   }
 
-  /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte. */
-  private resolveStartView(): ViewId {
+  /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte.
+   *  Öffentlich, weil ein frisch erzeugter Tab damit startet (MainView-Konstruktor). */
+  startView(): ViewId {
     const pick = this.settings.startView === "last" ? this.settings.lastView : this.settings.startView;
     return (VIEW_IDS as string[]).includes(pick) ? (pick as ViewId) : "heute";
   }
-  /** Zur konfigurierten Startansicht wechseln – z. B. wenn der gerade offene Eintrag
-   *  (Projekt/Bereich/Label/Filter) gelöscht oder archiviert wurde. */
-  private async goToStartView(): Promise<void> {
-    await this.activateView(this.resolveStartView());
+  /**
+   * Jeden Tab, der die betroffene Seite zeigt, zur Startansicht schicken – wenn ihr Eintrag
+   * (Projekt/Bereich/Label/Filter) gelöscht oder archiviert wurde. Früher ein einzelner
+   * Wechsel, weil es nur eine Ansicht gab; seit es mehrere Tabs gibt, muss JEDER betroffene
+   * weg, sonst bliebe in einem davon das leere Board eines gelöschten Eintrags stehen.
+   */
+  private leaveDeletedPage(page: PageRef): void {
+    const start: PageRef = { kind: "view", key: this.startView() };
+    for (const v of this.mainViews()) if (samePage(v.page, page)) v.openPage(start);
+    this.renderAll();
   }
 
   async activateNav(): Promise<void> {
@@ -255,62 +287,59 @@ export default class BeautyTasksPlugin extends Plugin {
     this.renderNav();
   }
 
-  /** EINE Dashboard-Leaf öffnen/vordergründig machen und neu zeichnen. */
-  private async showMain(): Promise<void> {
+  /**
+   * Eine Seite öffnen. Ziel ist der zuletzt benutzte Dashboard-Tab; gibt es keinen, entsteht einer.
+   * Einen ZWEITEN Tab macht der Nutzer über Obsidians Tab-Menü auf („In neuem Tab öffnen" /
+   * „Rechts daneben") – die Seite reist über getState/setState mit, beide Tabs sind danach
+   * eigenständig.
+   */
+  async openPage(page: PageRef): Promise<void> {
     const { workspace } = this.app;
-    let leaf: WorkspaceLeaf | null = workspace.getLeavesOfType(VIEW_MAIN)[0] ?? null;
-    if (!leaf) {
-      leaf = workspace.getLeaf("tab");
-      await leaf.setViewState({ type: VIEW_MAIN, active: true });
+    if (page.kind === "view" && this.settings.lastView !== page.key) {
+      this.settings.lastView = page.key; void this.saveSettings();   // für startView === "last"
     }
+    const target = this.activeMain();
+    if (target) {
+      target.openPage(page);
+      await workspace.revealLeaf(target.leaf);
+      target.drawIfDirty();             // lag der Tab im Hintergrund, steht seine Zeichnung noch aus
+      return;
+    }
+    const leaf = workspace.getLeaf("tab");
+    await leaf.setViewState({ type: VIEW_MAIN, active: true, state: { kind: page.kind, key: page.key } });
     await workspace.revealLeaf(leaf);   // awaited -> View vollständig geladen
-    if (leaf.view instanceof MainView) leaf.view.draw();
+    if (leaf.view instanceof MainView) leaf.view.drawIfDirty();
     this.renderNav();
   }
 
-  async activateView(id: ViewId): Promise<void> {
-    this.currentView = id; this.currentProject = null; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; this.doneTab = "done";
-    if (this.settings.lastView !== id) { this.settings.lastView = id; void this.saveSettings(); }   // für startView === "last"
-    await this.showMain();
-  }
-  async activateProject(path: string): Promise<void> { this.currentProject = path; this.currentLabel = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
-  async activateLabel(label: string): Promise<void> { this.currentLabel = label; this.currentProject = null; this.currentFilter = null; this.manageOpen = false; await this.showMain(); }
-  async activateFilter(path: string): Promise<void> { this.currentFilter = path; this.currentProject = null; this.currentLabel = null; this.manageOpen = false; await this.showMain(); }
-  async activateManage(section?: "projects" | "areas" | "labels" | "filters", tab: "active" | "archive" = "active"): Promise<void> {
-    this.manageOpen = true;
-    if (section) this.manageSection = section;
+  // Bequeme Namen für die Seitenleiste, Menüs und Commands – alle landen in openPage().
+  async activateView(id: ViewId): Promise<void> { await this.openPage({ kind: "view", key: id }); }
+  async activateProject(path: string): Promise<void> { await this.openPage({ kind: "project", key: path }); }
+  async activateLabel(label: string): Promise<void> { await this.openPage({ kind: "label", key: label }); }
+  async activateFilter(path: string): Promise<void> { await this.openPage({ kind: "filter", key: path }); }
+  async activateManage(section: "projects" | "areas" | "labels" | "filters" = "projects", tab: "active" | "archive" = "active"): Promise<void> {
+    await this.openPage({ kind: "manage", key: section });
     // Default „Aktiv": Der Aktiv/Archiv-Umschalter ist eine Sicht INNERHALB der Übersicht, kein Zustand
     // der Anwendung – wer sie neu aufruft, will die aktiven Projekte sehen. Ausnahme: von der Seite
     // eines ARCHIVIERTEN Projekts „Zur Archivübersicht" landet gezielt im Archiv-Tab (tab="archive").
-    this.manageTab = tab;
-    this.currentProject = null;
-    this.currentLabel = null;
-    this.currentFilter = null;
-    await this.showMain();
+    const v = this.activeMain();
+    if (v) { v.ctx().setManageTab(tab); v.draw(); }
   }
 
   // ── Anzeige pro Seite (Layout/Sortieren/Gruppieren/Erledigte) ──
-  /** Welche Seite ist gerade offen + ihre „Fernbedienungs-Größe". */
-  currentPage(): { key: string; tier: "full" | "light" | "none"; kind: "view" | "project" | "label" | "filter" } {
-    if (this.manageOpen) return { key: "manage", tier: "none", kind: "view" };
-    if (this.currentFilter) return { key: this.currentFilter, tier: "full", kind: "filter" };
-    if (this.currentLabel) return { key: this.currentLabel, tier: "full", kind: "label" };
-    // Eingang: eingebaute Ansicht ohne Notiz -> Anzeige-Optionen in den Settings (wie Heute/Demnächst).
-    if (this.currentProject === INBOX_KEY) return { key: "inbox", tier: "full", kind: "view" };
-    if (this.currentProject) return { key: this.currentProject, tier: "full", kind: "project" };
-    const v = this.currentView;
-    return { key: v, tier: (v === "heute" || v === "demnaechst") ? "light" : "none", kind: "view" };
-  }
-  /** Effektive Anzeige-Optionen der aktuellen Seite (aus Frontmatter bzw. Settings). */
-  pageViewOptions(): ViewOptions {
-    const p = this.currentPage();
+  // Gespeichert wird JE SEITE (Projekt-/Filter-Frontmatter bzw. Settings) – das bleibt so, auch
+  // wenn mehrere Tabs dieselbe Seite zeigen. Nur das LAYOUT kann ein Tab für sich überschreiben
+  // (MainView.setLayout); alles andere beschreibt den Inhalt der Seite, nicht den Blick darauf.
+  /** Gespeicherte Anzeige-Optionen einer Seite (aus Frontmatter bzw. Settings). */
+  pageOptions(page: PageRef): ViewOptions {
+    const p = pageInfo(page);
     if (p.kind === "project") return readNoteViewOptions(this.app, p.key);
     if (p.kind === "filter") { const fl = readFilter(this.app, p.key); return fl ? fl.options : { ...DEFAULT_OPTIONS }; }
     return readViewOptions(this.settings.pageViewOptions?.[p.kind === "label" ? "label:" + p.key : p.key]);
   }
-  /** Eine Anzeige-Option der aktuellen Seite setzen – am richtigen Ort gespeichert. */
-  async setPageViewOption(patch: Partial<ViewOptions>): Promise<void> {
-    const p = this.currentPage();
+  /** Eine Anzeige-Option einer Seite setzen – am richtigen Ort gespeichert. */
+  async setPageOption(page: PageRef, patch: Partial<ViewOptions>): Promise<void> {
+    const p = pageInfo(page);
     if (p.kind === "project") { this.refreshOnChange(p.key); await setNoteViewOption(this.app, p.key, patch); return; }
     if (p.kind === "filter") {
       const fl = readFilter(this.app, p.key); if (!fl) return;
@@ -324,9 +353,9 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.saveSettings();
     this.renderMain();
   }
-  /** Anzeige-Optionen der aktuellen Seite auf Default zurücksetzen. */
-  async resetPageViewOptions(): Promise<void> {
-    const p = this.currentPage();
+  /** Anzeige-Optionen einer Seite auf Default zurücksetzen. */
+  async resetPageOptions(page: PageRef): Promise<void> {
+    const p = pageInfo(page);
     if (p.kind === "project") { this.refreshOnChange(p.key); await setNoteViewOption(this.app, p.key, { ...DEFAULT_OPTIONS }); return; }
     if (p.kind === "filter") { const fl = readFilter(this.app, p.key); if (fl) await this.updateFilter(p.key, fl.criteria, { ...DEFAULT_OPTIONS }, fl.color); return; }
     if (this.settings.pageViewOptions) { delete this.settings.pageViewOptions[p.kind === "label" ? "label:" + p.key : p.key]; await this.saveSettings(); }
@@ -372,8 +401,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   async deleteFilter(path: string): Promise<void> {
     await deleteFilterNote(this.app, path);
-    if (this.currentFilter === path) await this.goToStartView();
-    else this.renderAll();
+    this.leaveDeletedPage({ kind: "filter", key: path });
   }
 
   /** Aus der Suche gewählte Aufgabe in ihrer Liste zeigen: zum Projekt-/Inbox-Board
@@ -383,7 +411,6 @@ export default class BeautyTasksPlugin extends Plugin {
   async revealTask(task: Task): Promise<void> {
     this.flashPath = task.path;
     this.flashScrolled = false;
-    if (isDone(task.status)) this.doneCollapsed = false;   // Erledigt-Sektion aufklappen, sonst ist die Zeile verborgen
     if (task.project) {
       await this.activateProject(task.project);
     } else if (isDone(task.status)) {
@@ -392,6 +419,12 @@ export default class BeautyTasksPlugin extends Plugin {
       await this.activateView("heute");
     } else {
       await this.activateView("demnaechst");   // datiert (künftig) oder ohne Datum
+    }
+    // Erledigt-Sektion des ZIEL-Tabs aufklappen (sonst ist die Zeile verborgen) – nach dem
+    // Wechsel, weil ein Seitenwechsel den Klappzustand des Tabs auf die Vorgabe zurücksetzt.
+    if (isDone(task.status)) {
+      const v = this.activeMain();
+      if (v) { v.ctx().setDoneCollapsed(false); v.draw(); }
     }
     window.setTimeout(() => {
       if (this.flashPath !== task.path) return;
@@ -438,8 +471,8 @@ export default class BeautyTasksPlugin extends Plugin {
   async archiveProject(path: string, archived: boolean): Promise<void> {
     this.refreshOnChange(path);
     await setProjectArchived(this.app, path, archived);
-    // Archivieren des gerade offenen Projekts/Bereichs → zur Startansicht (Board wäre sonst „weg").
-    if (archived && this.currentProject === path) await this.goToStartView();
+    // Archivieren eines offenen Projekts/Bereichs → betroffene Tabs zur Startansicht (Board wäre sonst „weg").
+    if (archived) this.leaveDeletedPage({ kind: "project", key: path });
   }
   /** Projekt/Bereich archivieren und eine „Rückgängig"-Notice zeigen (Kontextmenü + Bearbeiten-Modal). */
   archiveWithUndo(path: string, name: string): void {
@@ -494,8 +527,7 @@ export default class BeautyTasksPlugin extends Plugin {
     await deleteProjectNote(this.app, path);
     // Datei ist nach trashFile sofort weg -> Cache aktuell. War es das offene Projekt/Bereich,
     // zur Startansicht wechseln (sonst bliebe ein leeres Board des gelöschten Eintrags stehen).
-    if (this.currentProject === path) { await this.goToStartView(); return; }
-    this.renderAll();
+    this.leaveDeletedPage({ kind: "project", key: path });
   }
 
   /** Die (nicht schon im Papierkorb liegenden) Aufgaben eines Projekts/Bereichs – inkl. Unterbäume,
@@ -631,7 +663,7 @@ export default class BeautyTasksPlugin extends Plugin {
       this.settings.labelColors[nu] = this.settings.labelColors[oldName];
       delete this.settings.labelColors[oldName];
     }
-    if (this.currentLabel === oldName) this.currentLabel = nu;
+    for (const v of this.mainViews()) if (samePage(v.page, { kind: "label", key: oldName })) v.openPage({ kind: "label", key: nu });
     await this.saveSettings();
     this.renderAll();
     return true;
@@ -655,8 +687,12 @@ export default class BeautyTasksPlugin extends Plugin {
     const newBase = file.basename;
 
     if (type !== "task" && oldPath !== file.path) this.remapNavOrder(oldPath, file.path);   // navOrder ist pfadbasiert
-    if (this.currentProject === oldPath) this.currentProject = file.path;
-    if (this.currentFilter === oldPath) this.currentFilter = file.path;
+    // Offene Tabs auf den neuen Pfad umhängen – sonst zeigte der Tab ins Leere. Aufgaben haben
+    // keine eigene Seite, für sie ist hier nichts zu tun.
+    if (type !== "task") {
+      const moved: PageRef["kind"] = type === "filter" ? "filter" : "project";
+      for (const v of this.mainViews()) if (samePage(v.page, { kind: moved, key: oldPath })) v.openPage({ kind: moved, key: file.path });
+    }
 
     if (oldBase !== newBase) {
       if (type === "project" || type === "area") await this.remapListRefs(oldBase, newBase);
@@ -717,10 +753,8 @@ export default class BeautyTasksPlugin extends Plugin {
     this.settings.knownLabels = this.settings.knownLabels.filter((x) => x !== name);
     this.settings.visibleLabels = this.settings.visibleLabels.filter((x) => x !== name);
     delete this.settings.labelColors[name];
-    const wasOpen = this.currentLabel === name;
     await this.saveSettings();
-    if (wasOpen) { await this.goToStartView(); return; }   // offenes Label gelöscht → Startansicht
-    this.renderAll();
+    this.leaveDeletedPage({ kind: "label", key: name });   // offene Label-Tabs → Startansicht
   }
 
   // ── Label-Farbe (Labels sind keine Notizen -> Speicher in den Settings) ──
@@ -1283,9 +1317,14 @@ export default class BeautyTasksPlugin extends Plugin {
    * Filter) belegen nichts vor -> Eingang, wie bisher.
    */
   addContext(): { project?: string; label?: string; today: boolean; due: string | null } {
-    const page = this.currentPage();
+    // Gemeint ist der Tab im Vordergrund – nicht mehr „die" Seite, die es seit den Mehrfach-Tabs
+    // nicht mehr gibt. Ohne offenes Dashboard bleibt es beim Eingang (kein Kontext).
+    const view = this.activeMain();
+    if (!view) return { today: false, due: null };
+    const ctx = view.ctx();
+    const page = pageInfo(ctx.page);
     // Kalender-Tagesansicht: der angezeigte Tag, nicht zwingend heute (wie „+ Aufgabe" dort).
-    const due = calendarDayAnchor(this, this.pageViewOptions());
+    const due = calendarDayAnchor(ctx, ctx.opts);
     if (page.kind === "project") return { project: baseName(page.key), today: false, due };
     if (page.kind === "label") return { label: page.key, today: false, due };
     if (page.kind === "view" && page.key === "heute") return { today: true, due };

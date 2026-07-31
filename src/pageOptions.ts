@@ -19,7 +19,7 @@ const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T)
  * spränge die Ansicht beim Update wortlos zurück.
  *
  * `undefined` = nie gewählt. Bewusst NICHT hier auf einen Wert auflösen: die Vorgabe hängt am
- * Layout (s. effectiveSubtasks), und ein früh gesetzter Wert würde von setPageViewOption
+ * Layout (s. effectiveSubtasks), und ein früh gesetzter Wert würde von setPageOption
  * dauerhaft festgeschrieben. `showSubtasks: false` war der damalige Standard und zählt deshalb
  * ebenfalls als „nie gewählt" – im Board bedeutete er ohnehin nichts.
  *

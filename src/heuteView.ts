@@ -1,11 +1,12 @@
-import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, ViewStateResult } from "obsidian";
 import type BeautyTasksPlugin from "./main";
+import { PageCtx, PageRef, pageInfo, samePage } from "./pageCtx";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, openEdit, NavMenuItem } from "./navMenu";
@@ -14,7 +15,7 @@ import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manag
 import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
-import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen } from "./calendarView";
+import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
@@ -24,8 +25,28 @@ import { t, getLocale, projectDisplayName } from "./i18n";
 
 // Transienter Zustand während eines Kanban-Drags: Pfad der Karte + ID der Quell-Spalte
 // (für die Swap-Semantik beim Label-Board – welches Label die Karte hier her gebracht hat).
+// Bewusst OHNE Tab-Bezug: es gibt genau einen Mauszeiger, also immer höchstens einen laufenden
+// Zug – auch wenn er in einem anderen Tab endet als er begann (das Ziel sucht die Aufgabe über
+// ihren Pfad im Index, nicht über die Quell-Liste).
 let dragPath: string | null = null;
 let dragFromCol: string | null = null;
+/**
+ * ── Transienter Anzeige-Zustand: IMMER mit dem Tab schlüsseln ─────────────────────────────────
+ * Diese Maps überleben ein Neuzeichnen (das ist ihr Zweck), sind aber Modul-Zustand: ohne die
+ * Tab-Kennung im Schlüssel (ctx.id, s. viewKey) teilen sich zwei Tabs DERSELBEN Seite einen
+ * Eintrag – Tab 2 spränge dann beim Zeichnen auf die Scrollposition von Tab 1, und ein dort
+ * aufgeklapptes Unteraufgaben-Badge klappte hier mit auf.
+ */
+const viewKey = (ctx: PageCtx, rest: string): string => ctx.id + "|" + rest;
+/** Alle Einträge eines Tabs verwerfen (beim Schließen bzw. beim Seitenwechsel des Tabs). */
+function dropViewKeys(id: string): void {
+  const prefix = id + "|";
+  for (const map of [boardScroll, colScroll, subtaskToggle] as Map<string, unknown>[]) {
+    for (const k of [...map.keys()]) if (k.startsWith(prefix)) map.delete(k);
+  }
+  for (const k of [...gcalExpanded]) if (k.startsWith(prefix)) gcalExpanded.delete(k);
+  dropCalendarAnchors(id);   // der angezeigte Zeitraum des Kalenders liegt drüben (calendarView)
+}
 // Horizontale Board-Scrollposition je Board-Identität – überlebt Re-Renders (z. B. nach Karten-Drop).
 const boardScroll = new Map<string, number>();
 // Senkrechte Position INNERHALB einer Spalte (Schlüssel: Board-Identität + Spalten-ID).
@@ -38,24 +59,25 @@ const colScroll = new Map<string, number>();
 // überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(), ein
 // Reload startet wieder beim Modus-Default.
 const subtaskToggle = new Map<string, boolean>();
-function subsExpanded(path: string, mode: SubtaskDisplay): boolean {
-  return subtaskToggle.get(path) ?? (mode === "indented");
+function subsExpanded(ctx: PageCtx, path: string, mode: SubtaskDisplay): boolean {
+  return subtaskToggle.get(viewKey(ctx, path)) ?? (mode === "indented");
 }
 /**
- * Alle Einzel-Klick-Zustände verwerfen – ruft das Anzeige-Panel beim MODUSWECHSEL auf.
+ * Die Einzel-Klick-Zustände DIESES Tabs verwerfen – ruft das Anzeige-Panel beim MODUSWECHSEL auf.
  * Ohne das überstimmte ein früherer Badge-Klick („zu") den frisch gewählten Modus dauerhaft:
  * „Eingerückt" rückte dann genau die Aufgaben nicht ein, deren Badge man beim Ausprobieren
  * angeklickt hatte – je Ansicht andere, was wie ein Ansichts-Fehler aussah. Der Moduswechsel
  * ist die ausdrückliche neue Ansage „alle auf/zu" und setzt deshalb alle Overrides zurück.
  */
-export function resetSubtaskToggles(): void {
-  subtaskToggle.clear();
+export function resetSubtaskToggles(ctx: PageCtx): void {
+  const prefix = ctx.id + "|";
+  for (const k of [...subtaskToggle.keys()]) if (k.startsWith(prefix)) subtaskToggle.delete(k);
 }
 
 export const VIEW_PREFIX = "beautytasks-";
 export type ViewId = "heute" | "demnaechst" | "wiederkehrend" | "erledigt";
 export const VIEW_IDS: ViewId[] = ["heute", "demnaechst", "wiederkehrend", "erledigt"];
-export const VIEW_MAIN = VIEW_PREFIX + "main";             // EINE Dashboard-Leaf für alle Ansichten
+export const VIEW_MAIN = VIEW_PREFIX + "main";             // Dashboard-Leaf; beliebig oft offen (je Tab eine Seite)
 export const VIEW_NAV = VIEW_PREFIX + "nav";
 export const OLD_VIEW_TYPES = VIEW_IDS.map((v) => VIEW_PREFIX + v);   // Aufräumen alter Sitzungen
 export const VIEW_ICON: Record<ViewId, string> = {
@@ -68,8 +90,8 @@ export const viewTitle = (id: ViewId): string => t(TITLE_KEY[id]);
  *  angezeigte Tag, sonst null (dann greift wie bisher „heute" bzw. gar kein Datum). Projekt/Label
  *  kommen unverändert von der Seite – der Knopf verhält sich also wie in der Liste, nur mit dem
  *  Tag, den man gerade ansieht. */
-function addDue(plugin: BeautyTasksPlugin): string | null {
-  return calendarDayAnchor(plugin, plugin.pageViewOptions());
+function addDue(ctx: PageCtx): string | null {
+  return calendarDayAnchor(ctx, ctx.opts);
 }
 
 /** Aufgabenmenge für das Kalender-Layout der System-Views (Heute/Demnächst).
@@ -101,7 +123,8 @@ function pageTop(c: HTMLElement, layout: PageLayout): HTMLElement {
 }
 
 /** Rendert eine Dashboard-Ansicht in ein angehängtes DOM-Element (Deferred-sicher). */
-export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: ViewId): void {
+export function renderViewInto(c: HTMLElement, ctx: PageCtx, view: ViewId): void {
+  const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
@@ -110,21 +133,21 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
   const root = c.createDiv({ cls: "bt-sizer" });
   // Heute/Demnächst: Kopf mit „Anzeige"-Knopf (leichtes Panel). Wiederkehrend: nur Titel.
   if (view === "heute" || view === "demnaechst") {
-    const top = pageTop(c, plugin.pageViewOptions().layout);
+    const top = pageTop(c, ctx.opts.layout);
     const head = top.createDiv({ cls: "bt-board-head" });
     head.createEl("h1", { text: viewTitle(view) });
-    anzeigeButton(head.createDiv({ cls: "bt-head-actions" }), plugin);   // rechts an der Pane-Kante
+    anzeigeButton(head.createDiv({ cls: "bt-head-actions" }), ctx);   // rechts an der Pane-Kante
     const add = top.createDiv({ cls: "bt-add" });
     add.createSpan({ cls: "bt-add-icon" });
     add.createSpan({ text: t("btn_add_task") });
-    add.onclick = () => plugin.openNewTask(undefined, undefined, view === "heute", undefined, addDue(plugin));
+    add.onclick = () => plugin.openNewTask(undefined, undefined, view === "heute", undefined, addDue(ctx));
   } else if (view !== "erledigt") {
     root.createEl("h1", { text: viewTitle(view) });   // „Erledigt" bekommt einen Kopf mit Tabs (unten)
   }
 
   const idx = plugin.index;
   if (view === "heute") {
-    const opts = plugin.pageViewOptions();
+    const opts = ctx.opts;
     // Auswahl vollständig über den Index – die Regel (Fälligkeit, ersatzweise Deadline; eine
     // verstrichene Frist macht überfällig) lebt in filterEngine und gilt für alle Zeit-Ansichten.
     const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
@@ -138,11 +161,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length) {
       emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "calendar") {
-      renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
+      renderCalendar(root, ctx, () => calendarTasks(plugin, opts), today, opts, () => ctx.redraw());
     } else if (opts.layout === "board") {
       // Board folgt der Gruppierung (Status/Label/Priorität/Projekt) – wie die vollen Seiten.
       // Termine haben hier keine Spalte (kein Tages-Board) → sie erscheinen im Listen-/Kalender-Layout.
-      renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
+      renderKanbanBoard(root, ctx, opts.showDone ? [...open, ...doneToday] : open, today, opts, { today: true });
     } else {
       // Wie in renderPageBody: jede Sektion bestimmt ihre Wirte aus ihrer eigenen Menge, sonst
       // fallen Unteraufgaben zwischen offen und erledigt hindurch (s. dort).
@@ -164,11 +187,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
         // kein „Überfällig · 0" und kein leeres „Heute". „Heute" bleibt aber, wenn Termine dranhängen
         // (die zählen mit, auch ohne Aufgabe für heute).
         if (visibleRows(overdue, present, ownRow).length) {
-          const overdueHead = section(root, plugin, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
+          const overdueHead = section(root, ctx, t("sec_overdue"), sortTasks(overdue, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, [], "", ownRow);
           rescheduleButton(overdueHead, plugin, overdue);   // verschiebt ALLE überfälligen, auch die verschachtelten
         }
         if (visibleRows(dueToday, present, ownRow).length || todayEv.length) {
-          section(root, plugin, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
+          section(root, ctx, groupLabel(today, today), sortTasks(dueToday, opts.sort, opts.sortDir, orderKey(plugin)), today, false, false, present, todayEv, today, ownRow);
         }
       } else {
         // Aktive Gruppierung ersetzt den Überfällig/Heute-Split. Die Termine gehören zu „Heute":
@@ -179,23 +202,23 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           .filter((g) => visibleRows(g.tasks, present, ownRow).length);
         const hasToday = gs.some((g) => g.title === todayHead);
         const overdueIdx = gs.findIndex((g) => g.title === t("sec_overdue"));
-        const eventsSection = (): void => { section(root, plugin, todayHead, [], today, false, false, present, todayEv, today, ownRow); };
+        const eventsSection = (): void => { section(root, ctx, todayHead, [], today, false, false, present, todayEv, today, ownRow); };
         if (todayEv.length && !hasToday && overdueIdx === -1) eventsSection();   // nichts davor → oben
         gs.forEach((g, i) => {
           const isToday = g.title === todayHead;
-          section(root, plugin, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow);
+          section(root, ctx, g.title, g.tasks, today, false, false, present, isToday ? todayEv : [], isToday ? today : "", ownRow);
           // Kein Sammel-„Verschieben" hier: „Datum" läuft über den Split-Zweig oben (dort trägt Überfällig
           // seinen Knopf). Bei „Deadline" stammt die gleichnamige Gruppe aus `scheduled` – eine Deadline
           // verhandelt man einzeln, nicht per Sammelklick; „Priorität"/„Label"/„Projekt" ohnehin fachfremd.
           if (todayEv.length && !hasToday && i === overdueIdx) eventsSection();   // direkt nach „Überfällig"
         });
       }
-      if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, plugin, t("sec_done"), doneToday, today, true, false, doneHosts);
+      if (opts.showDone && visibleRows(doneToday, doneHosts).length) section(root, ctx, t("sec_done"), doneToday, today, true, false, doneHosts);
     }
   } else if (view === "demnaechst") {
     // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
     // Eingang/Projekt bzw. später „Irgendwann") und KEINE erledigten (gehören in „Erledigt").
-    const opts = plugin.pageViewOptions();
+    const opts = ctx.opts;
     const groups = idx.upcomingByDate(today);
     // Termine des Vorschauzeitraums (read-only). Der Feed lädt diesen Bereich nach (Listen-Layout
     // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
@@ -208,11 +231,11 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     const evByDate = feedEventsByDate(plugin, addDays(today, 1), eventEnd);
     if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
     else if (opts.layout === "calendar") {
-      renderCalendar(root, plugin, () => calendarTasks(plugin, opts), today, opts, () => plugin.renderMain());
+      renderCalendar(root, ctx, () => calendarTasks(plugin, opts), today, opts, () => ctx.redraw());
     } else if (opts.layout === "board") {
       // Demnächst gruppiert wie Heute – Default Datum: ein gespeichertes „none" wird zu „date"
       // (Spalte je Datum), jede andere Wahl (Label/Priorität/Projekt/Deadline) gilt wie sonst.
-      renderKanbanBoard(root, plugin, groups.flatMap((g) => g.tasks), today, { ...opts, group: opts.group === "none" ? "date" : opts.group }, {});
+      renderKanbanBoard(root, ctx, groups.flatMap((g) => g.tasks), today, { ...opts, group: opts.group === "none" ? "date" : opts.group }, {});
     } else {
       // Gruppierung wie Heute – Default Datum. „date"/„none": die chronologische Datums-Agenda (mit
       // Terminen). Jede andere Wahl (Label/Priorität/Projekt/Deadline) gruppiert die Aufgaben wie auf
@@ -235,27 +258,27 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
           // Ein Tag, dessen Aufgaben allesamt unter ihren Eltern hängen, hätte sonst einen Kopf
           // mit „· 0" – siehe sectionRows. Tage mit Terminen bleiben auch ohne Aufgabe stehen.
           if (visibleRows(dayTasks, present, ownRow).length || dayEv.length)
-            section(root, plugin, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow);
+            section(root, ctx, groupLabel(date, today), dayTasks, today, false, false, present, dayEv, date, ownRow);
         }
       } else {
         const gs = groupTasks(sortTasks(flat, opts.sort, opts.sortDir, orderKey(plugin)), group, today, opts, labelOrderOf(plugin, flat, group))
           .filter((g) => visibleRows(g.tasks, present, ownRow).length);
-        for (const g of gs) section(root, plugin, g.title, g.tasks, today, false, false, present, [], "", ownRow);
+        for (const g of gs) section(root, ctx, g.title, g.tasks, today, false, false, present, [], "", ownRow);
       }
     }
   } else if (view === "wiederkehrend") {
-    renderRecurring(root, plugin, today);
+    renderRecurring(root, ctx, today);
   } else {
     // „Erledigt" wie Manage: Kopf mit Titel links, Tabs (Erledigt | Papierkorb) rechts.
-    const redraw = () => renderViewInto(c, plugin, view);
+    const redraw = () => ctx.redraw();
     const header = root.createDiv({ cls: "bt-manage-header" });
-    header.createEl("h1", { text: plugin.doneTab === "trash" ? t("nav_trash") : viewTitle(view) });
+    header.createEl("h1", { text: ctx.doneTab === "trash" ? t("nav_trash") : viewTitle(view) });
     // Kebab + Tabs rechts gruppieren: der Kebab sitzt (wie die Projekt-/Bereichs-Kebabs) links neben
     // den Tabs und trägt dieselbe Button-/Menü-CSS (bt-manage-btn + natives Obsidian-Menü).
     const headActions = header.createDiv({ cls: "bt-head-actions" });
     // Papierkorb-Aktionen im Kebab (nur im Papierkorb-Tab und nur wenn etwas drin ist):
     // Alle wiederherstellen (reversibel) · Papierkorb leeren (destruktiv -> Bestätigung).
-    if (plugin.doneTab === "trash" && idx.cancelled().length) {
+    if (ctx.doneTab === "trash" && idx.cancelled().length) {
       const kebab = headActions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
       setIcon(kebab.createSpan(), "more-horizontal");
       kebab.onclick = (e) => {
@@ -269,17 +292,17 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
     }
     const tabs = headActions.createDiv({ cls: "bt-tabs" });
     const mkTab = (id: "done" | "trash", label: string) => {
-      const b = tabs.createEl("button", { cls: "bt-tab" + (plugin.doneTab === id ? " is-active" : ""), text: label });
-      b.onclick = () => { plugin.doneTab = id; redraw(); };
+      const b = tabs.createEl("button", { cls: "bt-tab" + (ctx.doneTab === id ? " is-active" : ""), text: label });
+      b.onclick = () => { ctx.setDoneTab(id); redraw(); };
     };
     mkTab("done", t("view_done"));
     mkTab("trash", t("nav_trash"));
 
-    if (plugin.doneTab === "trash") {
+    if (ctx.doneTab === "trash") {
       const items = idx.cancelled();
       if (!items.length) { emptyState(root, "trash-2", "empty_trash"); return; }
       // Liste identisch zur Erledigt-Liste (dieselben Task-Zeilen), nur im Papierkorb-Modus.
-      section(root, plugin, t("nav_trash"), items, today, false, true);
+      section(root, ctx, t("nav_trash"), items, today, false, true);
     } else {
       const done = idx.done();
       // `present` mitgeben: sonst nimmt die Liste an, JEDE Unteraufgabe hänge schon unter ihrer
@@ -287,9 +310,9 @@ export function renderViewInto(c: HTMLElement, plugin: BeautyTasksPlugin, view: 
       // gar nicht, und die abgehakte Unteraufgabe war nirgends auffindbar. Mit `present` bekommt
       // sie eine eigene Zeile; nur wenn ihre Hauptaufgabe ebenfalls hier steht, bleibt sie unter
       // ihr eingeklappt (erreichbar über deren Fortschritts-Badge).
-      const present = nestingHosts(plugin, done, effectiveSubtasks(plugin.pageViewOptions()));
+      const present = nestingHosts(plugin, done, effectiveSubtasks(ctx.opts));
       if (!visibleRows(done, present).length) emptyState(root, VIEW_ICON.erledigt, "empty_nothing_done");
-      else section(root, plugin, t("sec_done"), done, today, false, false, present);
+      else section(root, ctx, t("sec_done"), done, today, false, false, present);
     }
   }
 }
@@ -305,7 +328,8 @@ function recurKey(recurrence: string): string {
   if (r && r.unit === "year" && r.n === 1) return "recur_yearly";
   return "raw:" + recurrence;   // Sonderintervalle: eigene Gruppe mit dem Rohtext als Titel
 }
-function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: string): void {
+function renderRecurring(root: HTMLElement, ctx: PageCtx, today: string): void {
+  const plugin = ctx.plugin;
   const recs = plugin.index.open().filter((tk) => tk.recurrence);   // open() blendet archivierte Projekte aus
   if (!recs.length) { emptyState(root, VIEW_ICON.wiederkehrend, "empty_nothing_recurring"); return; }
   const groups = new Map<string, Task[]>();
@@ -315,9 +339,9 @@ function renderRecurring(root: HTMLElement, plugin: BeautyTasksPlugin, today: st
   }
   // Wie in der Erledigt-Ansicht: ohne `present` fiele jede wiederkehrende Unteraufgabe heraus,
   // deren Hauptaufgabe nicht selbst wiederkehrend ist (sie steht dann nicht in dieser Liste).
-  const present = nestingHosts(plugin, recs, effectiveSubtasks(plugin.pageViewOptions()));
+  const present = nestingHosts(plugin, recs, effectiveSubtasks(ctx.opts));
   const recurSection = (title: string, items: Task[]): void => {
-    if (visibleRows(items, present).length) section(root, plugin, title, items.sort(byDue), today, false, false, present);
+    if (visibleRows(items, present).length) section(root, ctx, title, items.sort(byDue), today, false, false, present);
   };
   for (const key of RECUR_ORDER) {
     const items = groups.get(key);
@@ -359,7 +383,8 @@ function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void)
 }
 
 /** Projekt-Board: alle Aufgaben eines Projekts, nach Status/Datum gruppiert. */
-export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, projectPath: string): void {
+export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath: string): void {
+  const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
@@ -374,15 +399,15 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
   // kein Kebab -> man käme aus einer archivierten Projektseite nicht mehr heraus.
   const meta = isInbox ? null
     : (() => { const { active, archived } = listManaged(plugin.app); return [...active, ...archived].find((p) => p.path === projectPath) ?? null; })();
-  const top = pageTop(c, plugin.pageViewOptions().layout);
+  const top = pageTop(c, ctx.opts.layout);
   const projItem: NavMenuItem | null = meta
     ? { sec: meta.type === "area" ? "areas" : "projects", key: meta.path, name: meta.name, hidden: meta.hidden, color: meta.color, type: meta.type, archived: meta.archived }
     : null;
-  pageHeader(top, plugin, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
+  pageHeader(top, ctx, top.createEl("h1", { text: isInbox ? t("nav_inbox") : projectDisplayName(name) }),
     projItem ? { menu: projItem } : {});
   pageDesc(top, plugin, meta?.description, projItem);
   // Im Eingang neue Aufgaben OHNE Projekt anlegen (Eingang = kein Projekt), sonst im Projekt.
-  addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(plugin)));
+  addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(ctx)));
 
   // Eingang = alle „nicht einsortierten" Aufgaben (kein Projekt ODER Verweis auf Inbox).
   const source = (): Task[] => isInbox
@@ -395,27 +420,28 @@ export function renderProjectBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, isInbox ? {} : { project: name });
+  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? {} : { project: name });
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
-export function renderLabelBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, label: string): void {
+export function renderLabelBoardInto(c: HTMLElement, ctx: PageCtx, label: string): void {
+  const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
   c.removeClass("bt-has-desc");   // Klassen überleben empty(); pageDesc setzt sie ggf. neu
   applyReadableWidth(c, plugin);
   const root = c.createDiv({ cls: "bt-sizer" });
-  const top = pageTop(c, plugin.pageViewOptions().layout);
-  pageHeader(top, plugin, top.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
+  const top = pageTop(c, ctx.opts.layout);
+  pageHeader(top, ctx, top.createEl("h1", { cls: "bt-label-title", text: "#" + label }),
     { menu: { sec: "labels", key: label, name: label, hidden: !plugin.isLabelVisible(label), color: plugin.getLabelColor(label) } });
-  addBar(top, plugin, () => plugin.openNewTask(undefined, label, false, undefined, addDue(plugin)));
+  addBar(top, plugin, () => plugin.openNewTask(undefined, label, false, undefined, addDue(ctx)));
 
   const source = (): Task[] =>
     plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
   const tasks = source();
   if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
-  renderPageBody(root, plugin, source, plugin.pageViewOptions(), today, { label });
+  renderPageBody(root, ctx, source, ctx.opts, today, { label });
 }
 
 /** Reihenfolge der Label-Gruppen = die der Seitenleiste (Name · Anzahl · manuell), damit Liste
@@ -431,13 +457,14 @@ function labelOrderOf(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
 /** Generischer Seiten-Body (Boards): honoriert Layout · Sortieren · Gruppieren · Erledigte.
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
-function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: () => Task[], opts: ViewOptions, today: string,
+function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], opts: ViewOptions, today: string,
   add: BoardAdd): void {
+  const plugin = ctx.plugin;
   const tasks = source();
   const open = tasks.filter((t) => isOpen(t.status));
   const done = tasks.filter((t) => isDone(t.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
   if (opts.layout === "board") {
-    renderKanbanBoard(root, plugin, opts.showDone ? [...open, ...done] : open, today, opts, add);
+    renderKanbanBoard(root, ctx, opts.showDone ? [...open, ...done] : open, today, opts, add);
     return;
   }
   if (opts.layout === "calendar") {
@@ -449,7 +476,7 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
       return opts.showDone ? [...o, ...all.filter((t) => isDone(t.status))] : o;
     };
     // Der Redraw hier ist für die Navigation nötig (Blättern ändert nur den transienten Anker).
-    renderCalendar(root, plugin, calSource, today, opts, () => plugin.renderMain(), add);
+    renderCalendar(root, ctx, calSource, today, opts, () => ctx.redraw(), add);
     return;
   }
   const sorted = sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin));
@@ -465,14 +492,15 @@ function renderPageBody(root: HTMLElement, plugin: BeautyTasksPlugin, source: ()
   // sie steht in IHRER Tages-Sektion, nicht nur verschachtelt beim Parent in dessen Sektion.
   const ownRow = agendaOwnRow(opts.group);
   for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
-    if (visibleRows(g.tasks, openHosts, ownRow).length) section(root, plugin, g.title, g.tasks, today, false, false, openHosts, [], "", ownRow);
+    if (visibleRows(g.tasks, openHosts, ownRow).length) section(root, ctx, g.title, g.tasks, today, false, false, openHosts, [], "", ownRow);
   }
-  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, plugin, t("sec_done"), done, today, true, false, doneHosts);
+  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, ctx, t("sec_done"), done, today, true, false, doneHosts);
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
  *  Optionen. Layout (Liste/Kanban) folgt – wie Projekte – dem globalen Umschalter. */
-export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin, filterPath: string): void {
+export function renderFilterBoardInto(c: HTMLElement, ctx: PageCtx, filterPath: string): void {
+  const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
   c.addClass("bt-view");
@@ -483,16 +511,19 @@ export function renderFilterBoardInto(c: HTMLElement, plugin: BeautyTasksPlugin,
   if (!filter) { emptyState(root, "tag", "empty_no_filter"); return; }
 
   // Kopf: Titel + [Stift Kriterien-Editor] [Link „Filter"] [Anzeige].
-  const top = pageTop(c, filter.options.layout);
+  // ctx.opts statt filter.options: identisch bis auf das Layout, und DAS kann dieser Tab
+  // überschreiben (s. MainView.setLayout) – filter.options kennt nur den Seiten-Standard.
+  const opts = ctx.opts;
+  const top = pageTop(c, opts.layout);
   const filterItem: NavMenuItem = { sec: "filters", key: filterPath, name: filter.name, hidden: filter.hidden, color: filter.color };
-  pageHeader(top, plugin, top.createEl("h1", { text: filter.name }), { menu: filterItem });
+  pageHeader(top, ctx, top.createEl("h1", { text: filter.name }), { menu: filterItem });
   pageDesc(top, plugin, filter.description, filterItem);
-  addBar(top, plugin, () => plugin.openNewTask(undefined, undefined, false, undefined, addDue(plugin)));
+  addBar(top, plugin, () => plugin.openNewTask(undefined, undefined, false, undefined, addDue(ctx)));
 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
-  const tasks = applyFilter(plugin.index, filter.criteria, filter.options, today);
+  const tasks = applyFilter(plugin.index, filter.criteria, opts, today);
   if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
-  renderPageBody(root, plugin, () => applyFilter(plugin.index, filter.criteria, filter.options, today), filter.options, today, {});
+  renderPageBody(root, ctx, () => applyFilter(plugin.index, filter.criteria, opts, today), opts, today, {});
 }
 
 // ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
@@ -502,7 +533,8 @@ interface HeaderOpts {
 /** Board-Überschrift: Titel + rechte Gruppe [Kebab-Menü] [Anzeige].
  *  Der Kebab öffnet dasselbe Kontextmenü wie ein Rechtsklick in der Seitenleiste – ohne die
  *  Sortier-Optionen, dafür mit „Zur …übersicht" (früher der list-plus-Kopf-Button). */
-function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLElement, opts: HeaderOpts = {}): void {
+function pageHeader(root: HTMLElement, ctx: PageCtx, titleEl: HTMLElement, opts: HeaderOpts = {}): void {
+  const plugin = ctx.plugin;
   const head = root.createDiv({ cls: "bt-board-head" });
   head.appendChild(titleEl);
   const actions = head.createDiv({ cls: "bt-head-actions" });
@@ -512,7 +544,7 @@ function pageHeader(root: HTMLElement, plugin: BeautyTasksPlugin, titleEl: HTMLE
     setIcon(kebab.createSpan(), "more-horizontal");
     kebab.onclick = (e) => { e.stopPropagation(); const m = new Menu(); buildItemMenu(m, plugin, it, "board"); m.showAtMouseEvent(e); };
   }
-  anzeigeButton(actions, plugin);
+  anzeigeButton(actions, ctx);
 }
 
 /** Kurzbeschreibung unter dem Seitentitel – die eine Zeile aus dem Frontmatter der Projekt-,
@@ -911,8 +943,9 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
 
 /** Kanban-Board zeichnen: Spalten folgen der Gruppierung (Label → Label-Spalten, sonst Status).
  *  Ziehbare Karten + „+ Aufgabe" je Spalte (legt mit der Spalten-Dimension an). */
-function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: Task[], today: string,
+function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today: string,
   opts: ViewOptions, add: BoardAdd): void {
+  const plugin = ctx.plugin;
   root.addClass("bt-sizer-board");   // Kanban nutzt volle Pane-Breite statt Lesebreite
   // Unteraufgaben: „Kompakt" nimmt ihre Karten heraus, die Hauptaufgabe trägt stattdessen das
   // Fortschritts-Badge. „Einzeln" (Vorgabe, bisheriges Verhalten) lässt jede als eigene Karte
@@ -942,7 +975,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
   const driveScroll = attachEdgeAutoscroll(board);
   // Scroll-Position über Re-Renders halten: nach einem Karten-Drop rendert die ganze View neu –
   // ohne das spränge das Board zurück nach links. Schlüssel = aktuelle Board-Identität (+ Gruppierung).
-  const scrollKey = (plugin.currentProject ?? plugin.currentLabel ?? plugin.currentFilter ?? plugin.currentView ?? "") + "|" + (opts.group ?? "");
+  const scrollKey = viewKey(ctx, ctx.pageKey + "|" + (opts.group ?? ""));
   board.addEventListener("scroll", () => boardScroll.set(scrollKey, board.scrollLeft));
   for (const col of cols) {
     const colEl = board.createDiv({ cls: "bt-kanban-col" });
@@ -979,7 +1012,7 @@ function renderKanbanBoard(root: HTMLElement, plugin: BeautyTasksPlugin, tasks: 
     // Datums-Spalten heißen „d:<ISO>" (s. dateColumns); „Überfällig"/„ohne Datum" tragen kein
     // einzelnes Datum und blenden deshalb nichts aus.
     const impliedDate = dateImplied && col.id.startsWith("d:") ? col.id.slice(2) : undefined;
-    for (const tk of colTasks) renderTask(listEl, plugin, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
+    for (const tk of colTasks) renderTask(listEl, ctx, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1073,7 +1106,8 @@ const gcalExpanded = new Set<string>();
  * Bänder stehen oben in der Tagesgruppe (Ganztägig zuerst, dann nach Uhrzeit): eine Zeitmarke,
  * kein Listeneintrag, der um die Sortierung konkurriert. Ab `GCAL_BAND_LIMIT` klappt der Rest ein.
  */
-function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: DayEvent[], key: string): void {
+function renderEventBands(list: HTMLElement, ctx: PageCtx, events: DayEvent[], dayKey: string): void {
+  const key = viewKey(ctx, dayKey);
   const sorted = [...events].sort((a, b) => (a.startMin ?? -1) - (b.startMin ?? -1) || a.event.title.localeCompare(b.event.title));
   const expanded = gcalExpanded.has(key);
   const visible = expanded ? sorted : sorted.slice(0, GCAL_BAND_LIMIT);
@@ -1099,7 +1133,7 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
     const more = list.createDiv({ cls: "bt-gcal-more", attr: { role: "button", tabindex: "0" } });
     setIcon(more.createSpan({ cls: "bt-gcal-more-ic" }), expanded ? "chevron-up" : "chevron-down");
     more.createSpan({ text: expanded ? t("gcalfeed_show_less") : t("gcalfeed_more", hidden) });
-    const toggle = (): void => { if (expanded) gcalExpanded.delete(key); else gcalExpanded.add(key); plugin.renderMain(); };
+    const toggle = (): void => { if (expanded) gcalExpanded.delete(key); else gcalExpanded.add(key); ctx.redraw(); };
     more.onclick = toggle;
     more.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
   }
@@ -1108,7 +1142,7 @@ function renderEventBands(list: HTMLElement, plugin: BeautyTasksPlugin, events: 
 /** Zeichnet eine Sektion und gibt ihren Überschriften-Kopf zurück – daran hängen Aufrufer
  *  optionale Kopf-Aktionen (z. B. „Verschieben" bei „Überfällig"), ohne dass section() sie
  *  kennen muss. Wer den Rückgabewert nicht braucht, ignoriert ihn wie bisher. */
-function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean): HTMLElement {
+function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[], today: string, collapsible = false, trash = false, present?: Set<string>, events: DayEvent[] = [], eventKey = "", ownRow?: (t: Task) => boolean): HTMLElement {
   const top = trash ? tasks : visibleRows(tasks, present, ownRow);
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
@@ -1116,16 +1150,16 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
-  if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), plugin, events, eventKey);
+  if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), ctx, events, eventKey);
   // EINMAL pro Section lesen (statt pro Zeile) und an renderTask durchreichen.
-  const o = plugin.pageViewOptions();
+  const o = ctx.opts;
   const subs = effectiveSubtasks(o);
   const manual = o.sort === "manual";
   // „Kompakt"-Thema: ist die Ansicht nach Datum gruppiert, tragen die Sektionsüberschriften das Datum
   // -> der per-Aufgabe-Datums-Chip ist redundant (renderTask blendet ihn dann aus, außer Uhrzeit).
   // Heute/Demnächst zeigen Datums-Sektionen schon im Default (group „none"), volle Seiten (Projekt/
   // Bereich/Label/Filter/Eingang) nur bei ausdrücklichem group „date". Einmal je Sektion bestimmt.
-  const key = plugin.currentPage().key;
+  const key = ctx.pageKey;
   const dateImplied = (key === "heute" || key === "demnaechst") ? (o.group === "none" || o.group === "date") : (o.group === "date");
   const deadlineImplied = o.group === "deadline";   // Sektionen = Deadline-Datum -> Deadline-Chip redundant
   // Bei Projekt-Gruppierung: alle Zeilen der Sektion haben dasselbe Projekt (bzw. Eingang) -> aus der ersten
@@ -1136,16 +1170,16 @@ function section(parent: HTMLElement, plugin: BeautyTasksPlugin, title: string, 
   // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
   // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
   const impliedDate = dateImplied && eventKey ? eventKey : undefined;
-  for (const task of top) renderTask(list, plugin, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
+  for (const task of top) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
   annotateSubtaskTree(list);
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
     sec.addClass("bt-collapsible");
     const chev = head.createSpan({ cls: "bt-collapse-ic" });
-    const apply = () => { sec.toggleClass("is-collapsed", plugin.doneCollapsed); setIcon(chev, plugin.doneCollapsed ? "chevron-right" : "chevron-down"); };
+    const apply = () => { sec.toggleClass("is-collapsed", ctx.doneCollapsed); setIcon(chev, ctx.doneCollapsed ? "chevron-right" : "chevron-down"); };
     apply();
-    head.onclick = () => { plugin.doneCollapsed = !plugin.doneCollapsed; apply(); };
+    head.onclick = () => { ctx.setDoneCollapsed(!ctx.doneCollapsed); apply(); };
   }
   return head;
 }
@@ -1192,10 +1226,11 @@ const LINK_MARKERS = /\[\[|]\(|https?:\/\/|obsidian:\/\//;
 /** Text in die Zeile schreiben. Enthält er Link-Marker, als (inline) Markdown rendern –
  *  klickbare Wikilinks/URLs/obsidian-Links; sonst schneller Plaintext-Pfad. Genutzt für
  *  Aufgabentitel UND Beschreibungs-Vorschau. */
-function renderLinkedText(el: HTMLElement, plugin: BeautyTasksPlugin, text: string, sourcePath: string): void {
-  if (!LINK_MARKERS.test(text) || !plugin.titleRenderComp) { el.setText(text); return; }
+function renderLinkedText(el: HTMLElement, ctx: PageCtx, text: string, sourcePath: string): void {
+  const plugin = ctx.plugin;
+  if (!LINK_MARKERS.test(text) || !ctx.titleComp) { el.setText(text); return; }
   el.addClass("bt-md-inline");
-  void MarkdownRenderer.render(plugin.app, text, el, sourcePath, plugin.titleRenderComp)
+  void MarkdownRenderer.render(plugin.app, text, el, sourcePath, ctx.titleComp)
     .catch(() => { el.empty(); el.setText(text); });   // Fallback: Plaintext
   // Klick auf einen Link öffnet den Link (statt das Edit-Modal der Zeile).
   el.addEventListener("click", (e) => {
@@ -1251,10 +1286,11 @@ function attachDragGhost(e: DragEvent, row: HTMLElement): void {
 /** Durchsichtiger Rand der Zughülle – muss zum `padding` von `.bt-drag-ghost` passen. */
 const GHOST_PAD = 4;
 
-function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, today: string, depth: number, trash = false,
+function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, depth: number, trash = false,
   opts: { flat?: boolean; colId?: string; subs?: SubtaskDisplay; manual?: boolean; showDone?: boolean; impliedDate?: string; deadlineImplied?: boolean; hideProject?: string } = {}): void {
+  const plugin = ctx.plugin;
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
-  // Zeile pageViewOptions() zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
+  // Zeile ctx.opts zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
   const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
@@ -1304,7 +1340,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   renderCheck(row, plugin, task, { trash });
 
   const body = row.createDiv({ cls: "bt-body" });
-  renderLinkedText(body.createDiv({ cls: "bt-title" }), plugin, task.title, task.path);
+  renderLinkedText(body.createDiv({ cls: "bt-title" }), ctx, task.title, task.path);
 
   // Beschreibungs-Vorschau (einzeilig, gekürzt) – aus dem Frontmatter (`description`), optional
   // per Einstellung. Bild-/Embed-Syntax wird entfernt, damit die Zeile nie zu einem Block aufgeht.
@@ -1312,7 +1348,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const desc = task.description
       .replace(/!\[\[[^\]]*\]\]/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "")   // Embeds/Bilder raus
       .replace(/\s+/g, " ").trim();
-    if (desc) renderLinkedText(body.createDiv({ cls: "bt-desc" }), plugin, desc, task.path);
+    if (desc) renderLinkedText(body.createDiv({ cls: "bt-desc" }), ctx, desc, task.path);
   }
 
   const meta = body.createDiv({ cls: "bt-meta" });
@@ -1414,7 +1450,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
     if (kids.length) {
       const done = kids.filter((k) => isDone(k.status)).length;
-      const open = !opts.flat && subsExpanded(task.path, subs);
+      const open = !opts.flat && subsExpanded(ctx, task.path, subs);
       const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, kids.length) };
       if (opts.flat) attr["data-tooltip-position"] = "top";
       else { attr.role = "button"; attr.tabindex = "0"; }
@@ -1424,8 +1460,8 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       if (!opts.flat) {
         const toggle = (e: Event): void => {
           e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
-          subtaskToggle.set(task.path, !subsExpanded(task.path, subs));
-          plugin.renderMain();
+          subtaskToggle.set(viewKey(ctx, task.path), !subsExpanded(ctx, task.path, subs));
+          ctx.redraw();
         };
         badge.onclick = toggle;
         badge.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); } };
@@ -1441,20 +1477,20 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
   } else if (depth === 0) {
     // Rechte Zone: nur der @Projekt-Backlink (der Hauptaufgaben-Link sitzt jetzt links in der Meta-Zeile).
-    // @Projekt weglassen: im Projekt-/Inbox-Board (currentProject) ODER wenn die Gruppierung nach Projekt
+    // @Projekt weglassen: wenn DIESER Tab schon auf einer Projekt-/Eingang-Seite steht ODER wenn die Gruppierung nach Projekt
     // das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang);
     // „nicht einsortiert" = @Eingang.
     const inbox = isInboxLink(task.project);
     const projName = inbox ? null : baseName(task.project!);
-    const backlink = !plugin.currentProject && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
+    const backlink = ctx.page.kind !== "project" && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
     if (backlink) {
       const extras = row.createDiv({ cls: "bt-extras" });
       if (inbox) {
         const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-        bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(INBOX_KEY); };
+        bl.onclick = (e) => { e.stopPropagation(); ctx.open({ kind: "project", key: INBOX_KEY }); };
       } else {
         const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName) });
-        bl.onclick = (e) => { e.stopPropagation(); void plugin.activateProject(task.project!); };   // zum Projekt-/Bereich-Board
+        bl.onclick = (e) => { e.stopPropagation(); ctx.open({ kind: "project", key: task.project! }); };   // zum Projekt-/Bereich-Board
       }
     }
   }
@@ -1465,7 +1501,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
   // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
   // wenn das Badge (per Modus-Default oder Klick) aufgeklappt ist – siehe subsExpanded.
   // „Eingerückt" Default auf · „Kompakt" Default zu; ein Klick überschreibt pro Aufgabe.
-  const showKids = !trash && !opts.flat && subsExpanded(task.path, subs);
+  const showKids = !trash && !opts.flat && subsExpanded(ctx, task.path, subs);
   if (showKids) for (const kid of sortSubtasks(plugin.index.children(task.path))) {
     if (isTrashed(kid.status)) continue;
     // Erledigte Unteraufgaben an denselben Schalter koppeln wie die Erledigt-Sektion: „Erledigte
@@ -1478,7 +1514,7 @@ function renderTask(list: HTMLElement, plugin: BeautyTasksPlugin, task: Task, to
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
     // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. impliedDate wird bewusst
     // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
-    renderTask(list, plugin, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
+    renderTask(list, ctx, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
   }
 }
 
@@ -1681,7 +1717,7 @@ function navSignature(plugin: BeautyTasksPlugin): string {
     filters: plugin.sortFilters(listFilters(plugin.app)).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
     labels: plugin.getVisibleLabels().map((n) => n + "~" + plugin.getLabelColor(n)),
     labelsTotal: plugin.getLabels().length,                       // steuert die „+ Label erstellen"-Zeile
-    active: [plugin.currentProject, plugin.currentLabel, plugin.currentFilter, plugin.currentView, plugin.manageOpen].join("~"),
+    active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
     collapsed: ["filters", "labels", "areas", "projects"].map((id) => plugin.isNavCollapsed(id)),
     reorder: plugin.reorderSec,
     preview: plugin.colorPreview,
@@ -1705,6 +1741,10 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   c.empty();
   c.addClass("bt-nav");
   const redraw = () => renderNavInto(c, plugin);
+  // Die Markierung folgt dem AKTIVEN Dashboard-Tab. Seit es mehrere geben kann, gibt es keine
+  // „offene Seite" mehr, die das Plugin für sich kennen könnte – nur die des Tabs im Vordergrund.
+  const act = plugin.activePage();
+  const isActive = (kind: PageRef["kind"], key: string): boolean => !!act && act.kind === kind && act.key === key;
   const badges = new Map<string, HTMLElement>();
   navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
 
@@ -1724,7 +1764,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   // (keine Notiz) – KEIN volles Menü, nur der Kalender-Sync-Ein/Ausschalter (falls mit Google verbunden).
   navItem(c, plugin, {
     cls: "bt-nav-inbox", icon: "inbox", label: t("nav_inbox"),
-    count: plugin.index.inboxOpen().length, countKey: "p:" + INBOX_KEY, active: plugin.currentProject === INBOX_KEY,
+    count: plugin.index.inboxOpen().length, countKey: "p:" + INBOX_KEY, active: isActive("project", INBOX_KEY),
     onClick: () => void plugin.activateProject(INBOX_KEY),
     onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, INBOX_KEY)) m.showAtMouseEvent(e); },
     // Hierher gezogen = aus dem Projekt herausnehmen; „kein Projekt" IST der Eingang.
@@ -1732,7 +1772,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   });
 
   for (const id of VIEW_IDS) {
-    const active = !plugin.currentProject && !plugin.currentLabel && !plugin.currentFilter && !plugin.manageOpen && plugin.currentView === id;
+    const active = isActive("view", id);
     // Klasse pro Board (bt-nav-heute …) für einzeln themebare Icon-Farben.
     navItem(c, plugin, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id, active, onClick: () => void plugin.activateView(id) });
   }
@@ -1750,7 +1790,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       navItem(c, plugin, {
         cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name,
         count: plugin.index.byProject(p.path).length, countKey: "p:" + p.path,
-        active: plugin.currentProject === p.path, onClick: () => void plugin.activateProject(p.path),
+        active: isActive("project", p.path), onClick: () => void plugin.activateProject(p.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec, key: p.path, name: p.name, hidden: p.hidden, color: p.color, type: kind }); m.showAtMouseEvent(e); },
         // Verweise laufen über den Basename (s. setTaskProject); liegt die Aufgabe schon hier,
         // bleibt der Zug folgenlos statt die Notiz unnötig neu zu schreiben.
@@ -1774,7 +1814,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       navItem(c, plugin, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
         count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
-        active: plugin.currentFilter === fl.path, onClick: () => void plugin.activateFilter(fl.path),
+        active: isActive("filter", fl.path), onClick: () => void plugin.activateFilter(fl.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });
     }
@@ -1791,7 +1831,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
       navItem(c, plugin, {
         cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
-        active: plugin.currentLabel === name, onClick: () => void plugin.activateLabel(name),
+        active: isActive("label", name), onClick: () => void plugin.activateLabel(name),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
         // Anders als bei Projekt/Bereich/Eingang wird hier nichts VERSCHOBEN, sondern ERGÄNZT:
         // Die Aufgabe bleibt, wo sie ist, und bekommt das Label dazu. Sichtbar wird das sofort am
@@ -1824,44 +1864,186 @@ function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
   return 0;
 }
 
-/** Eine Dashboard-Ansicht. Rendern macht der Plugin-Code direkt ins DOM
- *  (renderAllViews), unabhängig von onOpen (robust gegen aufgeschobene Views). */
-/** EINE Dashboard-Leaf für alle Ansichten. Welche Ansicht gezeigt wird, steht in
- *  plugin.currentView; Umschalten = nur neu zeichnen (kein neuer Leaf/Tab). */
+/** Fortlaufende Nummer für die Tab-Kennung (s. MainView.id). Bewusst KEIN Pfad/Seitenname:
+ *  die Kennung muss den Seitenwechsel eines Tabs überleben und zwei Tabs derselben Seite
+ *  auseinanderhalten – beides kann nur eine Identität des Leafs selbst. */
+let viewSeq = 0;
+
+/** Erlaubte Werte aus einem gespeicherten Zustand herausfiltern (Workspace-Datei ist fremder Input). */
+const oneOfState = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
+  typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : null;
+
+/**
+ * Ein Dashboard-Tab. Er BESITZT seine Seite (this.page) – bis 1.33 stand die auf der Plugin-
+ * Instanz, weshalb es per Konstruktion nur einen sinnvollen Tab geben konnte. Über getState/
+ * setState hängt die Seite jetzt an der Leaf: Obsidian stellt sie beim Neustart wieder her,
+ * „In neuem Tab öffnen" ergibt zwei UNTERSCHIEDLICHE Ansichten, und jeder Tab behält seine
+ * Scrollpositionen, Klappzustände und sein Layout (s. setLayout).
+ */
 export class MainView extends ItemView {
   private unsub: (() => void) | null = null;
   private renderComp: Component | null = null;
-  constructor(leaf: WorkspaceLeaf, private plugin: BeautyTasksPlugin) { super(leaf); }
+  /** Zeichnung steht aus, weil der Tab gerade verdeckt ist (s. draw/drawIfDirty). */
+  private dirty = false;
+  /** Stabile Kennung DIESES Tabs – Bestandteil jedes Schlüssels für transienten Zustand (viewKey). */
+  readonly id = "v" + (++viewSeq);
+  /** Die Seite, die dieser Tab zeigt. */
+  page: PageRef;
+  /** Layout-Wahl DIESES Tabs; null = dem Seiten-Standard folgen (s. setLayout). */
+  private layout: PageLayout | null = null;
+  /** Umschaltbarer Unterzustand der Seite. Bewusst ein eigenes OBJEKT: der Kontext hält eine
+   *  Referenz darauf und liest per Getter mit – ein Abzug wäre veraltet, sobald ein Umschalter
+   *  ihn setzt und mit demselben Kontext neu zeichnet (Verwaltungs-Tabs machen genau das). */
+  private tab = { doneTab: "done" as "done" | "trash", manageTab: "active" as "active" | "archive", doneCollapsed: true };
+
+  constructor(leaf: WorkspaceLeaf, private plugin: BeautyTasksPlugin) {
+    super(leaf);
+    this.page = { kind: "view", key: plugin.startView() };
+  }
   getViewType(): string { return VIEW_MAIN; }
   getDisplayText(): string { return "BeautyTasks"; }   // statischer Header (Tab + Pane) = Programmname
   getIcon(): string { return VIEW_ICON.erledigt; }   // statisch = „Erledigt"-Icon (check-circle)
+
+  /** Zustand, den Obsidian in die Workspace-Datei schreibt: die Seite dieses Tabs plus das,
+   *  was man beim Neustart erwartet, wieder vorzufinden. */
+  getState(): Record<string, unknown> {
+    return { kind: this.page.kind, key: this.page.key, layout: this.layout, doneTab: this.tab.doneTab, manageTab: this.tab.manageTab };
+  }
+
+  /**
+   * Der EINZIGE Weg, diesen Tab auf eine andere Seite zu schicken – von der Workspace-
+   * Wiederherstellung, von plugin.openPage() und von ctx.open() gleichermaßen benutzt.
+   * `history` bleibt bewusst false: MainView ist keine navigierbare Datei-Ansicht, ein
+   * Eintrag in Obsidians Zurück/Vorwärts-Kette wäre hier irreführend.
+   */
+  async setState(state: unknown, result: ViewStateResult): Promise<void> {
+    const s = (state ?? {}) as Record<string, unknown>;
+    const kind = oneOfState<PageRef["kind"]>(s.kind, ["view", "project", "label", "filter", "manage"]);
+    const key = typeof s.key === "string" ? s.key : "";
+    const page: PageRef = kind && key ? { kind, key } : this.page;
+    const changed = !samePage(page, this.page);
+    if (changed) {
+      // Transienten Zustand der ALTEN Seite wegwerfen: Scrollposition und aufgeklappte Badges
+      // gehören zu ihr, nicht zum Tab – sonst erbte die neue Seite eine fremde Position.
+      dropViewKeys(this.id);
+      this.layout = null;           // neue Seite startet bei IHREM Standard
+      this.tab.doneTab = "done";
+      this.tab.doneCollapsed = true;
+    }
+    this.page = page;
+    // Beim Wiederherstellen kommen die gemerkten Werte mit; bei einem Seitenwechsel gibt es sie nicht.
+    const layout = oneOfState<PageLayout>(s.layout, LAYOUTS);
+    if (layout) this.layout = layout;
+    const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
+    if (done) this.tab.doneTab = done;
+    const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);
+    if (mtab) this.tab.manageTab = mtab;
+    result.history = false;
+    this.draw();
+  }
+
+  /** Diesen Tab auf eine andere Seite schicken (Backlink, „Zum Projekt", Verwaltungs-Liste, Nav). */
+  openPage(page: PageRef): void {
+    void this.setState({ kind: page.kind, key: page.key }, { history: false });
+    this.plugin.app.workspace.requestSaveLayout();   // Seite des Tabs übersteht den Neustart
+    this.plugin.renderNav();                         // Markierung folgt dem aktiven Tab
+  }
+
+  /**
+   * Layout umstellen. Das Layout gehört dem TAB: Wer die Liste in einem und den Kalender in
+   * einem zweiten Tab offen hat, darf beim Umschalten hier nicht den anderen mitreißen – dafür
+   * gibt es den zweiten Tab ja gerade. Deshalb bekommt jeder ANDERE Tab derselben Seite, der
+   * bisher nur dem Seiten-Standard folgte, vorher ausdrücklich den ALTEN Wert: er bleibt damit
+   * stehen, wo er war. Der neue Wert wird zusätzlich als Seiten-Standard gespeichert (wie
+   * bisher) – die nächste Zeichnung dieser Seite beginnt also dort.
+   */
+  setLayout(layout: PageLayout): void {
+    const before = this.plugin.pageOptions(this.page).layout;
+    for (const other of this.plugin.mainViews()) {
+      if (other !== this && other.layout === null && samePage(other.page, this.page)) other.layout = before;
+    }
+    this.layout = layout;
+    void this.plugin.setPageOption(this.page, { layout });
+  }
+
+  /**
+   * Der Kontext, den die Zeichen-Funktionen bekommen – siehe pageCtx.ts.
+   *
+   * `opts` und `titleComp` sind bewusst MOMENTAUFNAHMEN (sie gelten für genau diese Zeichnung).
+   * Der umschaltbare Unterzustand dagegen kommt über Getter aus der View: Aufrufer wie die
+   * Verwaltungs-Tabs setzen ihn und zeichnen mit DEMSELBEN ctx neu – ein eingefrorener Wert
+   * hätte dort weiter den alten Stand gezeigt und den Umschalter tot wirken lassen.
+   */
+  ctx(): PageCtx {
+    const info = pageInfo(this.page);
+    const stored = this.plugin.pageOptions(this.page);
+    const st = this.tab;   // DASSELBE Objekt, keine Kopie – nur so sehen die Getter jede Änderung
+    return {
+      plugin: this.plugin,
+      id: this.id,
+      page: this.page,
+      pageKey: info.key,
+      opts: this.layout ? { ...stored, layout: this.layout } : stored,
+      titleComp: this.renderComp,
+      get doneTab() { return st.doneTab; },
+      get manageTab() { return st.manageTab; },
+      get doneCollapsed() { return st.doneCollapsed; },
+      setDoneTab: (v) => { st.doneTab = v; },
+      setManageTab: (v) => { st.manageTab = v; },
+      setDoneCollapsed: (v) => { st.doneCollapsed = v; },
+      redraw: () => this.draw(),
+      open: (p) => this.openPage(p),
+      setOption: (patch) => void this.plugin.setPageOption(this.page, patch),
+      setLayout: (l) => this.setLayout(l),
+      resetOptions: () => { this.layout = null; void this.plugin.resetPageOptions(this.page); },
+    };
+  }
+
   async onOpen(): Promise<void> {
     // Checkbox-Aktionen EINMAL delegiert (nicht je Zeichnung je Checkbox – s. taskCheck.ts).
     installCheckDelegation(this.contentEl, this.plugin);
     // Zeilen-Kontextmenü (Rechtsklick/Long-Press) genauso: EIN Satz Listener für alle Zeilen.
-    installTaskMenuDelegation(this.contentEl, this.plugin);
+    // Der Kontext wird als Funktion gereicht, nicht als Wert: die Delegation lebt so lange wie
+    // der Tab, der Kontext dagegen wird je Zeichnung neu gebaut.
+    installTaskMenuDelegation(this.contentEl, () => this.ctx());
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();
   }
-  async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; this.plugin.titleRenderComp = null; }
+  async onClose(): Promise<void> {
+    this.unsub?.(); this.unsub = null;
+    dropViewKeys(this.id);   // sonst wüchsen die Modul-Maps mit jedem geschlossenen Tab weiter
+  }
+  /** Beim Sichtbarwerden nachziehen, falls in der Zwischenzeit vorgemerkt (s. draw). */
+  drawIfDirty(): void { if (this.dirty) this.draw(); }
+  onResize(): void { this.drawIfDirty(); }
+
   draw(): void {
     if (!this.contentEl) return;
+    // Ein VERDECKTER Tab (anderer Tab derselben Gruppe) wird nur vorgemerkt. Solange es genau
+    // eine Dashboard-Leaf gab, war das kein Thema; mit drei offenen Tabs zahlte man den vollen
+    // Aufbau (gemessen ~110 ms) bei JEDER Aufgabenänderung dreifach – zweimal davon für Seiten,
+    // die niemand ansieht. Nachgezogen wird beim Sichtbarwerden (onResize bzw. der
+    // active-leaf-change-Zweig in main.ts).
+    if (!this.containerEl.isShown()) { this.dirty = true; return; }
+    this.dirty = false;
     // Kalender: Ist der Rahmen unverändert (gleiche Seite, gleicher Modus, gleicher Zeitraum), reicht
     // es, die Aufgaben-Elemente nachzuziehen – ein Dutzend statt ~1800 Elemente. Der komplette
     // Neuaufbau unten kostete gemessen ~80 ms Style + Layout + Paint bei JEDER Änderung.
     // tryPatchCalendar lehnt bei der kleinsten Abweichung ab; dann läuft der normale Pfad.
-    if (!this.plugin.manageOpen && tryPatchCalendar(this.contentEl, this.plugin)) return;
+    if (this.page.kind !== "manage" && tryPatchCalendar(this.contentEl, this.ctx())) return;
     // Frische Render-Component pro Zeichnung: Markdown-Titel (Links) sauber auf-/abbauen,
-    // damit sich Hover-/Embed-Kindkomponenten nicht über Redraws hinweg ansammeln.
+    // damit sich Hover-/Embed-Kindkomponenten nicht über Redraws hinweg ansammeln. Sie hängt an
+    // DIESER View (früher an der Plugin-Instanz): bei zwei zeichnenden Tabs überschrieb der
+    // zweite die Referenz des ersten – dessen Kindkomponenten wurden dann nie sauber abgeräumt.
     if (this.renderComp) this.removeChild(this.renderComp);
     this.renderComp = this.addChild(new Component());
-    this.plugin.titleRenderComp = this.renderComp;
+    const ctx = this.ctx();
     this.contentEl.removeClass("bt-view-calendar");   // setzt renderCalendar bei Bedarf wieder
-    if (this.plugin.manageOpen) renderManageInto(this.contentEl, this.plugin);
-    else if (this.plugin.currentFilter) renderFilterBoardInto(this.contentEl, this.plugin, this.plugin.currentFilter);
-    else if (this.plugin.currentLabel) renderLabelBoardInto(this.contentEl, this.plugin, this.plugin.currentLabel);
-    else if (this.plugin.currentProject) renderProjectBoardInto(this.contentEl, this.plugin, this.plugin.currentProject);
-    else renderViewInto(this.contentEl, this.plugin, this.plugin.currentView);
+    if (this.page.kind === "manage") renderManageInto(this.contentEl, ctx);
+    else if (this.page.kind === "filter") renderFilterBoardInto(this.contentEl, ctx, this.page.key);
+    else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
+    else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
+    else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
     this.syncTitle();
   }
 

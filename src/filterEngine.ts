@@ -130,7 +130,7 @@ export const listSubtasks = (m: SubtaskDisplay): SubtaskDisplay => (m === "inden
  * Entscheidung 2026-07-26; vorher zeigte das Board sie standardmäßig). Wer sie einblendet,
  * kann sie auch zwischen Status-Spalten ziehen – ausgeblendet geht das nicht.
  *
- * WICHTIG: erst hier auflösen, nicht schon beim Lesen. setPageViewOption speichert das ganze
+ * WICHTIG: erst hier auflösen, nicht schon beim Lesen. setPageOption speichert das ganze
  * aufgelöste Objekt; ein vorzeitig gesetzter Wert würde beim Umschalten auf Board mit dem ALTEN
  * Layout aufgelöst und dauerhaft festgeschrieben. Als `undefined` fällt das Feld beim Speichern
  * weg und wird jedes Mal frisch zum aktuellen Layout bestimmt.
