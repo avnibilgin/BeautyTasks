@@ -1,10 +1,10 @@
 // „Anzeige"-Panel pro Seite (Alternative C). Popover aus dem Anzeige-Knopf im Seitenkopf:
 // Layout · Erledigte · (nur volle Seiten) Sortieren · Gruppieren · Zurücksetzen. Hält den Stand
-// lokal für sofortiges UI-Feedback und persistiert parallel über plugin.setPageViewOption.
+// lokal für sofortiges UI-Feedback und persistiert parallel über ctx.setOption bzw. ctx.setLayout.
 import { setIcon } from "obsidian";
-import type BeautyTasksPlugin from "./main";
+import { PageCtx, pageInfo } from "./pageCtx";
 import { openPopover } from "./popover";
-import { ViewOptions, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, effectiveSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
+import { ViewOptions, PageLayout, FilterSort, FilterGroup, SortDir, SubtaskDisplay, LAYOUTS, SORTS, SORT_DIRS, SUBTASK_DISPLAYS, BOARD_SUBTASK_DISPLAYS, effectiveSubtasks, hasSortDir, DEFAULT_OPTIONS } from "./filterEngine";
 import { resetSubtaskToggles } from "./heuteView";
 import { t } from "./i18n";
 
@@ -18,13 +18,16 @@ function groupOptions(kind: string): FilterGroup[] {
   return base;
 }
 
-export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): void {
-  const page = plugin.currentPage();
+export function openViewPanel(anchor: HTMLElement, ctx: PageCtx): void {
+  const page = pageInfo(ctx.page);
   if (page.tier === "none") return;
 
   openPopover(anchor, (pop, close) => {
-    let o: ViewOptions = plugin.pageViewOptions();
-    const apply = (patch: Partial<ViewOptions>): void => { o = { ...o, ...patch }; void plugin.setPageViewOption(patch); render(); };
+    let o: ViewOptions = ctx.opts;
+    const apply = (patch: Partial<ViewOptions>): void => { o = { ...o, ...patch }; ctx.setOption(patch); render(); };
+    // Das Layout geht einen eigenen Weg: es gehört dem TAB (s. MainView.setLayout), damit ein
+    // zweiter Tab derselben Seite beim Umschalten hier nicht mitspringt.
+    const applyLayout = (l: PageLayout): void => { o = { ...o, layout: l }; ctx.setLayout(l); render(); };
 
     const cap = (text: string): void => { pop.createDiv({ cls: "bt-panel-cap", text }); };
     const render = (): void => {
@@ -34,7 +37,7 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       const seg = pop.createDiv({ cls: "bt-tabs bt-layout-toggle" });
       for (const l of LAYOUTS) {
         const b = seg.createEl("button", { cls: "bt-tab" + (o.layout === l ? " is-active" : ""), text: t("layout_" + l) });
-        b.onclick = () => apply({ layout: l });
+        b.onclick = () => applyLayout(l);
       }
 
       // „Erledigte anzeigen" ergibt in „Demnächst" (reine Zukunfts-Agenda) keinen Sinn -> dort weglassen.
@@ -66,7 +69,7 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
           effectiveSubtasks(o), "panel_subs_",
           // Moduswechsel = „alle auf/zu": gemerkte Einzel-Badge-Klicks verwerfen, sonst
           // überstimmen sie den neuen Modus und er scheint nichts zu tun (s. resetSubtaskToggles).
-          (v) => { resetSubtaskToggles(); apply({ subtasks: v as SubtaskDisplay }); }, subsLabelFor);
+          (v) => { resetSubtaskToggles(ctx); apply({ subtasks: v as SubtaskDisplay }); }, subsLabelFor);
       }
 
       // Sortieren/Gruppieren: volle Seiten UND „Heute" (dort ersetzt eine aktive Gruppierung den
@@ -99,7 +102,7 @@ export function openViewPanel(anchor: HTMLElement, plugin: BeautyTasksPlugin): v
       }
 
       const reset = pop.createEl("button", { cls: "bt-panel-reset", text: t("filter_reset") });
-      reset.onclick = () => { resetSubtaskToggles(); void plugin.resetPageViewOptions(); o = { ...DEFAULT_OPTIONS }; render(); };
+      reset.onclick = () => { resetSubtaskToggles(ctx); ctx.resetOptions(); o = { ...DEFAULT_OPTIONS }; render(); };
     };
     render();
     void close;   // Popover schließt bei Klick außerhalb
@@ -140,11 +143,11 @@ function ddRow(parent: HTMLElement, label: string, values: readonly string[], cu
 }
 
 /** Anzeige-Knopf für den Seitenkopf (öffnet das Panel; Punkt = weicht vom Standard ab). */
-export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): void {
+export function anzeigeButton(head: HTMLElement, ctx: PageCtx): void {
   const btn = head.createEl("button", { cls: "bt-anzeige" });
   setIcon(btn.createSpan({ cls: "bt-anzeige-ic" }), "sliders-horizontal");
   btn.createSpan({ cls: "bt-anzeige-lbl", text: t("view_display") });
-  const o = plugin.pageViewOptions();
+  const o = ctx.opts;
   // Die Richtung zählt nur mit, wenn sie überhaupt gilt – bei „smart" gibt es keine, und ein
   // gespeicherter Wert von einer früheren Sortierung darf den Punkt nicht setzen (das Panel
   // zeigt die Zeile dort ja auch nicht: derselbe hasSortDir-Vorbehalt).
@@ -157,5 +160,5 @@ export function anzeigeButton(head: HTMLElement, plugin: BeautyTasksPlugin): voi
     || effectiveSubtasks(o) !== effectiveSubtasks({ layout: o.layout })
     || (hasSortDir(o.sort) && o.sortDir !== DEFAULT_OPTIONS.sortDir);
   if (modified) btn.createSpan({ cls: "bt-anzeige-dot" });
-  btn.onclick = () => openViewPanel(btn, plugin);
+  btn.onclick = () => openViewPanel(btn, ctx);
 }

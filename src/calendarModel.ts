@@ -209,10 +209,10 @@ export const allDayEventsOf = (events: DayEvent[]): DayEvent[] => events.filter(
  * Zugehörigkeit behaupten, die es nicht gibt.
  *
  * Positivliste, KEIN `kind === "view"`: der Eingang läuft als eingebaute Ansicht ebenfalls unter
- * „view" (currentPage() in main.ts) und bekäme sonst weiter Termine – ausgerechnet die Seite, die
+ * „view" (pageInfo() in pageCtx.ts) und bekäme sonst weiter Termine – ausgerechnet die Seite, die
  * ausschließlich unsortierte Aufgaben zeigen soll.
  *
- * Erwartet den Schlüssel aus `currentPage().key` (nicht den Kalender-pageKey mit „|cal").
+ * Erwartet den Schlüssel aus `ctx.pageKey` (nicht den Kalender-pageKey mit Tab-Kennung und „|cal").
  */
 export const pageShowsEvents = (pageKey: string): boolean => pageKey === "heute" || pageKey === "demnaechst";
 
