@@ -1,6 +1,6 @@
 import { setIcon, Notice, Menu } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { PageCtx } from "./pageCtx";
+import { PageCtx, manageTitleKey } from "./pageCtx";
 import { listManaged, ProjItem } from "./taskService";
 import { listFilters, FilterItem } from "./filterService";
 import { applyFilter } from "./filterEngine";
@@ -96,10 +96,7 @@ export function renderManageInto(c: HTMLElement, ctx: PageCtx): void {
   // Kopf: nur die Überschrift der aktuellen Sektion. Die Navigation zwischen den Sektionen
   // läuft jetzt über die (dauerhaft sichtbaren) Seitenleisten-Köpfe – keine Tab-Reihe mehr.
   const header = root.createDiv({ cls: "bt-manage-header" });
-  const titleKey = section === "filters" ? "nav_filters"
-    : section === "labels" ? "tab_labels"
-      : section === "areas" ? "group_area" : "group_project";
-  header.createEl("h1", { text: t(titleKey) });
+  header.createEl("h1", { text: t(manageTitleKey(section)) });
   // Aktiv/Archiv oben rechts (nur Projekte/Bereiche) – an der Stelle der früheren Tab-Reihe.
   if (section === "projects" || section === "areas") {
     const tabs = header.createDiv({ cls: "bt-tabs" });

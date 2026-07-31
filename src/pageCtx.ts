@@ -33,6 +33,15 @@ export interface PageRef {
 
 export const samePage = (a: PageRef, b: PageRef): boolean => a.kind === b.kind && a.key === b.key;
 
+/** Übersetzungs-Schlüssel der Überschrift eines Verwaltungs-Bereichs. Liegt hier, weil sowohl die
+ *  Seite selbst (manageView) als auch ihr Tab-Titel (MainView.getDisplayText) ihn braucht – und
+ *  manageView von heuteView nicht importieren darf (heuteView importiert manageView). */
+export function manageTitleKey(section: string): string {
+  return section === "filters" ? "nav_filters"
+    : section === "labels" ? "tab_labels"
+      : section === "areas" ? "group_area" : "group_project";
+}
+
 /** Speicher-Schlüssel und „Fernbedienungs-Größe" einer Seite – wo ihre Anzeige-Optionen liegen
  *  und wie viel das Anzeige-Panel dort überhaupt anbietet. Reine Funktion der Seite (früher
  *  plugin.currentPage(), das dafür den globalen Zustand las). */

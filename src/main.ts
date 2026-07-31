@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, Platform, moment, setIcon, addIcon } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
@@ -288,24 +288,24 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   /**
-   * Eine Seite öffnen. Ziel ist der zuletzt benutzte Dashboard-Tab; gibt es keinen, entsteht einer.
-   * Einen ZWEITEN Tab macht der Nutzer über Obsidians Tab-Menü auf („In neuem Tab öffnen" /
-   * „Rechts daneben") – die Seite reist über getState/setState mit, beide Tabs sind danach
-   * eigenständig.
+   * Eine Seite öffnen. Ohne `where` landet sie im zuletzt benutzten Dashboard-Tab (gibt es keinen,
+   * entsteht einer). Mit `where` entsteht IMMER ein neuer: "tab" · "split" (rechts daneben) ·
+   * "window" – bzw. direkt der Rückgabewert von Keymap.isModEvent, damit Strg-/Mittelklick genau
+   * das tun, was der Nutzer in Obsidian ohnehin gewohnt ist.
    */
-  async openPage(page: PageRef): Promise<void> {
+  async openPage(page: PageRef, where?: PaneType | boolean): Promise<void> {
     const { workspace } = this.app;
     if (page.kind === "view" && this.settings.lastView !== page.key) {
       this.settings.lastView = page.key; void this.saveSettings();   // für startView === "last"
     }
-    const target = this.activeMain();
+    const target = where ? null : this.activeMain();
     if (target) {
       target.openPage(page);
       await workspace.revealLeaf(target.leaf);
       target.drawIfDirty();             // lag der Tab im Hintergrund, steht seine Zeichnung noch aus
       return;
     }
-    const leaf = workspace.getLeaf("tab");
+    const leaf = workspace.getLeaf(where ?? "tab");
     await leaf.setViewState({ type: VIEW_MAIN, active: true, state: { kind: page.kind, key: page.key } });
     await workspace.revealLeaf(leaf);   // awaited -> View vollständig geladen
     if (leaf.view instanceof MainView) leaf.view.drawIfDirty();

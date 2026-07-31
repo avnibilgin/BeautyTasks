@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pageInfo, samePage, PageRef } from "../src/pageCtx";
+import { pageInfo, samePage, manageTitleKey, PageRef } from "../src/pageCtx";
 import { INBOX_KEY } from "../src/taskService";
 
 // pageInfo ist die reine Fassung dessen, was bis 1.33 plugin.currentPage() aus dem globalen
@@ -66,5 +66,20 @@ describe("samePage – „zeigt dieser Tab dieselbe Seite?“", () => {
 
   it("andere Ansicht", () => {
     expect(samePage({ kind: "view", key: "heute" }, { kind: "view", key: "demnaechst" })).toBe(false);
+  });
+});
+
+describe("manageTitleKey – Überschrift UND Tab-Titel der Verwaltung aus einer Quelle", () => {
+  it("bildet jeden Bereich auf seinen Übersetzungs-Schlüssel ab", () => {
+    expect(manageTitleKey("projects")).toBe("group_project");
+    expect(manageTitleKey("areas")).toBe("group_area");
+    expect(manageTitleKey("labels")).toBe("tab_labels");
+    expect(manageTitleKey("filters")).toBe("nav_filters");
+  });
+
+  it("fällt bei Unsinn auf „Projekte“ zurück statt einen leeren Titel zu liefern", () => {
+    // Der Bereich kommt aus dem gespeicherten Tab-Zustand (Workspace-Datei) – also fremder Input.
+    expect(manageTitleKey("")).toBe("group_project");
+    expect(manageTitleKey("quatsch")).toBe("group_project");
   });
 });

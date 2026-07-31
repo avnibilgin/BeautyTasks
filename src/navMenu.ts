@@ -1,8 +1,9 @@
 // Gemeinsamer Kontextmenü-Baukasten für Seitenleisten-Einträge (Projekt/Bereich/Label/Filter).
 // EINE Quelle der Wahrheit – genutzt vom Sidebar-Rechtsklick (heuteView) UND vom ListManager-Kebab
 // (manageView). Alle Aktionen rufen bestehende Plugin-Methoden; das Menü ist reine Verdrahtung.
-import { Menu, TFile } from "obsidian";
+import { Menu, TFile, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
+import { PageRef } from "./pageCtx";
 import { NavSection } from "./types";
 import { NewItemModal } from "./newItemModal";
 import { FilterModal } from "./filterModal";
@@ -25,6 +26,32 @@ export interface NavMenuItem {
   color?: string | null;
   type?: "project" | "area";   // nur für projects/areas
   archived?: boolean;          // archiviertes Projekt/Bereich -> reduziertes Kebab (nur auf dem Board)
+}
+
+/**
+ * „In neuem Tab / rechts daneben / in neuem Fenster öffnen" – Wortlaut, Reihenfolge und Icons
+ * bewusst 1:1 wie in Obsidians eigenem Datei-Explorer: Wer sein Vault kennt, kennt das hier
+ * schon. Steht ganz oben (eigene Section), weil es die einzige Aktion ist, die einen ZWEITEN
+ * Tab erzeugt – der Weg zu „Liste links, Kalender rechts".
+ *
+ * Auf Mobile gibt es keine Fenster; der dritte Eintrag entfällt dort.
+ */
+export function addOpenItems(menu: Menu, plugin: BeautyTasksPlugin, page: PageRef): void {
+  menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("menu_open_new_tab")).setIcon("file-plus")
+    .onClick(() => void plugin.openPage(page, "tab")));
+  menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("menu_open_right")).setIcon("separator-vertical")
+    .onClick(() => void plugin.openPage(page, "split")));
+  if (Platform.isDesktop) {
+    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("menu_open_window")).setIcon("picture-in-picture-2")
+      .onClick(() => void plugin.openPage(page, "window")));
+  }
+}
+
+/** Die Seite, auf die ein Seitenleisten-Eintrag führt. */
+export function pageOf(item: NavMenuItem): PageRef {
+  if (item.sec === "filters") return { kind: "filter", key: item.key };
+  if (item.sec === "labels") return { kind: "label", key: item.key };
+  return { kind: "project", key: item.key };   // projects + areas teilen sich die Projektseite
 }
 
 /** Fügt genau den Kalender-Sync-Ein/Ausschalt-Eintrag hinzu – nur wenn mit Google verbunden.
@@ -95,6 +122,8 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
       .onClick(() => plugin.confirmDeleteProject(item.key, item.name)));
     return;
   }
+
+  addOpenItems(menu, plugin, pageOf(item));
 
   // — Notiz öffnen — (Projekte, Bereiche, Filter). Labels haben keine Notiz: Ihr `key` ist der
   // Label-Name, kein Pfad. Der Body dieser Notiz gehört dem Nutzer – hier ist der Weg dorthin.

@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, ViewStateResult } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { PageCtx, PageRef, pageInfo, samePage } from "./pageCtx";
+import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
@@ -9,7 +9,7 @@ import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, openEdit, NavMenuItem } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { ConfirmModal } from "./confirmModal";
@@ -84,6 +84,9 @@ export const VIEW_ICON: Record<ViewId, string> = {
   heute: "calendar-days", demnaechst: "calendar-1", wiederkehrend: "refresh-ccw", erledigt: "check-circle",
 };
 const TITLE_KEY: Record<ViewId, string> = { heute: "view_today", demnaechst: "view_upcoming", wiederkehrend: "view_recurring", erledigt: "view_done" };
+/** Tab-Icon je Layout (s. MainView.getIcon). Bewusst nur lange etablierte Lucide-Namen –
+ *  ein Icon, das die minAppVersion noch nicht kennt, bliebe leer. */
+const LAYOUT_ICON: Record<PageLayout, string> = { list: "list", board: "layout-grid", calendar: "calendar-days" };
 export const viewTitle = (id: ViewId): string => t(TITLE_KEY[id]);
 
 /** Datum, auf das „+ Aufgabe hinzufügen" vorbelegt: in der Kalender-TAGESANSICHT der gerade
@@ -1519,7 +1522,13 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
 }
 
 // ── Linke Navigation ─────────────────────────────────────────────
-interface NavItemOpts { cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; countKey?: string; active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; onDropTask?: (task: Task) => void; }
+interface NavItemOpts {
+  cls?: string; icon: string; iconColor?: string | null; label: string; count?: number; countKey?: string;
+  active?: boolean; onClick: () => void; onContext?: (e: MouseEvent) => void; onDropTask?: (task: Task) => void;
+  /** Wohin der Eintrag führt. Nur dafür da, Strg-/Mittelklick zu bedienen – der normale Klick
+   *  läuft weiter über onClick (Einträge wie „Suchen" haben gar keine Seite und lassen es weg). */
+  page?: PageRef;
+}
 
 /** Div klick- UND tastaturbedienbar machen (role=button/tabindex kommen vom Aufrufer):
  *  Klick + Enter/Space lösen dieselbe Aktion aus. So bleibt die Optik 1:1 wie zuvor. */
@@ -1539,7 +1548,29 @@ function navItem(c: HTMLElement, plugin: BeautyTasksPlugin, o: NavItemOpts): voi
     const badge = item.createSpan({ cls: "bt-nav-count", text: o.count ? String(o.count) : "" });
     if (o.countKey) navBadges?.set(o.countKey, badge);
   }
-  activate(item, o.onClick);
+  // Mit Modifier öffnet der Eintrag einen NEUEN Tab statt im aktuellen zu wechseln. WELCHER
+  // Modifier was bedeutet, beantwortet bewusst Keymap.isModEvent: es liefert genau den Wert,
+  // den workspace.getLeaf() erwartet, und folgt damit der Vorgabe des Nutzers und der Plattform –
+  // eine eigene Auslegung wiche irgendwann von Obsidian ab. Ohne Modifier bleibt alles wie bisher.
+  if (o.page) {
+    const page = o.page;
+    item.onclick = (e) => {
+      const mod = Keymap.isModEvent(e);
+      if (mod) void plugin.openPage(page, mod); else o.onClick();
+    };
+    item.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); o.onClick(); } };
+    // Mittelklick = neuer Tab (Browser-Gewohnheit). Gehandelt wird auf `auxclick` (erst dort steht
+    // fest, dass Drücken und Loslassen zusammengehören); das preventDefault gehört dagegen an
+    // `mousedown` – nur dort lässt sich Chromiums Autoscroll-Kreuz noch verhindern.
+    item.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
+    item.addEventListener("auxclick", (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      void plugin.openPage(page, "tab");
+    });
+  } else {
+    activate(item, o.onClick);
+  }
   if (o.onContext) item.oncontextmenu = (e) => { e.preventDefault(); o.onContext!(e); };   // Rechtsklick = Kontextmenü
   if (o.onDropTask) attachTaskDrop(item, plugin, o.onDropTask);
 }
@@ -1765,8 +1796,16 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   navItem(c, plugin, {
     cls: "bt-nav-inbox", icon: "inbox", label: t("nav_inbox"),
     count: plugin.index.inboxOpen().length, countKey: "p:" + INBOX_KEY, active: isActive("project", INBOX_KEY),
+    page: { kind: "project", key: INBOX_KEY },
     onClick: () => void plugin.activateProject(INBOX_KEY),
-    onContext: (e) => { const m = new Menu(); if (addGcalSyncItem(m, plugin, INBOX_KEY)) m.showAtMouseEvent(e); },
+    // Der Eingang hat kein volles Item-Menü (Systemansicht ohne Notiz) – aber öffnen lässt er
+    // sich wie jede andere Seite, und der Sync-Schalter kommt wie bisher dazu.
+    onContext: (e) => {
+      const m = new Menu();
+      addOpenItems(m, plugin, { kind: "project", key: INBOX_KEY });
+      addGcalSyncItem(m, plugin, INBOX_KEY);
+      m.showAtMouseEvent(e);
+    },
     // Hierher gezogen = aus dem Projekt herausnehmen; „kein Projekt" IST der Eingang.
     onDropTask: (task) => { if (task.project) void plugin.setTaskProject(task, null); },
   });
@@ -1774,7 +1813,14 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   for (const id of VIEW_IDS) {
     const active = isActive("view", id);
     // Klasse pro Board (bt-nav-heute …) für einzeln themebare Icon-Farben.
-    navItem(c, plugin, { cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id, active, onClick: () => void plugin.activateView(id) });
+    const page: PageRef = { kind: "view", key: id };
+    navItem(c, plugin, {
+      cls: "bt-nav-" + id, icon: VIEW_ICON[id], label: viewTitle(id), count: navCount(plugin, id), countKey: "v:" + id,
+      active, page, onClick: () => void plugin.activateView(id),
+      // Die eingebauten Ansichten haben nichts zu bearbeiten – ihr Menü besteht genau aus den
+      // Öffnen-Einträgen. Ohne sie käme man an „Heute in einem zweiten Tab" nur per Modifier-Klick.
+      onContext: (e) => { const m = new Menu(); addOpenItems(m, plugin, page); m.showAtMouseEvent(e); },
+    });
   }
 
   // cls = Kategorie-Klasse (bt-nav-area / bt-nav-project) für eine gemeinsame Icon-Farbe je Gruppe.
@@ -1790,7 +1836,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       navItem(c, plugin, {
         cls, icon: p.icon, iconColor: navColor(p.path, p.color), label: p.name,
         count: plugin.index.byProject(p.path).length, countKey: "p:" + p.path,
-        active: isActive("project", p.path), onClick: () => void plugin.activateProject(p.path),
+        active: isActive("project", p.path), page: { kind: "project", key: p.path }, onClick: () => void plugin.activateProject(p.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec, key: p.path, name: p.name, hidden: p.hidden, color: p.color, type: kind }); m.showAtMouseEvent(e); },
         // Verweise laufen über den Basename (s. setTaskProject); liegt die Aufgabe schon hier,
         // bleibt der Zug folgenlos statt die Notiz unnötig neu zu schreiben.
@@ -1814,7 +1860,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       navItem(c, plugin, {
         cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
         count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
-        active: isActive("filter", fl.path), onClick: () => void plugin.activateFilter(fl.path),
+        active: isActive("filter", fl.path), page: { kind: "filter", key: fl.path }, onClick: () => void plugin.activateFilter(fl.path),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });
     }
@@ -1831,7 +1877,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
       navItem(c, plugin, {
         cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
-        active: isActive("label", name), onClick: () => void plugin.activateLabel(name),
+        active: isActive("label", name), page: { kind: "label", key: name }, onClick: () => void plugin.activateLabel(name),
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
         // Anders als bei Projekt/Bereich/Eingang wird hier nichts VERSCHOBEN, sondern ERGÄNZT:
         // Die Aufgabe bleibt, wo sie ist, und bekommt das Label dazu. Sichtbar wird das sofort am
@@ -1901,8 +1947,36 @@ export class MainView extends ItemView {
     this.page = { kind: "view", key: plugin.startView() };
   }
   getViewType(): string { return VIEW_MAIN; }
-  getDisplayText(): string { return "BeautyTasks"; }   // statischer Header (Tab + Pane) = Programmname
-  getIcon(): string { return VIEW_ICON.erledigt; }   // statisch = „Erledigt"-Icon (check-circle)
+
+  /**
+   * Tab- und Pane-Titel = der NAME DER SEITE, nicht der Programmname. Solange es genau eine
+   * Dashboard-Leaf gab, war „BeautyTasks" eine brauchbare Beschriftung; bei drei offenen Tabs
+   * sähen alle drei gleich aus. Woher die Seite kommt, zeigt das Icon im Tab.
+   *
+   * Bewusst OHNE Unterzustand: „Erledigt" bleibt „Erledigt", auch wenn gerade der Papierkorb-Tab
+   * innerhalb der Seite aktiv ist – der Tab-Titel benennt die Seite, nicht die Stelle darin.
+   */
+  getDisplayText(): string {
+    const p = this.page;
+    if (p.kind === "manage") return t(manageTitleKey(p.key));
+    if (p.kind === "filter") return readFilter(this.plugin.app, p.key)?.name ?? baseName(p.key);
+    if (p.kind === "label") return "#" + p.key;
+    if (p.kind === "project") return p.key === INBOX_KEY ? t("nav_inbox") : projectDisplayName(baseName(p.key));
+    return viewTitle(p.key as ViewId);
+  }
+
+  /**
+   * Icon = das LAYOUT (Liste · Board · Kalender). Genau das unterscheidet zwei Tabs derselben
+   * Seite – ihre Titel sind ja identisch, und für „Liste links, Kalender rechts" ist das die
+   * einzige Angabe, die zählt. Seiten ohne Layout-Wahl (Wiederkehrend, Erledigt, Verwaltung)
+   * behalten ihr eigenes Ansichts-Icon.
+   */
+  getIcon(): string {
+    const p = this.page;
+    if (p.kind === "manage") return "list-plus";
+    if (pageInfo(p).tier === "none") return VIEW_ICON[p.key as ViewId] ?? "check-circle";
+    return LAYOUT_ICON[this.layout ?? this.plugin.pageOptions(p).layout];
+  }
 
   /** Zustand, den Obsidian in die Workspace-Datei schreibt: die Seite dieses Tabs plus das,
    *  was man beim Neustart erwartet, wieder vorzufinden. */
@@ -1964,6 +2038,10 @@ export class MainView extends ItemView {
     }
     this.layout = layout;
     void this.plugin.setPageOption(this.page, { layout });
+    // Sofort zeichnen statt auf den Speicher zu warten: auf einer PROJEKT-Seite landet der neue
+    // Wert im Frontmatter und käme erst mit dem metadataCache-Ereignis zurück. Der eingefrorene
+    // Nachbar-Tab (oben) soll aber im selben Moment sichtbar stehen bleiben, nicht erst gleich.
+    this.plugin.renderMain();
   }
 
   /**
@@ -2048,11 +2126,14 @@ export class MainView extends ItemView {
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –
-   *  sonst bleibt der Titel beim zuerst geöffneten View hängen. */
+   *  sonst bleibt der Titel beim zuerst geöffneten View hängen. Seit Titel und Icon der Seite
+   *  folgen, gilt das für beide: das Icon wechselt schon beim bloßen Layout-Umschalten. */
   private syncTitle(): void {
     (this.leaf as WorkspaceLeaf & { updateHeader?: () => void }).updateHeader?.();   // Tab
     const titleEl = this.containerEl.querySelector<HTMLElement>(".view-header-title");
     if (titleEl) titleEl.setText(this.getDisplayText());                              // Pane-Header
+    const iconEl = this.containerEl.querySelector<HTMLElement>(".view-header-icon");
+    if (iconEl) setIcon(iconEl, this.getIcon());
   }
 }
 
