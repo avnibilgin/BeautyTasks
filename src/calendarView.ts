@@ -1,7 +1,7 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx } from "./pageCtx";
-import { dragTask, startTaskDrag, endTaskDrag } from "./taskDrag";
+import { dragTask, startTaskDrag, endTaskDrag, applyDropPage } from "./taskDrag";
 import { Task, CalEvent, agendaDate } from "./types";
 import { ViewOptions } from "./filterEngine";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -353,7 +353,7 @@ function renderMonth(root: HTMLElement, ctx: PageCtx,
     cells.push({ day, body: cellBody });
 
     // Ganzer Tag ist Drop-Ziel: nur der Tag ändert sich, eine gesetzte Uhrzeit bleibt.
-    dropTarget(cell, plugin, (task) => combineDT(day, task.dueTime));
+    dropTarget(cell, plugin, (task) => combineDT(day, task.dueTime), add);
   }
 
   // Termine zuerst (sie sind der Kontext des Tages: „so viel ist schon belegt"), dann die Aufgaben.
@@ -459,7 +459,7 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
   for (const day of days) {
     const cell = allday.createDiv({ cls: "bt-calview-allday-cell" + (day === today ? " is-today" : "") });
     alldayCells.set(day, cell);
-    dropTarget(cell, plugin, () => day);                   // ohne Zeitanteil = ganztägig
+    dropTarget(cell, plugin, () => day, add);              // ohne Zeitanteil = ganztägig
   }
 
   // Zeitraster: Stunden links, Tagesspalten mit absolut positionierten Blöcken.
@@ -487,7 +487,7 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
       if (e.target !== col) return;                        // nur die freie Fläche, nicht ein Block
       plugin.openNewTaskOn(day, hhmm(snap(yToMin(e.clientY, col))), add.project ?? undefined, add.label);
     };
-    dropTarget(col, plugin, (_task, ev) => combineDT(day, hhmm(snap(yToMin(ev.clientY, col)))));
+    dropTarget(col, plugin, (_task, ev) => combineDT(day, hhmm(snap(yToMin(ev.clientY, col)))), add);
     attachGhost(col, plugin);                              // Live-Vorschau beim Ziehen
     cols.set(day, col);
   }
@@ -564,7 +564,7 @@ function renderUnscheduled(body: HTMLElement, plugin: BeautyTasksPlugin, add: Ca
   // Frontmatter-Feld bei leerem Wert). Das Ziel ist der ganze Panel-Rahmen, nicht nur die Liste –
   // sonst ginge der Drop ins Leere, solange nichts undatiert ist. Die Uhrzeit verschwindet mit dem
   // Datum: beides liegt im selben Feld, und eine Uhrzeit ohne Tag ergibt keinen Sinn.
-  dropTarget(panel, plugin, () => "");
+  dropTarget(panel, plugin, () => "", add);   // „Nicht terminiert": Datum weg, Seite trotzdem setzen
   const head = panel.createDiv({ cls: "bt-calview-panel-head" });
   head.createSpan({ cls: "bt-calview-panel-title", text: t("cal_unscheduled") });
   const count = head.createSpan({ cls: "bt-calview-panel-count" });
@@ -759,7 +759,7 @@ function attachGhost(col: HTMLElement, plugin: BeautyTasksPlugin): void {
 
 /** Drop-Ziel: `dueOf` liefert den neuen due-Wert („YYYY-MM-DD“ oder mit „THH:mm“). */
 function dropTarget(el: HTMLElement, plugin: BeautyTasksPlugin,
-  dueOf: (task: Task, ev: DragEvent) => string): void {
+  dueOf: (task: Task, ev: DragEvent) => string, page: CalendarAdd = {}): void {
   el.addEventListener("dragover", (e) => {
     if (!dragTask()) return;                               // nur unsere Aufgaben – aus Kalender, Liste ODER Board
     e.preventDefault();
@@ -778,10 +778,17 @@ function dropTarget(el: HTMLElement, plugin: BeautyTasksPlugin,
     const task = plugin.index.get(path);
     if (!task) return;
     const next = dueOf(task, e);
-    if (next === combineDT(task.due ?? "", task.dueTime)) return;    // unverändert -> kein Schreibvorgang
-    // KEIN redraw() hier: setTaskDate schreibt ins Frontmatter, der Index meldet das und zeichnet
-    // die Views ohnehin neu. Ein zusätzlicher Aufruf hieße ZWEI vollständige Neuzeichnungen –
-    // im Profil ~330 ms Einfrieren nach dem Loslassen statt ~210 ms.
-    void plugin.setTaskDate(task, "due", next);
+    // Zwei Dinge können sich ändern: das Datum (die Zelle) UND die Seite (Projekt/Label dieses
+    // Kalenders, s. applyDropPage). Deshalb hier KEIN vorzeitiges Aussteigen mehr, wenn nur das
+    // Datum gleich bleibt – bei einem Zug aus einem anderen Projekt ist genau das der Normalfall.
+    const dateChanged = next !== combineDT(task.due ?? "", task.dueTime);
+    // Nacheinander und abgewartet: zwei processFrontMatter auf dieselbe Datei dürfen sich nicht
+    // überholen, sonst geht einer der beiden Schreibvorgänge verloren (wie beim Board-Drop).
+    // KEIN redraw() hier: die Schreibvorgänge melden sich über den Index, der die Views ohnehin
+    // neu zeichnet. Ein zusätzlicher Aufruf hieße ZWEI vollständige Neuzeichnungen – im Profil
+    // ~330 ms Einfrieren nach dem Loslassen statt ~210 ms.
+    void applyDropPage(plugin, task, page).then(() => {
+      if (dateChanged) return plugin.setTaskDate(task, "due", next);
+    });
   });
 }

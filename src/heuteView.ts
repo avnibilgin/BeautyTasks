@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, ViewStateResult } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
-import { dragTask, dragFromCol, startTaskDrag, endTaskDrag } from "./taskDrag";
+import { dragTask, dragFromCol, startTaskDrag, endTaskDrag, applyDropPage } from "./taskDrag";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
@@ -417,7 +417,7 @@ export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? {} : { project: name });
+  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? { project: null } : { project: name });
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -898,7 +898,7 @@ function attachTaskReorder(row: HTMLElement, grip: HTMLElement, list: HTMLElemen
  * Spalte, sondern auch den Platz darin. Bei jeder anderen Sortierung wäre das sinnlos: die
  * nächste Neuzeichnung würde die Handarbeit sofort wieder überschreiben.
  */
-function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin, manual: boolean): void {
+function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin, manual: boolean, page: BoardAdd): void {
   const listEl = (): HTMLElement | null => colEl.querySelector<HTMLElement>(".bt-kanban-list");
   const dragged = (): Task | undefined => { const p = dragTask(); return p ? plugin.index.get(p) : undefined; };
   colEl.addEventListener("dragover", (e) => {
@@ -927,14 +927,17 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
     if (l) clearDropTarget(l);
     endTaskDrag();
     if (!task) return;
-    // Position zuerst und abgewartet, dann die Facette: zwei processFrontMatter auf dieselbe Datei
-    // dürfen sich nicht überholen, sonst geht einer der beiden Schreibvorgänge verloren.
-    if (before !== undefined) {
-      void plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null)
-        .then(() => col.onDrop?.(task, fromCol ?? ""));
-      return;
-    }
-    col.onDrop?.(task, fromCol ?? "");
+    // Seite zuerst: Kommt die Karte aus einem ANDEREN Projekt (Planungs-Split), gehört sie durch
+    // den Abwurf hierher – sonst bekäme sie zwar den Status dieser Spalte, bliebe aber drüben und
+    // wäre auf diesem Board nicht zu sehen (s. applyDropPage).
+    // Alles nacheinander und abgewartet: zwei processFrontMatter auf dieselbe Datei dürfen sich
+    // nicht überholen, sonst geht einer der beiden Schreibvorgänge verloren.
+    void applyDropPage(plugin, task, page).then(async () => {
+      if (before !== undefined) {
+        await plugin.moveTaskBefore(task, before ? plugin.index.get(before) ?? null : null);
+      }
+      col.onDrop?.(task, fromCol ?? "");
+    });
   });
 }
 
@@ -979,7 +982,7 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     colEl.dataset.col = col.id;
     const sentinel = isSentinelCol(col.id);
     if (sentinel) colEl.dataset.pin = "1";
-    if (col.onDrop) setupColumnDnd(colEl, col, plugin, opts.sort === "manual");   // kein Drop-Ziel -> kein DnD (z. B. „Überfällig")
+    if (col.onDrop) setupColumnDnd(colEl, col, plugin, opts.sort === "manual", add);   // kein Drop-Ziel -> kein DnD (z. B. „Überfällig")
 
     const head = colEl.createDiv({ cls: "bt-kanban-head" });
     // Der ganze Spaltenkopf ist der Ziehgriff zum Umsortieren (nicht bei Priorität/Sentinel).
