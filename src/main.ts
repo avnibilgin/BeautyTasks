@@ -343,24 +343,27 @@ export default class BeautyTasksPlugin extends Plugin {
     const open = this.mainViews();
     const known = (role: "list" | "calendar"): MainView | null => open.find((v) => v.planRole === role) ?? null;
 
-    // Die Listen-Hälfte: die bekannte, sonst der zuletzt benutzte Tab, sonst ein frischer.
-    let left = known("list");
-    const active = this.activeMain();
-    // Ausdrücklich NICHT die Kalender-Hälfte zur Liste umwidmen – das käme vor, wenn man die
-    // Liste geschlossen und den Kalender behalten hat. Dann lieber einen neuen Tab, damit der
-    // Kalender Kalender bleibt und nicht beide Rollen auf denselben Tab fallen.
-    if (!left && active && active.planRole !== "calendar") left = active;
+    // Die Listen-Hälfte: die bekannte, sonst schlicht der Tab, in dem man gerade steht.
+    //
+    // Bewusst OHNE Vorbehalt gegen die Kalender-Hälfte: Wer sie vor sich hat und „Planen" ruft,
+    // bekommt sie als Liste und den Kalender frisch daneben – zwei Ansichten. Ein NEUER Tab
+    // stattdessen ergäbe eine dritte, und genau das soll der Befehl nicht tun. Ein Tab entsteht
+    // deshalb nur, wenn es überhaupt kein Dashboard gibt.
+    let left = known("list") ?? this.activeMain();
     if (left) left.openPage(target);
     else left = await this.openPage(target, "tab");
     // Vor dem Abspalten den Fokus auf die Liste legen – nur so entsteht der neue Tab NEBEN ihr
     // und nicht neben irgendeinem anderen, der zufällig zuletzt aktiv war.
     if (left) this.focusMain(left);
 
+    // Die Kalender-Hälfte weiterverwenden – aber nur, wenn sie das überhaupt sein KANN:
+    //  • nicht derselbe Tab, der oben schon zur Liste wurde,
+    //  • und nicht in derselben Tab-Gruppe wie die Liste. Die Rolle sagt, WOZU ein Tab gehört,
+    //    nicht WO er liegt; ein Kalender-Tab neben der Liste in derselben Gruppe ist ein Reiter
+    //    HINTER ihr und kein Split. Dann gibt er seine Rolle ab und es wird wirklich abgespalten.
+    // (Auf Mobil gibt es bewusst keine Splits – dort ist der Reiter der Normalfall.)
     let right = known("calendar");
-    // Die Rolle sagt, WOZU ein Tab gehört – nicht, WO er liegt. Ein Kalender-Tab, der in derselben
-    // Tab-Gruppe sitzt wie die Liste, ist ein Reiter HINTER ihr und kein Split; ihn weiterzuverwenden
-    // hieße, „Planen" öffnete nichts nebeneinander. Dann gibt er seine Rolle ab und es wird wirklich
-    // abgespalten. (Auf Mobil gibt es bewusst keine Splits – dort ist genau das der Normalfall.)
+    if (right === left) right = null;
     if (!Platform.isMobile && right && left && right.leaf.parent === left.leaf.parent) {
       right.planRole = null;
       right = null;
