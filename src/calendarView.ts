@@ -182,7 +182,7 @@ export function renderCalendar(root: HTMLElement, ctx: PageCtx, source: () => Ta
     setIcon(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "calendar-off");
     const n = tgl.createSpan({ cls: "bt-calview-panel-n" });
     setPanelCount = (count: number) => n.setText(count ? String(count) : "");
-    tgl.onclick = () => ctx.setOption({ calPanel: !opts.calPanel });
+    tgl.onclick = () => ctx.setCalPanel(!opts.calPanel);
   }
 
   // In eine feinere Ansicht springen: Anker zuerst setzen, dann den Modus (der rendert neu).

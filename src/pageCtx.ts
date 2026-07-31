@@ -70,7 +70,8 @@ export interface PageCtx {
   readonly page: PageRef;
   /** Speicher-Schlüssel der Seite (pageInfo().key) – u. a. für pageShowsEvents. */
   readonly pageKey: string;
-  /** Effektive Anzeige-Optionen: Seiten-Standard, überlagert vom Layout DIESES Tabs. */
+  /** Effektive Anzeige-Optionen: Seiten-Standard, überlagert von der Wahl DIESES Tabs
+   *  (Layout und Kalender-Seitenspalte – s. LocalOptions in heuteView.ts). */
   readonly opts: ViewOptions;
   /** Lifecycle für Markdown-Titel (Links) – je Zeichnung frisch, siehe MainView.draw(). */
   readonly titleComp: Component | null;
@@ -87,8 +88,10 @@ export interface PageCtx {
   open(page: PageRef): void;
   /** Anzeige-Option der Seite setzen (Frontmatter/Settings) – gilt für alle Tabs dieser Seite. */
   setOption(patch: Partial<ViewOptions>): void;
-  /** Layout umstellen: gehört dem Tab (s. MainView.setLayout). */
+  /** Layout umstellen: gehört dem Tab (s. MainView.setLocal). */
   setLayout(layout: PageLayout): void;
-  /** Anzeige-Optionen der Seite auf Vorgabe zurücksetzen (inkl. Layout-Wahl dieses Tabs). */
+  /** Seitenspalte des Kalenders („Nicht terminiert") auf/zu – gehört wie das Layout dem Tab. */
+  setCalPanel(open: boolean): void;
+  /** Anzeige-Optionen der Seite auf Vorgabe zurücksetzen (verwirft auch die Wahl dieses Tabs). */
   resetOptions(): void;
 }

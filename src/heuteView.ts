@@ -78,6 +78,14 @@ export const VIEW_ICON: Record<ViewId, string> = {
   heute: "calendar-days", demnaechst: "calendar-1", wiederkehrend: "refresh-ccw", erledigt: "check-circle",
 };
 const TITLE_KEY: Record<ViewId, string> = { heute: "view_today", demnaechst: "view_upcoming", wiederkehrend: "view_recurring", erledigt: "view_done" };
+/**
+ * Die Anzeige-Optionen, die ein TAB für sich überschreiben darf. Beide beschreiben den BLICK,
+ * nicht den Inhalt: welches Layout gerade davorsteht und ob die Seitenspalte des Kalenders offen
+ * ist. Sortieren, Gruppieren, Erledigte und der Kalendermodus gehören dagegen zur Seite – sie
+ * beantworten „was steht da?" und sollen in allen Tabs derselben Seite gleich beantwortet sein.
+ */
+type LocalOptions = Pick<ViewOptions, "layout" | "calPanel">;
+
 /** Tab-Icon je Layout (s. MainView.getIcon). Bewusst nur lange etablierte Lucide-Namen –
  *  ein Icon, das die minAppVersion noch nicht kennt, bliebe leer. */
 const LAYOUT_ICON: Record<PageLayout, string> = { list: "list", board: "layout-grid", calendar: "calendar-days" };
@@ -1934,8 +1942,8 @@ export class MainView extends ItemView {
   readonly id = "v" + (++viewSeq);
   /** Die Seite, die dieser Tab zeigt. */
   page: PageRef;
-  /** Layout-Wahl DIESES Tabs; null = dem Seiten-Standard folgen (s. setLayout). */
-  private layout: PageLayout | null = null;
+  /** Die Wahl DIESES Tabs; was hier fehlt, kommt vom Seiten-Standard (s. setLocal/useLocal). */
+  private local: Partial<LocalOptions> = {};
   /** Umschaltbarer Unterzustand der Seite. Bewusst ein eigenes OBJEKT: der Kontext hält eine
    *  Referenz darauf und liest per Getter mit – ein Abzug wäre veraltet, sobald ein Umschalter
    *  ihn setzt und mit demselben Kontext neu zeichnet (Verwaltungs-Tabs machen genau das). */
@@ -1974,13 +1982,17 @@ export class MainView extends ItemView {
     const p = this.page;
     if (p.kind === "manage") return "list-plus";
     if (pageInfo(p).tier === "none") return VIEW_ICON[p.key as ViewId] ?? "check-circle";
-    return LAYOUT_ICON[this.layout ?? this.plugin.pageOptions(p).layout];
+    return LAYOUT_ICON[this.local.layout ?? this.plugin.pageOptions(p).layout];
   }
 
   /** Zustand, den Obsidian in die Workspace-Datei schreibt: die Seite dieses Tabs plus das,
    *  was man beim Neustart erwartet, wieder vorzufinden. */
   getState(): Record<string, unknown> {
-    return { kind: this.page.kind, key: this.page.key, layout: this.layout, doneTab: this.tab.doneTab, manageTab: this.tab.manageTab };
+    return {
+      kind: this.page.kind, key: this.page.key,
+      layout: this.local.layout ?? null, calPanel: this.local.calPanel ?? null,
+      doneTab: this.tab.doneTab, manageTab: this.tab.manageTab,
+    };
   }
 
   /**
@@ -1999,14 +2011,15 @@ export class MainView extends ItemView {
       // Transienten Zustand der ALTEN Seite wegwerfen: Scrollposition und aufgeklappte Badges
       // gehören zu ihr, nicht zum Tab – sonst erbte die neue Seite eine fremde Position.
       dropViewKeys(this.id);
-      this.layout = null;           // neue Seite startet bei IHREM Standard
+      this.local = {};              // neue Seite startet bei IHREN Standards
       this.tab.doneTab = "done";
       this.tab.doneCollapsed = true;
     }
     this.page = page;
     // Beim Wiederherstellen kommen die gemerkten Werte mit; bei einem Seitenwechsel gibt es sie nicht.
     const layout = oneOfState<PageLayout>(s.layout, LAYOUTS);
-    if (layout) this.layout = layout;
+    if (layout) this.local.layout = layout;
+    if (typeof s.calPanel === "boolean") this.local.calPanel = s.calPanel;
     const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
     if (done) this.tab.doneTab = done;
     const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);
@@ -2031,24 +2044,30 @@ export class MainView extends ItemView {
    * bisher) – die nächste Zeichnung dieser Seite beginnt also dort.
    */
   /**
-   * Layout NUR für diesen Tab setzen – ohne den Seiten-Standard anzufassen. Das ist der
-   * Unterschied zu setLayout: Der Planungs-Split ordnet dieselbe Seite für JETZT als Liste und
-   * Kalender an; er sagt nichts darüber, wie sie beim nächsten Öffnen aussehen soll.
+   * Nur für diesen Tab setzen – ohne den Seiten-Standard anzufassen. Das ist der Unterschied zu
+   * setLocal: Der Planungs-Split ordnet dieselbe Seite für JETZT als Liste und Kalender an; er
+   * sagt nichts darüber, wie sie beim nächsten Öffnen aussehen soll.
    * Weil es nur den eigenen Tab betrifft, braucht es hier auch kein Einfrieren der Nachbarn.
    */
-  useLayout(layout: PageLayout): void {
-    this.layout = layout;
+  useLocal(patch: Partial<LocalOptions>): void {
+    Object.assign(this.local, patch);
     this.plugin.app.workspace.requestSaveLayout();   // die Anordnung übersteht den Neustart
     this.draw();
   }
 
-  setLayout(layout: PageLayout): void {
-    const before = this.plugin.pageOptions(this.page).layout;
+  setLocal(patch: Partial<LocalOptions>): void {
+    const before = this.plugin.pageOptions(this.page);
     for (const other of this.plugin.mainViews()) {
-      if (other !== this && other.layout === null && samePage(other.page, this.page)) other.layout = before;
+      if (other === this || !samePage(other.page, this.page)) continue;
+      // Nur je Schlüssel einfrieren, und nur wo der Nachbar bisher dem Seiten-Standard folgte:
+      // Ein Tab, der sein Layout schon selbst gewählt hat, wird von einer Panel-Änderung hier
+      // nicht angefasst und umgekehrt.
+      for (const k of Object.keys(patch) as (keyof LocalOptions)[]) {
+        if (other.local[k] === undefined) Object.assign(other.local, { [k]: before[k] });
+      }
     }
-    this.layout = layout;
-    void this.plugin.setPageOption(this.page, { layout });
+    Object.assign(this.local, patch);
+    void this.plugin.setPageOption(this.page, patch);
     // Sofort zeichnen statt auf den Speicher zu warten: auf einer PROJEKT-Seite landet der neue
     // Wert im Frontmatter und käme erst mit dem metadataCache-Ereignis zurück. Der eingefrorene
     // Nachbar-Tab (oben) soll aber im selben Moment sichtbar stehen bleiben, nicht erst gleich.
@@ -2072,7 +2091,7 @@ export class MainView extends ItemView {
       id: this.id,
       page: this.page,
       pageKey: info.key,
-      opts: this.layout ? { ...stored, layout: this.layout } : stored,
+      opts: { ...stored, ...this.local },
       titleComp: this.renderComp,
       get doneTab() { return st.doneTab; },
       get manageTab() { return st.manageTab; },
@@ -2083,8 +2102,9 @@ export class MainView extends ItemView {
       redraw: () => this.draw(),
       open: (p) => this.openPage(p),
       setOption: (patch) => void this.plugin.setPageOption(this.page, patch),
-      setLayout: (l) => this.setLayout(l),
-      resetOptions: () => { this.layout = null; void this.plugin.resetPageOptions(this.page); },
+      setLayout: (l) => this.setLocal({ layout: l }),
+      setCalPanel: (open) => this.setLocal({ calPanel: open }),
+      resetOptions: () => { this.local = {}; void this.plugin.resetPageOptions(this.page); },
     };
   }
 

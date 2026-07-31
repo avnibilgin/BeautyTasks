@@ -337,9 +337,13 @@ export default class BeautyTasksPlugin extends Plugin {
     const target: PageRef = wanted && pageInfo(wanted).tier !== "none"
       ? wanted : { kind: "view", key: this.startView() };
     const left = await this.openPage(target);
-    left?.useLayout("list");
+    left?.useLocal({ layout: "list" });
     const right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
-    right?.useLayout("calendar");
+    // Seitenspalte („Nicht terminiert") zu: Der Split halbiert die Breite, und ihre Aufgabe
+    // erfüllt hier die LISTE links – sie ist die Quelle, aus der man ins Raster zieht. Offen
+    // bliebe ein zweiter Vorrat, der dem Kalender genau den Platz nimmt, für den man geteilt hat.
+    // Nur für diesen Tab: der Seiten-Standard („offen") gilt beim normalen Öffnen weiter.
+    right?.useLocal({ layout: "calendar", calPanel: false });
     // Fokus zurück auf die Liste: Sie ist die Quelle des Zugs und die Seite, auf der man arbeitet.
     // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste, nicht den Kalender.
     if (left && left !== right) await this.app.workspace.revealLeaf(left.leaf);
