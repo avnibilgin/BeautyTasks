@@ -176,7 +176,7 @@ export default class BeautyTasksPlugin extends Plugin {
         return true;
       },
     });
-    this.addCommand({ id: "plan-split", name: t("cmd_plan_split"), callback: () => void this.openPlanSplit() });
+    this.addCommand({ id: "plan-split", name: t("plan_open"), callback: () => void this.openPlanSplit() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });

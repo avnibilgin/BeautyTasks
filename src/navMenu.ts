@@ -53,7 +53,7 @@ export function addOpenItems(menu: Menu, plugin: BeautyTasksPlugin, page: PageRe
   // kennen keine Kalender-Ansicht (tier "none"). Dort wäre der Eintrag ein leeres Versprechen –
   // er stünde im Menü und lieferte zweimal dieselbe Liste.
   if (pageInfo(page).tier !== "none") {
-    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("menu_open_plan")).setIcon("split-square-horizontal")
+    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("plan_open")).setIcon("split-square-horizontal")
       .onClick(() => void plugin.openPlanSplit(page)));
   }
 }
