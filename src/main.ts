@@ -357,6 +357,14 @@ export default class BeautyTasksPlugin extends Plugin {
     if (left) this.focusMain(left);
 
     let right = known("calendar");
+    // Die Rolle sagt, WOZU ein Tab gehört – nicht, WO er liegt. Ein Kalender-Tab, der in derselben
+    // Tab-Gruppe sitzt wie die Liste, ist ein Reiter HINTER ihr und kein Split; ihn weiterzuverwenden
+    // hieße, „Planen" öffnete nichts nebeneinander. Dann gibt er seine Rolle ab und es wird wirklich
+    // abgespalten. (Auf Mobil gibt es bewusst keine Splits – dort ist genau das der Normalfall.)
+    if (!Platform.isMobile && right && left && right.leaf.parent === left.leaf.parent) {
+      right.planRole = null;
+      right = null;
+    }
     if (right) right.openPage(target); else right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
 
     left?.useLocal({ layout: "list" }, "list");
