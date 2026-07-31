@@ -3,7 +3,7 @@
 // (manageView). Alle Aktionen rufen bestehende Plugin-Methoden; das Menü ist reine Verdrahtung.
 import { Menu, TFile, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { PageRef } from "./pageCtx";
+import { PageRef, pageInfo } from "./pageCtx";
 import { NavSection } from "./types";
 import { NewItemModal } from "./newItemModal";
 import { FilterModal } from "./filterModal";
@@ -44,6 +44,17 @@ export function addOpenItems(menu: Menu, plugin: BeautyTasksPlugin, page: PageRe
   if (Platform.isDesktop) {
     menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("menu_open_window")).setIcon("picture-in-picture-2")
       .onClick(() => void plugin.openPage(page, "window")));
+  }
+  // Der Planungs-Split gehört hierher und nicht in ein eigenes Menü: Er beantwortet dieselbe
+  // Frage wie die drei darüber („wie bekomme ich das woanders hin?"), nur mit einem Ziel, das
+  // sich sonst niemand von Hand zusammenbaut – Liste hier, Kalender daneben.
+  //
+  // NUR wo es überhaupt ein Layout zu wählen gibt: Wiederkehrend, Erledigt und die Verwaltung
+  // kennen keine Kalender-Ansicht (tier "none"). Dort wäre der Eintrag ein leeres Versprechen –
+  // er stünde im Menü und lieferte zweimal dieselbe Liste.
+  if (pageInfo(page).tier !== "none") {
+    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("menu_open_plan")).setIcon("calendar-days")
+      .onClick(() => void plugin.openPlanSplit(page)));
   }
 }
 

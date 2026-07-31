@@ -1,6 +1,7 @@
 import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx } from "./pageCtx";
+import { dragTask, startTaskDrag, endTaskDrag } from "./taskDrag";
 import { Task, CalEvent, agendaDate } from "./types";
 import { ViewOptions } from "./filterEngine";
 import { t, getLocale, projectDisplayName } from "./i18n";
@@ -51,8 +52,6 @@ export function dropCalendarAnchors(id: string): void {
   for (const k of [...anchors.keys()]) if (k.startsWith(prefix)) anchors.delete(k);
 }
 
-// Drag-Zustand (nur eigene Chips, kein Vault-Drag)
-let dragPath: string | null = null;
 
 const z = (n: number) => String(n).padStart(2, "0");
 const hhmm = (min: number): string => z(Math.floor(min / 60)) + ":" + z(min % 60);
@@ -707,12 +706,12 @@ const prioTint = (task: Task): string => PRIO_TINT[task.priority] ?? "var(--inte
 function dragSource(el: HTMLElement, task: Task): void {
   el.setAttr("draggable", "true");
   el.addEventListener("dragstart", (e) => {
-    dragPath = task.path;
+    startTaskDrag(task.path);
     el.addClass("is-dragging");
     e.dataTransfer?.setData("text/plain", task.path);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
   });
-  el.addEventListener("dragend", () => { dragPath = null; el.removeClass("is-dragging"); });
+  el.addEventListener("dragend", () => { endTaskDrag(); el.removeClass("is-dragging"); });
 }
 
 /**
@@ -731,8 +730,9 @@ function attachGhost(col: HTMLElement, plugin: BeautyTasksPlugin): void {
 
   col.addEventListener("dragenter", () => { colTop = col.getBoundingClientRect().top; });
   col.addEventListener("dragover", (e) => {
-    if (!dragPath) return;
-    const task = plugin.index.get(dragPath);
+    const dragged = dragTask();
+    if (!dragged) return;
+    const task = plugin.index.get(dragged);
     if (!task) return;
     if (!ghost) {
       colTop = col.getBoundingClientRect().top;       // Sicherheitsnetz, falls dragenter ausblieb
@@ -761,7 +761,7 @@ function attachGhost(col: HTMLElement, plugin: BeautyTasksPlugin): void {
 function dropTarget(el: HTMLElement, plugin: BeautyTasksPlugin,
   dueOf: (task: Task, ev: DragEvent) => string): void {
   el.addEventListener("dragover", (e) => {
-    if (!dragPath) return;                                 // nur eigene Chips
+    if (!dragTask()) return;                               // nur unsere Aufgaben – aus Kalender, Liste ODER Board
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     el.addClass("is-drop");
@@ -772,8 +772,8 @@ function dropTarget(el: HTMLElement, plugin: BeautyTasksPlugin,
   el.addEventListener("drop", (e) => {
     e.preventDefault(); e.stopPropagation();
     el.removeClass("is-drop");
-    const path = e.dataTransfer?.getData("text/plain") || dragPath;
-    dragPath = null;
+    const path = e.dataTransfer?.getData("text/plain") || dragTask();
+    endTaskDrag();
     if (!path) return;
     const task = plugin.index.get(path);
     if (!task) return;

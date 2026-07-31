@@ -176,6 +176,7 @@ export default class BeautyTasksPlugin extends Plugin {
         return true;
       },
     });
+    this.addCommand({ id: "plan-split", name: t("cmd_plan_split"), callback: () => void this.openPlanSplit() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -293,7 +294,7 @@ export default class BeautyTasksPlugin extends Plugin {
    * "window" – bzw. direkt der Rückgabewert von Keymap.isModEvent, damit Strg-/Mittelklick genau
    * das tun, was der Nutzer in Obsidian ohnehin gewohnt ist.
    */
-  async openPage(page: PageRef, where?: PaneType | boolean): Promise<void> {
+  async openPage(page: PageRef, where?: PaneType | boolean): Promise<MainView | null> {
     const { workspace } = this.app;
     if (page.kind === "view" && this.settings.lastView !== page.key) {
       this.settings.lastView = page.key; void this.saveSettings();   // für startView === "last"
@@ -303,13 +304,45 @@ export default class BeautyTasksPlugin extends Plugin {
       target.openPage(page);
       await workspace.revealLeaf(target.leaf);
       target.drawIfDirty();             // lag der Tab im Hintergrund, steht seine Zeichnung noch aus
-      return;
+      return target;
     }
     const leaf = workspace.getLeaf(where ?? "tab");
     await leaf.setViewState({ type: VIEW_MAIN, active: true, state: { kind: page.kind, key: page.key } });
     await workspace.revealLeaf(leaf);   // awaited -> View vollständig geladen
-    if (leaf.view instanceof MainView) leaf.view.drawIfDirty();
+    const view = leaf.view instanceof MainView ? leaf.view : null;
+    view?.drawIfDirty();
     this.renderNav();
+    return view;
+  }
+
+  /**
+   * Planungs-Split: dieselbe Seite links als Liste, rechts als Kalender.
+   *
+   * Warum ein Befehl und nicht „mach dir zwei Tabs auf": Planen ist EINE Bewegung – sehen, was zu
+   * tun ist, und entscheiden, wann. Erst nebeneinander lässt sich eine Zeile in einen Tag ziehen,
+   * statt sie über den Datumswähler zu terminieren. Dass niemand sich diese Anordnung von Hand
+   * zusammensetzt, ist der eigentliche Grund für den Befehl.
+   *
+   * Das Layout wird NUR am jeweiligen Tab gesetzt (useLayout), nicht als Seiten-Standard: Der
+   * Split ist eine Anordnung für jetzt, keine Aussage darüber, wie das Projekt künftig aussehen
+   * soll – sonst stünde es beim nächsten Öffnen unversehens im Kalender.
+   *
+   * Mobil kennt keine sinnvollen Splits (und keinen HTML5-Zug): dort wird daraus ein zweiter Tab.
+   */
+  async openPlanSplit(page?: PageRef): Promise<void> {
+    const wanted = page ?? this.activeMain()?.page;
+    // Seiten ohne Layout-Wahl (Wiederkehrend, Erledigt, Verwaltung) haben keine Kalender-Ansicht –
+    // ein Split daraus wäre zweimal dieselbe Liste. Aus dem Kontextmenü kann das gar nicht kommen
+    // (der Eintrag fehlt dort), über die Befehlspalette schon: dann wird die Startansicht geplant.
+    const target: PageRef = wanted && pageInfo(wanted).tier !== "none"
+      ? wanted : { kind: "view", key: this.startView() };
+    const left = await this.openPage(target);
+    left?.useLayout("list");
+    const right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
+    right?.useLayout("calendar");
+    // Fokus zurück auf die Liste: Sie ist die Quelle des Zugs und die Seite, auf der man arbeitet.
+    // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste, nicht den Kalender.
+    if (left && left !== right) await this.app.workspace.revealLeaf(left.leaf);
   }
 
   // Bequeme Namen für die Seitenleiste, Menüs und Commands – alle landen in openPage().

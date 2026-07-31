@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, ViewStateResult } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
+import { dragTask, dragFromCol, startTaskDrag, endTaskDrag } from "./taskDrag";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
@@ -23,13 +24,6 @@ import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 
-// Transienter Zustand während eines Kanban-Drags: Pfad der Karte + ID der Quell-Spalte
-// (für die Swap-Semantik beim Label-Board – welches Label die Karte hier her gebracht hat).
-// Bewusst OHNE Tab-Bezug: es gibt genau einen Mauszeiger, also immer höchstens einen laufenden
-// Zug – auch wenn er in einem anderen Tab endet als er begann (das Ziel sucht die Aufgabe über
-// ihren Pfad im Index, nicht über die Quell-Liste).
-let dragPath: string | null = null;
-let dragFromCol: string | null = null;
 /**
  * ── Transienter Anzeige-Zustand: IMMER mit dem Tab schlüsseln ─────────────────────────────────
  * Diese Maps überleben ein Neuzeichnen (das ist ihr Zweck), sind aber Modul-Zustand: ohne die
@@ -727,7 +721,7 @@ function dateColumns(plugin: BeautyTasksPlugin, cards: Task[], today: string, fi
 /** Horizontales Edge-Autoscroll beim Karten-Drag (natives HTML5-DnD scrollt eigene Container in
  *  Chromium NICHT): Kommt der Cursor an den linken/rechten Rand des Boards, scrollt es fortlaufend –
  *  auch beim Stillhalten am Rand (die rAF-Schleife läuft mit der zuletzt gemeldeten Position weiter).
- *  Nur für eigene Karten (`dragPath`). Popout-sicher (reiner Element-Scroll). Selbst-Stopp, sobald die
+ *  Nur für eigene Karten (s. taskDrag.ts). Popout-sicher (reiner Element-Scroll). Selbst-Stopp, sobald die
  *  Zone verlassen ist, beim Drag-Ende ODER wenn das Board neu gerendert/entfernt wurde (`isConnected`).
  *  KEIN vertikales Autoscroll: Spalten scrollen intern und Drops sind positionsunabhängig – man muss
  *  beim Ziehen nie eine Spalte intern scrollen. */
@@ -752,7 +746,7 @@ function attachEdgeAutoscroll(board: HTMLElement): (clientX: number | null) => v
     hSpeed = clientX < r.left + EDGE ? -ramp(clientX - r.left) : clientX > r.right - EDGE ? ramp(r.right - clientX) : 0;
     if (hSpeed && !rafId) rafId = window.requestAnimationFrame(tick);
   };
-  board.addEventListener("dragover", (e) => { if (dragPath) drive(e.clientX); });   // nur eigene Karten, kein Vault-/Text-Drag
+  board.addEventListener("dragover", (e) => { if (dragTask()) drive(e.clientX); });   // nur eigene Karten, kein Vault-/Text-Drag
   board.addEventListener("dragend", stop);
   board.addEventListener("drop", stop);
   return drive;
@@ -906,9 +900,9 @@ function attachTaskReorder(row: HTMLElement, grip: HTMLElement, list: HTMLElemen
  */
 function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTasksPlugin, manual: boolean): void {
   const listEl = (): HTMLElement | null => colEl.querySelector<HTMLElement>(".bt-kanban-list");
-  const dragged = (): Task | undefined => (dragPath ? plugin.index.get(dragPath) : undefined);
+  const dragged = (): Task | undefined => { const p = dragTask(); return p ? plugin.index.get(p) : undefined; };
   colEl.addEventListener("dragover", (e) => {
-    if (!dragPath) return;                       // nur eigene Karten (kein Vault-Drag)
+    if (!dragTask()) return;                       // nur eigene Karten (kein Vault-Drag)
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     colEl.addClass("is-drop");
@@ -925,13 +919,13 @@ function setupColumnDnd(colEl: HTMLElement, col: BoardColumn, plugin: BeautyTask
   colEl.addEventListener("drop", (e) => {
     e.preventDefault();
     colEl.removeClass("is-drop");
-    const path = e.dataTransfer?.getData("text/plain") || dragPath;
-    const fromCol = dragFromCol;
+    const path = e.dataTransfer?.getData("text/plain") || dragTask();
+    const fromCol = dragFromCol();
     const task = path ? plugin.index.get(path) : undefined;
     const l = listEl();
     const before = manual && task && l ? showDropTarget(l, task, plugin, e.clientY) : undefined;
     if (l) clearDropTarget(l);
-    dragPath = null; dragFromCol = null;
+    endTaskDrag();
     if (!task) return;
     // Position zuerst und abgewartet, dann die Facette: zwei processFrontMatter auf dieselbe Datei
     // dürfen sich nicht überholen, sonst geht einer der beiden Schreibvorgänge verloren.
@@ -1321,8 +1315,7 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   if (!trash) {
     row.setAttr("draggable", "true");
     row.addEventListener("dragstart", (e) => {
-      dragPath = task.path;
-      dragFromCol = opts.colId ?? null;   // Quell-Spalte (Status-ID bzw. Label) für die Drop-Semantik
+      startTaskDrag(task.path, opts.colId ?? null);   // Quell-Spalte (Status-ID bzw. Label) für die Drop-Semantik
       attachDragGhost(e, row);            // VOR is-dragging: sonst zöge die Karte dessen Dimmung mit
       row.addClass("is-dragging");
       e.dataTransfer?.setData("text/plain", task.path);
@@ -1331,12 +1324,14 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // Auch aufräumen, wenn der Zug ohne Drop endet (Escape, Loslassen außerhalb des Boards) –
     // sonst bliebe die Spalte ausgegraut, bis sie das nächste Mal neu gezeichnet wird.
     row.addEventListener("dragend", () => {
-      dragPath = null; dragFromCol = null;
+      endTaskDrag();
       row.removeClass("is-dragging");
       clearDropTarget(list);
-      // Abbruch per Escape über einem Seitenleisten-Eintrag liefert dort kein `dragleave` – die
-      // Hervorhebung bliebe sonst stehen. `dragend` ist der eine Punkt, der jedes Ende sicher sieht.
-      row.ownerDocument.querySelectorAll(".is-drop-task").forEach((el) => el.removeClass("is-drop-task"));
+      // Abbruch per Escape über einem Abwurfziel liefert dort kein `dragleave` – die Hervorhebung
+      // bliebe sonst stehen. `dragend` ist der eine Punkt, der jedes Ende sicher sieht. Seit die
+      // Liste im Planungs-Split neben dem Kalender steht, gilt das auch für dessen Zellen
+      // (`.is-drop`), nicht mehr nur für die Seitenleiste (`.is-drop-task`).
+      row.ownerDocument.querySelectorAll(".is-drop-task, .is-drop").forEach((el) => el.removeClasses(["is-drop-task", "is-drop"]));
     });
   }
 
@@ -1584,14 +1579,15 @@ function navItem(c: HTMLElement, plugin: BeautyTasksPlugin, o: NavItemOpts): voi
  * tragen und bleibt, wo sie ist). Filter bleiben außen vor – sie sind Suchanfragen und haben kein
  * Feld, das sich setzen ließe.
  *
- * Die Aufgabe kommt aus dem Modul-Zustand `dragPath` (denselben benutzen Board und Kalender);
+ * Die Aufgabe kommt aus dem gemeinsamen Zug-Zustand (s. taskDrag.ts – denselben benutzen Liste,
+ * Board und Kalender);
  * `dataTransfer` trägt sie zusätzlich, weil ein Zug ohne Nutzlast in manchen Umgebungen gar nicht
  * erst startet. Gelesen wird der Modul-Zustand – er überlebt auch Züge über View-Grenzen hinweg.
  */
 function attachTaskDrop(el: HTMLElement, plugin: BeautyTasksPlugin, onDrop: (task: Task) => void): void {
   const clear = (): void => el.removeClass("is-drop-task");
   el.addEventListener("dragover", (e) => {
-    if (!dragPath) return;                  // fremder Zug (Datei aus dem Vault o. Ä.) -> nicht anfassen
+    if (!dragTask()) return;                  // fremder Zug (Datei aus dem Vault o. Ä.) -> nicht anfassen
     e.preventDefault();                     // ohne das lehnt der Browser den Drop ab
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     el.addClass("is-drop-task");
@@ -1601,9 +1597,9 @@ function attachTaskDrop(el: HTMLElement, plugin: BeautyTasksPlugin, onDrop: (tas
   el.addEventListener("dragleave", (e) => { if (!el.contains(e.relatedTarget as Node | null)) clear(); });
   el.addEventListener("drop", (e) => {
     clear();
-    if (!dragPath) return;
+    if (!dragTask()) return;
     e.preventDefault();
-    const task = plugin.index.get(dragPath);
+    const task = plugin.index.get(dragTask()!);
     if (task) onDrop(task);
   });
 }
@@ -2031,6 +2027,18 @@ export class MainView extends ItemView {
    * stehen, wo er war. Der neue Wert wird zusätzlich als Seiten-Standard gespeichert (wie
    * bisher) – die nächste Zeichnung dieser Seite beginnt also dort.
    */
+  /**
+   * Layout NUR für diesen Tab setzen – ohne den Seiten-Standard anzufassen. Das ist der
+   * Unterschied zu setLayout: Der Planungs-Split ordnet dieselbe Seite für JETZT als Liste und
+   * Kalender an; er sagt nichts darüber, wie sie beim nächsten Öffnen aussehen soll.
+   * Weil es nur den eigenen Tab betrifft, braucht es hier auch kein Einfrieren der Nachbarn.
+   */
+  useLayout(layout: PageLayout): void {
+    this.layout = layout;
+    this.plugin.app.workspace.requestSaveLayout();   // die Anordnung übersteht den Neustart
+    this.draw();
+  }
+
   setLayout(layout: PageLayout): void {
     const before = this.plugin.pageOptions(this.page).layout;
     for (const other of this.plugin.mainViews()) {
