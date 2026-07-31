@@ -18,7 +18,7 @@ describe("Öffnen-Menü: in jeder Sprache übersetzt", () => {
     const en = KEYS.map((k) => t(k));
     expect(en).toEqual([
       "Open in new tab", "Open to the right", "Open in new window",
-      "Plan: list and calendar", "Open for planning",
+      "Plan: list and calendar", "Open planning view",
     ]);
 
     for (const loc of LOCALES.filter((l) => l !== "en")) {
@@ -38,7 +38,7 @@ describe("Öffnen-Menü: in jeder Sprache übersetzt", () => {
     expect(t("menu_open_right")).toBe("Rechts daneben öffnen");
     expect(t("menu_open_window")).toBe("In neuem Fenster öffnen");
     expect(t("cmd_plan_split")).toBe("Planen: Liste und Kalender");
-    expect(t("menu_open_plan")).toBe("Zum Planen öffnen");
+    expect(t("menu_open_plan")).toBe("Planungsansicht öffnen");
     setLocale("en");
   });
 });
