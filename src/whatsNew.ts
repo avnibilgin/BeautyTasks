@@ -15,10 +15,11 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
+    // Die drei Speicher-Einträge aus 1.36.0 sind bewusst raus: Wer 1.37 sieht, hatte den
+    // damaligen Dialog fast sicher schon. Wer direkt von 1.35.x kommt und den Sync nutzt,
+    // bekommt zum Neu-Verbinden ohnehin die eigene Meldung beim Start (noticeGCalNeedsReconnect).
     const items: Highlight[] = [
-      { icon: "smartphone", title: t("wn_gcaldevice_t"), desc: t("wn_gcaldevice_d") },
-      { icon: "shield", title: t("wn_gcalsafe_t"), desc: t("wn_gcalsafe_d") },
-      { icon: "refresh-cw", title: t("wn_gcalquiet_t"), desc: t("wn_gcalquiet_d") },
+      { icon: "calendar-check", title: t("wn_gcalkeep_t"), desc: t("wn_gcalkeep_d") },
       { icon: "panel-left", title: t("wn_navdevice_t"), desc: t("wn_navdevice_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
