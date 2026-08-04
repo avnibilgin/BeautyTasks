@@ -17,34 +17,73 @@ function liveAnchor(anchor: HTMLElement): HTMLElement | null {
 }
 
 /**
- * Welcher Anker hat gerade ein Popover offen.
+ * ── Wer ist gerade offen, und wer gehört zu wem? ───────────────────────────────────────────────
  *
- * Ohne dieses Register legte ein zweiter Klick auf denselben Auslöser ein WEITERES Popover über
- * das vorhandene, statt es zu schließen – und das immer weiter: Die Exemplare stapelten sich
- * deckungsgleich übereinander, jedes mit eigenem Schatten (sichtbar als wachsender Hof), eigenem
- * Dokument-Wächter und eigenem Resize-Wächter.
+ * Alle Popovers hängen als GESCHWISTER am body (bzw. am Modal-Container) – nie ineinander. Die
+ * Verschachtelung („dieses Dropdown gehört zum Anzeige-Panel") steht also nirgends im DOM; sie
+ * steckt allein im ANKER: Ein Popover ist das Kind desjenigen, in dessen Fläche sein Auslöser
+ * liegt. Genau diese Beziehung hält das Register fest, weil drei Entscheidungen sie brauchen:
  *
- * Der Grund liegt eine Zeile tiefer im Außerhalb-Wächter: Ein `mousedown` AUF DEN ANKER ist dort
- * ausgenommen – ohne diese Ausnahme klappte ein Popover sofort wieder zu, sobald man die
- * Maustaste über dem eigenen Auslöser loslässt. Das darauffolgende `click` erreicht aber den
- * `onclick` des Knopfes und öffnet erneut. Es fehlte also nicht die Ausnahme, sondern ihre
- * Gegenstelle: „für diesen Anker ist schon eines offen".
+ *   1. ZWEITER KLICK auf denselben Auslöser klappt zu, statt ein weiteres darüberzulegen.
+ *      Ohne das stapelten sich deckungsgleiche Exemplare, jedes mit eigenem Schatten (sichtbar
+ *      als wachsender Hof) und eigenen Wächtern. Nötig ist es, weil der Anker im
+ *      Außerhalb-Wächter ausgenommen bleiben MUSS – sonst klappte ein Popover sofort wieder zu,
+ *      sobald man die Maustaste über dem eigenen Knopf loslässt.
  *
- * WeakMap statt Map: Der Schlüssel ist ein DOM-Element, das jederzeit ersetzt werden kann
- * (Chip-Leisten und der Anzeige-Knopf werden bei jeder Änderung neu gezeichnet). Ein abgelöster
- * Anker soll den Eintrag nicht am Leben halten – und sein Popover schließt ohnehin von selbst:
- * Für DAS ist der Klick auf den frisch gezeichneten Knopf ein echter Außerhalb-Klick.
+ *   2. ÖFFNET SICH EINES woanders, schließt alles, was nicht zu seiner Ahnenkette gehört. Damit
+ *      lösen sich Geschwister ab: Zwei Facetten-Dropdowns desselben Panels standen vorher
+ *      gleichzeitig offen, weil keines für das andere „draußen" war.
+ *
+ *   3. EIN KLICK gilt nur dann nicht als „draußen", wenn er im eigenen Inhalt oder in einem
+ *      KIND-Popover landet. Vorher stand dort „in irgendeinem anderen Popover" – und weil das
+ *      Eltern-Panel eben auch ein anderes ist, war ein Klick auf dessen leere Fläche geschützt:
+ *      Das Dropdown blieb hartnäckig stehen.
+ *
+ * Ein Set statt einer WeakMap: Es sind nie mehr als eine Handvoll, sie werden über ihre
+ * Beziehungen zueinander abgefragt (nicht über einen Schlüssel), und jeder Eintrag verschwindet
+ * beim Schließen wieder – ein abgelöstes Anker-Element hält hier also nichts am Leben.
  */
-const openFor = new WeakMap<HTMLElement, () => void>();
+interface OpenPop {
+  pop: HTMLElement;
+  /** Auslöser – null bei Koordinaten-Popovers (Rechtsklick, s. openPopoverAt). */
+  anchor: HTMLElement | null;
+  parent: OpenPop | null;
+  close: () => void;
+}
+const openPops = new Set<OpenPop>();
+
+/** Das offene Popover, in dessen Fläche `el` liegt – also der Elter eines dort ausgelösten. */
+function popContaining(el: Node | null): OpenPop | null {
+  if (!el) return null;
+  for (const e of openPops) if (e.pop.contains(el)) return e;
+  return null;
+}
+
+/** Ist `q` (oder einer seiner Vorfahren) ein Kind von `me`? */
+function isDescendant(me: OpenPop, q: OpenPop | null): boolean {
+  for (let c = q; c; c = c.parent) if (c === me) return true;
+  return false;
+}
+
+/** Beim Öffnen aufräumen: alles schließen, was nicht in der Ahnenkette des Neuen liegt. Die
+ *  Kette selbst bleibt stehen – sonst zöge ein Dropdown das Panel mit weg, aus dem es kommt. */
+function closeUnrelated(parent: OpenPop | null): void {
+  const keep = new Set<OpenPop>();
+  for (let c = parent; c; c = c.parent) keep.add(c);
+  for (const e of [...openPops]) if (!keep.has(e)) e.close();
+}
 
 export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
   const doc = anchorEl.ownerDocument;
   const win = doc.defaultView ?? activeWindow;
   const anchor = liveAnchor(anchorEl) ?? anchorEl;
-  // Zweiter Klick auf denselben Auslöser = zuklappen (wie jedes Menü). Bewusst kein
+  // Regel 1 – zweiter Klick auf denselben Auslöser = zuklappen (wie jedes Menü). Bewusst kein
   // Schließen-und-sofort-neu-Öffnen: Das flackerte nur und ließe einen nie ohne Umweg wieder heraus.
-  const already = openFor.get(anchor);
-  if (already) { already(); return; }
+  for (const e of openPops) if (e.anchor === anchor) { e.close(); return; }
+  // Regel 2 – meine Ebene bestimmen und alles Fremde schließen. VOR dem Erzeugen des eigenen
+  // Elements, damit das Register beim Nachschlagen noch den Stand von vorher zeigt.
+  const parent = popContaining(anchor);
+  closeUnrelated(parent);
   // Innerhalb eines Modals in den .modal-CONTAINER einhängen – nicht in die .modal-Box:
   // - Fokus: Obsidian setzt scope.setTabFocusContainerEl(containerEl), der Container reicht
   //   also aus, damit Eingabefelder im Popover bedienbar bleiben (deshalb hing es früher im
@@ -60,23 +99,24 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   const close = () => {
     if (closed) return;
     closed = true;
-    openFor.delete(anchor);
+    openPops.delete(entry);
     pop.remove();
     doc.removeEventListener("mousedown", onDoc, true);
     win.removeEventListener("resize", close);
     onClose?.();
   };
-  openFor.set(anchor, close);
+  const entry: OpenPop = { pop, anchor, parent, close };
+  openPops.add(entry);
   const onDoc = (e: MouseEvent) => {
     const t = e.target as Node;
+    if (pop.contains(t)) return;                        // eigener Inhalt
     // Der Anker ist ausgenommen, damit das Popover beim Loslassen über dem eigenen Auslöser nicht
-    // sofort wieder zuklappt. Den zweiten Klick fängt dafür `openFor` oben ab (s. dort).
-    if (pop.contains(t) || t === anchor || anchor.contains(t)) return;
-    // Verschachtelung: Aus einem Popover heraus kann ein zweites geöffnet werden (z. B. die
-    // Dropdowns im Anzeige-Panel). Dessen Elemente liegen NICHT in diesem Popover – ohne diese
-    // Ausnahme würde jeder Klick darin das äußere Panel als „Klick außerhalb" schließen.
-    const inOtherPop = (t as HTMLElement).closest?.(".bt-pop");
-    if (inOtherPop && inOtherPop !== pop) return;
+    // sofort wieder zuklappt. Den zweiten Klick fängt dafür Regel 1 oben ab (s. openPops).
+    if (t === anchor || anchor.contains(t)) return;
+    // Regel 3 – geschützt ist nur ein Klick in einem KIND-Popover (der Datumswähler, den dieses
+    // Menü geöffnet hat). Ein Klick im ELTERN-Panel ist dagegen ein Klick nach draußen: Genau
+    // dort blieb früher ein Dropdown stehen, weil „irgendein anderes Popover" auch den Elter meinte.
+    if (isDescendant(entry, popContaining(t))) return;
     close();
     // Klick außerhalb der Modal-BOX würde sonst das ganze Modal schließen (und Änderungen
     // verwerfen) -> diesen einen Klick verschlucken, das Modal bleibt offen. Bewusst gegen
@@ -153,21 +193,29 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
  *  dem Menü heraus) bleiben über die .bt-pop-Ausnahme im Außerhalb-Klick erhalten. */
 export function openPopoverAt(doc: Document, x: number, y: number, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
   const win = doc.defaultView ?? activeWindow;
+  // Ohne Anker gibt es keine Ebene: Ein Kontextmenü ist immer die Wurzel und löst deshalb alles
+  // Offene ab. Regel 1 (Toggle) entfällt mangels Auslöser – ein zweiter Rechtsklick ist ohnehin
+  // ein Klick nach draußen und schließt das vorige über den normalen Weg.
+  closeUnrelated(null);
   const pop = doc.body.createDiv({ cls: "bt-pop" });
   let closed = false;
   const close = () => {
     if (closed) return;
     closed = true;
+    openPops.delete(entry);
     pop.remove();
     doc.removeEventListener("mousedown", onDoc, true);
     win.removeEventListener("resize", close);
     onClose?.();
   };
+  const entry: OpenPop = { pop, anchor: null, parent: null, close };
+  openPops.add(entry);
   const onDoc = (e: MouseEvent) => {
     const t = e.target as Node;
     if (pop.contains(t)) return;
-    const inOtherPop = (t as HTMLElement).closest?.(".bt-pop");
-    if (inOtherPop && inOtherPop !== pop) return;
+    // Kind-Popovers bleiben geschützt: Aus dem Zeilen-Kontextmenü heraus öffnet sich z. B. der
+    // Datumswähler, dessen Anker in DIESEM Menü liegt (s. isDescendant).
+    if (isDescendant(entry, popContaining(t))) return;
     close();
   };
   build(pop, close);
