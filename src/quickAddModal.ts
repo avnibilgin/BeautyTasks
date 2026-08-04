@@ -8,7 +8,7 @@ import { Modal, Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority, TaskStatus } from "./types";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
-import { createTaskNote, listProjectsAndAreas, isInboxLink } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, knownProjectNames, isInboxLink } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
 import { todayStr } from "./format";
 import { openPopover, popRow } from "./popover";
@@ -87,13 +87,12 @@ export class QuickAddModal extends Modal {
   /** Natural-Language aus dem Titel: Datum, Uhrzeit, Priorität, #Labels, @Projekt. Manuell (per
    *  Chip) gesetzte Werte bleiben erhalten. Spiegelt die Logik von TaskModal.applyParse. */
   private parse(): void {
-    const { bereiche, projekte } = listProjectsAndAreas(this.app);
     const r = applyQuickEntry(this.f.title, this.f, this.nl, {
       enabled: this.plugin.settings.parseNaturalLanguage,
       frozen: false,                 // Schnelleingabe legt immer neu an
       duePinned: this.duePinned,
       today: todayStr(),
-      projects: [...bereiche, ...projekte].map((p) => p.name),
+      projects: knownProjectNames(this.app),
       defaultProject: this.defaultProject,
     });
     this.cleanTitle = r.title;
