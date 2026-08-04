@@ -19,6 +19,7 @@ export class WhatsNewModal extends Modal {
       { icon: "smartphone", title: t("wn_gcaldevice_t"), desc: t("wn_gcaldevice_d") },
       { icon: "shield", title: t("wn_gcalsafe_t"), desc: t("wn_gcalsafe_d") },
       { icon: "refresh-cw", title: t("wn_gcalquiet_t"), desc: t("wn_gcalquiet_d") },
+      { icon: "panel-left", title: t("wn_navdevice_t"), desc: t("wn_navdevice_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
