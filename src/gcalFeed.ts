@@ -14,7 +14,7 @@ import { t } from "./i18n";
  * TaskIndex. Würde ein Termin als Notiz landen, wäre er für `isEligible()` eine ganz normale
  * datierte Aufgabe → `pushAll()` legte ein zweites Event dafür an → der nächste Pull sähe es →
  * Schleife, die den echten Kalender vollschreibt. Termine leben deshalb nur hier im Speicher
- * (+ Snapshot in data.json für den Kaltstart). Siehe `docs/gcal-feed-plan.md`.
+ * (+ geräte-lokaler Snapshot für den Kaltstart). Siehe `docs/gcal-feed-plan.md`.
  *
  * Geholt wird über **Zeitfenster, nicht über syncToken**: `events.list` erlaubt keinen syncToken
  * zusammen mit timeMin/timeMax; der Feed müsste sonst den ganzen Kalender spiegeln (inkl. 2019).
@@ -35,7 +35,7 @@ const PAD_DAYS = 7;               // Rand je Monatsfenster (Termine über die Mo
 //   lässt prune() genau die fernsten Termine wieder wegwerfen (also die, die der Regler zeigen soll).
 const MAX_MONTHS = 13;            // Deckel je Anfrage; 12 Monate Horizont überspannen 13 Monatsfenster
 const MAX_STORE = 12000;          // Notbremse gegen fette Kalender (Speicher); deckt 12 Monate × mehrere Kalender
-const SNAPSHOT_MAX = 500;         // Deckel für data.json
+const SNAPSHOT_MAX = 500;         // Deckel für den geräte-lokalen Kaltstart-Cache
 
 // ── Persistierte Einstellungen (Unter-Objekt von BeautyTasksSettings) ─────────
 export interface GCalFeedSettings {
@@ -43,7 +43,9 @@ export interface GCalFeedSettings {
   calendars: Record<string, boolean>;    // calendarId -> sichtbar
   hideDeclined: boolean;                 // abgelehnte Einladungen ausblenden
   upcomingMonths: number;                // Vorschau in „Demnächst": 1–12 Monate (siehe MAX_MONTHS/MAX_STORE)
-  snapshot: CalEvent[];                  // letzter Stand für Kaltstart/Offline (gedeckelt)
+  // `snapshot` liegt NICHT mehr hier: Der Kaltstart-Cache wird bei jedem Refresh neu geschrieben
+  // und umfasst bis zu 500 Termine – er gehört geräte-lokal, nicht in die Einstellungen.
+  // Siehe GCalFeedHost.snapshot()/setSnapshot().
 }
 
 export const DEFAULT_GCAL_FEED_SETTINGS: GCalFeedSettings = {
@@ -51,12 +53,14 @@ export const DEFAULT_GCAL_FEED_SETTINGS: GCalFeedSettings = {
   calendars: {},
   hideDeclined: true,
   upcomingMonths: 1,
-  snapshot: [],
 };
 
 /** Was die Engine vom Plugin braucht (klein gehalten → testbar/entkoppelt). */
 export interface GCalFeedHost {
   settings: GCalFeedSettings;
+  /** Kaltstart-Cache, geräte-lokal gespeichert (s. GCalFeedSettings). */
+  snapshot(): CalEvent[];
+  setSnapshot(events: CalEvent[]): Promise<void>;
   /** Der eigene Sync-Kalender. **Hart ausgeschlossen**: sonst stünde jede datierte Aufgabe doppelt
    *  da – einmal als Aufgabe, einmal als ihr eigenes gepushtes Event. */
   syncCalendarId(): string;
@@ -129,7 +133,7 @@ export class GCalFeed {
 
   constructor(private host: GCalFeedHost, private auth: GCalAuth) {
     // Kaltstart: der Snapshot füllt die Ansicht SOFORT (kein leeres Blitzen, offline sichtbar).
-    for (const ev of host.settings.snapshot ?? []) this.store.set(evKey(ev), ev);
+    for (const ev of host.snapshot()) this.store.set(evKey(ev), ev);
   }
 
   // ── Öffentliche API ──
@@ -223,9 +227,8 @@ export class GCalFeed {
   async clear(): Promise<void> {
     this.store.clear();
     this.fetched.clear();
-    this.host.settings.snapshot = [];
     this.status = { loading: false, error: null, lastLoadedAt: null };
-    await this.host.persist();
+    await this.host.setSnapshot([]);
     this.emit();
   }
 
@@ -361,11 +364,10 @@ export class GCalFeed {
     return invert ? all.slice(n) : all.slice(0, n);
   }
 
-  /** Snapshot für den nächsten Kaltstart. Gedeckelt, damit data.json nicht wächst. */
+  /** Snapshot für den nächsten Kaltstart. Gedeckelt, damit der Cache nicht wächst. */
   private async saveSnapshot(): Promise<void> {
     const snap = this.nearestToToday(SNAPSHOT_MAX).sort((a, b) => a.start.localeCompare(b.start));
-    this.host.settings.snapshot = snap;
-    await this.host.persist();
+    await this.host.setSnapshot(snap);
   }
 
   private setStatus(patch: Partial<GCalFeedStatus>): void {
