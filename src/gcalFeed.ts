@@ -55,6 +55,18 @@ export const DEFAULT_GCAL_FEED_SETTINGS: GCalFeedSettings = {
   upcomingMonths: 1,
 };
 
+/**
+ * Farbe eines Termins. Eine am EINZELNEN Termin gesetzte `colorId` schlägt die Farbe des
+ * Kalenders — so hält Google es auch. Der Normalfall ist „keine colorId": dann gilt weiter die
+ * Kalenderfarbe, und für die allermeisten Termine ändert sich damit nichts.
+ *
+ * Unbekannte oder unbrauchbare Werte fallen auf die Kalenderfarbe zurück statt auf nichts: Eine
+ * Palette, die (z. B. offline) nicht geladen werden konnte, darf keine farblosen Balken erzeugen.
+ */
+export function eventColor(colorId: unknown, palette: Record<string, string>, calColor: string): string {
+  return (typeof colorId === "string" ? palette[colorId] : undefined) ?? calColor;
+}
+
 /** Was die Engine vom Plugin braucht (klein gehalten → testbar/entkoppelt). */
 export interface GCalFeedHost {
   settings: GCalFeedSettings;
@@ -125,6 +137,7 @@ export class GCalFeed {
   private fetched = new Map<string, string | null>(); // `${calId}|${YYYY-MM}` -> ETag
   private wanted = new Set<string>();                 // Monate, die die Views gerade brauchen
   private cals: CalendarInfo[] | null = null;         // calendarList (Farben/Namen), einmal geholt
+  private palette: Record<string, string> | null = null;   // /colors -> Farbe je colorId, einmal geholt
   private cbs = new Set<() => void>();
   private pollTimer: number | null = null;
   private running = false;
@@ -294,9 +307,10 @@ export class GCalFeed {
     } while (pageToken);
 
     const color = await this.colorOf(calId);
+    const palette = await this.eventPalette();
     const mapped: CalEvent[] = [];
     for (const raw of items) {
-      const ev = this.mapEvent(raw, calId, color);
+      const ev = this.mapEvent(raw, calId, color, palette);
       if (ev) mapped.push(ev);
     }
     this.replaceRange(calId, fromDay, toDay, mapped);
@@ -306,6 +320,24 @@ export class GCalFeed {
   }
 
   /** Kalenderfarbe (aus calendarList). Fällt auf die Akzentfarbe des Themes zurück. */
+  /**
+   * Googles Farbpalette für EINZELNE Termine (`colorId` am Event, 1–11). Am Termin steht nur die
+   * Nummer, die Farbe liefert `/colors`. Einmal je Sitzung geholt und im Speicher behalten – die
+   * Palette ist seit Jahren unverändert, und ein Fehlschlag ist folgenlos: Dann gilt weiter die
+   * Kalenderfarbe, also das Verhalten von vorher.
+   */
+  private async eventPalette(): Promise<Record<string, string>> {
+    if (this.palette) return this.palette;
+    try {
+      const res = await gcalRequest(this.auth, "GET", "/colors");
+      const ev = res.json?.event as Record<string, { background?: string }> | undefined;
+      const out: Record<string, string> = {};
+      for (const [id, c] of Object.entries(ev ?? {})) if (c?.background) out[id] = c.background;
+      this.palette = out;
+    } catch { this.palette = {}; }   // offline/kein Zugriff -> Kalenderfarbe
+    return this.palette;
+  }
+
   private async colorOf(calId: string): Promise<string> {
     try {
       if (!this.cals) await this.calendarList();
@@ -313,7 +345,9 @@ export class GCalFeed {
     return this.cals?.find((c) => c.id === calId)?.backgroundColor ?? "var(--interactive-accent)";
   }
 
-  private mapEvent(raw: Record<string, unknown>, calId: string, color: string): CalEvent | null {
+  private mapEvent(
+    raw: Record<string, unknown>, calId: string, calColor: string, palette: Record<string, string>,
+  ): CalEvent | null {
     if (raw.status === "cancelled") return null;
     if (this.host.settings.hideDeclined && isDeclined(raw)) return null;
     const start = raw.start as { date?: string; dateTime?: string } | undefined;
@@ -334,7 +368,7 @@ export class GCalFeed {
       start: s,
       end: e,
       allDay,
-      color,
+      color: eventColor(raw.colorId, palette, calColor),
       htmlLink: (raw.htmlLink as string) ?? "",
       location: (raw.location as string) || undefined,
     };
