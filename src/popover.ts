@@ -16,10 +16,35 @@ function liveAnchor(anchor: HTMLElement): HTMLElement | null {
   return hits.length ? hits[hits.length - 1] : null;   // oberstes/zuletzt geöffnetes Modal
 }
 
+/**
+ * Welcher Anker hat gerade ein Popover offen.
+ *
+ * Ohne dieses Register legte ein zweiter Klick auf denselben Auslöser ein WEITERES Popover über
+ * das vorhandene, statt es zu schließen – und das immer weiter: Die Exemplare stapelten sich
+ * deckungsgleich übereinander, jedes mit eigenem Schatten (sichtbar als wachsender Hof), eigenem
+ * Dokument-Wächter und eigenem Resize-Wächter.
+ *
+ * Der Grund liegt eine Zeile tiefer im Außerhalb-Wächter: Ein `mousedown` AUF DEN ANKER ist dort
+ * ausgenommen – ohne diese Ausnahme klappte ein Popover sofort wieder zu, sobald man die
+ * Maustaste über dem eigenen Auslöser loslässt. Das darauffolgende `click` erreicht aber den
+ * `onclick` des Knopfes und öffnet erneut. Es fehlte also nicht die Ausnahme, sondern ihre
+ * Gegenstelle: „für diesen Anker ist schon eines offen".
+ *
+ * WeakMap statt Map: Der Schlüssel ist ein DOM-Element, das jederzeit ersetzt werden kann
+ * (Chip-Leisten und der Anzeige-Knopf werden bei jeder Änderung neu gezeichnet). Ein abgelöster
+ * Anker soll den Eintrag nicht am Leben halten – und sein Popover schließt ohnehin von selbst:
+ * Für DAS ist der Klick auf den frisch gezeichneten Knopf ein echter Außerhalb-Klick.
+ */
+const openFor = new WeakMap<HTMLElement, () => void>();
+
 export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, close: () => void) => void, onClose?: () => void): void {
   const doc = anchorEl.ownerDocument;
   const win = doc.defaultView ?? activeWindow;
   const anchor = liveAnchor(anchorEl) ?? anchorEl;
+  // Zweiter Klick auf denselben Auslöser = zuklappen (wie jedes Menü). Bewusst kein
+  // Schließen-und-sofort-neu-Öffnen: Das flackerte nur und ließe einen nie ohne Umweg wieder heraus.
+  const already = openFor.get(anchor);
+  if (already) { already(); return; }
   // Innerhalb eines Modals in den .modal-CONTAINER einhängen – nicht in die .modal-Box:
   // - Fokus: Obsidian setzt scope.setTabFocusContainerEl(containerEl), der Container reicht
   //   also aus, damit Eingabefelder im Popover bedienbar bleiben (deshalb hing es früher im
@@ -35,13 +60,17 @@ export function openPopover(anchorEl: HTMLElement, build: (pop: HTMLElement, clo
   const close = () => {
     if (closed) return;
     closed = true;
+    openFor.delete(anchor);
     pop.remove();
     doc.removeEventListener("mousedown", onDoc, true);
     win.removeEventListener("resize", close);
     onClose?.();
   };
+  openFor.set(anchor, close);
   const onDoc = (e: MouseEvent) => {
     const t = e.target as Node;
+    // Der Anker ist ausgenommen, damit das Popover beim Loslassen über dem eigenen Auslöser nicht
+    // sofort wieder zuklappt. Den zweiten Klick fängt dafür `openFor` oben ab (s. dort).
     if (pop.contains(t) || t === anchor || anchor.contains(t)) return;
     // Verschachtelung: Aus einem Popover heraus kann ein zweites geöffnet werden (z. B. die
     // Dropdowns im Anzeige-Panel). Dessen Elemente liegen NICHT in diesem Popover – ohne diese
