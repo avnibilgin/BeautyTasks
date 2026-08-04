@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform, HoverPopover } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, setTaskTitle, TaskFields, baseName } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, knownProjectNames, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, setTaskTitle, TaskFields, baseName } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
@@ -46,7 +46,7 @@ export class TaskModal extends Modal {
 
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
-  constructor(private plugin: BeautyTasksPlugin, private existing?: Task, defaultProject?: string,
+  constructor(private plugin: BeautyTasksPlugin, private existing?: Task, private defaultProject?: string,
               private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean; stacked?: boolean } = {}) {
     super(plugin.app);
     const seed = opts.seed;
@@ -99,7 +99,14 @@ export class TaskModal extends Modal {
     const title = contentEl.createEl("input", { type: "text", cls: "bt-titel", attr: { placeholder } });
     this.titleInput = title;
     title.value = this.f.title;
-    title.oninput = () => { this.f.title = title.value; this.applyParse(); this.renderChips(); };
+    title.oninput = () => {
+      this.f.title = title.value;
+      this.applyParse();
+      this.renderChips();
+      // Der Projekt-Wähler unten links gehört mit nachgezogen: @Projekt setzt das Feld,
+      // und eine Änderung, die man nicht sieht, wäre schlimmer als gar keine Erkennung.
+      if (!this.opts.hideProjekt) this.renderProjekt();
+    };
     title.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void this.save(); } };
     window.setTimeout(() => title.focus(), 0);
 
@@ -258,7 +265,7 @@ export class TaskModal extends Modal {
     btn.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   }
 
-  /** Natural-Language: Datum + #Labels aus dem Titel erkennen und übernehmen.
+  /** Natural-Language: Datum, #Labels und @Projekt aus dem Titel erkennen und übernehmen.
    *  Datum nur, solange nicht manuell gesetzt; Labels werden ergänzt. */
   private applyParse(): void {
     const r = applyQuickEntry(this.f.title, {
@@ -274,7 +281,21 @@ export class TaskModal extends Modal {
       frozen: !!this.existing,
       duePinned: this.duePinned,
       today: todayIso(),
-      // Kein @Projekt im vollen Editor: dafür gibt es hier den eigenen Projekt-Wähler.
+      // @Projekt erkennen wie in der Schnelleingabe. Dass es hier auch einen Projekt-Wähler gibt,
+      // war lange der Grund, es NICHT zu tun – die Asymmetrie war aber teurer als die Redundanz:
+      // Dieselbe Eingabe tat im einen Dialog etwas und blieb im anderen als Text stehen, die
+      // Aufgabe hieß danach wörtlich „@familie" und lag im Eingang.
+      //
+      // NICHT im Unteraufgaben-Modus: Dort ist der Wähler bewusst verborgen, weil die
+      // Unteraufgabe das Projekt der Hauptaufgabe erbt – ein @Projekt verstellte etwas,
+      // das man gar nicht sieht.
+      //
+      // Bestehende Aufgaben sind ohnehin außen vor (frozen, s. oben): Ein alter Titel mit „@"
+      // ist Text, kein Befehl.
+      projects: this.opts.hideProjekt ? [] : knownProjectNames(this.app),
+      // Fällt das @-Wort wieder aus dem Titel, gilt wieder das Projekt der Seite, aus der dieser
+      // Dialog geöffnet wurde (nicht stur „Eingang").
+      defaultProject: this.defaultProject ?? null,
     });
     this.cleanTitle = r.title;
     Object.assign(this.f, r.fields);

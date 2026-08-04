@@ -258,6 +258,15 @@ export function listProjectsAndAreas(app: App): { bereiche: ProjItem[]; projekte
   return { bereiche, projekte };
 }
 
+/** Bekannte Projekt- und Bereichsnamen – die Liste, gegen die `@Projekt` in der Texterkennung
+ *  aufgelöst wird. Bewusst nur BESTEHENDE: Ein Tippfehler soll kein Projekt anlegen, sondern
+ *  Text bleiben (s. parseQuickEntry). Beide Eingabe-Masken benutzen dieselbe Liste, damit
+ *  dieselbe Eingabe überall dasselbe bedeutet. */
+export function knownProjectNames(app: App): string[] {
+  const { bereiche, projekte } = listProjectsAndAreas(app);
+  return [...bereiche, ...projekte].map((p) => p.name);
+}
+
 /** Verwaltung: aktive (Bereiche + Projekte, ohne Eingang) und archivierte Einträge. */
 export function listManaged(app: App): { active: ProjItem[]; archived: ProjItem[] } {
   const all = allProjItems(app).filter((p) => !isInbox(p));
