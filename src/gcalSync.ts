@@ -78,6 +78,32 @@ export function calIndex(cache: GCalCache, calendarId: string): number {
   return cache.cals.length - 1;
 }
 
+/**
+ * Unsere Felder in ein aus Google gelesenes Event schreiben, ohne den Rest anzufassen.
+ *
+ * Hintergrund: `events.update` (PUT) kennt **keine** Teil-Aktualisierung — Google ersetzt die
+ * gesamte Ressource durch das, was im Rumpf steht. `eventBody` enthält aber nur die fünf Dinge,
+ * die eine Aufgabe hat. Alles andere am Termin wurde dadurch gelöscht: Beschreibung, Ort,
+ * Teilnehmer, Farbe. Googles eigene Empfehlung für diesen Fall lautet „get, dann update" –
+ * genau das tut diese Funktion.
+ *
+ * **`recurrence` ist die eine Ausnahme** und wird bewusst NICHT übernommen: BeautyTasks
+ * wiederholt über neue Aufgaben, nicht über Serien. Bliebe eine in Google angelegte Serie
+ * stehen, verschöbe eine Datumsänderung an der Aufgabe die ganze Serie – zwei
+ * Wiederholungsmodelle auf einem Termin. Für dieses eine Feld bleibt es wie bisher.
+ *
+ * `existing === null` (Event nicht lesbar) → unser Rumpf allein, also das alte Verhalten.
+ */
+export function mergeEventBody(
+  existing: Record<string, unknown> | null,
+  ours: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!existing) return { ...ours };
+  const merged: Record<string, unknown> = { ...existing, ...ours };
+  delete merged.recurrence;
+  return merged;
+}
+
 /** Form der Einträge, wie sie bis 1.36.x in `gcal.lastSynced` (data.json) lagen. Nur für die
  *  einmalige Übernahme in den Cache – neuer Code benutzt ausschließlich GCalLink. */
 export interface LegacyGCalLink {
@@ -536,9 +562,7 @@ export class GCalSync {
             // Kalenderwechsel: Google kann Events verschieben (move)
             await api(this.auth, "POST", `/calendars/${enc(linkCal)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
           }
-          // PUT (events.update = ganzes Event ersetzen), NICHT PATCH: sonst verschmilzt Google beim
-          // Ganztag→Uhrzeit-Wechsel das neue dateTime in ein start, das noch date hat → „Invalid start time".
-          await api(this.auth, "PUT", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
+          await this.updatePreserving(cal, eventId, task, s);
           c.links[id] = stamp(eventId);
           await this.writeBack(task, eventId, cal);
         } catch (e) {
@@ -567,6 +591,35 @@ export class GCalSync {
       delete c.links[id];
       const t = this.host.allTasks().find((x) => x.id === id);
       if (t) await this.clearBack(t);
+    }
+  }
+
+  /**
+   * Ein bestehendes Event aktualisieren, ohne fremde Felder zu verlieren: lesen, unsere Felder
+   * hineinschreiben, das Ganze zurückschicken (s. mergeEventBody).
+   *
+   * PUT bleibt bewusst PUT und wird NICHT durch PATCH ersetzt: Beim Wechsel Ganztag→Uhrzeit
+   * verschmolz Google das neue `dateTime` in ein `start`, das noch ein `date` hatte → „Invalid
+   * start time". Das gelesene Event liefert uns denselben Schutz wie vorher, nur ohne Kollateral.
+   *
+   * `If-Match` verhindert, dass eine Änderung, die jemand im selben Moment in Google macht,
+   * stillschweigend überschrieben wird. Antwortet Google mit 412, ist genau das passiert: einmal
+   * neu lesen und wiederholen. Beim zweiten Mal fliegt der Fehler nach oben und der nächste
+   * Lauf versucht es erneut.
+   */
+  private async updatePreserving(cal: string, eventId: string, task: Task, s: GCalSyncSettings): Promise<void> {
+    const path = `/calendars/${enc(cal)}/events/${enc(eventId)}`;
+    for (let attempt = 0; ; attempt++) {
+      const current = await gcalRequest(this.auth, "GET", path);
+      const body = mergeEventBody(current.json, eventBody(task, s));
+      const headers = current.etag ? { "If-Match": current.etag } : undefined;
+      try {
+        await gcalRequest(this.auth, "PUT", path, body, headers);
+        return;
+      } catch (e) {
+        const stale = e instanceof GCalHttpError && e.status === 412;
+        if (!stale || attempt >= 1) throw e;
+      }
     }
   }
 
