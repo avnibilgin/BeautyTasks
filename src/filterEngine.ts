@@ -60,6 +60,12 @@ export interface FilterCriteria {
   search: string;          // Freitext in Titel und Beschreibung ("" = keiner)
 }
 
+/** Die Kriterien-Facetten als Auswahl-Einheiten. Ein Feld-Paar (✓/−) zählt als EINE Facette –
+ *  so, wie es im UI als eine Zeile erscheint. Reihenfolge in ALL_FACETS = Anzeige-Reihenfolge. */
+export type FacetId = "range" | "deadlineRange" | "statuses" | "priorities" | "labels" | "projects" | "subtaskMode";
+/** Vollständiger Satz – der Editor eines gespeicherten Filters zeigt alle. */
+export const ALL_FACETS: FacetId[] = ["range", "deadlineRange", "statuses", "priorities", "labels", "projects", "subtaskMode"];
+
 export interface ViewOptions {
   layout: PageLayout;      // Liste, Kanban-Board oder Kalender
   sort: FilterSort;
@@ -348,6 +354,19 @@ export function activeFacetCount(c: FilterCriteria): number {
   if (c.search.trim()) n++;
   return n;
 }
+
+/** Filtert eine bereits zusammengestellte Menge – der EINE Anwendungspunkt des Ansichtsfilters.
+ *
+ *  Bewusst getrennt von `applyFilter`: Das dort holt sich seine Basis selbst aus dem Index (so
+ *  arbeitet ein GESPEICHERTER Filter, der keine Seite unter sich hat). Eine Seite bringt ihre
+ *  Menge dagegen schon mit – ihr Eingang, ihr Projekt, ihr Tag –, und der Ansichtsfilter ist
+ *  genau das: ein zusätzliches Sieb DAVOR, das die Aussage der Seite unangetastet lässt. */
+export function filterTasks(list: Task[], c: FilterCriteria, today: string): Task[] {
+  return list.filter((t) => matchesTask(t, c, today));
+}
+
+/** Filtert die Ansicht überhaupt? (Steuert Leerzustand, Zähler am Anzeige-Knopf, Termin-Anzeige.) */
+export const hasCriteria = (c: FilterCriteria): boolean => activeFacetCount(c) > 0;
 
 /** Kriterien-Werte, die es nicht (mehr) gibt – ein gelöschtes Label, ein umbenanntes Projekt, ein
  *  entfernter Status. Ohne sie wäre die Facette im Dialog leer („Alle"), obwohl sie filtert: Der

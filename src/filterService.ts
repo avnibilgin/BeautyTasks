@@ -1,38 +1,15 @@
 import { App, TFile, normalizePath } from "obsidian";
-import { BeautyTasksSettings, Priority } from "./types";
+import { BeautyTasksSettings } from "./types";
 import { buildFrontmatter, ensureFolder, newId, todayIso, slugify, retitleHeading } from "./taskService";
 import { fieldKey } from "./fieldNames";
-import {
-  FilterCriteria, ViewOptions, FilterRange,
-  DEFAULT_CRITERIA, RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter,
-} from "./filterEngine";
-import { readViewOptions, writeViewOptions } from "./pageOptions";
-import { isKnownStatus } from "./statuses";
+import { FilterCriteria, ViewOptions } from "./filterEngine";
+import { readViewOptions, writeViewOptions, readCriteria, writeCriteria } from "./pageOptions";
 
 /** Ein gespeicherter Filter (`type: filter`-Notiz im Vault). */
 export interface FilterItem {
   name: string; path: string; icon: string; color: string | null; hidden: boolean;
   description: string;   // kurze Beschreibung aus dem Frontmatter
   criteria: FilterCriteria; options: ViewOptions;
-}
-
-const asStrArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
-const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
-  typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
-
-function readCriteria(fm: Record<string, unknown>): FilterCriteria {
-  const prio = (v: unknown): Priority[] =>
-    asStrArr(v).filter((p): p is Priority => (FILTER_PRIORITIES as string[]).includes(p));
-  return {
-    range: oneOf<FilterRange>(fm.range, RANGES, DEFAULT_CRITERIA.range),
-    deadlineRange: oneOf<FilterRange>(fm.deadline_range, RANGES, DEFAULT_CRITERIA.deadlineRange),
-    statuses: asStrArr(fm.statuses).filter(isKnownStatus), statusesNot: asStrArr(fm.statuses_not).filter(isKnownStatus),
-    priorities: prio(fm.priorities), prioritiesNot: prio(fm.priorities_not),
-    labels: asStrArr(fm.labels), labelsAll: asStrArr(fm.labels_all), labelsNot: asStrArr(fm.labels_not),
-    projects: asStrArr(fm.projects), projectsNot: asStrArr(fm.projects_not),
-    subtaskMode: oneOf<SubtaskFilter>(fm.subtask_mode, SUBTASK_FILTERS, DEFAULT_CRITERIA.subtaskMode),
-    search: typeof fm.search === "string" ? fm.search : "",
-  };
 }
 
 function readOptions(fm: Record<string, unknown>): ViewOptions {
@@ -67,24 +44,13 @@ export function readFilter(app: App, path: string): FilterItem | null {
   return fm?.[fieldKey("type")] === "filter" ? toItem(f, fm) : null;
 }
 
-/** Kriterien + Optionen (+ Farbe) als Frontmatter-Felder schreiben (nur nicht-leere). */
+/** Kriterien + Optionen (+ Farbe) als Frontmatter-Felder schreiben (nur nicht-leere).
+ *  Die Kriterien stehen hier FLACH: In einer Filternotiz sind sie die Notiz, kein Beiwerk
+ *  (eine gewöhnliche Seite trägt ihren Ansichtsfilter dagegen unter einem Schlüssel). */
 function applyToFrontmatter(fm: Record<string, unknown>, c: FilterCriteria, o: ViewOptions, color: string | null): void {
-  const setOrDel = (k: string, v: unknown): void => { if (v == null) delete fm[k]; else fm[k] = v; };
-  setOrDel("range", c.range === "any" ? null : c.range);
-  setOrDel("deadline_range", c.deadlineRange === "any" ? null : c.deadlineRange);
-  setOrDel("statuses", c.statuses.length ? c.statuses : null);
-  setOrDel("statuses_not", c.statusesNot.length ? c.statusesNot : null);
-  setOrDel("priorities", c.priorities.length ? c.priorities : null);
-  setOrDel("priorities_not", c.prioritiesNot.length ? c.prioritiesNot : null);
-  setOrDel("labels", c.labels.length ? c.labels : null);
-  setOrDel("labels_all", c.labelsAll.length ? c.labelsAll : null);
-  setOrDel("labels_not", c.labelsNot.length ? c.labelsNot : null);
-  setOrDel("projects", c.projects.length ? c.projects : null);
-  setOrDel("projects_not", c.projectsNot.length ? c.projectsNot : null);
-  setOrDel("subtask_mode", c.subtaskMode === "any" ? null : c.subtaskMode);
-  setOrDel("search", c.search.trim() || null);
+  writeCriteria(fm, c);
   writeViewOptions(fm, o);   // layout/sort/group/showDone (Defaults werden entfernt)
-  setOrDel("color", color);
+  if (color == null) delete fm.color; else fm.color = color;
 }
 
 /** Neue Filter-Notiz anlegen; gibt den Basenamen zurück. */

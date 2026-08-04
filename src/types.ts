@@ -137,6 +137,7 @@ export interface BeautyTasksSettings {
   boardColumnOrder?: Record<string, string[]>;   // manuelle Kanban-Spalten-Reihenfolge je Gruppierung (status/label/project); board-eigen, entkoppelt von der Sidebar
   statuses?: StoredStatus[];        // user-definierbare Status (undefined = eingebaute Defaults, siehe statuses.ts)
   pageViewOptions?: Record<string, Partial<import("./filterEngine").ViewOptions>>;   // Anzeige-Optionen für System-Views (key=ViewId) und Labels (key="label:<name>"); Notiz-Seiten speichern im Frontmatter
+  pageFilters?: Record<string, Record<string, unknown>>;   // Ansichtsfilter derselben Seiten (gleiche Schlüssel); serialisiert wie im Frontmatter (s. pageOptions.writeCriteria), damit beide Speicherorte EIN Format haben
   navSort?: Record<NavSection, NavSortMode>;    // Sortiermodus je Seitenleisten-Sektion (Default "name")
   navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)
   reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans

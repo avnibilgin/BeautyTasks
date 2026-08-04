@@ -1,6 +1,7 @@
 import type { Component } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import type { ViewOptions, PageLayout } from "./filterEngine";
+import type { Task } from "./types";
+import type { ViewOptions, PageLayout, FilterCriteria, FacetId } from "./filterEngine";
 import { INBOX_KEY } from "./taskService";
 
 /**
@@ -58,6 +59,33 @@ export function pageInfo(page: PageRef): { key: string; tier: "full" | "light" |
 }
 
 /**
+ * Welche Filter-Facetten eine Seite anbietet – nach derselben Regel wie die Gruppierungen
+ * (viewPanel.groupOptions): **Die Facette, die die ACHSE der Seite ist, wird ausgeblendet.**
+ *
+ *   • Projektseite → kein „Projekte" (die Seite IST das Projekt)
+ *   • Eingang      → kein „Projekte" (der Eingang ist die Abwesenheit eines Projekts)
+ *   • Heute/Demnächst → kein „Datum" und keine „Deadline": Beide Ansichten sind über das Datum
+ *     definiert, und ihre Auswahl zieht die Deadline bereits als Ersatzdatum heran (agendaDate).
+ *     Ein zweites Datumssieb darüber beantwortete dieselbe Frage ein zweites Mal, nur anders.
+ *   • Label-Seite  → „Label" BLEIBT: Labels sind mehrwertig, „#ux und #dringend" ist auf einer
+ *     #ux-Seite eine echte Frage (anders als „Projekt X" auf der Seite von Projekt X).
+ *
+ * Leer = die Seite hat keinen Ansichtsfilter. Gespeicherte Filter gehören dazu: dort SIND die
+ * Kriterien die Seite, ein zweiter Satz darüber wäre für niemanden auseinanderzuhalten – ihr
+ * Editor ist der Stift im Seitenkopf (s. plugin.pageCriteria).
+ */
+export function facetsFor(page: PageRef): FacetId[] {
+  const info = pageInfo(page);
+  if (info.tier === "none" || info.kind === "filter") return [];
+  const agenda = info.key === "heute" || info.key === "demnaechst";
+  const out: FacetId[] = agenda ? [] : ["range", "deadlineRange"];
+  out.push("priorities", "labels");
+  if (info.kind !== "project" && info.key !== "inbox") out.push("projects");
+  out.push("statuses", "subtaskMode");
+  return out;
+}
+
+/**
  * Alles, was eine Zeichnung (und jeder darin erzeugte Klick-Handler) über IHREN Tab wissen muss.
  * Wird von MainView.draw() frisch gebaut und nach unten gereicht.
  */
@@ -73,6 +101,19 @@ export interface PageCtx {
   /** Effektive Anzeige-Optionen: Seiten-Standard, überlagert von der Wahl DIESES Tabs
    *  (Layout und Kalender-Seitenspalte – s. LocalOptions in heuteView.ts). */
   readonly opts: ViewOptions;
+  /** Der Ansichtsfilter DIESER Seite (Standard = keine Kriterien). Gehört wie Sortieren/
+   *  Gruppieren der Seite, nicht dem Tab: Er beschreibt, welche Aufgaben die Seite zeigt. */
+  readonly crit: FilterCriteria;
+  /**
+   * Den Ansichtsfilter auf eine Menge anwenden – der EINE Ort, an dem er wirkt.
+   *
+   * Jede Seite stellt ihre Menge weiter selbst zusammen (Eingang, Projekt, der Tag); das Sieb
+   * kommt an genau dieser Stelle darüber. Absichtlich so früh: Verschachtelung, Gruppierung,
+   * Sortierung und alle drei Layouts hängen an derselben Liste und erben die Wirkung dadurch,
+   * ohne selbst etwas von Kriterien zu wissen. Ohne Kriterien gibt die Funktion die Liste
+   * unverändert zurück.
+   */
+  filter(list: Task[]): Task[];
   /** Lifecycle für Markdown-Titel (Links) – je Zeichnung frisch, siehe MainView.draw(). */
   readonly titleComp: Component | null;
   /** Untergeordneter Zustand der Seite: „Erledigt“-Tabs, Verwaltungs-Tabs, Erledigt-Sektion. */
@@ -88,6 +129,8 @@ export interface PageCtx {
   open(page: PageRef): void;
   /** Anzeige-Option der Seite setzen (Frontmatter/Settings) – gilt für alle Tabs dieser Seite. */
   setOption(patch: Partial<ViewOptions>): void;
+  /** Kriterium des Ansichtsfilters setzen – wie setOption, nur fürs Sieb. */
+  setCriteria(patch: Partial<FilterCriteria>): void;
   /** Layout umstellen: gehört dem Tab (s. MainView.setLocal). */
   setLayout(layout: PageLayout): void;
   /** Seitenspalte des Kalenders („Nicht terminiert") auf/zu – gehört wie das Layout dem Tab. */

@@ -91,11 +91,17 @@ interface CalMount {
 }
 const mounts = new WeakMap<HTMLElement, CalMount>();
 
-/** Signatur des Kalender-Kontexts. Gleich = derselbe Rahmen, nur andere Aufgaben. */
+/** Signatur des Kalender-Kontexts. Gleich = derselbe Rahmen, nur andere Aufgaben.
+ *
+ *  Der ANSICHTSFILTER gehört ausdrücklich dazu, obwohl er nur die Menge verändert und nicht den
+ *  Rahmen: `source` ist eine beim Einhängen gemerkte Funktion, und die trägt den Kontext JENER
+ *  Zeichnung in sich – inklusive der damaligen Kriterien (s. PageCtx.filter). Ohne diesen Teil
+ *  der Signatur bliebe der Patch-Pfad gültig, während er weiter durch das alte Sieb schaut: Man
+ *  stellt einen Filter ein und der Kalender zeigt unbeirrt alles. */
 function calSignature(ctx: PageCtx, opts: ViewOptions): string {
   const key = pageKey(ctx);
   const today = todayStr();
-  return [key, opts.calMode, anchors.get(key) ?? today, opts.showDone, opts.calPanel, today].join("|");
+  return [key, opts.calMode, anchors.get(key) ?? today, opts.showDone, opts.calPanel, today, JSON.stringify(ctx.crit)].join("|");
 }
 
 /** Versucht, den bereits gezeichneten Kalender in `c` nur nachzufüllen. true = erledigt,
