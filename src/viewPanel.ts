@@ -159,7 +159,12 @@ export function openViewPanel(anchor: HTMLElement, ctx: PageCtx): void {
         // Brücke zum gespeicherten Filter: was hier eingestellt ist, lässt sich als Filternotiz
         // festhalten – mitsamt der Achse dieser Seite (s. presetFor). Ohne diesen Weg stünden
         // zwei Filtersysteme unverbunden nebeneinander.
-        const save = pop.createEl("button", { cls: "bt-panel-save", text: t("filter_save_as") });
+        // Plus-Zeichen wie bei „+ Aufgabe hinzufügen" (dieselbe .bt-add-icon-Maske): Beide legen
+        // etwas Neues an, und der Knopf soll auf den ersten Blick als solcher lesbar sein statt
+        // als weitere Einstellung. Die Icon-Variablen gelten auch im Popover (.bt-pop, s. CSS).
+        const save = pop.createEl("button", { cls: "bt-panel-save" });
+        save.createSpan({ cls: "bt-add-icon" });
+        save.createSpan({ text: t("filter_save_as") });
         save.onclick = () => { close(); new FilterModal(ctx.plugin, undefined, presetFor(ctx.page, c)).open(); };
       }
 
