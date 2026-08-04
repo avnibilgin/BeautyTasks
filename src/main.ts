@@ -1,5 +1,5 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier } from "./types";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
@@ -28,7 +28,7 @@ import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
 import { calendarDayAnchor } from "./calendarView";
 import { GCalAuth, TokenStore, DevicePrompt, GCalTokens, planTokenMigration } from "./gcalAuth";
-import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
+import { GCalSync, GCalSyncHost, GCalCache, LegacyGCalLink, emptyGCalCache, calIndex, seedGCalCache, resignLegacySignature, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
 import { GCalFeed, GCalFeedHost, DEFAULT_GCAL_FEED_SETTINGS } from "./gcalFeed";
 
 /** Eigene Icons. addIcon() erwartet Inhalt für ein viewBox="0 0 100 100"; die Pfade sind auf
@@ -49,6 +49,8 @@ function registerIcons(): void {
 // bereits pro Vault, deshalb reicht ein Präfix je Zweck.
 const GCAL_TOKEN_KEY = "beautytasks-gcal-tokens";
 const GCAL_RECONNECT_KEY = "beautytasks-gcal-reconnect-notified";
+const GCAL_CACHE_KEY = "beautytasks-gcal-cache";        // Abgleich-Stand (war gcal.lastSynced/syncTokens)
+const GCAL_SNAPSHOT_KEY = "beautytasks-gcal-snapshot";  // Kaltstart-Termine (war gcalFeed.snapshot)
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -56,6 +58,7 @@ export default class BeautyTasksPlugin extends Plugin {
   gcalAuth!: GCalAuth;
   gcalSync!: GCalSync;
   gcalFeed!: GCalFeed;
+  private gcalCache!: GCalCache;   // geräte-lokal (GCAL_CACHE_KEY), NICHT in data.json
   private gcalStatusBar: HTMLElement | null = null;
   private feedRedrawTimer: number | null = null;
   // WELCHE SEITE OFFEN IST, steht NICHT mehr hier: das gehört seit 1.34 dem jeweiligen Tab
@@ -108,6 +111,7 @@ export default class BeautyTasksPlugin extends Plugin {
       this.renderAll();
       await this.runPendingMigrations();   // Einmal-Migrationen beim ersten Start nach dem Update
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
+      this.seedGCalCacheIfEmpty();   // MUSS vor dem ersten Lauf stehen – sonst Massen-Push
       this.gcalSync.start();  // Auto-Push verdrahten + einmal initial abgleichen
       void this.gcalSync.syncNow();
       this.gcalFeed.start();  // Termine holen (ruhiges Intervall, nur bei sichtbarer Ansicht)
@@ -1809,7 +1813,58 @@ export default class BeautyTasksPlugin extends Plugin {
     // gespeicherte Werte behalten). Lebendes Objekt – die Engine mutiert lastSynced/syncTokens darin.
     this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
     this.settings.gcalFeed = Object.assign({}, DEFAULT_GCAL_FEED_SETTINGS, this.settings.gcalFeed);
-    if (this.migrateGCalTokens()) await this.saveSettings();
+    let dirty = this.migrateGCalTokens();
+    dirty = this.migrateGCalCache() || dirty;
+    if (dirty) await this.saveSettings();
+  }
+
+  /** Einmalige Umstellung (ab 1.37.0): `gcal.lastSynced`, `gcal.syncTokens` und
+   *  `gcalFeed.snapshot` lagen in data.json und wurden bei JEDEM Sync-Lauf neu geschrieben –
+   *  gemessen alle 5 Minuten auch ohne Änderung. Sie ziehen in den geräte-lokalen Speicher.
+   *
+   *  Der vorhandene Stand wird dabei übernommen, damit auf DIESEM Gerät kein einziger
+   *  überflüssiger Push entsteht. Andere Geräte belegen ihren Cache aus dem Frontmatter vor
+   *  (s. seedGCalCacheIfEmpty). Wie bei den Tokens ist das `delete` Pflicht, sonst schriebe
+   *  saveSettings() die Altfelder stumm zurück. */
+  private migrateGCalCache(): boolean {
+    const raw = this.settings.gcal as unknown as Record<string, unknown>;
+    const feedRaw = this.settings.gcalFeed as unknown as Record<string, unknown>;
+    const hadSync = "lastSynced" in raw || "syncTokens" in raw;
+    const hadFeed = "snapshot" in feedRaw;
+    if (!hadSync && !hadFeed) return false;
+
+    if (hadSync && !this.app.loadLocalStorage(GCAL_CACHE_KEY)) {
+      const legacy = (raw.lastSynced ?? {}) as Record<string, LegacyGCalLink>;
+      const cache = emptyGCalCache();
+      for (const [taskId, l] of Object.entries(legacy)) {
+        if (!l?.eventId || !l.calendarId) continue;
+        const idx = calIndex(cache, l.calendarId);
+        // Die alte Signatur endete auf die volle Kalender-ID, die neue auf deren Index. Sie hier
+        // NICHT umzuschreiben wäre ein stiller Massen-Push beim ersten Lauf.
+        cache.links[taskId] = { e: l.eventId, c: idx, s: resignLegacySignature(l.sig, idx), d: l.due, t: l.dueTime };
+      }
+      Object.assign(cache.syncTokens, (raw.syncTokens ?? {}) as Record<string, string>);
+      this.app.saveLocalStorage(GCAL_CACHE_KEY, cache);
+    }
+    if (hadFeed && !this.app.loadLocalStorage(GCAL_SNAPSHOT_KEY)) {
+      this.app.saveLocalStorage(GCAL_SNAPSHOT_KEY, feedRaw.snapshot ?? []);
+    }
+    delete raw.lastSynced;
+    delete raw.syncTokens;
+    delete feedRaw.snapshot;
+    return true;
+  }
+
+  /** Gerät ohne Cache und ohne Altbestand: aus dem Frontmatter vorbelegen, statt beim ersten Lauf
+   *  jede datierte Aufgabe erneut zu pushen (ein Push ersetzt das ganze Google-Event und löschte
+   *  dabei Beschreibung, Ort und Teilnehmer). Läuft erst, wenn der Index steht. */
+  private seedGCalCacheIfEmpty(): void {
+    if (!this.settings.gcal?.enabled || Object.keys(this.gcalCache.links).length) return;
+    const n = seedGCalCache(this.gcalCache, this.index.all(), (path) => {
+      const f = this.app.vault.getAbstractFileByPath(path);
+      return f instanceof TFile ? this.app.metadataCache.getFileCache(f)?.frontmatter ?? null : null;
+    });
+    if (n) this.app.saveLocalStorage(GCAL_CACHE_KEY, this.gcalCache);
   }
 
   /** Einmalige Umstellung (ab 1.36.0): Bis 1.35.x lagen Refresh-Token und Anzeige-E-Mail in
@@ -1884,10 +1939,16 @@ export default class BeautyTasksPlugin extends Plugin {
       () => ({ clientId: gcal.clientId, clientSecret: gcal.clientSecret }),
       store,
     );
+    // Abgleich-Cache: geräte-lokal, weil er bei JEDEM Sync-Lauf neu geschrieben wird (gemessen:
+    // alle 5 Minuten auch ohne Änderung, beim Arbeiten im Sekundentakt). In data.json war er die
+    // letzte Quelle automatischer Schreiblast – und damit die Hauptursache für Sync-Konflikte.
+    this.gcalCache = (this.app.loadLocalStorage(GCAL_CACHE_KEY) as GCalCache | null) ?? emptyGCalCache();
     const host: GCalSyncHost = {
       app: this.app,
       settings: gcal,
+      cache: this.gcalCache,
       persist: () => this.saveSettings(),
+      persistCache: () => { this.app.saveLocalStorage(GCAL_CACHE_KEY, this.gcalCache); return Promise.resolve(); },
       allTasks: () => this.index.all(),
       subscribe: (cb) => this.index.subscribe(cb),
     };
@@ -1898,6 +1959,8 @@ export default class BeautyTasksPlugin extends Plugin {
     // unabhängig: „nur anzeigen, nichts schreiben" ist ein vollwertiger Zustand.
     const feedHost: GCalFeedHost = {
       settings: this.settings.gcalFeed!,
+      snapshot: () => (this.app.loadLocalStorage(GCAL_SNAPSHOT_KEY) as CalEvent[] | null) ?? [],
+      setSnapshot: (events) => { this.app.saveLocalStorage(GCAL_SNAPSHOT_KEY, events); return Promise.resolve(); },
       syncCalendarId: () => this.settings.gcal!.calendarId,
       persist: () => this.saveSettings(),
       isVisible: () => this.app.workspace.getLeavesOfType(VIEW_MAIN).some((l) => l.view.containerEl.isShown()),

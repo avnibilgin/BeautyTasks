@@ -15,9 +15,9 @@ import { GCalAuth, GCalAuthError } from "./gcalAuth";
  *
  * Identität liegt in der NOTIZ (`gcal_event_id`/`gcal_calendar_id` im Frontmatter),
  * plus `btTaskId` unsichtbar im Event (für die Pull-Zuordnung). Der operative Abgleich
- * läuft über `lastSynced` in den Settings: `sig` (Signatur-Diff → keine redundanten
- * Schreibzugriffe) und der zuletzt abgeglichene `due`/`dueTime` (Basis des 3-Wege-
- * Konflikts). Pull ist inkrementell über `nextSyncToken` je Kalender.
+ * läuft über den geräte-lokalen `GCalCache`: Signatur-Diff (keine redundanten Schreib-
+ * zugriffe) und der zuletzt abgeglichene `due`/`dueTime` (Basis des 3-Wege-Konflikts).
+ * Pull ist inkrementell über `nextSyncToken` je Kalender.
  *
  * Reihenfolge pro Lauf: erst PULL (Google→Obsidian: geänderte Termine zurückschreiben,
  * gelöschte Events lösen die Verknüpfung), dann PUSH (Obsidian→Google). Frisch aus Google
@@ -44,9 +44,96 @@ const POLL_MS = 5 * 60 * 1000;   // periodischer Pull, damit Google-Änderungen 
 export const DEFAULT_CALENDAR_NAME = "BeautyTasks";
 
 // ── Persistierte Sync-Einstellungen (Unter-Objekt von BeautyTasksSettings) ────
-/** Zuletzt abgeglichener Stand je Aufgabe. `sig` = Push-Änderungserkennung;
- *  `due`/`dueTime` = letzter gemeinsamer Datumsstand (Basis des 3-Wege-Konflikts). */
-export interface GCalLink { eventId: string; calendarId: string; sig: string; due?: string | null; dueTime?: string | null; }
+/** Ein abgeglichener Stand pro Aufgabe. `s` = Push-Änderungserkennung;
+ *  `d`/`t` = letzter gemeinsamer Datumsstand (Basis des 3-Wege-Konflikts). Bewusst kurze Feldnamen: Davon liegen pro Vault hunderte
+ *  im Cache. `c` ist ein Index in `GCalCache.cals` – eine Google-Kalender-ID ist rund 90 Zeichen
+ *  lang und stand vorher in JEDEM Eintrag zweimal (als Feld und noch einmal in der Signatur). */
+export interface GCalLink {
+  e: string;            // eventId
+  c: number;            // Index in GCalCache.cals
+  s: string;            // Signatur des zuletzt gepushten Stands
+  d?: string | null;    // `due` zum Zeitpunkt des Abgleichs
+  t?: string | null;    // `dueTime` dito
+}
+
+/** Geräte-lokaler Abgleich-Cache. Liegt bewusst NICHT in data.json: Er wird bei JEDEM Sync-Lauf
+ *  neu geschrieben – gemessen alle 5 Minuten auch ohne Änderung, beim Arbeiten im Sekundentakt –
+ *  und war damit die letzte Quelle automatischer Schreiblast auf den Einstellungen.
+ *
+ *  Er ist vollständig wiederherstellbar: Die Wahrheit steht im Frontmatter der Aufgabe
+ *  (`gcal_event_id` / `gcal_calendar_id`), der Cache spart nur redundante Aufrufe. */
+export interface GCalCache {
+  cals: string[];                      // Kalender-IDs – einmal, statt in jedem Eintrag
+  links: Record<string, GCalLink>;     // taskId -> zuletzt abgeglichener Stand
+  syncTokens: Record<string, string>;  // calendarId -> nextSyncToken (inkrementeller Pull)
+}
+
+export function emptyGCalCache(): GCalCache { return { cals: [], links: {}, syncTokens: {} }; }
+
+/** Index der Kalender-ID im Cache; legt sie an, wenn sie noch nicht bekannt ist. */
+export function calIndex(cache: GCalCache, calendarId: string): number {
+  const i = cache.cals.indexOf(calendarId);
+  if (i >= 0) return i;
+  cache.cals.push(calendarId);
+  return cache.cals.length - 1;
+}
+
+/** Form der Einträge, wie sie bis 1.36.x in `gcal.lastSynced` (data.json) lagen. Nur für die
+ *  einmalige Übernahme in den Cache – neuer Code benutzt ausschließlich GCalLink. */
+export interface LegacyGCalLink {
+  eventId: string; calendarId: string; sig: string; due?: string | null; dueTime?: string | null;
+}
+
+/** Alte Signatur auf das neue Format umschreiben. Sie endete auf die volle Kalender-ID, jetzt auf
+ *  deren Index im Cache. Ohne diese Umschrift hielte der erste Lauf nach dem Update JEDE Aufgabe
+ *  für geändert und pushte sie neu – genau der Massen-Push, den die Vorbelegung vermeiden soll.
+ *
+ *  Lässt sich die alte Signatur nicht lesen, bleibt sie stehen: Dann pusht diese eine Aufgabe
+ *  einmal zu viel, was folgenlos ist. */
+export function resignLegacySignature(sig: string, calIdx: number): string {
+  try {
+    const parts: unknown = JSON.parse(sig);
+    if (!Array.isArray(parts) || parts.length !== 6) return sig;
+    parts[5] = calIdx;
+    return JSON.stringify(parts);
+  } catch { return sig; }
+}
+
+/**
+ * Erstbefüllung des Caches auf einem Gerät, das noch keinen hat. Wo im Frontmatter eine
+ * `gcal_event_id` steht, hat schon einmal ein Push stattgefunden – der Termin gilt damit als
+ * abgeglichen und wird NICHT erneut gepusht.
+ *
+ * Das ist kein Detail: Ohne diese Vorbelegung würde der erste Lauf jede datierte Aufgabe erneut
+ * pushen. Weil ein Push ein PUT ist (= ganzes Event ersetzen) und `eventBody` nur Titel, Zeit,
+ * Erinnerungen und die eigenen Kennungen enthält, verlöre der Nutzer dabei auf einen Schlag alles,
+ * was er in Google am Termin ergänzt hat – Beschreibung, Ort, Teilnehmer, Farbe.
+ *
+ * Der Preis ist eng umrissen: Wurde eine Aufgabe geändert, ohne dass IRGENDEIN Gerät das gepusht
+ * hat, hält dieses Gerät sie fälschlich für abgeglichen. Die Änderung geht erst mit der nächsten
+ * Bearbeitung raus. Ein verpasstes Update wiegt leichter als gelöschte Nutzerdaten in Google.
+ *
+ * Gibt die Zahl der übernommenen Einträge zurück.
+ */
+export function seedGCalCache(
+  cache: GCalCache,
+  tasks: Task[],
+  frontmatter: (path: string) => Record<string, unknown> | null,
+): number {
+  let n = 0;
+  for (const task of tasks) {
+    if (!task.due) continue;
+    const fm = frontmatter(task.path);
+    const eventId = fm?.gcal_event_id;
+    if (typeof eventId !== "string" || !eventId) continue;
+    const cal = fm?.gcal_calendar_id;
+    if (typeof cal !== "string" || !cal) continue;
+    const idx = calIndex(cache, cal);
+    cache.links[task.id] = { e: eventId, c: idx, s: signature(task, idx), d: task.due, t: task.dueTime };
+    n++;
+  }
+  return n;
+}
 
 export interface GCalSyncSettings {
   enabled: boolean;
@@ -67,8 +154,8 @@ export interface GCalSyncSettings {
   // siehe TokenStore in main.ts). Ein Refresh-Token ist ein Dauerzugriff auf den Kalender – in
   // data.json wandert er über jeden Sync, jedes Backup und jede Versionshistorie mit. Folge:
   // Die Verbindung gilt pro Gerät, jedes Gerät verbindet sich einmal selbst.
-  lastSynced: Record<string, GCalLink>;             // taskId -> zuletzt abgeglichener Stand
-  syncTokens: Record<string, string>;               // calendarId -> nextSyncToken (inkrementeller Pull)
+  // `lastSynced` und `syncTokens` liegen NICHT mehr hier, sondern im geräte-lokalen GCalCache
+  // (s. dort). Sie sind Abgleich-Zustand eines Geräts, keine Einstellung des Vaults.
 }
 
 export const DEFAULT_GCAL_SETTINGS: GCalSyncSettings = {
@@ -86,8 +173,6 @@ export const DEFAULT_GCAL_SETTINGS: GCalSyncSettings = {
   excludeInbox: false,
   notifyConflicts: false,
   showStatusBar: true,
-  lastSynced: {},
-  syncTokens: {},
 };
 
 // ── Status-Emitter ────────────────────────────────────────────────────────────
@@ -102,8 +187,10 @@ export interface GCalStatusInfo {
 /** Was die Engine vom Plugin braucht (klein gehalten → testbar/entkoppelt). */
 export interface GCalSyncHost {
   app: App;
-  settings: GCalSyncSettings;               // lebendes Objekt; Engine mutiert lastSynced/syncTokens
-  persist(): Promise<void>;                 // Settings speichern (data.json)
+  settings: GCalSyncSettings;               // lebendes Objekt (data.json)
+  cache: GCalCache;                         // lebendes Objekt; die Engine mutiert es
+  persist(): Promise<void>;                 // Einstellungen speichern (data.json)
+  persistCache(): Promise<void>;            // Abgleich-Cache speichern (geräte-lokal)
   allTasks(): Task[];
   subscribe(cb: () => void): () => void;    // TaskIndex-Änderungen
 }
@@ -276,10 +363,10 @@ async function pullEvents(
 }
 
 /** Signatur der gepushten Felder – ändert sie sich, wird das Event gepatcht. */
-function signature(task: Task, calendarId: string): string {
+function signature(task: Task, calIdx: number): string {
   return JSON.stringify([
     task.title, task.due, task.dueTime, task.duration,
-    (task.reminders ?? []).join(","), calendarId,
+    (task.reminders ?? []).join(","), calIdx,
   ]);
 }
 
@@ -340,7 +427,7 @@ export class GCalSync {
     try {
       const pulled = await this.pullAll();   // Google → Obsidian (+ neuer syncToken)
       await this.pushAll(pulled);            // Obsidian → Google (frisch Gezogene übersprungen)
-      await this.host.persist();
+      await this.host.persistCache();   // NUR der Cache – die Einstellungen ändert ein Sync-Lauf nicht
       this.emit({ status: "idle", lastSyncedAt: Date.now(), lastError: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -356,20 +443,22 @@ export class GCalSync {
    *  der Push überspringt sie diesen Lauf (metadataCache ist noch stale). */
   private async pullAll(): Promise<Set<string>> {
     const s = this.host.settings;
+    const c = this.host.cache;
     const cal = s.calendarId;
+    const calIdx = calIndex(c, cal);
     const pulled = new Set<string>();
     let result: { items: Record<string, unknown>[]; nextSyncToken: string | null };
     try {
-      result = await pullEvents(this.auth, cal, s.syncTokens[cal]);
+      result = await pullEvents(this.auth, cal, c.syncTokens[cal]);
     } catch (e) {
       if (!(e instanceof GCalHttpError && e.status === 410)) throw e;
-      delete s.syncTokens[cal];                        // Token tot → einmal voll neu ziehen
+      delete c.syncTokens[cal];                        // Token tot → einmal voll neu ziehen
       result = await pullEvents(this.auth, cal, undefined);
     }
 
     const taskMap = new Map(this.host.allTasks().map((t) => [t.id, t]));
     const byEvent = new Map<string, string>();          // eventId -> taskId (für Löschungen ohne btTaskId)
-    for (const [tid, link] of Object.entries(s.lastSynced)) byEvent.set(link.eventId, tid);
+    for (const [tid, link] of Object.entries(c.links)) byEvent.set(link.e, tid);
 
     let conflicts = 0;
     for (const ev of result.items) {
@@ -377,38 +466,38 @@ export class GCalSync {
       const priv = (ev.extendedProperties as { private?: Record<string, string> } | undefined)?.private;
       const taskId = priv?.btTaskId ?? byEvent.get(eventId);
       if (!taskId) continue;                            // fremdes/unbekanntes Event
-      const link = s.lastSynced[taskId];
+      const link = c.links[taskId];
 
       if (ev.status === "cancelled") {                  // in Google gelöscht → Verknüpfung lösen
-        if (link && link.eventId === eventId) delete s.lastSynced[taskId];
+        if (link && link.e === eventId) delete c.links[taskId];
         const task = taskMap.get(taskId);
         if (task) await this.clearBack(task);           // Aufgabe bleibt; Push legt sie ggf. neu an
         continue;
       }
       const task = taskMap.get(taskId);
-      if (!task || !link || link.eventId !== eventId) continue;
+      if (!task || !link || link.e !== eventId) continue;
 
       const g = eventDateParts(ev);
       // Alt-Links (Stufe A) haben kein `due` → als synchron mit der Aufgabe annehmen (sonst
       // würde der erste Pull jeden Bestandstermin fälschlich als Konflikt werten).
-      const known = link.due !== undefined;
-      const lastDue = known ? (link.due ?? null) : (task.due ?? null);
-      const lastDueTime = known ? (link.dueTime ?? null) : (task.dueTime ?? null);
+      const known = link.d !== undefined;
+      const lastDue = known ? (link.d ?? null) : (task.due ?? null);
+      const lastDueTime = known ? (link.t ?? null) : (task.dueTime ?? null);
       const gChanged = g.due !== lastDue || g.dueTime !== lastDueTime;
       if (!gChanged) {
-        if (!known) { link.due = g.due; link.dueTime = g.dueTime; }   // Stand nachtragen (Migration)
+        if (!known) { link.d = g.due; link.t = g.dueTime; }           // Stand nachtragen (Migration)
         continue;                                       // Google unverändert → nichts zu holen
       }
       const oChanged = task.due !== lastDue || task.dueTime !== lastDueTime;
       if (oChanged) { conflicts++; continue; }          // beide geändert → Obsidian gewinnt (Push regelt)
 
       await this.writeBackDue(task, g.due, g.dueTime);  // Google geändert, Obsidian nicht → zurückschreiben
-      link.due = g.due; link.dueTime = g.dueTime;
-      link.sig = signature({ ...task, due: g.due, dueTime: g.dueTime }, cal);
+      link.d = g.due; link.t = g.dueTime;
+      link.s = signature({ ...task, due: g.due, dueTime: g.dueTime }, calIdx);
       pulled.add(taskId);
     }
 
-    if (result.nextSyncToken) s.syncTokens[cal] = result.nextSyncToken;
+    if (result.nextSyncToken) c.syncTokens[cal] = result.nextSyncToken;
     if (conflicts && s.notifyConflicts) new Notice(t("gcal_conflicts_notice", conflicts));
     return pulled;
   }
@@ -417,7 +506,9 @@ export class GCalSync {
   /** `skip` = Aufgaben, die dieser Lauf gerade aus Google zurückgeschrieben hat (stale Cache). */
   private async pushAll(skip: Set<string>): Promise<void> {
     const s = this.host.settings;
+    const c = this.host.cache;
     const cal = s.calendarId;
+    const calIdx = calIndex(c, cal);
     const tasks = this.host.allTasks();
     const eligible = new Map<string, Task>();
     for (const t of tasks) if (this.isEligible(t)) eligible.set(t.id, t);
@@ -428,33 +519,34 @@ export class GCalSync {
     for (const [id, task] of eligible) {
       if (skip.has(id)) continue;
       try {
-      const link = s.lastSynced[id];
-      const eventId = link?.eventId ?? this.frontmatterEventId(task);
-      const sig = signature(task, cal);
-      const stamp = (evId: string): GCalLink => ({ eventId: evId, calendarId: cal, sig, due: task.due, dueTime: task.dueTime });
+      const link = c.links[id];
+      const eventId = link?.e ?? this.frontmatterEventId(task);
+      const sig = signature(task, calIdx);
+      const stamp = (evId: string): GCalLink => ({ e: evId, c: calIdx, s: sig, d: task.due, t: task.dueTime });
+      const linkCal = link ? c.cals[link.c] : undefined;
       if (!eventId) {
         if (!s.syncOnCreate) continue;
         const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
         const newId = ev?.id as string;
-        if (newId) { s.lastSynced[id] = stamp(newId); await this.writeBack(task, newId, cal); }
-      } else if (!link || link.sig !== sig || link.calendarId !== cal) {
+        if (newId) { c.links[id] = stamp(newId); await this.writeBack(task, newId, cal); }
+      } else if (!link || link.s !== sig || linkCal !== cal) {
         if (!s.syncOnUpdate) continue;
         try {
-          if (link && link.calendarId !== cal) {
+          if (link && linkCal && linkCal !== cal) {
             // Kalenderwechsel: Google kann Events verschieben (move)
-            await api(this.auth, "POST", `/calendars/${enc(link.calendarId)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
+            await api(this.auth, "POST", `/calendars/${enc(linkCal)}/events/${enc(eventId)}/move?destination=${enc(cal)}`);
           }
           // PUT (events.update = ganzes Event ersetzen), NICHT PATCH: sonst verschmilzt Google beim
           // Ganztag→Uhrzeit-Wechsel das neue dateTime in ein start, das noch date hat → „Invalid start time".
           await api(this.auth, "PUT", `/calendars/${enc(cal)}/events/${enc(eventId)}`, eventBody(task, s));
-          s.lastSynced[id] = stamp(eventId);
+          c.links[id] = stamp(eventId);
           await this.writeBack(task, eventId, cal);
         } catch (e) {
           if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e;
           // Event (oder Kalender) in Google weg → neu anlegen
           const ev = await api(this.auth, "POST", `/calendars/${enc(cal)}/events`, eventBody(task, s));
           const newId = ev?.id as string;
-          if (newId) { s.lastSynced[id] = stamp(newId); await this.writeBack(task, newId, cal); }
+          if (newId) { c.links[id] = stamp(newId); await this.writeBack(task, newId, cal); }
         }
       }
       } catch (e) {
@@ -465,13 +557,14 @@ export class GCalSync {
     if (pushError) throw new Error(pushError);   // nach dem Durchlauf einmal melden; erfolgreiche Aufgaben sind gesynct
 
     // 2) Löschen: früher gesynct, jetzt nicht mehr berechtigt/vorhanden
-    for (const id of Object.keys(s.lastSynced)) {
+    for (const id of Object.keys(c.links)) {
       if (eligible.has(id)) continue;
       if (!s.syncOnDelete) continue;
-      const link = s.lastSynced[id];
-      try { await api(this.auth, "DELETE", `/calendars/${enc(link.calendarId)}/events/${enc(link.eventId)}`); }
+      const link = c.links[id];
+      const delCal = c.cals[link.c] ?? cal;
+      try { await api(this.auth, "DELETE", `/calendars/${enc(delCal)}/events/${enc(link.e)}`); }
       catch (e) { if (!(e instanceof GCalHttpError && (e.status === 404 || e.status === 410))) throw e; }   // schon weg = ok
-      delete s.lastSynced[id];
+      delete c.links[id];
       const t = this.host.allTasks().find((x) => x.id === id);
       if (t) await this.clearBack(t);
     }
