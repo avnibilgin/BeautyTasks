@@ -86,7 +86,7 @@ export const agendaTime = (t: Task): string | null => (t.due ? t.dueTime : t.sch
  * Ein Termin aus einem verbundenen Google-Kalender. **Reine Anzeige-Schicht**: ein CalEvent wird
  * NIE eine Notiz, steht NIE im TaskIndex und hat kein Frontmatter — sonst würde `pushAll()` es als
  * berechtigte Aufgabe ansehen und ein zweites Event dafür anlegen (Rückkopplung). Siehe
- * `docs/gcal-feed-plan.md`. Lebensdauer: Speicher-Cache in gcalFeed.ts (+ Snapshot in data.json).
+ * `docs/gcal-feed-plan.md`. Lebensdauer: Speicher-Cache in gcalFeed.ts (+ geräte-lokaler Snapshot).
  */
 export interface CalEvent {
   id: string;
@@ -107,6 +107,32 @@ export type MetaColorKey =
   | "accent" | "overdue" | "today" | "d1" | "d2" | "week" | "far"
   | "recur" | "remind" | "sched" | "label" | "comments" | "subs" | "parent" | "backlink";
 
+/**
+ * ══ Wo gehört ein Wert hin? ══════════════════════════════════════════════════
+ * Die Frage ist NICHT „Notiz oder Einstellungen", sondern:
+ *
+ *   Beschreibt der Wert den VAULT (wie soll diese Seite gelesen werden?)
+ *   oder das GERÄT (wo bin ich gerade, was habe ich eingeklappt?)
+ *
+ * ► VAULT-EBENE — soll synchronisieren:
+ *     Existiert zur Seite eine Notiz (Projekt, Bereich, gespeicherter Filter),
+ *     dann ins FRONTMATTER – Obsidian-nativ und rename-sicher (s. pageOptions.ts).
+ *     Sonst (System-Ansichten, Labels) hierher, in die Einstellungen.
+ *     Beispiele: layout, sort, group, showDone, Filterkriterien, navOrder, navSort.
+ *
+ * ► GERÄTE-EBENE — darf NICHT synchronisieren:
+ *     In den lokalen Speicher (DeviceState, s. unten). Ein Handy und ein Desktop
+ *     teilen sich weder ihre Bildschirmaufteilung noch ihren letzten Standort.
+ *
+ * ► BILDSCHIRMABHÄNGIG — gar nicht speichern:
+ *     Beim ZEICHNEN entscheiden, nicht beim Speichern. Vorbild ist chipsCompact()
+ *     in chips.ts: Der Kompakt-Modus hing früher an der Installation und wanderte
+ *     per Sync aufs falsche Gerät. Das Gerät ist keine Eigenschaft des Vaults.
+ *
+ * Neue Felder bitte vorher einsortieren – die Aufteilung ist eine Regel, keine
+ * Geschmacksfrage.
+ * ═════════════════════════════════════════════════════════════════════════════
+ */
 export interface BeautyTasksSettings {
   itemsFolder: string;
   projectsFolder: string;   // Projekte UND Bereiche liegen hier (Bereich = type:area)
@@ -124,9 +150,9 @@ export interface BeautyTasksSettings {
   showProjectDescription: boolean; // Beschreibung unter dem Seitentitel von Projekt/Bereich/Filter
   metaTheme: "minimalisdo" | "colorado" | "user";  // Meta-Farbstil: Minimalisdo (grau) / Colorado (farbig) / User (eigene Farben aus metaColors)
   metaColors: Partial<Record<MetaColorKey, string>>;   // einzeln überschreibbare Meta-Farben (s. MetaColorKey)
-  navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
-  startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte)
-  lastView: string;        // zuletzt aktive Ansicht (für startView === "last")
+  startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte).
+                           // Die WAHL ist Vault-Ebene; welche Ansicht zuletzt offen war, nicht
+                           // (DeviceState.lastView).
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
   showUnfiledInInbox: boolean;    // projektlose offene Aufgaben (auch handgeschriebene type:task-Notizen) im Eingang zeigen
   excludeFolders: string[];       // Ordner-Präfixe: Notizen darin gelten NIE als Aufgabe (Schutz vor fremden type:task-Notizen)
@@ -140,7 +166,6 @@ export interface BeautyTasksSettings {
   pageFilters?: Record<string, Record<string, unknown>>;   // Ansichtsfilter derselben Seiten (gleiche Schlüssel); serialisiert wie im Frontmatter (s. pageOptions.writeCriteria), damit beide Speicherorte EIN Format haben
   navSort?: Record<NavSection, NavSortMode>;    // Sortiermodus je Seitenleisten-Sektion (Default "name")
   navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)
-  reminderLastScan: number;        // intern (nicht im UI): Epoch-ms des letzten gefeuerten Reminder-Scans
   didInitialSetup: boolean;        // intern: Erst-Setup-Marker (bestehender Nutzer?)
   didDescriptionMigration?: boolean;  // intern: Migration „Beschreibung ins Frontmatter" einmalig gelaufen
   didInboxRemoval?: boolean;       // intern: Migration „Inbox-Notiz entfernt" einmalig gelaufen
@@ -167,14 +192,27 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   showProjectDescription: true,
   metaTheme: "minimalisdo",
   metaColors: {},
-  navCollapsed: {},
   startView: "heute",
-  lastView: "heute",
   parseNaturalLanguage: true,
   showUnfiledInInbox: true,
   excludeFolders: [],
   chipsIconsOnly: false,
   boardLayout: "list",
-  reminderLastScan: 0,
   didInitialSetup: false,
 };
+
+/**
+ * Geräte-Zustand. Liegt im lokalen Speicher (app.saveLocalStorage), NICHT in data.json –
+ * siehe die Regel an BeautyTasksSettings. Ein Objekt unter EINEM Schlüssel, damit nicht für
+ * jeden Wert ein eigener Eintrag entsteht.
+ *
+ * Alles hier ist entbehrlich: Geht es verloren, startet das Gerät mit aufgeklappter
+ * Seitenleiste und der eingestellten Startansicht. Nichts davon ist Nutzerinhalt.
+ */
+export interface DeviceState {
+  navCollapsed: Record<string, boolean>;  // ein-/ausgeklappte Nav-Abschnitte (labels/areas/projects)
+  lastView: string;                       // zuletzt aktive Ansicht (nur für startView === "last")
+  reminderLastScan: number;               // Epoch-ms des letzten gefeuerten Reminder-Scans
+}
+
+export const DEFAULT_DEVICE_STATE: DeviceState = { navCollapsed: {}, lastView: "heute", reminderLastScan: 0 };

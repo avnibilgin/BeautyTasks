@@ -1,5 +1,5 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent } from "./types";
+import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent, DeviceState, DEFAULT_DEVICE_STATE } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
@@ -51,6 +51,7 @@ const GCAL_TOKEN_KEY = "beautytasks-gcal-tokens";
 const GCAL_RECONNECT_KEY = "beautytasks-gcal-reconnect-notified";
 const GCAL_CACHE_KEY = "beautytasks-gcal-cache";        // Abgleich-Stand (war gcal.lastSynced/syncTokens)
 const GCAL_SNAPSHOT_KEY = "beautytasks-gcal-snapshot";  // Kaltstart-Termine (war gcalFeed.snapshot)
+const DEVICE_STATE_KEY = "beautytasks-device";          // Geräte-Zustand (s. DeviceState in types.ts)
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -59,6 +60,7 @@ export default class BeautyTasksPlugin extends Plugin {
   gcalSync!: GCalSync;
   gcalFeed!: GCalFeed;
   private gcalCache!: GCalCache;   // geräte-lokal (GCAL_CACHE_KEY), NICHT in data.json
+  private device!: DeviceState;    // geräte-lokal (DEVICE_STATE_KEY), NICHT in data.json
   private gcalStatusBar: HTMLElement | null = null;
   private feedRedrawTimer: number | null = null;
   // WELCHE SEITE OFFEN IST, steht NICHT mehr hier: das gehört seit 1.34 dem jeweiligen Tab
@@ -92,7 +94,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.setupGCal();
     // Reminder-Scanfenster: bei echtem Vorwert Verpasstes nachfeuern (auf Grace begrenzt),
     // bei Erstinstallation (0) ab jetzt starten -> kein Fehlalarm für heute Vergangenes.
-    this.reminderScan = this.settings.reminderLastScan || Date.now();
+    this.reminderScan = this.device.reminderLastScan || Date.now();
     this.app.workspace.onLayoutReady(async () => {
       // Vor dem Erst-Setup merken, ob es ein bestehender Nutzer ist und welche Version zuletzt lief.
       const wasExisting = this.settings.didInitialSetup;
@@ -274,7 +276,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte.
    *  Öffentlich, weil ein frisch erzeugter Tab damit startet (MainView-Konstruktor). */
   startView(): ViewId {
-    const pick = this.settings.startView === "last" ? this.settings.lastView : this.settings.startView;
+    const pick = this.settings.startView === "last" ? this.device.lastView : this.settings.startView;
     return (VIEW_IDS as string[]).includes(pick) ? (pick as ViewId) : "heute";
   }
   /**
@@ -308,8 +310,8 @@ export default class BeautyTasksPlugin extends Plugin {
    */
   async openPage(page: PageRef, where?: PaneType | boolean): Promise<MainView | null> {
     const { workspace } = this.app;
-    if (page.kind === "view" && this.settings.lastView !== page.key) {
-      this.settings.lastView = page.key; void this.saveSettings();   // für startView === "last"
+    if (page.kind === "view" && this.device.lastView !== page.key) {
+      this.device.lastView = page.key; this.saveDevice();   // für startView === "last"
     }
     const target = where ? null : this.activeMain();
     if (target) {
@@ -1030,12 +1032,22 @@ export default class BeautyTasksPlugin extends Plugin {
     this.renderAll();
   }
   // ── Nav-Abschnitte ein-/ausklappen (Zustand persistent, beim Neustart wiederhergestellt) ──
-  isNavCollapsed(id: string): boolean { return !!this.settings.navCollapsed[id]; }
-  async setNavCollapsed(id: string, collapsed: boolean): Promise<void> {
-    if (this.isNavCollapsed(id) === collapsed) return;
-    this.settings.navCollapsed[id] = collapsed;
-    await this.saveSettings();
-    this.renderNav();
+  isNavCollapsed(id: string): boolean { return !!this.device.navCollapsed[id]; }
+  /** Bleibt Promise-wertig, weil die Aufrufer darauf warten – geschrieben wird aber nur noch
+   *  geräte-lokal, also ohne Datei-Zugriff. */
+  setNavCollapsed(id: string, collapsed: boolean): Promise<void> {
+    if (this.isNavCollapsed(id) !== collapsed) {
+      this.device.navCollapsed[id] = collapsed;
+      this.saveDevice();
+      this.renderNav();
+    }
+    return Promise.resolve();
+  }
+  /** Einen Abschnitt aufklappen, ohne neu zu zeichnen – für „gerade angelegt, soll sichtbar sein". */
+  revealNavSection(id: string): void {
+    if (!this.device.navCollapsed[id]) return;
+    this.device.navCollapsed[id] = false;
+    this.saveDevice();
   }
   async toggleNavSection(id: string): Promise<void> { await this.setNavCollapsed(id, !this.isNavCollapsed(id)); }
 
@@ -1495,7 +1507,7 @@ export default class BeautyTasksPlugin extends Plugin {
     this.reminderScan = now;
     // Nur beim tatsächlichen Feuern persistieren (kein 30-s-Dauerschreiben auf die Platte).
     // Das Grace-Fenster deckelt die Lücke ohnehin, falls zwischendurch nichts gefeuert wurde.
-    if (fired) { this.settings.reminderLastScan = now; void this.saveSettings(); }
+    if (fired) { this.device.reminderLastScan = now; this.saveDevice(); }
   }
 
   /** Zustellung: System-Notification (Desktop, auch im Hintergrund) + klickbare In-App-Notice.
@@ -1813,9 +1825,41 @@ export default class BeautyTasksPlugin extends Plugin {
     // gespeicherte Werte behalten). Lebendes Objekt – die Engine mutiert lastSynced/syncTokens darin.
     this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
     this.settings.gcalFeed = Object.assign({}, DEFAULT_GCAL_FEED_SETTINGS, this.settings.gcalFeed);
+    this.device = Object.assign({}, DEFAULT_DEVICE_STATE,
+      this.app.loadLocalStorage(DEVICE_STATE_KEY) as Partial<DeviceState> | null);
     let dirty = this.migrateGCalTokens();
     dirty = this.migrateGCalCache() || dirty;
+    dirty = this.migrateDeviceState() || dirty;
     if (dirty) await this.saveSettings();
+  }
+
+  /** Geräte-Zustand speichern. Bewusst synchron und ohne await: Es ist ein localStorage-Schreib
+   *  vorgang, kein Datei-Zugriff – und der Aufrufer wartet nie darauf. */
+  private saveDevice(): void { this.app.saveLocalStorage(DEVICE_STATE_KEY, this.device); }
+
+  /** Einmalige Umstellung (ab 1.37.0): `navCollapsed`, `lastView` und `reminderLastScan` lagen in
+   *  data.json und wanderten damit über den Sync auf jedes Gerät. Ein Handy und ein Desktop teilen
+   *  sich aber weder ihre Bildschirmaufteilung noch ihren letzten Standort (s. die Regel an
+   *  BeautyTasksSettings).
+   *
+   *  Der vorhandene Stand wird übernommen, damit auf DIESEM Gerät nichts springt. Andere Geräte
+   *  starten mit aufgeklappter Seitenleiste – nichts davon ist Nutzerinhalt. Das `delete` ist
+   *  wieder Pflicht, sonst schriebe saveSettings() die Altfelder zurück. */
+  private migrateDeviceState(): boolean {
+    const raw = this.settings as unknown as Record<string, unknown>;
+    const keys = ["navCollapsed", "lastView", "reminderLastScan"] as const;
+    if (!keys.some((k) => k in raw)) return false;
+    if (!this.app.loadLocalStorage(DEVICE_STATE_KEY)) {
+      const nav = raw.navCollapsed;
+      const last = raw.lastView;
+      const scan = raw.reminderLastScan;
+      if (nav && typeof nav === "object") this.device.navCollapsed = nav as Record<string, boolean>;
+      if (typeof last === "string" && last) this.device.lastView = last;
+      if (typeof scan === "number") this.device.reminderLastScan = scan;
+      this.saveDevice();
+    }
+    for (const k of keys) delete raw[k];
+    return true;
   }
 
   /** Einmalige Umstellung (ab 1.37.0): `gcal.lastSynced`, `gcal.syncTokens` und

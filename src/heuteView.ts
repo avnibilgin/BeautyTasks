@@ -1702,8 +1702,7 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
       const v = input.value.trim();
       if (v) {
         await submit(v);
-        plugin.settings.navCollapsed[id] = false;   // neu Angelegtes soll sichtbar sein
-        await plugin.saveSettings();
+        plugin.revealNavSection(id);   // neu Angelegtes soll sichtbar sein
       }
       redraw();
     })();
