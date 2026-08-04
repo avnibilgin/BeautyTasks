@@ -5,7 +5,7 @@ import { dragTask, dragFromCol, startTaskDrag, endTaskDrag, applyDropPage } from
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, INBOX_KEY } from "./taskService";
+import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -1538,7 +1538,24 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     }
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
-  row.onclick = () => plugin.openEditTask(task);
+  // MIT Modifier stattdessen die NOTIZ – dieselbe Geste, die in der Seitenleiste (navItem) und
+  // in Aufgaben-Links (renderLinkedText) schon „woanders öffnen" bedeutet. Über Keymap.isModEvent
+  // statt selbst abgefragter Tasten: plattformrichtig (Cmd auf macOS, Ctrl sonst) und mit Shift
+  // von allein im geteilten Fenster. Ohne Modifier bleibt alles wie bisher.
+  // Links im Titel fangen ihren Klick vorher ab (stopPropagation) – Mod+Klick dort öffnet
+  // weiterhin das Linkziel, nicht die Aufgabennotiz.
+  row.onclick = (e) => {
+    const mod = Keymap.isModEvent(e);
+    if (mod) openTaskNote(plugin.app, task.path, mod); else plugin.openEditTask(task);
+  };
+  // Mittelklick öffnet die Notiz in einem neuen Tab (die Geste, die im Browser und in Obsidians
+  // Dateiliste dasselbe tut). `onauxclick`, weil die mittlere Taste gar kein `click` auslöst;
+  // preventDefault unterdrückt den Autoscroll-Modus, den Chromium sonst startet.
+  row.onauxclick = (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    openTaskNote(plugin.app, task.path, "tab");
+  };
 
   // Unteraufgaben verschachtelt darunter (eingerückt nach Tiefe) – nicht im Papierkorb
   // und nicht im flachen Kanban-Kartenmodus. Bei „Unteraufgaben verstecken" nur zeichnen,
