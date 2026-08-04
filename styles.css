@@ -337,6 +337,14 @@ body {
 
 .bt-empty-ic { display: inline-flex; opacity: 0.9; }
 .bt-empty-ic .svg-icon { width: 44px; height: 44px; }
+/* Aktion im Leerzustand („Filter zurücksetzen"): der Ausweg gehört an die Stelle, an der man
+   feststeckt – nicht nur ins Anzeige-Panel, das man dafür erst finden müsste. */
+.bt-empty-btn {
+  margin-top: -2px; padding: 6px 14px; border-radius: 8px; cursor: pointer; box-shadow: none;
+  border: 1px solid var(--interactive-accent); background: transparent; color: var(--interactive-accent);
+  font-size: var(--font-ui-small); font-weight: 600;
+}
+.bt-empty-btn:hover { background: var(--interactive-accent); color: var(--text-on-accent); }
 .bt-empty-text {
   font-size: 1.3em;
   font-weight: 600;
@@ -1907,6 +1915,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-anzeige-ic { display: inline-flex; }
 .bt-anzeige-ic svg, .bt-anzeige-ic .svg-icon { width: 15px; height: 15px; }
 .bt-anzeige-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--interactive-accent); }
+/* Anzahl aktiver Filter-Kriterien – ersetzt den Punkt (s. anzeigeButton). Kräftiger als er:
+   ein Filter NIMMT etwas weg, eine geänderte Sortierung nicht. */
+.bt-anzeige-n {
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--interactive-accent); color: var(--text-on-accent); font-size: 10.5px; font-weight: 700; line-height: 1;
+}
 
 /* Eigene Höhe statt der 320px, die für Zeilenlisten gedacht sind: das Panel hat im Board mit
    Richtungs-Zeile rund 350px Inhalt und wurde sonst gekappt – sichtbar wurde das an einem halb
@@ -1924,6 +1938,17 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-view-panel .bt-tab.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); font-weight: 600; }
 .bt-view-panel .bt-panel-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin: 2px 0 6px; }
 .bt-view-panel .bt-panel-cap:not(:first-child) { margin: 0 -12px 6px; padding: 10px 12px 0; border-top: 1px solid var(--background-modifier-border-hover); }
+/* Klappbare Abschnitts-Überschrift: Titel · Zähler · Pfeil. Der Zähler steht direkt hinter dem
+   Titel (nicht rechts außen) – sonst läse man ihn als Wert einer Zeile statt als Anzahl. */
+.bt-view-panel .bt-panel-cap.is-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+.bt-view-panel .bt-panel-cap-chev { display: inline-flex; margin-left: auto; color: var(--text-muted); }
+.bt-view-panel .bt-panel-cap-chev svg { width: 14px; height: 14px; }
+.bt-view-panel .bt-panel-cap-n:not(:empty) {
+  min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--interactive-accent); color: var(--text-on-accent); font-size: 10px; font-weight: 700; letter-spacing: 0; line-height: 1;
+}
+.bt-view-panel .bt-panel-cap.is-toggle:hover .bt-panel-cap-t,
+.bt-view-panel .bt-panel-cap.is-toggle:hover .bt-panel-cap-chev { color: var(--text-normal); }
 .bt-view-panel .bt-panel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 13px; }
 .bt-view-panel .bt-panel-k { color: var(--text-normal); }
 /* Die Dropdowns sind dieselben Trigger-Buttons wie im Filter-Modal (.bt-facet-dd) – kein <select>,
@@ -1945,6 +1970,14 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-search-bar .bt-panel-switch.is-on { background: var(--interactive-accent); }
 .bt-view-panel .bt-panel-switch.is-on::after,
 .bt-search-bar .bt-panel-switch.is-on::after { left: 17px; }
+/* „Als Filter speichern": dezenter Textknopf unter den Facetten – keine Trennlinie, er gehört
+   noch zum Filter-Abschnitt (die trennt erst „Zurücksetzen" darunter ab). */
+.bt-view-panel .bt-panel-save {
+  display: block; width: 100%; margin: 8px 0 2px; padding: 6px 0;
+  border: none; background: transparent; color: var(--text-muted); font: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; box-shadow: none; text-align: center;
+}
+.bt-view-panel .bt-panel-save:hover { color: var(--interactive-accent); }
 .bt-view-panel .bt-panel-reset {
   /* volle Breite bis an die Panel-Ränder (Innenpadding via negative Ränder überziehen). */
   display: block; width: calc(100% + 24px); margin: 10px -12px 0; padding: 10px 12px 0;

@@ -15,9 +15,9 @@ import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDe
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget } from "./fieldNames";
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
-import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
+import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, DEFAULT_CRITERIA, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
-import { readNoteViewOptions, setNoteViewOption, readViewOptions } from "./pageOptions";
+import { readNoteViewOptions, setNoteViewOption, readViewOptions, readNoteCriteria, setNoteCriteria, readCriteria, writeCriteria } from "./pageOptions";
 import { nextInstance } from "./recurrence";
 import { todayStr, localStamp, dateOf, timeOf, combineDT } from "./format";
 import { t, setLocale } from "./i18n";
@@ -435,12 +435,50 @@ export default class BeautyTasksPlugin extends Plugin {
     await this.saveSettings();
     this.renderMain();
   }
-  /** Anzeige-Optionen einer Seite auf Default zurücksetzen. */
+  /** Anzeige-Optionen einer Seite auf Default zurücksetzen – einschließlich ihres Ansichtsfilters.
+   *  „Zurücksetzen" im Panel muss ALLES aufheben, was die Seite gerade von ihrem Normalzustand
+   *  entfernt; ein stehen gebliebener Filter wäre danach die einzige Erklärung für fehlende
+   *  Aufgaben – und die einzige, die der Knopf gerade beseitigt zu haben scheint. */
   async resetPageOptions(page: PageRef): Promise<void> {
     const p = pageInfo(page);
-    if (p.kind === "project") { this.refreshOnChange(p.key); await setNoteViewOption(this.app, p.key, { ...DEFAULT_OPTIONS }); return; }
+    if (p.kind === "project") {
+      this.refreshOnChange(p.key);
+      await setNoteViewOption(this.app, p.key, { ...DEFAULT_OPTIONS });
+      await setNoteCriteria(this.app, p.key, { ...DEFAULT_CRITERIA });
+      return;
+    }
     if (p.kind === "filter") { const fl = readFilter(this.app, p.key); if (fl) await this.updateFilter(p.key, fl.criteria, { ...DEFAULT_OPTIONS }, fl.color); return; }
-    if (this.settings.pageViewOptions) { delete this.settings.pageViewOptions[p.kind === "label" ? "label:" + p.key : p.key]; await this.saveSettings(); }
+    const skey = p.kind === "label" ? "label:" + p.key : p.key;
+    if (this.settings.pageViewOptions) delete this.settings.pageViewOptions[skey];
+    if (this.settings.pageFilters) delete this.settings.pageFilters[skey];
+    await this.saveSettings();
+    this.renderMain();
+  }
+
+  // ── Ansichtsfilter pro Seite ──
+  // Dasselbe Muster wie die Anzeige-Optionen, ein Feld weiter: Der Filter beschreibt, WELCHE
+  // Aufgaben die Seite zeigt, gehört also zur Seite und nicht zum Tab (anders als das Layout).
+  // Gespeicherte Filter bekommen keinen: Dort sind die Kriterien die Seite selbst, ein zweiter
+  // Satz darüber wäre für niemanden mehr auseinanderzuhalten – ihr Editor ist der Stift im Kopf.
+  /** Ansichtsfilter einer Seite (Standard = keine Kriterien). */
+  pageCriteria(page: PageRef): FilterCriteria {
+    const p = pageInfo(page);
+    if (p.kind === "filter" || page.kind === "manage") return { ...DEFAULT_CRITERIA };
+    if (p.kind === "project") return readNoteCriteria(this.app, p.key);
+    return readCriteria(this.settings.pageFilters?.[p.kind === "label" ? "label:" + p.key : p.key]);
+  }
+  /** Kriterien einer Seite ändern – am richtigen Ort gespeichert. */
+  async setPageCriteria(page: PageRef, patch: Partial<FilterCriteria>): Promise<void> {
+    const p = pageInfo(page);
+    if (p.kind === "filter" || page.kind === "manage") return;
+    if (p.kind === "project") { this.refreshOnChange(p.key); await setNoteCriteria(this.app, p.key, patch); return; }
+    const map = this.settings.pageFilters ?? {};
+    const skey = p.kind === "label" ? "label:" + p.key : p.key;
+    const next: Record<string, unknown> = {};
+    writeCriteria(next, { ...readCriteria(map[skey]), ...patch });
+    if (Object.keys(next).length) map[skey] = next; else delete map[skey];
+    this.settings.pageFilters = map;
+    await this.saveSettings();
     this.renderMain();
   }
 

@@ -7,7 +7,7 @@ import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, 
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
@@ -103,10 +103,14 @@ function addDue(ctx: PageCtx): string | null {
  *  Diese Views schneiden ihre Menge bewusst zeitlich zu (nur heute bzw. nur Zukunft) – im Kalender
  *  wäre damit fast jede Zelle leer und Zurückblättern sinnlos. Der Kalender zeigt dort deshalb ALLE
  *  datierten Aufgaben; das Datum ist ja bereits seine Achse. Projekt-/Label-/Filterseiten behalten
- *  dagegen ihre Menge (dort ist die Einschränkung die Aussage der Seite). */
-function calendarTasks(plugin: BeautyTasksPlugin, opts: ViewOptions): Task[] {
-  const open = plugin.index.open();
-  return opts.showDone ? [...open, ...plugin.index.done()] : open;
+ *  dagegen ihre Menge (dort ist die Einschränkung die Aussage der Seite).
+ *
+ *  Der Ansichtsfilter gilt trotzdem: Genau WEIL dieser Weg die Menge der Seite umgeht, muss er
+ *  hier ausdrücklich stehen – sonst stellt man „nur Priorität 1" ein und der Kalender bleibt voll. */
+function calendarTasks(ctx: PageCtx, opts: ViewOptions): Task[] {
+  const idx = ctx.plugin.index;
+  const open = idx.open();
+  return ctx.filter(opts.showDone ? [...open, ...idx.done()] : open);
 }
 
 /**
@@ -155,18 +159,22 @@ export function renderViewInto(c: HTMLElement, ctx: PageCtx, view: ViewId): void
     const opts = ctx.opts;
     // Auswahl vollständig über den Index – die Regel (Fälligkeit, ersatzweise Deadline; eine
     // verstrichene Frist macht überfällig) lebt in filterEngine und gilt für alle Zeit-Ansichten.
-    const overdue = idx.overdue(today), dueToday = idx.dueToday(today);
-    const doneToday = idx.done().filter((tk) => dateOf(tk.completed ?? "") === today);   // completed = Zeitstempel -> Datums-Teil vergleichen
+    const overdue = ctx.filter(idx.overdue(today)), dueToday = ctx.filter(idx.dueToday(today));
+    const doneToday = ctx.filter(idx.done().filter((tk) => dateOf(tk.completed ?? "") === today));   // completed = Zeitstempel -> Datums-Teil vergleichen
     const open = [...overdue, ...dueToday];
     // Termine des Tages (read-only) zählen mit: sonst behauptete „Nichts für heute" leeren Tag,
     // obwohl der Kalender voller Meetings steckt. setRange meldet dem Feed den Zeitraum (Listen-Layout
     // hat sonst nichts, was ihn anstößt – das macht sonst nur der Kalender).
     plugin.gcalFeed?.setRange(today, today);
-    const todayEv = dayEvents(plugin, today);
+    // Bei aktivem Ansichtsfilter bleiben die Termine weg: Ein Termin hat weder Priorität noch
+    // Label noch Projekt, kann also kein Kriterium erfüllen – er stünde als einziges Element in
+    // einer Ansicht, die ausdrücklich etwas anderes sehen will.
+    const todayEv = hasCriteria(ctx.crit) ? [] : dayEvents(plugin, today);
     if (!open.length && !(opts.showDone && doneToday.length) && !todayEv.length) {
-      emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
+      if (hasCriteria(ctx.crit)) filterEmptyState(root, ctx);
+      else emptyState(root, VIEW_ICON.heute, "empty_nothing_today");
     } else if (opts.layout === "calendar") {
-      renderCalendar(root, ctx, () => calendarTasks(plugin, opts), today, opts, () => ctx.redraw());
+      renderCalendar(root, ctx, () => calendarTasks(ctx, opts), today, opts, () => ctx.redraw());
     } else if (opts.layout === "board") {
       // Board folgt der Gruppierung (Status/Label/Priorität/Projekt) – wie die vollen Seiten.
       // Termine haben hier keine Spalte (kein Tages-Board) → sie erscheinen im Listen-/Kalender-Layout.
@@ -224,7 +232,10 @@ export function renderViewInto(c: HTMLElement, ctx: PageCtx, view: ViewId): void
     // „Demnächst" ist eine reine, datierte Zukunfts-Agenda: KEINE undatierten (die gehören in
     // Eingang/Projekt bzw. später „Irgendwann") und KEINE erledigten (gehören in „Erledigt").
     const opts = ctx.opts;
-    const groups = idx.upcomingByDate(today);
+    // Der Ansichtsfilter greift PRO TAG; Tage, von denen nichts übrig bleibt, verschwinden ganz
+    // (sonst stünden leere Datums-Überschriften in der Agenda).
+    const groups = idx.upcomingByDate(today)
+      .map((g) => ({ ...g, tasks: ctx.filter(g.tasks) })).filter((g) => g.tasks.length);
     // Termine des Vorschauzeitraums (read-only). Der Feed lädt diesen Bereich nach (Listen-Layout
     // stößt ihn sonst nicht an). Ein Tag MIT Terminen, aber OHNE Aufgabe, bekommt so trotzdem seine
     // Gruppe – „Demnächst" wird so zur ehrlichen Wochenplanungs-Fläche.
@@ -233,10 +244,13 @@ export function renderViewInto(c: HTMLElement, ctx: PageCtx, view: ViewId): void
     // ANZEIGEN erst ab morgen: „Demnächst" beginnt bei morgen, und das muss für Termine genauso
     // gelten wie für Aufgaben. Sonst entstand allein wegen eines heutigen Termins eine „Heute"-
     // Gruppe in einer Ansicht, die Heutiges gar nicht zeigt – doppelt zur Heute-Liste.
-    const evByDate = feedEventsByDate(plugin, addDays(today, 1), eventEnd);
-    if (!groups.length && !evByDate.size) { emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled"); }
-    else if (opts.layout === "calendar") {
-      renderCalendar(root, ctx, () => calendarTasks(plugin, opts), today, opts, () => ctx.redraw());
+    // Wie in „Heute": bei aktivem Ansichtsfilter keine Termine (sie können kein Kriterium erfüllen).
+    const evByDate = hasCriteria(ctx.crit) ? new Map<string, DayEvent[]>() : feedEventsByDate(plugin, addDays(today, 1), eventEnd);
+    if (!groups.length && !evByDate.size) {
+      if (hasCriteria(ctx.crit)) filterEmptyState(root, ctx);
+      else emptyState(root, VIEW_ICON.demnaechst, "empty_nothing_scheduled");
+    } else if (opts.layout === "calendar") {
+      renderCalendar(root, ctx, () => calendarTasks(ctx, opts), today, opts, () => ctx.redraw());
     } else if (opts.layout === "board") {
       // Demnächst gruppiert wie Heute – Default Datum: ein gespeichertes „none" wird zu „date"
       // (Spalte je Datum), jede andere Wahl (Label/Priorität/Projekt/Deadline) gilt wie sonst.
@@ -367,12 +381,26 @@ function applyReadableWidth(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 const byDue = (a: Task, b: Task) => (a.due ?? "").localeCompare(b.due ?? "");
 
 /** Einheitlicher Leerzustand für alle Boards: zentriert im Restraum, Icon + Text (Akzentfarbe).
- *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css. */
-function emptyState(root: HTMLElement, icon: string, key: string): void {
+ *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css.
+ *  `action` hängt einen Knopf darunter (derzeit „Filter zurücksetzen"). */
+function emptyState(root: HTMLElement, icon: string, key: string, action?: { label: string; onClick: () => void }): void {
   root.addClass("is-empty");   // zentriert den Leerzustand (ersetzt :has(> .bt-empty))
   const box = root.createDiv({ cls: "bt-empty" });
   setIcon(box.createDiv({ cls: "bt-empty-ic" }), icon);
   box.createDiv({ cls: "bt-empty-text", text: t(key) });
+  if (action) box.createEl("button", { cls: "bt-empty-btn", text: action.label }).onclick = action.onClick;
+}
+
+/**
+ * Leerzustand einer Seite, deren Aufgaben der ANSICHTSFILTER verbirgt.
+ *
+ * Ohne ihn behauptete die Projektseite „Noch keine Aufgaben in diesem Projekt" – falsch und
+ * erschreckend, und der einzige Weg zurück (das Anzeige-Panel) wäre nirgends erwähnt. Deshalb
+ * benennt der Text die Ursache und der Knopf beseitigt sie an Ort und Stelle.
+ */
+function filterEmptyState(root: HTMLElement, ctx: PageCtx): void {
+  emptyState(root, "filter", "empty_no_filter_match",
+    { label: t("filter_clear"), onClick: () => ctx.setCriteria({ ...DEFAULT_CRITERIA }) });
 }
 
 /** „+ Add task"-Zeile eines Boards: links der Hinzufügen-Button, rechts ein dezenter
@@ -415,12 +443,14 @@ export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath
   addBar(top, plugin, () => plugin.openNewTask(isInbox ? undefined : name, undefined, false, undefined, addDue(ctx)));
 
   // Eingang = alle „nicht einsortierten" Aufgaben (kein Projekt ODER Verweis auf Inbox).
-  const source = (): Task[] => isInbox
+  // ctx.filter davor: der Ansichtsfilter der Seite (Anzeige-Panel), siehe PageCtx.filter.
+  const source = (): Task[] => ctx.filter(isInbox
     ? plugin.index.inbox()
-    : plugin.index.all().filter((t) => t.project != null && baseName(t.project) === name);
+    : plugin.index.all().filter((t) => t.project != null && baseName(t.project) === name));
   const tasks = source();
   if (!tasks.length) {
-    if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
+    if (hasCriteria(ctx.crit)) filterEmptyState(root, ctx);
+    else if (isInbox) emptyState(root, "inbox", "empty_no_inbox_tasks");
     else if (isArea) emptyState(root, "circle-small", "empty_no_area_tasks");
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
@@ -442,10 +472,14 @@ export function renderLabelBoardInto(c: HTMLElement, ctx: PageCtx, label: string
     { menu: { sec: "labels", key: label, name: label, hidden: !plugin.isLabelVisible(label), color: plugin.getLabelColor(label) } });
   addBar(top, plugin, () => plugin.openNewTask(undefined, label, false, undefined, addDue(ctx)));
 
-  const source = (): Task[] =>
-    plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project));
+  const source = (): Task[] => ctx.filter(
+    plugin.index.all().filter((tk) => tk.labels.includes(label) && !plugin.index.isProjectArchived(tk.project)));
   const tasks = source();
-  if (!tasks.length) { emptyState(root, "hash", "empty_no_label_tasks"); return; }
+  if (!tasks.length) {
+    if (hasCriteria(ctx.crit)) filterEmptyState(root, ctx);
+    else emptyState(root, "hash", "empty_no_label_tasks");
+    return;
+  }
   renderPageBody(root, ctx, source, ctx.opts, today, { label });
 }
 
@@ -2102,6 +2136,7 @@ export class MainView extends ItemView {
   ctx(): PageCtx {
     const info = pageInfo(this.page);
     const stored = this.plugin.pageOptions(this.page);
+    const crit = this.plugin.pageCriteria(this.page);
     const st = this.tab;   // DASSELBE Objekt, keine Kopie – nur so sehen die Getter jede Änderung
     return {
       plugin: this.plugin,
@@ -2109,6 +2144,10 @@ export class MainView extends ItemView {
       page: this.page,
       pageKey: info.key,
       opts: { ...stored, ...this.local },
+      crit,
+      // Ohne Kriterien dieselbe Liste zurückgeben statt einer Kopie: der Ansichtsfilter ist der
+      // Ausnahmefall, und jede Seite geht durch diese Funktion.
+      filter: (list) => (hasCriteria(crit) ? filterTasks(list, crit, todayStr()) : list),
       titleComp: this.renderComp,
       get doneTab() { return st.doneTab; },
       get manageTab() { return st.manageTab; },
@@ -2119,6 +2158,7 @@ export class MainView extends ItemView {
       redraw: () => this.draw(),
       open: (p) => this.openPage(p),
       setOption: (patch) => void this.plugin.setPageOption(this.page, patch),
+      setCriteria: (patch) => void this.plugin.setPageCriteria(this.page, patch),
       setLayout: (l) => this.setLocal({ layout: l }),
       setCalPanel: (open) => this.setLocal({ calPanel: open }),
       resetOptions: () => { this.local = {}; void this.plugin.resetPageOptions(this.page); },

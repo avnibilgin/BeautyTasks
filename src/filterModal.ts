@@ -2,37 +2,20 @@
 // Kopie aus FilterCriteria + ViewOptions und zeigt live die Trefferzahl. Anlegen = neue
 // type:filter-Notiz, Bearbeiten = bestehende aktualisieren. Facetten sind implizit UND;
 // mehrere Werte je Facette ODER (kein Bool-Operator im UI, bewusste Vereinfachung).
-import { Modal, Notice, setIcon } from "obsidian";
+import { Modal, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { Priority } from "./types";
 import { todayStr } from "./format";
-import { listProjectsAndAreas, isInboxName } from "./taskService";
-import { openPopover } from "./popover";
-import { projectDisplayName, t } from "./i18n";
-import { PRIO_KEY } from "./taskModal";
-import { allStatuses, statusLabel } from "./statuses";
+import { t } from "./i18n";
 import {
-  FilterCriteria, ViewOptions, MatchMode, DEFAULT_CRITERIA, DEFAULT_OPTIONS,
-  RANGES, FILTER_PRIORITIES, SUBTASK_FILTERS, SubtaskFilter, applyFilter, activeFacetCount, orphanKeys,
+  FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS, ALL_FACETS, applyFilter, activeFacetCount,
 } from "./filterEngine";
+import { MODAL_STYLE, buildFacets, renderFacet, fieldRow } from "./facets";
 import { readFilter } from "./filterService";
 import { buildSwatchRow } from "./colorSwatches";
 import { ConfirmModal } from "./confirmModal";
 
-/**
- * Eine Zeile des Filter-Modals: Beschriftung links, Bedienelement rechts – gibt den Container
- * fuer das Bedienelement zurueck.
- *
- * Bewusst EIGENES Markup statt Obsidians `Setting`: dessen Zeilen bringen Standard-Padding und
- * eine Trennlinie mit, die sich von aussen nur ueber Spezifitaets-Wettbewerb bekaempfen liessen –
- * und genau das ist zweimal fehlgeschlagen. Mit eigenen Elementen bestimmt das Plugin die
- * Abstaende selbst. Dasselbe Muster benutzt das Anzeige-Panel (viewPanel.ddRow) bereits.
- */
-function filterRow(parent: HTMLElement, label: string): HTMLElement {
-  const row = parent.createDiv({ cls: "bt-filter-row" });
-  row.createSpan({ cls: "bt-filter-k", text: label });
-  return row.createDiv({ cls: "bt-filter-ctl" });
-}
+/** Eine Zeile des Filter-Modals: Beschriftung links, Bedienelement rechts (s. facets.fieldRow). */
+const filterRow = (parent: HTMLElement, label: string): HTMLElement => fieldRow(parent, label, MODAL_STYLE);
 
 export class FilterModal extends Modal {
   private name: string;
@@ -46,13 +29,16 @@ export class FilterModal extends Modal {
   private readonly editPath: string | null;
   private countEl!: HTMLElement;
 
-  constructor(private plugin: BeautyTasksPlugin, editPath?: string) {
+  /** `preset` = Vorbelegung für einen NEUEN Filter: „Als Filter speichern" im Anzeige-Panel
+   *  reicht damit den Ansichtsfilter der Seite herein (s. viewPanel.presetFor). Beim Bearbeiten
+   *  gewinnt die Notiz – dort ist nichts vorzubelegen. */
+  constructor(private plugin: BeautyTasksPlugin, editPath?: string, preset?: FilterCriteria) {
     super(plugin.app);
     this.editPath = editPath ?? null;
     const existing = editPath ? readFilter(plugin.app, editPath) : null;
     this.name = existing?.name ?? "";
     this.origName = this.name;
-    this.c = { ...DEFAULT_CRITERIA, ...(existing?.criteria ?? {}) };
+    this.c = { ...DEFAULT_CRITERIA, ...(existing?.criteria ?? preset ?? {}) };
     this.o = { ...DEFAULT_OPTIONS, ...(existing?.options ?? {}) };
     this.color = existing?.color ?? null;
     this.description = existing?.description ?? "";
@@ -98,90 +84,14 @@ export class FilterModal extends Modal {
     // der Editor beschreibt nur, WELCHE Aufgaben zum Filter gehören (Kriterien).
 
     // ── Filter-Facetten ──
+    // Die Definitionen (welche Werte, wie sie in die Kriterien schreiben) liegen in facets.ts –
+    // dieselben, die der Filter-Abschnitt des Anzeige-Panels zeichnet. Der Editor zeigt ALLE
+    // Facetten und die volle Status-Liste (statusScope „all"): „zeig mir alles Abgebrochene" ist
+    // hier eine sinnvolle Frage, im Panel dagegen kollidierte sie mit „Erledigte anzeigen".
     contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
-    this.select(contentEl, t("filter_range"),
-      RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
-      () => this.c.range, (v) => { this.c.range = v as FilterCriteria["range"]; this.refresh(); });
-
-    // Deadline hat dieselben Stufen wie die Faelligkeit, aber ein eigenes Feld: „Deadline diese
-    // Woche" ist eine andere Frage als „faellig diese Woche".
-    this.select(contentEl, t("filter_deadline_range"),
-      RANGES.map((r) => ({ key: r, label: t("filter_range_" + r) })),
-      () => this.c.deadlineRange, (v) => { this.c.deadlineRange = v as FilterCriteria["deadlineRange"]; this.refresh(); });
-
-    // Status: einwertig wie Priorität, also nur ✓ und − (kein „alle"). Nimmt ALLE Status – auch
-    // erledigte und abgebrochene –, denn genau das macht diese Facette möglich: eine Ansicht auf
-    // „was ist gerade in Arbeit", „was habe ich abgebrochen" oder einen selbst angelegten Status.
-    const staleStatus = orphanKeys(allStatuses().map((s) => s.id), [...this.c.statuses, ...this.c.statusesNot]);
-    this.facet(contentEl, t("filter_statuses"),
-      [...allStatuses().map((s) => ({ key: s.id, label: statusLabel(s.id) })), ...this.staleOpts(staleStatus)], {
-        modeOf: (k) => this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null,
-        toggle: (k, pen) => {
-          const was = this.c.statusesNot.includes(k) ? "none" : this.c.statuses.includes(k) ? "any" : null;
-          this.c.statuses = this.c.statuses.filter((x) => x !== k);
-          this.c.statusesNot = this.c.statusesNot.filter((x) => x !== k);
-          if (was !== pen) (pen === "none" ? this.c.statusesNot : this.c.statuses).push(k);
-        },
-        clear: () => { this.c.statuses = []; this.c.statusesNot = []; },
-        pens: ["any", "none"], orphans: staleStatus,
-      });
-
-    this.facet(contentEl, t("filter_priorities"),
-      FILTER_PRIORITIES.map((p) => ({ key: p, label: t(PRIO_KEY[p]) })), {
-        modeOf: (k) => this.c.prioritiesNot.includes(k as Priority) ? "none" : this.c.priorities.includes(k as Priority) ? "any" : null,
-        toggle: (k, pen) => {
-          const p = k as Priority;
-          const was = this.c.prioritiesNot.includes(p) ? "none" : this.c.priorities.includes(p) ? "any" : null;
-          this.c.priorities = this.c.priorities.filter((x) => x !== p);
-          this.c.prioritiesNot = this.c.prioritiesNot.filter((x) => x !== p);
-          if (was !== pen) (pen === "none" ? this.c.prioritiesNot : this.c.priorities).push(p);
-        },
-        clear: () => { this.c.priorities = []; this.c.prioritiesNot = []; },
-        pens: ["any", "none"],
-      });
-
-    const labelNames = this.plugin.getLabels().map((l) => l.name);
-    const staleLabels = orphanKeys(labelNames, [...this.c.labels, ...this.c.labelsAll, ...this.c.labelsNot]);
-    const labels = [...labelNames.map((n) => ({ key: n, label: n })), ...this.staleOpts(staleLabels)];
-    if (labels.length) this.facet(contentEl, t("filter_labels"), labels, {
-      modeOf: (k) => this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null,
-      toggle: (k, pen) => {
-        const was = this.c.labelsNot.includes(k) ? "none" : this.c.labelsAll.includes(k) ? "all" : this.c.labels.includes(k) ? "any" : null;
-        this.c.labels = this.c.labels.filter((x) => x !== k);
-        this.c.labelsAll = this.c.labelsAll.filter((x) => x !== k);
-        this.c.labelsNot = this.c.labelsNot.filter((x) => x !== k);
-        if (was !== pen) (pen === "all" ? this.c.labelsAll : pen === "none" ? this.c.labelsNot : this.c.labels).push(k);
-      },
-      clear: () => { this.c.labels = []; this.c.labelsAll = []; this.c.labelsNot = []; },
-      pens: ["any", "all", "none"], orphans: staleLabels,
-    });
-
-    const { bereiche, projekte } = listProjectsAndAreas(this.plugin.app);
-    // Eingang = eingebaute Option (Key „Inbox"; die Engine matcht ihn via isInboxName).
-    const projNames = ["Inbox", ...[...bereiche, ...projekte].map((p) => p.name)];
-    // Der Eingang kann unter mehreren Namen gespeichert sein („Inbox"/„Eingang", s. isInboxName) –
-    // die Engine matcht ihn trotzdem, also ist er nie verwaist.
-    const projUsed = [...this.c.projects, ...this.c.projectsNot].filter((k) => !isInboxName(k));
-    const staleProj = orphanKeys(projNames, projUsed);
-    const projOpts = [{ key: "Inbox", label: t("nav_inbox") },
-      ...[...bereiche, ...projekte].map((p) => ({ key: p.name, label: projectDisplayName(p.name) })),
-      ...this.staleOpts(staleProj)];
-    if (projOpts.length) this.facet(contentEl, t("filter_projects"), projOpts, {
-      modeOf: (k) => this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null,
-      toggle: (k, pen) => {
-        const was = this.c.projectsNot.includes(k) ? "none" : this.c.projects.includes(k) ? "any" : null;
-        this.c.projects = this.c.projects.filter((x) => x !== k);
-        this.c.projectsNot = this.c.projectsNot.filter((x) => x !== k);
-        if (was !== pen) (pen === "none" ? this.c.projectsNot : this.c.projects).push(k);
-      },
-      clear: () => { this.c.projects = []; this.c.projectsNot = []; },
-      pens: ["any", "none"], orphans: staleProj,
-    });
-
-    // Unteraufgaben: dieselbe Frage, die Todoist mit subtask / !subtask beantwortet.
-    this.select(contentEl, t("filter_subtasks"),
-      SUBTASK_FILTERS.map((v) => ({ key: v, label: t("filter_subtasks_" + v) })),
-      () => this.c.subtaskMode, (v) => { this.c.subtaskMode = v as SubtaskFilter; this.refresh(); });
+    for (const f of buildFacets(this.plugin, ALL_FACETS, () => this.c, (patch) => { this.c = { ...this.c, ...patch }; })) {
+      renderFacet(contentEl, f, MODAL_STYLE, () => this.refresh());
+    }
 
     const searchIn = filterRow(contentEl, t("filter_search")).createEl("input", { type: "text", cls: "bt-filter-input" });
     searchIn.placeholder = t("filter_search_ph");
@@ -203,95 +113,6 @@ export class FilterModal extends Modal {
   }
 
   onClose(): void { this.contentEl.empty(); }
-
-  /** Mehrfachauswahl mit PRO-WERT-Marker. Der Modus oben (eines/alle/keines) ist nur der „Stift":
-   *  Ein Klick auf einen Wert setzt/entfernt ihn im aktuellen Stift; jeder Wert behält seinen Marker
-   *  (✓ = eines/ODER · + = alle/UND · − = keines/NICHT), auch wenn der Stift gewechselt wird. */
-  /** Einträge für Kriterien, deren Ziel es nicht mehr gibt (gelöschtes Label, umbenanntes Projekt,
-   *  entfernter Status). Sie erscheinen am Ende der Liste, als „… (nicht vorhanden)" gekennzeichnet,
-   *  und lassen sich dort abwählen. Ohne sie zeigte die Zeile „Alle", obwohl sie filtert. */
-  private staleOpts(keys: readonly string[]): { key: string; label: string }[] {
-    return keys.map((k) => ({ key: k, label: t("filter_missing", k) }));
-  }
-
-  private facet(parent: HTMLElement, label: string, opts: { key: string; label: string }[], ctl: {
-    modeOf: (k: string) => MatchMode | null;   // aktueller Marker eines Werts, null = nicht gewählt
-    toggle: (k: string, pen: MatchMode) => void;
-    clear: () => void;
-    pens: MatchMode[];
-    orphans?: readonly string[];   // Werte ohne Ziel – markieren den Button, s. syncLbl
-  }): void {
-    const btn = filterRow(parent, label).createEl("button", { cls: "bt-facet-dd" });
-    const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
-    setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
-    const iconOf = (m: MatchMode): string => (m === "all" ? "plus" : m === "none" ? "minus" : "check");
-    const syncLbl = (): void => {   // Zusammenfassung: „N Kriterien gewählt" (Gesamtzahl)
-      const n = opts.filter((o) => ctl.modeOf(o.key)).length;
-      lbl.setText(n ? t("filter_n_criteria", n) : t("filter_all"));
-      // Rahmen markieren, solange ein Kriterium ohne Ziel gewählt ist – wird beim Abwählen von
-      // selbst wieder normal, weil syncLbl nach jedem Umschalten läuft.
-      btn.toggleClass("is-stale", (ctl.orphans ?? []).some((k) => !!ctl.modeOf(k)));
-    };
-    syncLbl();
-
-    let pen: MatchMode = ctl.pens[0];   // Standard-Stift = „eines"
-    btn.onclick = () => openPopover(btn, (pop) => {
-      pop.addClass("bt-facet-pop");
-      const render = (): void => {
-        pop.empty();
-        pop.addClass("bt-facet-pop");
-        if (ctl.pens.length > 1) {   // Stift-Segment oben – wechselt nur den Stift, ändert keine Auswahl
-          pop.addClass("bt-mode-pop");
-          pop.createDiv({ cls: "bt-mode-lead", text: t("filter_mode_lead") });
-          const seg = pop.createDiv({ cls: "bt-mode-seg" });
-          for (const m of ctl.pens) {
-            const opt = seg.createSpan({ cls: "bt-mode-opt" + (pen === m ? " is-on" : ""), text: t("filter_mode_" + m) });
-            opt.onclick = () => { pen = m; render(); };
-          }
-          pop.createDiv({ cls: "bt-mode-sentence", text: t("filter_mode_s_" + pen) });   // beschreibt den aktiven Stift
-        }
-        const rowEl = (active: boolean, icon: string | null, text: string, onClick: () => void, stale = false): void => {
-          const r = pop.createDiv({ cls: "bt-row" + (active ? " is-active" : "") + (stale ? " is-stale" : "") });
-          const ic = r.createSpan({ cls: "bt-row-ic" });   // Slot immer da -> Beschriftungen bündig
-          if (icon) setIcon(ic, icon);
-          r.createSpan({ cls: "bt-row-lbl", text });
-          r.onclick = onClick;
-        };
-        const empty = !opts.some((o) => ctl.modeOf(o.key));
-        rowEl(empty, empty ? "check" : null, t("filter_all"), () => { ctl.clear(); syncLbl(); this.refresh(); render(); });
-        for (const o of opts) {
-          const m = ctl.modeOf(o.key);
-          rowEl(!!m, m ? iconOf(m) : null, o.label,
-            () => { ctl.toggle(o.key, pen); syncLbl(); this.refresh(); render(); },
-            (ctl.orphans ?? []).includes(o.key));
-        }
-      };
-      render();
-    });
-  }
-
-  /** Einfachauswahl als kompaktes Dropdown (Button + Popover mit Häkchen) – optisch identisch
-   *  zu den Mehrfach-Facetten, aber genau EIN Wert; Klick wählt und schließt. */
-  private select(parent: HTMLElement, label: string, opts: { key: string; label: string }[],
-    get: () => string, set: (v: string) => void): void {
-    const btn = filterRow(parent, label).createEl("button", { cls: "bt-facet-dd" });
-    const lbl = btn.createSpan({ cls: "bt-facet-dd-lbl" });
-    setIcon(btn.createSpan({ cls: "bt-facet-dd-chev" }), "chevron-down");
-    const syncLbl = (): void => lbl.setText(opts.find((o) => o.key === get())?.label ?? "");
-    syncLbl();
-
-    btn.onclick = () => openPopover(btn, (pop, close) => {
-      pop.addClass("bt-facet-pop");
-      for (const o of opts) {
-        const on = get() === o.key;
-        const r = pop.createDiv({ cls: "bt-row" + (on ? " is-active" : "") });
-        const ic = r.createSpan({ cls: "bt-row-ic" });
-        if (on) setIcon(ic, "check");
-        r.createSpan({ cls: "bt-row-lbl", text: o.label });
-        r.onclick = () => { set(o.key); syncLbl(); this.refresh(); close(); };
-      }
-    });
-  }
 
   private refresh(): void {
     const n = applyFilter(this.plugin.index, this.c, this.o, todayStr()).length;
