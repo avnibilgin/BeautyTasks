@@ -27,7 +27,7 @@ import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJs
 import { ImportTaskNotesModal } from "./importTaskNotes";
 import { WhatsNewModal } from "./whatsNew";
 import { calendarDayAnchor } from "./calendarView";
-import { GCalAuth, TokenStore, DevicePrompt } from "./gcalAuth";
+import { GCalAuth, TokenStore, DevicePrompt, GCalTokens, planTokenMigration } from "./gcalAuth";
 import { GCalSync, GCalSyncHost, DEFAULT_GCAL_SETTINGS, listCalendars, ensureDefaultCalendar, fetchAccountEmail, CalendarInfo, GCalStatusInfo } from "./gcalSync";
 import { GCalFeed, GCalFeedHost, DEFAULT_GCAL_FEED_SETTINGS } from "./gcalFeed";
 
@@ -42,6 +42,13 @@ function registerIcons(): void {
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M12 23c6.075 0 11-4.925 11-11S18.075 1 12 1 1 5.925 1 12s4.925 11 11 11m-.711-16.5a.75.75 0 1 1 1.5 0v4.789H17.5a.75.75 0 0 1 0 1.5h-4.711V17.5a.75.75 0 0 1-1.5 0V12.79H6.5a.75.75 0 1 1 0-1.5h4.789z"/>
   </g>`);
 }
+
+// Geräte-lokale Schlüssel (app.saveLocalStorage). Sie liegen bewusst NICHT in data.json:
+// Der Refresh-Token ist ein Dauerzugriff auf den Google-Kalender und würde sonst über jeden
+// Sync-Dienst, jedes Backup und jede Versionshistorie mitwandern. Obsidian trennt den Speicher
+// bereits pro Vault, deshalb reicht ein Präfix je Zweck.
+const GCAL_TOKEN_KEY = "beautytasks-gcal-tokens";
+const GCAL_RECONNECT_KEY = "beautytasks-gcal-reconnect-notified";
 
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
@@ -105,6 +112,7 @@ export default class BeautyTasksPlugin extends Plugin {
       void this.gcalSync.syncNow();
       this.gcalFeed.start();  // Termine holen (ruhiges Intervall, nur bei sichtbarer Ansicht)
       this.gcalFeed.refreshIfStale();
+      this.noticeGCalNeedsReconnect();
       // „Neu"-Modal nur für bestehende Nutzer und nur bei einem MINOR/MAJOR-Sprung (z. B. 1.7→1.8),
       // NICHT bei reinen Patches (1.8.0→1.8.1) – sonst nervt es bei Bugfix-Releases. Der Command
       // „Neuigkeiten anzeigen" öffnet es jederzeit manuell.
@@ -1798,9 +1806,34 @@ export default class BeautyTasksPlugin extends Plugin {
     initFieldNames(this.settings.fieldNames);
     this.settings.fieldNames = allFieldNames();
     // Google-Kalender-Sub-Objekt mit Defaults auffüllen (fehlende/neue Felder ergänzen,
-    // gespeicherte Werte behalten). Lebendes Objekt – Auth/Engine mutieren tokens/lastSynced darin.
+    // gespeicherte Werte behalten). Lebendes Objekt – die Engine mutiert lastSynced/syncTokens darin.
     this.settings.gcal = Object.assign({}, DEFAULT_GCAL_SETTINGS, this.settings.gcal);
     this.settings.gcalFeed = Object.assign({}, DEFAULT_GCAL_FEED_SETTINGS, this.settings.gcalFeed);
+    if (this.migrateGCalTokens()) await this.saveSettings();
+  }
+
+  /** Einmalige Umstellung (ab 1.36.0): Bis 1.35.x lagen Refresh-Token und Anzeige-E-Mail in
+   *  data.json und wanderten damit über jeden Sync auf jedes Gerät – und in jedes Backup.
+   *
+   *  Das Gerät, das die Datei nach dem Update zuerst öffnet, übernimmt den Token in seinen
+   *  lokalen Speicher: Dort bleibt die Verbindung ohne Zutun bestehen. Auf allen anderen Geräten
+   *  ist danach keiner mehr da; sie verbinden sich einmal selbst (Hinweis beim Start, s. onload).
+   *
+   *  Gibt zurück, ob data.json dadurch zu bereinigen war. Der `delete` ist Pflicht, nicht Kosmetik:
+   *  `Object.assign` oben kopiert die alten Felder mit, obwohl der Typ sie nicht mehr kennt –
+   *  ohne das Löschen schriebe saveSettings() den Token stumm wieder zurück. */
+  private migrateGCalTokens(): boolean {
+    const raw = this.settings.gcal as unknown as Record<string, unknown>;
+    if (!("tokens" in raw) && !("account" in raw)) return false;
+    const adopt = planTokenMigration(
+      raw.tokens as GCalTokens | null | undefined,
+      raw.account as string | null | undefined,
+      !!this.app.loadLocalStorage(GCAL_TOKEN_KEY),
+    );
+    if (adopt) this.app.saveLocalStorage(GCAL_TOKEN_KEY, adopt);
+    delete raw.tokens;
+    delete raw.account;
+    return true;
   }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
 
@@ -1840,9 +1873,12 @@ export default class BeautyTasksPlugin extends Plugin {
    *  in place; Persistenz läuft über saveSettings (data.json). Auf Unload wird gestoppt. */
   private setupGCal(): void {
     const gcal = this.settings.gcal!;
+    // Der Token liegt geräte-lokal, NICHT in data.json (s. GCAL_TOKEN_KEY). Nebeneffekt, der
+    // ausdrücklich gewollt ist: data.json wird nicht mehr stündlich neu geschrieben, nur weil
+    // ein Access-Token erneuert wurde – das war eine Hauptquelle für Sync-Konflikte.
     const store: TokenStore = {
-      load: () => gcal.tokens,
-      save: async (tokens) => { gcal.tokens = tokens; await this.saveSettings(); },
+      load: () => (this.app.loadLocalStorage(GCAL_TOKEN_KEY) as GCalTokens | null) ?? null,
+      save: (tokens) => { this.app.saveLocalStorage(GCAL_TOKEN_KEY, tokens); return Promise.resolve(); },
     };
     this.gcalAuth = new GCalAuth(
       () => ({ clientId: gcal.clientId, clientSecret: gcal.clientSecret }),
@@ -1935,13 +1971,28 @@ export default class BeautyTasksPlugin extends Plugin {
     void this.gcalSync.syncNow();
   }
 
+  /** Auf einem Gerät, für das der Sync eingerichtet ist (`enabled` kommt über data.json mit),
+   *  aber kein lokaler Token liegt, einmal auf das Neu-Verbinden hinweisen. Trifft nach dem
+   *  Update auf 1.36.0 alle Geräte außer dem, das die Migration ausgeführt hat.
+   *  Der Marker ist ebenfalls geräte-lokal und wird beim Verbinden gelöscht – nach einem späteren
+   *  Trennen und erneuten Einrichten greift der Hinweis also wieder. */
+  private noticeGCalNeedsReconnect(): void {
+    if (!this.settings.gcal?.enabled || this.gcalAuth.isConnected()) return;
+    if (this.app.loadLocalStorage(GCAL_RECONNECT_KEY)) return;
+    this.app.saveLocalStorage(GCAL_RECONNECT_KEY, true);
+    new Notice(t("gcal_reconnect_notice"), 0);   // bleibt stehen: der Nutzer muss handeln
+  }
+
   /** Mit Google verbinden: Login (Desktop-Loopback bzw. Mobile-Device-Flow), danach Anzeige-
    *  E-Mail holen, bei Bedarf eigenen „BeautyTasks"-Kalender anlegen, aktivieren, initial pushen.
    *  Wirft bei Fehler (die UI zeigt die Meldung). */
   async gcalConnect(onDevicePrompt?: (p: DevicePrompt) => void): Promise<void> {
     const g = this.settings.gcal!;
     await this.gcalAuth.connect(onDevicePrompt);
-    try { g.account = await fetchAccountEmail(this.gcalAuth); } catch { g.account = null; }
+    // Anzeige-E-Mail gehört zum geräte-lokalen Token, nicht in die Einstellungen – sie beschreibt
+    // DIESE Verbindung. Schlägt der Abruf fehl, bleibt sie leer; die Verbindung steht trotzdem.
+    try { await this.gcalAuth.setAccount(await fetchAccountEmail(this.gcalAuth)); } catch { /* optional */ }
+    this.app.saveLocalStorage(GCAL_RECONNECT_KEY, null);   // Hinweis darf später wieder greifen
     // Ziel-Kalender sicherstellen: leer ODER zeigt auf einen nicht (mehr) existierenden Kalender
     // (z. B. in Google gelöscht) -> eigenen „BeautyTasks"-Kalender finden/anlegen. Eine bewusst
     // gewählte, noch existierende Wahl bleibt unangetastet. Schlägt es fehl (z. B. Recht nicht
@@ -1961,8 +2012,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Verbindung trennen (Token widerrufen + löschen). Kalenderwahl bleibt für erneutes Verbinden. */
   async gcalDisconnect(): Promise<void> {
     const g = this.settings.gcal!;
-    await this.gcalAuth.disconnect();
-    g.account = null;
+    await this.gcalAuth.disconnect();   // widerruft + löscht den geräte-lokalen Token
     g.enabled = false;
     await this.gcalFeed.clear();   // gezeigte Termine + Snapshot verwerfen (Verbindung ist weg)
     await this.saveSettings();

@@ -413,11 +413,14 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
             redraw();
           });
       });
+      // Der Token liegt geräte-lokal (s. main.ts, GCAL_TOKEN_KEY) – das muss vor dem Verbinden
+      // dastehen, sonst wundern sich Nutzer, warum das zweite Gerät nicht mitkommt.
+      containerEl.createDiv({ cls: "setting-item-description bt-gcal-hint", text: t("gcal_device_only") });
       return;
     }
 
     // ── Verbunden: Kopf mit Status ──
-    const head = new Setting(containerEl).setName(t("gcal_connected_as", g.account ?? "—"))
+    const head = new Setting(containerEl).setName(t("gcal_connected_as", p.gcalAuth.account() ?? "—"))
       .addButton((b) => b.setButtonText(t("gcal_disconnect_btn"))
         .onClick(async () => { await p.gcalDisconnect(); redraw(); }));
     head.nameEl.prepend(createSpan({ cls: "bt-gcal-dot" }));

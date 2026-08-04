@@ -66,6 +66,23 @@ export interface GCalTokens {
   account?: string;        // Anzeige-E-Mail (füllt die Sync-Engine via primary-Kalender)
 }
 
+/** Einmalige Umstellung von data.json auf den geräte-lokalen Speicher (Aufrufer: main.ts).
+ *  Entscheidet NUR, was zu übernehmen ist – Löschen und Speichern bleiben beim Aufrufer, damit
+ *  diese Regel für sich prüfbar ist. Rückgabe `null` heißt: nichts zu übernehmen.
+ *
+ *  Ein bereits vorhandener lokaler Token gewinnt immer: Er wurde auf DIESEM Gerät erneuert und
+ *  ist damit aktueller als der (womöglich längst überholte) Stand aus der synchronisierten Datei. */
+export function planTokenMigration(
+  legacyTokens: GCalTokens | null | undefined,
+  legacyAccount: string | null | undefined,
+  hasLocalToken: boolean,
+): GCalTokens | null {
+  if (hasLocalToken) return null;
+  if (!legacyTokens?.refreshToken) return null;   // ohne Refresh-Token ist nichts zu retten
+  const account = legacyTokens.account ?? legacyAccount ?? undefined;
+  return account ? { ...legacyTokens, account } : { ...legacyTokens };
+}
+
 /** Persistenz-Brücke: die Engine reicht Laden/Speichern der Tokens durch (data.json). */
 export interface TokenStore {
   load(): GCalTokens | null;
@@ -182,6 +199,14 @@ export class GCalAuth {
       : await this.connectDevice(onDevicePrompt);
     await this.store.save(tokens);
     return tokens;
+  }
+
+  /** Anzeige-E-Mail nachtragen. Sie steht erst nach dem Verbinden fest (ein API-Aufruf) und
+   *  gehört zum Token, nicht in die Einstellungen: Sie beschreibt DIESE Geräteverbindung. */
+  async setAccount(email: string | null): Promise<void> {
+    const t = this.store.load();
+    if (!t) return;
+    await this.store.save({ ...t, account: email ?? undefined });
   }
 
   /** Verbindung trennen: Refresh-Token bei Google widerrufen + lokal löschen (best effort). */

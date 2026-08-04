@@ -63,8 +63,10 @@ export interface GCalSyncSettings {
   excludeInbox: boolean;           // den Eingang (Aufgaben ohne Projekt) vom Sync ausschließen
   notifyConflicts: boolean;        // (Stufe B) bei Konflikten benachrichtigen
   showStatusBar: boolean;
-  account: string | null;          // Anzeige-E-Mail
-  tokens: import("./gcalAuth").GCalTokens | null;   // Auth-Token (data.json)
+  // Token UND Anzeige-E-Mail liegen bewusst NICHT hier, sondern geräte-lokal (app.saveLocalStorage,
+  // siehe TokenStore in main.ts). Ein Refresh-Token ist ein Dauerzugriff auf den Kalender – in
+  // data.json wandert er über jeden Sync, jedes Backup und jede Versionshistorie mit. Folge:
+  // Die Verbindung gilt pro Gerät, jedes Gerät verbindet sich einmal selbst.
   lastSynced: Record<string, GCalLink>;             // taskId -> zuletzt abgeglichener Stand
   syncTokens: Record<string, string>;               // calendarId -> nextSyncToken (inkrementeller Pull)
 }
@@ -84,8 +86,6 @@ export const DEFAULT_GCAL_SETTINGS: GCalSyncSettings = {
   excludeInbox: false,
   notifyConflicts: false,
   showStatusBar: true,
-  account: null,
-  tokens: null,
   lastSynced: {},
   syncTokens: {},
 };
@@ -102,7 +102,7 @@ export interface GCalStatusInfo {
 /** Was die Engine vom Plugin braucht (klein gehalten → testbar/entkoppelt). */
 export interface GCalSyncHost {
   app: App;
-  settings: GCalSyncSettings;               // lebendes Objekt; Engine mutiert tokens/lastSynced
+  settings: GCalSyncSettings;               // lebendes Objekt; Engine mutiert lastSynced/syncTokens
   persist(): Promise<void>;                 // Settings speichern (data.json)
   allTasks(): Task[];
   subscribe(cb: () => void): () => void;    // TaskIndex-Änderungen
@@ -294,7 +294,7 @@ export class GCalSync {
   private rerun = false;
 
   constructor(private host: GCalSyncHost, private auth: GCalAuth) {
-    this.info.account = host.settings.account;
+    this.info.account = auth.account();
     this.info.status = auth.isConnected() ? "idle" : "disconnected";
   }
 
@@ -527,7 +527,7 @@ export class GCalSync {
 
   // ── intern ──
   private emit(patch: Partial<GCalStatusInfo>): void {
-    this.info = { ...this.info, ...patch, account: this.host.settings.account };
+    this.info = { ...this.info, ...patch, account: this.auth.account() };
     for (const cb of this.statusCbs) cb(this.info);
   }
 }
