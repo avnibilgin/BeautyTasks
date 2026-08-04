@@ -170,6 +170,23 @@ export function copyTaskLink(app: App, path: string): void {
     .catch((err) => { console.error("BeautyTasks: copy link failed", err); new Notice(t("msg_link_copy_failed")); });
 }
 
+/**
+ * Die Notiz einer Aufgabe im Editor öffnen.
+ *
+ * `where` wird unverändert an `getLeaf()` durchgereicht und stammt idealerweise aus
+ * `Keymap.isModEvent(e)`: Das liefert genau den Wert, den Obsidian erwartet, und folgt damit
+ * der Plattform (Cmd auf macOS, Ctrl sonst) und der Einstellung des Nutzers. Eine eigene
+ * Auslegung von ctrlKey/shiftKey wiche irgendwann davon ab – und wäre auf macOS schlicht
+ * falsch, wo Ctrl+Klick der Rechtsklick ist.
+ *
+ * Existiert die Notiz nicht mehr (Index noch nicht nachgezogen), passiert bewusst nichts:
+ * Ein Fehlklick auf eine gerade gelöschte Zeile soll nicht mit einer Meldung antworten.
+ */
+export function openTaskNote(app: App, path: string, where: "tab" | "split" | "window" | boolean = "tab"): void {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (f instanceof TFile) void app.workspace.getLeaf(where).openFile(f);
+}
+
 /** Vorhandene Projekte (Basename, alphabetisch) für den Picker. */
 export function listProjects(app: App): string[] {
   return app.vault.getMarkdownFiles()

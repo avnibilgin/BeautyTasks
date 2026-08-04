@@ -4,14 +4,14 @@
 // Eigenes Popover (bt-pop) statt Obsidian-Menu, weil die Schnellzeilen (Datum, Priorität)
 // horizontale Icon-Buttons brauchen und die Optik der Modal-Popovers hier fortgeführt wird.
 // Alle Aktionen rufen bestehende Plugin-Methoden; das Menü ist reine Verdrahtung.
-import { setIcon, TFile } from "obsidian";
+import { setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx } from "./pageCtx";
 import { Task } from "./types";
 import { openPopover, openPopoverAt, popRow } from "./popover";
 import { openDatePicker, quickDates } from "./datePicker";
 import { CHIPS, PRIOS, PRIO_KEY, ChipHost } from "./chips";
-import { listProjectsAndAreas, isInboxLink, copyTaskLink, ProjItem, baseName, INBOX_KEY } from "./taskService";
+import { listProjectsAndAreas, isInboxLink, copyTaskLink, openTaskNote, ProjItem, baseName, INBOX_KEY } from "./taskService";
 import { ConfirmModal } from "./confirmModal";
 import { isTrashed } from "./statuses";
 import { combineDT } from "./format";
@@ -146,10 +146,7 @@ export function showTaskMenu(ctx: PageCtx, task: Task, x: number, y: number, doc
     const mvRow = popRow(pop, "corner-up-right", t("menu_move_project"), () => openMovePicker(plugin, task, mvRow, close));
     row("copy", t("menu_duplicate"), () => void plugin.duplicateTask(task));
     row("link", t("menu_copy_link"), () => copyTaskLink(plugin.app, task.path));
-    row("file-text", t("menu_open_task_note"), () => {
-      const f = plugin.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof TFile) void plugin.app.workspace.getLeaf("tab").openFile(f);
-    });
+    row("file-text", t("menu_open_task_note"), () => openTaskNote(plugin.app, task.path));
     pop.createDiv({ cls: "bt-plus-sep" });
     // Mit Bestätigung – gleicher Dialog (Titel + Kaskaden-Hinweis) wie das Löschen im Task-Modal.
     row("trash-2", t("btn_delete"), () => {
