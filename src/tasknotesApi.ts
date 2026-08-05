@@ -74,13 +74,18 @@ export function readTaskNotesConfig(app: App): TnConfig | null {
         if (str(key)) fieldMapping[role] = str(key);
       }
     }
-    const statuses = call<TnStatus[]>("catalog", "statuses", []);
-    const priorities = call<TnPriority[]>("catalog", "priorities", []);
+    // ZUERST auf Listen festnageln, DANN prüfen: Ein String hat auch eine `length`, und eine API,
+    // die "nein" statt einer Liste liefert, käme sonst als scheinbar gültige, in Wahrheit leere
+    // Konfiguration durch. (Genau daran ist die erste Fassung im Test gescheitert.)
+    const roh = call<unknown>("catalog", "statuses", []);
+    const rohP = call<unknown>("catalog", "priorities", []);
+    const statuses: TnStatus[] = Array.isArray(roh) ? (roh as TnStatus[]) : [];
+    const priorities: TnPriority[] = Array.isArray(rohP) ? (rohP as TnPriority[]) : [];
     const taskTag = str(settings.taskTag) || null;
     // Nichts Brauchbares dabei? Dann so tun, als gäbe es die API nicht – ein leeres Ergebnis
     // wäre schlimmer als die Vorgaben.
     if (!taskTag && !Object.keys(fieldMapping).length && !statuses.length) return null;
-    return { taskTag, fieldMapping, statuses: Array.isArray(statuses) ? statuses : [], priorities: Array.isArray(priorities) ? priorities : [] };
+    return { taskTag, fieldMapping, statuses, priorities };
   } catch (e) {
     console.warn("BeautyTasks: TaskNotes-Konfiguration nicht lesbar", e);
     return null;
