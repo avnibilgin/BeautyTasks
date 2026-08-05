@@ -742,7 +742,10 @@ export default class BeautyTasksPlugin extends Plugin {
     }).open();
   }
 
-  // ── Import / Export (JSON, verlustfrei) ──
+  // ── Import / Export (JSON) ──
+  //  „Verlustfrei" stand hier einmal und stimmte nie ganz. Was NICHT mitwandert, steht in
+  //  importExport.ts oben: die Definitionen eigener Status (nur ihre Werte reisen mit, samt
+  //  Hinweis nach dem Import) und ein Symbol, das an einem BEREICH gesetzt wurde.
   /** Alle Aufgaben als JSON in den Vault sichern; Notice mit Zielpfad. */
   async exportTasksJson(): Promise<void> {
     try {
@@ -760,6 +763,9 @@ export default class BeautyTasksPlugin extends Plugin {
     try {
       const r = await importData(this, data);
       new Notice(t("notice_import_summary", r.created, r.skipped));
+      // Zweite Meldung NUR im Ausnahmefall: Status, die dieser Vault nicht kennt, werden als
+      // offen angezeigt. Ohne Hinweis merkt das niemand – der Wert steht weiter in der Notiz.
+      if (r.unknownStatusTasks) new Notice(t("notice_import_unknown_status", r.unknownStatusTasks, r.unknownStatuses.join(", ")), 0);
       window.setTimeout(() => this.index.build(), 800);   // Frontmatter der neuen Notizen ist erst kurz später im Cache
     } catch (e) {
       console.error("BeautyTasks JSON import error", e);

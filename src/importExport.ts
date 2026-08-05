@@ -5,12 +5,16 @@ import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProject
 import { titleKey, newTaskBody, findH1LineInBody } from "./taskTitle";
 import { fieldKey } from "./fieldNames";
 import { combineDT } from "./format";
+import { listFilters, createFilterNote, FilterItem } from "./filterService";
+import { FilterCriteria, ViewOptions } from "./filterEngine";
+import { isKnownStatus } from "./statuses";
 import { t } from "./i18n";
 
 const EXPORT_FORMAT = "beautytasks";
 const EXPORT_VERSION = 3;
 // v1 = nur Aufgaben · v2 = eigener `lists`-Abschnitt (Projekt/Bereich mit Typ)
-// v3 = `sortOrder` und `body` an der Aufgabe, `icon`/`description`/`hidden` an der Liste.
+// v3 = `sortOrder` und `body` an der Aufgabe, `icon`/`description`/`hidden` an der Liste,
+//      dazu `filters` und die Label-Farben/-Sichtbarkeit.
 //
 // Die Zahl ist eine ANGABE, keine Schranke: `parseExport` prüft sie bewusst nicht. Ältere Dateien
 // bleiben lesbar (die neuen Felder sind optional und fehlen dann einfach), und eine v3-Datei lässt
@@ -63,6 +67,17 @@ export interface ExportList {
   hidden?: boolean;
 }
 
+/** Ein gespeicherter Filter. Kriterien und Anzeige-Optionen wandern als Ganzes mit – sie
+ *  benennen Projekte und Labels, und die kommen im selben Export mit. */
+export interface ExportFilter {
+  name: string;
+  color: string | null;
+  hidden: boolean;
+  description: string;
+  criteria: FilterCriteria;
+  options: ViewOptions;
+}
+
 export interface ExportData {
   format: typeof EXPORT_FORMAT;
   version: number;
@@ -71,9 +86,43 @@ export interface ExportData {
   lists: ExportList[];
   labels: string[];
   tasks: ExportTask[];
+  /** Seit v3. Fehlt in älteren Exporten – dann werden keine Filter angelegt. */
+  filters?: ExportFilter[];
+  /** Seit v3: Farbe je Label und welche Labels in der Seitenleiste stehen. Beides gehört zum
+   *  Label, nicht zur Aufgabe – ohne sie kommen Labels farblos und unsichtbar an. */
+  labelColors?: Record<string, string>;
+  visibleLabels?: string[];
 }
 
-export interface ImportResult { created: number; skipped: number; listsCreated: number; labelsAdded: number; }
+export interface ImportResult {
+  created: number; skipped: number; listsCreated: number; labelsAdded: number; filtersCreated: number;
+  /** Status aus dem Export, die es in DIESEM Vault nicht gibt (Namen, alphabetisch). */
+  unknownStatuses: string[];
+  /** Wie viele importierte Aufgaben davon betroffen sind. */
+  unknownStatusTasks: number;
+}
+
+/**
+ * Welche Status kennt dieser Vault nicht?
+ *
+ * Der Wert bleibt in der Notiz stehen und käme zurück, sobald jemand den Status anlegt — die App
+ * zeigt die Aufgabe bis dahin aber als OFFEN (s. taskIndex.parse). Ohne Hinweis erfährt das
+ * niemand: Man importiert dreihundert Aufgaben und merkt nicht, dass vierzig davon ihre Phase
+ * verloren haben. Deshalb wird es gezählt und gemeldet — geändert wird nichts, denn fremde
+ * Status-Definitionen in die Einstellungen zu schreiben hieße, die Konfiguration des Zielvaults
+ * zu übernehmen statt seine Daten zu ergänzen.
+ */
+export function unknownStatusReport(tasks: ExportTask[], kennt: (id: string) => boolean): { names: string[]; count: number } {
+  const namen = new Set<string>();
+  let count = 0;
+  for (const t of tasks) {
+    const st = (t.status ?? "").trim();
+    if (!st || kennt(st) || st === "cancelled") continue;   // „cancelled" ist der reservierte Sentinel
+    namen.add(st);
+    count++;
+  }
+  return { names: [...namen].sort(), count };
+}
 
 /** ExportData aus fertigen Records zusammensetzen – für Importer aus Fremdformaten (z. B. TaskNotes),
  *  die direkt Aufgaben-/Listen-Records erzeugen und den gemeinsamen importData()-Writer nutzen. */
@@ -129,6 +178,12 @@ export function toExportTask(tk: Task, body = ""): ExportTask {
     sortOrder: tk.sortOrder,
     body: body || undefined,
   };
+}
+
+/** Filter -> portabler Datensatz. Der Pfad bleibt draußen (er gilt nur im Quell-Vault);
+ *  Kriterien und Anzeige-Optionen wandern als Ganzes mit. */
+export function toExportFilter(f: FilterItem): ExportFilter {
+  return { name: f.name, color: f.color, hidden: f.hidden, description: f.description, criteria: f.criteria, options: f.options };
 }
 
 /**
@@ -225,9 +280,12 @@ async function buildExportData(plugin: BeautyTasksPlugin): Promise<ExportData> {
   // Listen mit Typ mitexportieren (aktive + archivierte, ohne Inbox – listManaged filtert sie).
   const { active, archived } = listManaged(plugin.app);
   const lists: ExportList[] = [...active, ...archived].map(toExportList);
+  const filters = listFilters(plugin.app).map(toExportFilter);
   return {
     format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(),
-    taskCount: tasks.length, lists, labels: [...plugin.settings.knownLabels], tasks,
+    taskCount: tasks.length, lists, labels: [...plugin.settings.knownLabels], tasks, filters,
+    labelColors: { ...plugin.settings.labelColors },
+    visibleLabels: [...plugin.settings.visibleLabels],
   };
 }
 
@@ -332,7 +390,27 @@ export async function importData(plugin: BeautyTasksPlugin, data: ExportData): P
   for (const l of labels) {
     if (l && !settings.knownLabels.includes(l)) { settings.knownLabels.push(l); labelsAdded++; }
   }
-  if (labelsAdded) await plugin.saveSettings();
+  // Farbe und Sichtbarkeit gehören zum Label, nicht zur Aufgabe. Vorhandenes wird NICHT
+  // überschrieben: Wer im Zielvault schon eine Farbe für „ui" gewählt hat, behält sie.
+  let labelMeta = false;
+  for (const [name, farbe] of Object.entries(data.labelColors ?? {})) {
+    if (name && farbe && !settings.labelColors[name]) { settings.labelColors[name] = farbe; labelMeta = true; }
+  }
+  for (const name of data.visibleLabels ?? []) {
+    if (name && labels.has(name) && !settings.visibleLabels.includes(name)) { settings.visibleLabels.push(name); labelMeta = true; }
+  }
+  if (labelsAdded || labelMeta) await plugin.saveSettings();
+
+  // 2b) Filter anlegen – nur fehlende, verglichen über den Namen (wie bei den Listen).
+  const vorhandeneFilter = new Set(listFilters(app).map((f) => f.name.toLowerCase()));
+  let filtersCreated = 0;
+  for (const fl of data.filters ?? []) {
+    const key = fl.name?.trim().toLowerCase();
+    if (!key || vorhandeneFilter.has(key)) continue;
+    vorhandeneFilter.add(key);
+    await createFilterNote(app, settings, fl.name, fl.criteria, fl.options, fl.color ?? null, !!fl.hidden, fl.description ?? "");
+    filtersCreated++;
+  }
 
   // 3) Aufgaben schreiben – vorhandene (id/externalId) überspringen.
   let created = 0, skipped = 0;
@@ -343,7 +421,8 @@ export async function importData(plugin: BeautyTasksPlugin, data: ExportData): P
     if (et.externalId) seenExt.add(et.externalId);
     created++;
   }
-  return { created, skipped, listsCreated, labelsAdded };
+  const unbekannt = unknownStatusReport(data.tasks, isKnownStatus);
+  return { created, skipped, listsCreated, labelsAdded, filtersCreated, unknownStatuses: unbekannt.names, unknownStatusTasks: unbekannt.count };
 }
 
 /** In-Vault-Auswahl: listet alle .json-Dateien (neueste zuerst). */

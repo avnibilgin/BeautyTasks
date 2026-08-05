@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toExportTask, toExportList, importedTaskFrontmatter, importedListFrontmatter, parseExport, noteBody, ExportTask, ExportList } from "../src/importExport";
+import { toExportTask, toExportList, importedTaskFrontmatter, importedListFrontmatter, parseExport, noteBody, toExportFilter, unknownStatusReport, ExportTask, ExportList } from "../src/importExport";
 import { Task } from "../src/types";
 import { ProjItem } from "../src/taskService";
 
@@ -174,5 +174,42 @@ describe("Body über die Rundreise", () => {
   it("leerer Body erzeugt kein Feld – der Normalfall bleibt schlank", () => {
     expect(toExportTask(AUFGABE, "").body).toBeUndefined();
     expect(toExportTask(AUFGABE).body).toBeUndefined();
+  });
+});
+
+describe("Filter über die Rundreise", () => {
+  const filter = {
+    name: "Diese Woche", path: "BeautyTasks/Filters/Diese Woche.md", icon: "tag",
+    color: "#39a", hidden: true, description: "Alles bis Sonntag",
+    criteria: { labels: ["ui"] } as never, options: { layout: "list" } as never,
+  };
+
+  it("nimmt alles mit, was createFilterNote beim Import braucht – ohne den Pfad", () => {
+    const ef = toExportFilter(filter);
+    expect(ef).toEqual({ name: "Diese Woche", color: "#39a", hidden: true, description: "Alles bis Sonntag", criteria: { labels: ["ui"] }, options: { layout: "list" } });
+    expect("path" in ef).toBe(false);   // gilt nur im Quell-Vault
+  });
+});
+
+describe("unknownStatusReport – was dieser Vault nicht kennt", () => {
+  const kennt = (id: string): boolean => ["todo", "doing", "done"].includes(id);
+  const mk = (status: string): ExportTask => ({ ...toExportTask(AUFGABE), status });
+
+  it("zählt Aufgaben und nennt die Status – einmal je Name", () => {
+    const r = unknownStatusReport([mk("wartet"), mk("wartet"), mk("blockiert"), mk("todo")], kennt);
+    expect(r.names).toEqual(["blockiert", "wartet"]);   // alphabetisch, ohne Dubletten
+    expect(r.count).toBe(3);
+  });
+
+  it("meldet nichts, wenn alles bekannt ist", () => {
+    expect(unknownStatusReport([mk("todo"), mk("done")], kennt)).toEqual({ names: [], count: 0 });
+  });
+
+  it("„cancelled“ gilt als bekannt – es ist der reservierte Sentinel", () => {
+    expect(unknownStatusReport([mk("cancelled")], kennt).count).toBe(0);
+  });
+
+  it("leere Status zählen nicht mit", () => {
+    expect(unknownStatusReport([mk(""), mk("   ")], kennt).count).toBe(0);
   });
 });
