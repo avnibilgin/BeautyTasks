@@ -518,8 +518,14 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       .addToggle((tg) => tg.setValue(gf.enabled).onChange(async (v) => {
         gf.enabled = v;
         await p.saveSettings();
-        if (v) await feed.initDefaults();   // erstes Einschalten: primären Kalender vorwählen
-        else await feed.clear();            // aus: Speicher + Snapshot leeren
+        if (v) {
+          await feed.initDefaults();        // erstes Einschalten: primären Kalender vorwählen
+          // Und gleich holen. `renderMain()` allein reicht NICHT: Die Ansichten haben ihre Monate
+          // schon gemeldet, als der Feed noch aus war (setRange läuft unabhängig davon), und
+          // setRange stößt nur bei NEUEN Monaten einen Abruf an. Ohne diese Zeile bliebe der
+          // Kalender bis zum nächsten Poll leer – bis zu fünf Minuten nach dem Einschalten.
+          void feed.refresh();
+        } else await feed.clear();          // aus: Speicher + Snapshot leeren
         p.renderMain();
         redraw();                           // Abschnitt neu zeichnen (Kalenderliste ein-/ausblenden)
       }));
