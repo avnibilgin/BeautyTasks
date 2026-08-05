@@ -2168,8 +2168,28 @@ export default class BeautyTasksPlugin extends Plugin {
       }
     } catch (e) { console.warn("BeautyTasks: Ziel-Kalender konnte nicht sichergestellt werden", e); }
     g.enabled = true;
+    // Termine anzeigen bei der ERSTEN Einrichtung gleich mit einschalten: Wer Google verbindet,
+    // erwartet seine Termine zu sehen – sie hinter einem zweiten Schalter zu verstecken, sah nach
+    // „geht nicht" aus. Nur beim ersten Mal, erkennbar daran, dass noch nie ein Kalender gewählt
+    // wurde; beim WIEDERverbinden bleibt eine bewusste Abwahl also bestehen.
+    //
+    // Bewusst hier und NICHT als Standardwert `enabled: true`: Seit nur noch Abweichungen
+    // gespeichert werden (1.37.3), erreicht eine Standardwert-Änderung jeden, der die Einstellung
+    // nie angefasst hat – das schaltete die Anzeige bei allen bereits verbundenen Nutzern
+    // ungefragt ein. Siehe die Regel an DEFAULT_SETTINGS.
+    const gf = this.settings.gcalFeed!;
+    const erstmalig = !Object.keys(gf.calendars).length;
+    if (erstmalig) {
+      gf.enabled = true;
+      try { await this.gcalFeed.initDefaults(); } catch (e) { console.warn("BeautyTasks: Kalenderliste nicht erreichbar", e); }
+    }
     await this.saveSettings();
     this.refreshGCalStatusBar();
+    // Termine JETZT holen. Ohne das passiert bis zum nächsten Poll nichts: Die Ansichten haben
+    // ihre Monate längst gemeldet (setRange läuft auch bei ausgeschaltetem Feed), und setRange
+    // stößt nur bei NEUEN Monaten an – ein Neuzeichnen allein holt also nichts nach.
+    if (this.gcalFeed.isActive()) void this.gcalFeed.refresh();
+    this.renderMain();
     void this.gcalSync.syncNow();
   }
 
