@@ -208,6 +208,10 @@ export class ImportTaskNotesModal extends Modal {
     modalEl.addClass("bt-new-modal");
     contentEl.createEl("h3", { text: t("tn_import_title") });
     contentEl.createEl("p", { cls: "bt-confirm-msg", text: t("tn_import_desc") });
+    // Woher die Zuordnung stammt, gehört sichtbar in den Dialog: Ohne diese Zeile weiß niemand,
+    // ob gerade die eigenen Feldnamen gelten oder unsere Vorgaben – und genau daran entscheidet
+    // sich, ob der Import volle oder leere Aufgaben erzeugt.
+    contentEl.createDiv({ cls: "setting-item-description bt-tn-src", text: this.tn ? t("tn_import_src_api") : t("tn_import_src_default") });
 
     new Setting(contentEl).setName(t("tn_import_tag")).setDesc(t("tn_import_tag_desc"))
       .addText((tx) => tx.setPlaceholder("task").setValue(this.taskTag).onChange((v) => { this.taskTag = v; this.updateCount(); }));
