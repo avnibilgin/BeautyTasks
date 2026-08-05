@@ -108,17 +108,33 @@ export function toDelta(settings: BeautyTasksSettings): Record<string, unknown> 
  * nur, um Altbestände zu reparieren. Das ist ein eigener Punkt (rekursiver mergeDefaults) und
  * gehört nicht in diese Umstellung.
  */
+/** Frische Kopie eines Standardwerts. Einfache Werte bleiben, Listen und Objekte werden kopiert
+ *  (Listen samt ihrer Objekt-Elemente, wie bei `statuses`). */
+function frisch(v: unknown): unknown {
+  if (Array.isArray(v)) {
+    const liste = v as unknown[];
+    return liste.map((x) => (x && typeof x === "object" ? { ...(x as Record<string, unknown>) } : x));
+  }
+  if (v && typeof v === "object") return { ...(v as Record<string, unknown>) };
+  return v;
+}
+
 export function applyDefaults(saved: Partial<BeautyTasksSettings> | null | undefined): BeautyTasksSettings {
-  // Die verschachtelten Standardwerte werden KOPIERT herausgegeben. Sonst zeigte `settings.statuses`
-  // ohne Eintrag in der Datei auf dieselbe Liste wie `DEFAULT_STATUSES`, und wer sie an Ort und
-  // Stelle änderte, veränderte den Standard des ganzen Prozesses. Heute ändert niemand sie so
-  // (alle Schreibstellen weisen frische Objekte zu) – aber darauf soll sich niemand verlassen müssen.
-  const base: BeautyTasksSettings = {
-    ...EFFECTIVE_DEFAULTS,
-    statuses: EFFECTIVE_DEFAULTS.statuses?.map((s) => ({ ...s })),
-    fieldNames: { ...EFFECTIVE_DEFAULTS.fieldNames },
-    startPage: typeof EFFECTIVE_DEFAULTS.startPage === "object" ? { ...EFFECTIVE_DEFAULTS.startPage } : EFFECTIVE_DEFAULTS.startPage,
-  };
+  // JEDER veränderliche Standardwert wird KOPIERT herausgegeben – nicht nur die drei, die mir
+  // beim ersten Mal einfielen.
+  //
+  // Sonst zeigt eine Sammlung, die in der Datei fehlt (weil sie dem Standard gleicht), auf
+  // dasselbe Objekt wie der Standard selbst. Zwei Folgen, beide schlimm: `settings.knownLabels
+  // .push(...)` verändert den Standard des ganzen Prozesses, UND `toDelta` vergleicht danach
+  // gegen genau dieses veränderte Objekt, findet Gleichheit und wirft den Eintrag weg. Das erste
+  // angelegte Label eines leeren Vaults verschwand damit beim Neustart – gefunden im Vault-Test
+  // am 2026-08-05, eingebaut mit 1.37.3.
+  //
+  // Deshalb generisch statt aufgezählt: Was künftig als Liste oder Objekt dazukommt, ist
+  // automatisch mit abgesichert.
+  const base = Object.fromEntries(
+    Object.entries(EFFECTIVE_DEFAULTS as unknown as Record<string, unknown>).map(([k, v]) => [k, frisch(v)]),
+  ) as unknown as BeautyTasksSettings;
   const merged = Object.assign(base, saved ?? {}) as unknown as Record<string, unknown>;
   for (const key of OBSOLETE_KEYS) delete merged[key];
   return merged as unknown as BeautyTasksSettings;
