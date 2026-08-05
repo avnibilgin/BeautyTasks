@@ -1,6 +1,7 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
 import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent, DeviceState, DEFAULT_DEVICE_STATE } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
+import { schemaVersionOf, pendingSteps, nextSchemaVersion } from "./schema";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -1424,12 +1425,19 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Beim ERSTEN Start nach einem Update die ausstehenden Einmal-Migrationen automatisch ausführen
    *  (per Flag abgesichert, nie doppelt). Für neue Vaults sind beide No-Ops (keine Alt-Daten). */
   private async runPendingMigrations(): Promise<void> {
-    if (this.settings.didDescriptionMigration && this.settings.didInboxRemoval && this.settings.didTitleMigration) return;   // nichts offen
-    // Frischer Vault ohne Alt-Daten? -> Flags still setzen, aber keine Notice/kein Neuaufbau.
+    const version = this.settings.schemaVersion ?? 0;
+    const pending = pendingSteps(version);
+    if (!pending.length) return;   // nichts offen (auch bei Dateien aus einer neueren Fassung)
+    // Frischer Vault ohne Alt-Daten? -> Stand still hochsetzen, aber keine Notice/kein Neuaufbau.
     const hasData = this.index.all().length > 0 || inboxNotePath(this.app) !== null;
-    if (!this.settings.didDescriptionMigration) await this.migrateDescriptions({ silent: true });
-    if (!this.settings.didInboxRemoval) await this.migrateInboxRemoval({ silent: true });
-    if (!this.settings.didTitleMigration) await this.migrateTitles({ silent: true });
+    // Reihenfolge kommt aus SCHEMA_STEPS, nicht aus dieser Funktion – so kann sie nicht auseinanderlaufen.
+    for (const step of pending) {
+      if (step === "descriptions") await this.migrateDescriptions({ silent: true });
+      else if (step === "inboxRemoval") await this.migrateInboxRemoval({ silent: true });
+      else await this.migrateTitles({ silent: true });
+    }
+    this.settings.schemaVersion = nextSchemaVersion(version);
+    await this.saveSettings();
     if (hasData) { this.index.build(); this.renderAll(); new Notice(t("notice_auto_migrated")); }
   }
 
@@ -1798,6 +1806,10 @@ export default class BeautyTasksPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<BeautyTasksSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    // Stand der Einmal-Migrationen bestimmen, solange `saved` noch vorliegt: Nur hier ist
+    // unterscheidbar, ob es GAR KEINE data.json gab (frische Installation → nichts zu migrieren)
+    // oder eine ohne `schemaVersion` (Altbestand → aus den did*-Markern ableiten). Siehe schema.ts.
+    this.settings.schemaVersion = schemaVersionOf(saved);
     // Migration: früheres globales chipOrder/chipTiers -> Editor-Profil (Flächen ab jetzt getrennt).
     const legacy = (saved ?? {}) as Record<string, unknown>;
     if ((legacy.chipOrder || legacy.chipTiers) && !this.settings.chipProfiles) {

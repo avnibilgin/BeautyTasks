@@ -166,7 +166,11 @@ export interface BeautyTasksSettings {
   pageFilters?: Record<string, Record<string, unknown>>;   // Ansichtsfilter derselben Seiten (gleiche Schlüssel); serialisiert wie im Frontmatter (s. pageOptions.writeCriteria), damit beide Speicherorte EIN Format haben
   navSort?: Record<NavSection, NavSortMode>;    // Sortiermodus je Seitenleisten-Sektion (Default "name")
   navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)
-  didInitialSetup: boolean;        // intern: Erst-Setup-Marker (bestehender Nutzer?)
+  didInitialSetup: boolean;        // intern: Erst-Setup-Marker (bestehender Nutzer?) – KEINE Migration, entscheidet nur, ob das „Neu"-Modal erscheinen darf
+  schemaVersion?: number;          // intern: Stand der Einmal-Migrationen, s. schema.ts (ersetzt die drei did*-Marker unten)
+  // Die folgenden drei Marker sind ABGELÖST von `schemaVersion` und werden nur noch MITgeschrieben,
+  // damit ältere Builds im Umlauf ihre Migrationen nicht für ungelaufen halten (s. schema.ts).
+  // Neuer Code liest sie nicht mehr – außer beim einmaligen Ableiten des Stands.
   didDescriptionMigration?: boolean;  // intern: Migration „Beschreibung ins Frontmatter" einmalig gelaufen
   didInboxRemoval?: boolean;       // intern: Migration „Inbox-Notiz entfernt" einmalig gelaufen
   didTitleMigration?: boolean;     // intern: Migration „Titel einfrieren" einmalig gelaufen (s. taskTitle.ts)
