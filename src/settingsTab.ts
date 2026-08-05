@@ -2,7 +2,7 @@ import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normaliz
 import type BeautyTasksPlugin from "./main";
 import { ChipId, ChipTier, ChipSurface, MetaColorKey, DEFAULT_SETTINGS } from "./types";
 import { CHIPS, chipsCompact, resolveChipOrder, chipTierOf } from "./chips";
-import { VIEW_IDS, viewTitle } from "./heuteView";
+import { StartPageModal, listStartPages, startPageLabel } from "./startPagePicker";
 import { renderStatusEditor } from "./statusEditor";
 import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
 import { FieldId, FIELD_IDS, normalizeFieldName, allFieldNames } from "./fieldNames";
@@ -102,12 +102,22 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       dd.onChange(async (v) => { p.settings.locale = v; await p.saveSettings(); p.applyLocale(); p.renderAll(); });
     });
 
-    new Setting(containerEl).setName(t("set_start_view")).setDesc(t("set_start_view_desc")).addDropdown((dd) => {
-      for (const id of VIEW_IDS) dd.addOption(id, viewTitle(id));
-      dd.addOption("last", t("set_start_view_last"));
-      dd.setValue(p.settings.startView);
-      dd.onChange(async (v) => { p.settings.startView = v; await p.saveSettings(); });
-    });
+    // Startseite: JEDE Seite ist wählbar (Eingang, Ansichten, Bereiche, Projekte, Filter, Labels).
+    // Ein <select> scheidet dafür aus – bei 40 Projekten unbrauchbar und ohne Suche. Stattdessen
+    // ein Knopf mit der aktuellen Wahl, der Obsidians Suchliste öffnet (Tastatur wie Strg+P).
+    const startRow = new Setting(containerEl).setName(t("set_start_page")).setDesc(t("set_start_page_desc"));
+    const zeichneStart = (): void => {
+      const cur = startPageLabel(p, p.settings.startPage);
+      startRow.setDesc(cur.missing ? t("set_start_page_missing") : t("set_start_page_desc"));
+      startRow.controlEl.empty();
+      const btn = startRow.controlEl.createEl("button", { cls: "bt-startpage-btn" });
+      setIcon(btn.createSpan({ cls: "bt-startpage-icon" }), cur.icon);
+      btn.createSpan({ text: cur.label });
+      setIcon(btn.createSpan({ cls: "bt-startpage-caret" }), "chevron-down");
+      btn.onclick = () => new StartPageModal(p.app, listStartPages(p), p.settings.startPage,
+        (v) => { p.settings.startPage = v; void p.saveSettings(); zeichneStart(); }).open();
+    };
+    zeichneStart();
 
     new Setting(containerEl).setName(t("set_nl")).setDesc(t("set_nl_desc")).addToggle((tg) =>
       tg.setValue(p.settings.parseNaturalLanguage).onChange(async (v) => { p.settings.parseNaturalLanguage = v; await p.saveSettings(); }));

@@ -49,6 +49,7 @@ export const OBSOLETE_KEYS = [
   "titleProperty",     // -> fieldNames.title (seit 1.32.0)
   "showParentMarker",  // ersatzlos entfallen, keine Fundstelle mehr im Code
   "areasFolder",       // ersatzlos entfallen, Bereiche liegen im projectsFolder
+  "startView",         // -> startPage (jede Seite wählbar, nicht nur die vier Ansichten)
 ] as const;
 
 /**
@@ -116,6 +117,7 @@ export function applyDefaults(saved: Partial<BeautyTasksSettings> | null | undef
     ...EFFECTIVE_DEFAULTS,
     statuses: EFFECTIVE_DEFAULTS.statuses?.map((s) => ({ ...s })),
     fieldNames: { ...EFFECTIVE_DEFAULTS.fieldNames },
+    startPage: typeof EFFECTIVE_DEFAULTS.startPage === "object" ? { ...EFFECTIVE_DEFAULTS.startPage } : EFFECTIVE_DEFAULTS.startPage,
   };
   const merged = Object.assign(base, saved ?? {}) as unknown as Record<string, unknown>;
   for (const key of OBSOLETE_KEYS) delete merged[key];

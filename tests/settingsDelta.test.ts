@@ -36,9 +36,13 @@ describe("toDelta – was in der Datei landet", () => {
   });
 
   it("behält, was abweicht", () => {
-    const d = toDelta(geladen({ fontTaskPct: 130, startView: "demnaechst" }));
+    const d = toDelta(geladen({ fontTaskPct: 130, startPage: { kind: "view", key: "demnaechst" } }));
     expect(d.fontTaskPct).toBe(130);
-    expect(d.startView).toBe("demnaechst");
+    expect(d.startPage).toEqual({ kind: "view", key: "demnaechst" });
+  });
+
+  it("lässt die Startseite weg, wenn sie der Vorgabe entspricht", () => {
+    expect(toDelta(geladen({ startPage: { kind: "view", key: "heute" } })).startPage).toBeUndefined();
   });
 
   it("behält alles, wofür es gar keinen Standard gibt – das ist immer Nutzerinhalt", () => {

@@ -150,7 +150,7 @@ export interface BeautyTasksSettings {
   showProjectDescription: boolean; // Beschreibung unter dem Seitentitel von Projekt/Bereich/Filter
   metaTheme: "minimalisdo" | "colorado" | "user";  // Meta-Farbstil: Minimalisdo (grau) / Colorado (farbig) / User (eigene Farben aus metaColors)
   metaColors: Partial<Record<MetaColorKey, string>>;   // einzeln überschreibbare Meta-Farben (s. MetaColorKey)
-  startView: string;       // Ansicht beim Öffnen: ViewId ("heute"…) oder "last" (zuletzt benutzte).
+  startPage?: import("./pageCtx").StartPage;   // Startseite: feste Seite (PageRef) oder "last" = Seite des Tabs behalten (s. startPage.ts)
                            // Die WAHL ist Vault-Ebene; welche Ansicht zuletzt offen war, nicht
                            // (DeviceState.lastView).
   parseNaturalLanguage: boolean;  // Datum + #Labels automatisch aus dem Aufgabentitel erkennen
@@ -215,7 +215,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   showProjectDescription: true,
   metaTheme: "minimalisdo",
   metaColors: {},
-  startView: "heute",
+  startPage: { kind: "view", key: "heute" },
   parseNaturalLanguage: true,
   showUnfiledInInbox: true,
   excludeFolders: [],

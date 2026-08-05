@@ -2674,3 +2674,18 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Nicht im „User"-Theme: der Farbbereich ist gesperrt (Picker zeigen die Theme-Presets, sind aber
    nicht editierbar) – sichtbar abgedunkelt, damit „nicht änderbar" auf einen Blick klar ist. */
 .bt-color-settings.is-locked { opacity: 0.5; }
+
+/* ── Startseite: Knopf in den Einstellungen + Zeilen im Seiten-Wähler ─────────── */
+/* Der Knopf zeigt die aktuelle Wahl wie ein Auswahlfeld: Symbol, Name, Pfeil. */
+.bt-startpage-btn { display: inline-flex; align-items: center; gap: 6px; }
+.bt-startpage-btn .bt-startpage-caret { margin-left: 2px; opacity: .6; }
+.bt-startpage-icon { display: inline-flex; }
+.bt-startpage-icon .svg-icon { width: 16px; height: 16px; }
+
+/* Zeile im Wähler: Symbol, Name, Häkchen, rechts die Art. Der Name nimmt den Platz,
+   damit „Ansicht/Projekt/…“ bündig an der rechten Kante stehen. */
+.bt-startpage-row { display: flex; align-items: center; gap: 8px; }
+.bt-startpage-row .bt-startpage-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-startpage-row .bt-startpage-check { display: inline-flex; color: var(--text-accent); }
+.bt-startpage-row .bt-startpage-check .svg-icon { width: 14px; height: 14px; }
+.bt-startpage-row .bt-startpage-kind { flex: 0 0 auto; font-size: var(--font-smaller); color: var(--text-faint); }

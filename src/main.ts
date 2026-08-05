@@ -3,6 +3,7 @@ import { BeautyTasksSettings, Task, TaskStatus, Priority, StoredStatus, StatusKi
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { schemaVersionOf, pendingSteps, nextSchemaVersion } from "./schema";
 import { applyDefaults, toDelta } from "./settingsDelta";
+import { forcedStartPage, newTabPage, fromLegacyStartView } from "./startPage";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -12,7 +13,7 @@ import {
 import { PageRef, pageInfo, samePage } from "./pageCtx";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
+import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget } from "./fieldNames";
@@ -113,6 +114,7 @@ export default class BeautyTasksPlugin extends Plugin {
       }
       this.index.build();
       this.renderAll();
+      this.applyStartPage();   // wiederhergestellten Tab auf die eingestellte Startseite schicken
       await this.runPendingMigrations();   // Einmal-Migrationen beim ersten Start nach dem Update
       this.scanReminders();   // Startlauf (fängt beim Öffnen kürzlich Verpasstes)
       this.seedGCalCacheIfEmpty();   // MUSS vor dem ersten Lauf stehen – sonst Massen-Push
@@ -266,7 +268,7 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Öffnen / Navigieren ──
   async openBeautyTasks(): Promise<void> {
     await this.activateNav();
-    await this.openPage({ kind: "view", key: this.startView() });
+    await this.openPage(this.newTabStartPage());
   }
 
   /** UI-Sprache anwenden: "auto" folgt Obsidians Sprache (via moment-Locale), sonst der
@@ -275,11 +277,38 @@ export default class BeautyTasksPlugin extends Plugin {
     setLocale(this.settings.locale === "auto" ? moment.locale() : this.settings.locale);
   }
 
-  /** Startansicht aus den Einstellungen (Fallback „heute"). "last" = zuletzt benutzte.
-   *  Öffentlich, weil ein frisch erzeugter Tab damit startet (MainView-Konstruktor). */
-  startView(): ViewId {
-    const pick = this.settings.startView === "last" ? this.device.lastView : this.settings.startView;
-    return (VIEW_IDS as string[]).includes(pick) ? (pick as ViewId) : "heute";
+  /** Gibt es diese Seite noch? Verhindert, dass eine gelöschte Startseite ins Leere führt. */
+  pageExists(page: PageRef): boolean {
+    if (page.kind === "view") return (VIEW_IDS as string[]).includes(page.key);
+    // Auch AUSGEBLENDETE Labels gelten als vorhanden – sie sind wählbar (s. listStartPages)
+    // und dürfen als Startseite nicht plötzlich als gelöscht gelten.
+    if (page.kind === "label") return this.getLabels().some((l) => l.name === page.key);
+    if (page.kind === "filter") return listFilters(this.app).some((f) => f.path === page.key);
+    if (page.kind === "project") {
+      if (page.key === INBOX_KEY) return true;
+      const { bereiche, projekte } = listProjectsAndAreas(this.app);
+      return [...bereiche, ...projekte].some((p) => p.path === page.key);
+    }
+    return false;
+  }
+
+  /** Startseite für einen NEUEN Tab (Band-Symbol, Befehl, frischer Tab).
+   *  Öffentlich, weil der MainView-Konstruktor damit startet. */
+  newTabStartPage(): PageRef {
+    return newTabPage(this.settings.startPage, this.device.lastView, (p) => this.pageExists(p));
+  }
+
+  /** Beim Start: den aktiven BeautyTasks-Tab auf die eingestellte Seite schicken. Andere Tabs
+   *  bleiben stehen – wer sich mehrere Seiten eingerichtet hat, soll sie behalten. Bei „zuletzt
+   *  benutzte" passiert gar nichts, dann gilt die wiederhergestellte Seite des Tabs. */
+  private applyStartPage(): void {
+    const forced = forcedStartPage(this.settings.startPage, (p) => this.pageExists(p));
+    if (!forced) return;
+    const views = this.mainViews();
+    if (!views.length) return;
+    const aktiv = this.app.workspace.getActiveViewOfType(MainView);
+    const ziel = (aktiv && views.includes(aktiv)) ? aktiv : views[0];
+    if (!samePage(ziel.page, forced)) ziel.openPage(forced);
   }
   /**
    * Jeden Tab, der die betroffene Seite zeigt, zur Startansicht schicken – wenn ihr Eintrag
@@ -288,7 +317,7 @@ export default class BeautyTasksPlugin extends Plugin {
    * weg, sonst bliebe in einem davon das leere Board eines gelöschten Eintrags stehen.
    */
   private leaveDeletedPage(page: PageRef): void {
-    const start: PageRef = { kind: "view", key: this.startView() };
+    const start: PageRef = this.newTabStartPage();
     for (const v of this.mainViews()) if (samePage(v.page, page)) v.openPage(start);
     this.renderAll();
   }
@@ -351,7 +380,7 @@ export default class BeautyTasksPlugin extends Plugin {
     // ein Split daraus wäre zweimal dieselbe Liste. Aus dem Kontextmenü kann das gar nicht kommen
     // (der Eintrag fehlt dort), über die Befehlspalette schon: dann wird die Startansicht geplant.
     const target: PageRef = wanted && pageInfo(wanted).tier !== "none"
-      ? wanted : { kind: "view", key: this.startView() };
+      ? wanted : this.newTabStartPage();
     // Steht schon ein Planungs-Split? Dann DIESE beiden Tabs weiterverwenden statt neben ihnen
     // einen weiteren aufzumachen: „Planen" für eine andere Seite ersetzt die Anordnung, es legt
     // keine zweite an. Ohne das wuchs die Zahl der Ansichten mit jedem Aufruf (Heute-Liste blieb
@@ -1836,6 +1865,12 @@ export default class BeautyTasksPlugin extends Plugin {
     // aus 1.31.x ginge still verloren, das Plugin suchte danach im falschen Frontmatter-Feld.
     if (typeof legacy.titleProperty === "string" && !legacy.fieldNames) {
       this.settings.fieldNames = { title: legacy.titleProperty };
+    }
+    // Startseite: früher ein einzelner String (`startView`, nur ViewId oder "last"), jetzt eine
+    // vollständige Seitenangabe. Auch hier entscheidet die DATEI, nicht der aufgefüllte Zustand –
+    // `startPage` hat einen Standardwert und wäre sonst immer belegt.
+    if (typeof legacy.startView === "string" && !legacy.startPage) {
+      this.settings.startPage = fromLegacyStartView(legacy.startView, VIEW_IDS);
     }
     // resolveFieldNames fängt Vertipptes, feste und doppelt vergebene Namen ab und fällt auf die
     // Vorgabe zurück – eine kaputte Einstellung darf nie Daten treffen.

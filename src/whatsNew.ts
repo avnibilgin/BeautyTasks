@@ -15,12 +15,13 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Die drei Speicher-Einträge aus 1.36.0 sind bewusst raus: Wer 1.37 sieht, hatte den
-    // damaligen Dialog fast sicher schon. Wer direkt von 1.35.x kommt und den Sync nutzt,
-    // bekommt zum Neu-Verbinden ohnehin die eigene Meldung beim Start (noticeGCalNeedsReconnect).
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Die Einträge aus
+    // 1.36.2/1.37.0 sind deshalb raus: Wer jetzt 1.38 sieht, hatte den Dialog beim Sprung auf
+    // 1.37.0 bereits. Die Termin-Farben stehen hier, obwohl sie aus 1.37.1 stammen – ein stiller
+    // Patch zeigt kein Modal, gesehen hat sie also noch niemand.
     const items: Highlight[] = [
-      { icon: "calendar-check", title: t("wn_gcalkeep_t"), desc: t("wn_gcalkeep_d") },
-      { icon: "panel-left", title: t("wn_navdevice_t"), desc: t("wn_navdevice_d") },
+      { icon: "home", title: t("wn_startpage_t"), desc: t("wn_startpage_d") },
+      { icon: "palette", title: t("wn_evcolor_t"), desc: t("wn_evcolor_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {

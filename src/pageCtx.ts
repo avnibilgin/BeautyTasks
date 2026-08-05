@@ -34,6 +34,10 @@ export interface PageRef {
 
 export const samePage = (a: PageRef, b: PageRef): boolean => a.kind === b.kind && a.key === b.key;
 
+/** Die eingestellte Startseite: eine feste Seite – oder „last", also die des Tabs behalten.
+ *  Liegt hier neben `PageRef`, weil es nichts anderes ist als eine gespeicherte Seitenangabe. */
+export type StartPage = "last" | PageRef;
+
 /** Übersetzungs-Schlüssel der Überschrift eines Verwaltungs-Bereichs. Liegt hier, weil sowohl die
  *  Seite selbst (manageView) als auch ihr Tab-Titel (MainView.getDisplayText) ihn braucht – und
  *  manageView von heuteView nicht importieren darf (heuteView importiert manageView). */
