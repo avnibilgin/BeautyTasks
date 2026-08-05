@@ -1,7 +1,7 @@
 import { App, Notice, TFile, normalizePath, stringifyYaml } from "obsidian";
 import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
 import { combineDT, localStamp } from "./format";
-import { firstOpenStatus } from "./statuses";
+import { firstOpenStatus, isDone, isTrashed } from "./statuses";
 import { titleKey, fmTitle, findH1Line, replaceHeadingLine, renameHeadingLine, newTaskBody } from "./taskTitle";
 import { fieldKey } from "./fieldNames";
 import { t } from "./i18n";
@@ -87,6 +87,33 @@ export interface TaskFields {
                              // (z. B. beim Duplizieren eines Unterbaums), s. filterEngine.planReorder.
 }
 
+/**
+ * Zeitstempel für eine NEU angelegte Aufgabe. Wird sie gleich als erledigt oder abgebrochen
+ * angelegt, gehört der Stempel dazu — sonst fehlt er für immer, denn gesetzt wird er sonst nur
+ * beim WECHSEL des Status (setTaskStatus).
+ *
+ * Das wiegt schwerer, als es aussieht: „Erledigt" und der Papierkorb sortieren absteigend nach
+ * diesem Feld, und ein fehlender Wert wird zur leeren Zeichenkette — kleiner als jedes Datum. Die
+ * Aufgabe rutschte damit ans ENDE einer womöglich hunderte Einträge langen Liste und galt für den
+ * Nutzer als verschwunden. „Heute" zeigt Erledigtes ohnehin nur mit passendem Stempel.
+ *
+ * Genommen wird der Moment des Anlegens — der einzige Zeitpunkt, den wir kennen, und derselbe,
+ * den das Abhaken schreiben würde.
+ *
+ * `cancelled` ist über die Oberfläche derzeit NICHT erreichbar: Die Statusauswahl beim Anlegen
+ * zeigt nur `boardStatuses()`, und die filtert abgebrochene Status heraus (so gewollt — der
+ * Papierkorb ist kein Zustand, in dem man etwas anlegt). Der Zweig bleibt trotzdem, weil
+ * `createTaskNote` jeden Status entgegennimmt: Käme ein abgebrochener je von woanders (Import,
+ * künftiger Aufrufer), stünde ohne ihn derselbe Fehler wieder da — unauffindbar am Ende des
+ * Papierkorbs.
+ */
+export function creationStamps(status: TaskStatus, now: string): { completed: string | null; cancelled: string | null } {
+  return {
+    completed: isDone(status) ? now : null,
+    cancelled: isTrashed(status) ? now : null,
+  };
+}
+
 /** Neue Aufgaben-Notiz anlegen (kollisionssicherer Dateiname). */
 export async function createTaskNote(app: App, settings: BeautyTasksSettings, f: TaskFields): Promise<TFile> {
   await ensureFolder(app, settings.itemsFolder);
@@ -97,13 +124,18 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     dest = normalizePath(settings.itemsFolder + "/" + slug + " " + n + ".md"); n++;
     if (n > 200) break;
   }
+  const status = f.status ?? firstOpenStatus();
+  const jetzt = localStamp();
+  const stamps = creationStamps(status, jetzt);
   const fm = buildFrontmatter({
     [fieldKey("type")]: "task",
     id: newId("t"),
     // Regelfall: der Titel steht hier. Nur wenn er ausdrücklich in den Text soll, bleibt das
     // Feld leer (null wird von buildFrontmatter verworfen) und newTaskBody schreibt die H1.
     [titleKey()]: f.titleInFrontmatter === false ? null : f.title,
-    status: f.status ?? firstOpenStatus(),
+    status,
+    completed: stamps.completed,   // null -> von buildFrontmatter verworfen
+    cancelled: stamps.cancelled,
     priority: f.priority && f.priority !== "normal" ? f.priority : undefined,
     due: f.due ? combineDT(f.due, f.dueTime) : null,
     scheduled: f.scheduled ? combineDT(f.scheduled, f.scheduledTime) : null,
@@ -118,7 +150,7 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     // Mit Uhrzeit (wie `completed`): sonst sind alle Aufgaben eines Tages beim Sortieren nach
     // „Erstellt" gleichwertig und die Richtung bleibt ohne sichtbare Wirkung. Ältere Notizen
     // behalten ihr reines Datum – der Vergleich in sortTasks kommt mit beidem zurecht.
-    created: localStamp(),
+    created: jetzt,
     description: (f.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
   });
   return app.vault.create(dest, fm + newTaskBody(f.title, f.titleInFrontmatter !== false));
