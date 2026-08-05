@@ -20,7 +20,15 @@ import { t } from "./i18n";
  * zusammen mit timeMin/timeMax; der Feed müsste sonst den ganzen Kalender spiegeln (inkl. 2019).
  * Fenster-Einheit ist EIN Monat (± 7 Tage Rand), damit Blättern im Monat den Cache trifft.
  * `singleEvents=true` lässt Google die Wiederholungen auflösen – kein RRULE-Expandieren hier.
- * Wiederholte Läufe kosten dank ETag/`If-None-Match` fast nichts (Google antwortet 304).
+ *
+ * **Jeder Lauf lädt voll.** Hier stand einmal, wiederholte Läufe kosteten dank ETag/`If-None-Match`
+ * fast nichts. Das stimmt nicht: Am 2026-08-05 am echten Konto gemessen war der ETag zu JEDEM
+ * geholten Monat leer – Google schickt für `events.list` keinen ETag-Header. Also senden wir nie
+ * ein `If-None-Match`, bekommen nie ein 304, und jeder Abruf überträgt den ganzen Monat. Der
+ * Zweig unten bleibt trotzdem stehen: Er kostet nichts und griffe sofort, falls Google ETags
+ * nachrüstet. Wer den Verkehr wirklich senken will, braucht `updatedMin` – und dann zuerst eine
+ * andere Lösung für gelöschte Termine, weil `replaceRange` genau davon lebt, den ganzen Monat zu
+ * ersetzen.
  *
  * Verbindung wird mit dem Sync geteilt (`GCalAuth`, Scope enthält bereits `calendar.readonly`),
  * die Schalter sind getrennt: `gcal.enabled` = Aufgaben schreiben, `gcalFeed.enabled` = Termine
@@ -323,6 +331,8 @@ export class GCalFeed {
       });
       if (pageToken) q.set("pageToken", pageToken);
       // If-None-Match nur auf der ersten Seite: ändert sich nichts, ist der ganze Monat erledigt.
+      // Greift derzeit NIE – Google liefert für events.list keinen ETag, `etag` ist immer null
+      // (s. Dateikopf). Der Zweig bleibt als Vorbereitung stehen, nicht als aktive Ersparnis.
       const headers = !pageToken && etag ? { "If-None-Match": etag } : undefined;
       const res = await gcalRequest(this.auth, "GET", `/calendars/${enc(calId)}/events?` + q.toString(), undefined, headers);
       if (res.status === 304) return false;
