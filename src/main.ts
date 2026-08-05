@@ -1,7 +1,8 @@
 import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
-import { BeautyTasksSettings, DEFAULT_SETTINGS, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent, DeviceState, DEFAULT_DEVICE_STATE } from "./types";
+import { BeautyTasksSettings, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent, DeviceState, DEFAULT_DEVICE_STATE } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { schemaVersionOf, pendingSteps, nextSchemaVersion } from "./schema";
+import { applyDefaults, toDelta } from "./settingsDelta";
 import { resolveReminders } from "./reminders";
 import { TaskIndex } from "./taskIndex";
 import { runMigration } from "./migrate";
@@ -1805,14 +1806,17 @@ export default class BeautyTasksPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<BeautyTasksSettings> | null;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    this.settings = applyDefaults(saved);
     // Stand der Einmal-Migrationen bestimmen, solange `saved` noch vorliegt: Nur hier ist
     // unterscheidbar, ob es GAR KEINE data.json gab (frische Installation → nichts zu migrieren)
     // oder eine ohne `schemaVersion` (Altbestand → aus den did*-Markern ableiten). Siehe schema.ts.
     this.settings.schemaVersion = schemaVersionOf(saved);
     // Migration: früheres globales chipOrder/chipTiers -> Editor-Profil (Flächen ab jetzt getrennt).
     const legacy = (saved ?? {}) as Record<string, unknown>;
-    if ((legacy.chipOrder || legacy.chipTiers) && !this.settings.chipProfiles) {
+    // Auch hier die DATEI fragen, nicht `this.settings` – aus demselben Grund wie bei den
+    // Feldnamen unten. `chipProfiles` hat zwar keinen Standardwert, aber die Regel gilt für jede
+    // Migration: Ob etwas ALT ist, entscheidet die Datei, nicht der aufgefüllte Zustand.
+    if ((legacy.chipOrder || legacy.chipTiers) && !legacy.chipProfiles) {
       this.settings.chipProfiles = {
         editor: { order: legacy.chipOrder as ChipId[] | undefined, tiers: legacy.chipTiers as Partial<Record<ChipId, ChipTier>> | undefined },
       };
@@ -1826,7 +1830,11 @@ export default class BeautyTasksPlugin extends Plugin {
     this.settings.statuses = ensureStatusInvariants(this.settings.statuses);
     initStatuses(this.settings.statuses);   // Status-Registry aus den Einstellungen (sonst Defaults)
     // Feldnamen: früheres einzelnes `titleProperty` (1.31.x) in die Namenstabelle übernehmen.
-    if (typeof legacy.titleProperty === "string" && !this.settings.fieldNames) {
+    // Gefragt wird die DATEI (`legacy`), nicht `this.settings`: Seit die Standardwerte nicht mehr
+    // mitgeschrieben werden, ist `settings.fieldNames` immer belegt (s. settingsDelta.ts). Eine
+    // Prüfung auf `!this.settings.fieldNames` wäre nie wieder wahr – und ein eigener Titel-Feldname
+    // aus 1.31.x ginge still verloren, das Plugin suchte danach im falschen Frontmatter-Feld.
+    if (typeof legacy.titleProperty === "string" && !legacy.fieldNames) {
       this.settings.fieldNames = { title: legacy.titleProperty };
     }
     // resolveFieldNames fängt Vertipptes, feste und doppelt vergebene Namen ab und fällt auf die
@@ -1946,7 +1954,9 @@ export default class BeautyTasksPlugin extends Plugin {
     delete raw.account;
     return true;
   }
-  async saveSettings(): Promise<void> { await this.saveData(this.settings); }
+  /** Gespeichert wird nur, was vom Standard abweicht (s. settingsDelta.ts) – sonst friert die
+   *  Datei jeden Standardwert ein und eine Verbesserung im Code erreicht keinen Bestandsnutzer. */
+  async saveSettings(): Promise<void> { await this.saveData(toDelta(this.settings)); }
 
   /** Die drei Textgrößen-Skalierungen (Nutzer-Prozent/100) als CSS-Variablen auf <body> setzen.
    *  Die styles.css multipliziert damit die geerbte Basis-Größe: bei 100 % (Faktor 1) unverändert
