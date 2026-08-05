@@ -7,6 +7,7 @@ import type BeautyTasksPlugin from "./main";
 import { Priority } from "./types";
 import { ExportList, ExportTask, makeImportData, importData } from "./importExport";
 import { firstOpenStatus, firstDoneStatus, isDone, isTrashed, isKnownStatus } from "./statuses";
+import { readTaskNotesConfig, mergeFieldMapping, buildStatusResolver, buildPriorityResolver, TnConfig } from "./tasknotesApi";
 import { todayIso } from "./taskService";
 import { t } from "./i18n";
 
@@ -117,7 +118,7 @@ export function scanTaskNotes(app: App, taskTag: string, folder: string, tagsKey
 }
 
 /** Gefundene TaskNotes-Notizen in importierbare Records umwandeln (liest die Notiz-Bodies für die Beschreibung). */
-async function buildImportData(app: App, files: { file: TFile; fm: Record<string, unknown> }[], mapping: Record<Role, string>, taskTag: string): Promise<{ tasks: ExportTask[]; lists: ExportList[]; labels: string[]; lossy: number }> {
+async function buildImportData(app: App, files: { file: TFile; fm: Record<string, unknown> }[], mapping: Record<Role, string>, taskTag: string, toStatus: (raw: string) => string, toPriority: (raw: string) => Priority): Promise<{ tasks: ExportTask[]; lists: ExportList[]; labels: string[]; lossy: number }> {
   const tag = taskTag.replace(/^#/, "").trim().toLowerCase();
   const listByKey = new Map<string, ExportList>();
   const labelSet = new Set<string>();
@@ -130,7 +131,7 @@ async function buildImportData(app: App, files: { file: TFile; fm: Record<string
 
     // Status + Erledigungs-Zeitstempel
     const completedRaw = asStr(get("completedDate")).trim();
-    let status = mapStatus(asStr(get("status")));
+    let status = toStatus(asStr(get("status")));
     let completed: string | null = null;
     if (completedRaw) { status = firstDoneStatus(); completed = completedRaw; }
     else if (isDone(status)) { completed = asStr(get("dateModified")).trim() || todayIso(); }
@@ -164,7 +165,7 @@ async function buildImportData(app: App, files: { file: TFile; fm: Record<string
 
     tasks.push({
       id: "", externalId: asStr(get("id")).trim() || file.path,
-      title, status, priority: mapPriority(asStr(get("priority"))),
+      title, status, priority: toPriority(asStr(get("priority"))),
       due: due.date, dueTime: due.time, scheduled: sched.date, scheduledTime: sched.time,
       duration: numOrNull(get("timeEstimate")), start: null,
       project, parent: null, labels, recurrence: rec.recurrence, recurBasis: "due",
@@ -180,10 +181,29 @@ export class ImportTaskNotesModal extends Modal {
   private taskTag = "task";
   private folder = "";
   private countEl!: HTMLElement;
+  /** Konfiguration aus dem laufenden TaskNotes – oder null, dann gelten unsere Vorgaben. */
+  private tn: TnConfig | null = null;
+  private mapping: Record<Role, string> = DEFAULT_MAPPING;
 
   constructor(private plugin: BeautyTasksPlugin) { super(plugin.app); }
 
+  /** Status-/Prioritäts-Übersetzer: mit Katalog, wenn TaskNotes ihn hergibt, sonst Namenstabelle. */
+  private toStatus = (raw: string): string => mapStatus(raw);
+  private toPriority = (raw: string): Priority => mapPriority(raw);
+
   onOpen(): void {
+    // Einmal beim Öffnen: Was TaskNotes über sich verrät, schlägt jede Vorgabe von uns. Der
+    // Feldname ist dort frei einstellbar – ohne diese Auskunft importierte jemand mit eigenen
+    // Feldnamen lauter leere Aufgaben, ohne dass irgendwo etwas schiefzugehen scheint.
+    this.tn = readTaskNotesConfig(this.app);
+    if (this.tn) {
+      this.mapping = mergeFieldMapping(DEFAULT_MAPPING, this.tn.fieldMapping);
+      if (this.tn.taskTag) this.taskTag = this.tn.taskTag;
+      const st = buildStatusResolver(this.tn.statuses, mapStatus);
+      const pr = buildPriorityResolver(this.tn.priorities, mapPriority);
+      this.toStatus = st;
+      this.toPriority = pr;
+    }
     const { contentEl, modalEl } = this;
     modalEl.addClass("bt-new-modal");
     contentEl.createEl("h3", { text: t("tn_import_title") });
@@ -207,15 +227,15 @@ export class ImportTaskNotesModal extends Modal {
   onClose(): void { this.contentEl.empty(); }
 
   private updateCount(): void {
-    const n = scanTaskNotes(this.app, this.taskTag, this.folder, DEFAULT_MAPPING.tags).length;
+    const n = scanTaskNotes(this.app, this.taskTag, this.folder, this.mapping.tags).length;
     this.countEl.setText(t("tn_import_found", n));
   }
 
   private async run(): Promise<void> {
-    const files = scanTaskNotes(this.app, this.taskTag, this.folder, DEFAULT_MAPPING.tags);
+    const files = scanTaskNotes(this.app, this.taskTag, this.folder, this.mapping.tags);
     if (!files.length) { new Notice(t("tn_import_none")); return; }
     try {
-      const { tasks, lists, labels, lossy } = await buildImportData(this.app, files, DEFAULT_MAPPING, this.taskTag);
+      const { tasks, lists, labels, lossy } = await buildImportData(this.app, files, this.mapping, this.taskTag, this.toStatus, this.toPriority);
       const r = await importData(this.plugin, makeImportData(lists, labels, tasks));
       // Importierte Labels in der Seitenleiste einblenden (wie importierte Projekte sichtbar sind).
       let shown = false;
