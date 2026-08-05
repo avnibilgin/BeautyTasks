@@ -114,6 +114,27 @@ export function creationStamps(status: TaskStatus, now: string): { completed: st
   };
 }
 
+/**
+ * Zeitstempel bei einem Status WECHSEL. Gegenstück zu `creationStamps`, dieselbe Regel:
+ * Ein Stempel gehört zu SEINEM Zustand — er kommt beim Eintritt und geht beim Austritt.
+ *
+ * Zurückgegeben wird ein Patch: Ein Feld fehlt, wenn es unberührt bleiben soll. `null` heißt
+ * ausdrücklich „leeren". So kann der Aufrufer den Unterschied zwischen „nicht anfassen" und
+ * „entfernen" nicht versehentlich verlieren.
+ *
+ * Warum das zählt: Beide Listen (Erledigt, Papierkorb) sortieren absteigend nach ihrem Stempel,
+ * und ein fehlender Wert ist die leere Zeichenkette — kleiner als jedes Datum. Eine Aufgabe ohne
+ * Stempel steht damit am ENDE ihrer Liste und gilt für den Nutzer als verschwunden.
+ */
+export function transitionStamps(from: TaskStatus, to: TaskStatus, now: string): { completed?: string | null; cancelled?: string | null } {
+  const patch: { completed?: string | null; cancelled?: string | null } = {};
+  if (isDone(to) && !isDone(from)) patch.completed = now;
+  else if (isDone(from) && !isDone(to)) patch.completed = null;
+  if (isTrashed(to) && !isTrashed(from)) patch.cancelled = now;
+  else if (isTrashed(from) && !isTrashed(to)) patch.cancelled = null;
+  return patch;
+}
+
 /** Neue Aufgaben-Notiz anlegen (kollisionssicherer Dateiname). */
 export async function createTaskNote(app: App, settings: BeautyTasksSettings, f: TaskFields): Promise<TFile> {
   await ensureFolder(app, settings.itemsFolder);

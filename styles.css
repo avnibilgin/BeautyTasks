@@ -2689,3 +2689,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-startpage-row .bt-startpage-check { display: inline-flex; color: var(--text-accent); }
 .bt-startpage-row .bt-startpage-check .svg-icon { width: 14px; height: 14px; }
 .bt-startpage-row .bt-startpage-kind { flex: 0 0 auto; font-size: var(--font-smaller); color: var(--text-faint); }
+
+/* Herkunft der Feldzuordnung im TaskNotes-Import: dezent, aber vor den Eingabefeldern –
+   sie beantwortet die Frage, bevor der Nutzer am Tag herumprobiert. */
+.bt-tn-src { margin: -2px 0 10px; }

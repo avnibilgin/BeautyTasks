@@ -13,7 +13,7 @@ import {
 import { PageRef, pageInfo, samePage } from "./pageCtx";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
+import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget } from "./fieldNames";
@@ -1673,11 +1673,16 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!(f instanceof TFile)) return;
     const wasDone = isDone(task.status);
     const nowDone = isDone(status);
+    // Beide Zeitstempel nach EINER Regel (s. transitionStamps) und aus EINEM Zeitpunkt — sonst
+    // drifteten sie um Millisekunden auseinander. Der Abgebrochen-Fall landet über die Oberfläche
+    // heute nie hier (das Board kennt keine Papierkorb-Spalte, das Zeilenmenü leitet auf
+    // cancelTask um); ein neuer Aufrufer soll aber nicht in dieselbe Falle laufen.
+    const stamps = transitionStamps(task.status, status, localStamp());
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
       this.ensureCanonical(fm);
       fm.status = status;
-      if (nowDone && !wasDone) fm.completed = localStamp();   // mit Uhrzeit: am selben Tag nach Zeit sortierbar
-      else if (wasDone && !nowDone) fm.completed = null;      // von „erledigt" zurück ins Offene -> Stempel weg
+      if ("completed" in stamps) fm.completed = stamps.completed;
+      if ("cancelled" in stamps) fm.cancelled = stamps.cancelled;
     });
     // Wiederkehrend + gerade erledigt -> nächste Instanz anlegen.
     if (nowDone && !wasDone && task.recurrence) {
@@ -1793,14 +1798,19 @@ export default class BeautyTasksPlugin extends Plugin {
     }
   }
 
-  /** Einzelne Aufgabe wiederherstellen: zurück auf offen, Abbruch-Datum entfernen. */
+  /** Einzelne Aufgabe wiederherstellen: zurück auf offen, beide Zeitstempel entfernen.
+   *
+   *  Auch `completed`: Wer eine ERLEDIGTE Aufgabe in den Papierkorb legt, behält den
+   *  Erledigt-Stempel dort (die Herkunft bleibt im Papierkorb sichtbar) — beim Wiederherstellen
+   *  wird sie aber ausnahmslos offen, und ein Erledigt-Datum an einer offenen Aufgabe ist schlicht
+   *  falsch. Es ist dieselbe Regel, die setTaskStatus beim Verlassen von „erledigt" anwendet. */
   async restoreTask(task: Task): Promise<void> {
     // Symmetrisch zur Kaskaden-Abbrechen-Logik: die Aufgabe UND alle abgebrochenen
     // Unteraufgaben zurückholen, sonst blieben Kinder allein im Papierkorb liegen.
     const targets = [task, ...this.index.descendants(task.path)].filter((tk) => isTrashed(tk.status));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = firstOpenStatus(); delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = firstOpenStatus(); delete fm.cancelled; delete fm.completed; });
     }
     new Notice(t("msg_restored", task.title));
   }
@@ -1817,7 +1827,7 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!items.length) { new Notice(t("report_trash_empty_restore")); return; }
     for (const task of items) {
       const f = this.app.vault.getAbstractFileByPath(task.path);
-      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = firstOpenStatus(); delete fm.cancelled; });
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = firstOpenStatus(); delete fm.cancelled; delete fm.completed; });
     }
     new Notice(t("report_tasks_restored", items.length));
   }
