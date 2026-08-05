@@ -2,7 +2,7 @@ import { App, FuzzySuggestModal, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { BeautyTasksSettings, Priority, TaskStatus, Task } from "./types";
 import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged, baseName, ProjItem } from "./taskService";
-import { titleKey, newTaskBody } from "./taskTitle";
+import { titleKey, newTaskBody, findH1LineInBody } from "./taskTitle";
 import { fieldKey } from "./fieldNames";
 import { combineDT } from "./format";
 import { t } from "./i18n";
@@ -10,7 +10,7 @@ import { t } from "./i18n";
 const EXPORT_FORMAT = "beautytasks";
 const EXPORT_VERSION = 3;
 // v1 = nur Aufgaben · v2 = eigener `lists`-Abschnitt (Projekt/Bereich mit Typ)
-// v3 = `sortOrder` an der Aufgabe, `icon`/`description`/`hidden` an der Liste.
+// v3 = `sortOrder` und `body` an der Aufgabe, `icon`/`description`/`hidden` an der Liste.
 //
 // Die Zahl ist eine ANGABE, keine Schranke: `parseExport` prüft sie bewusst nicht. Ältere Dateien
 // bleiben lesbar (die neuen Felder sind optional und fehlen dann einfach), und eine v3-Datei lässt
@@ -45,6 +45,9 @@ export interface ExportTask {
   /** Manuelle Position (v3). Fehlt bei älteren Exporten UND bei Aufgaben, die nie umsortiert
    *  wurden – das Feld wird erst beim ersten Umsortieren materialisiert (s. planReorder). */
   sortOrder?: number | null;
+  /** Der Notiz-Inhalt UNTER der Titelzeile, wörtlich (v3): eigener Text UND Detail-Log.
+   *  Leer bei den allermeisten Aufgaben – die tragen ihren Inhalt im Frontmatter (`description`). */
+  body?: string;
 }
 
 /** Listen-Definition (Projekt/Bereich). Trägt den Typ, den die Aufgaben-Referenz allein nicht
@@ -79,8 +82,28 @@ export interface ImportResult { created: number; skipped: number; listsCreated: 
 // die es ankommt – dass eine Aufgabe die Rundreise übersteht. Verstreut über Vault-Zugriffe wäre
 // genau das nicht testbar, und genau dort ist `sortOrder` jahrelang unbemerkt liegengeblieben.
 
-/** Aufgabe -> portabler Datensatz. Referenzen als Basename (s. ExportTask). */
-export function toExportTask(tk: Task): ExportTask {
+/**
+ * Der Notiz-Inhalt unterhalb der Titelzeile — wörtlich, ohne Auslegung.
+ *
+ * Enthält beides, was dort stehen kann: eigenen Text und den Detail-Log. Getrennt würden sie
+ * nicht: Im Hauptvault haben ALLE 13 Notizen mit Inhalt beides, und die Grenze zu ziehen hieße,
+ * eine Notiz zu zerschneiden, deren Aufbau dem Nutzer gehört.
+ *
+ * Die Titelzeile fällt weg, weil der Import sie selbst schreibt (newTaskBody) — sonst stünde sie
+ * nach einer Rundreise doppelt da. Das Frontmatter fällt weg, weil jedes seiner Felder einzeln im
+ * Datensatz steht.
+ */
+export function noteBody(content: string): string {
+  const ohneFm = content.replace(/^---\n[\s\S]*?\n---\n/, "");
+  const zeilen = ohneFm.split("\n");
+  const h1 = findH1LineInBody(ohneFm);
+  const rest = h1 === null ? zeilen : zeilen.slice(h1 + 1);
+  return rest.join("\n").replace(/^\n+|\s+$/g, "");
+}
+
+/** Aufgabe -> portabler Datensatz. Referenzen als Basename (s. ExportTask).
+ *  `body` kommt von außen: Der Index führt ihn nicht, er steht nur in der Datei. */
+export function toExportTask(tk: Task, body = ""): ExportTask {
   return {
     id: tk.id,
     externalId: tk.externalId,
@@ -104,6 +127,7 @@ export function toExportTask(tk: Task): ExportTask {
     cancelled: tk.cancelled,
     description: tk.description,
     sortOrder: tk.sortOrder,
+    body: body || undefined,
   };
 }
 
@@ -183,8 +207,21 @@ export function makeImportData(lists: ExportList[], labels: string[], tasks: Exp
 }
 
 /** Alle Aufgaben (+ Label-Register) in ein portables Objekt serialisieren. */
-function buildExportData(plugin: BeautyTasksPlugin): ExportData {
-  const tasks: ExportTask[] = plugin.index.all().map(toExportTask);
+/**
+ * Asynchron, weil der Notiz-Inhalt nur in der DATEI steht – der Index führt ihn nicht. Gelesen
+ * wird über `cachedRead`: für einen ausdrücklich angestoßenen Export ist ein Durchgang durch die
+ * Aufgaben-Dateien vertretbar, und der Cache trägt die meisten davon ohnehin schon.
+ */
+async function buildExportData(plugin: BeautyTasksPlugin): Promise<ExportData> {
+  const tasks: ExportTask[] = [];
+  for (const tk of plugin.index.all()) {
+    const f = plugin.app.vault.getAbstractFileByPath(tk.path);
+    let body = "";
+    // Eine Notiz, die zwischen Index und Export verschwindet, darf den Export nicht scheitern
+    // lassen – dann fehlt eben ihr Inhalt, alle anderen kommen durch.
+    if (f instanceof TFile) { try { body = noteBody(await plugin.app.vault.cachedRead(f)); } catch { body = ""; } }
+    tasks.push(toExportTask(tk, body));
+  }
   // Listen mit Typ mitexportieren (aktive + archivierte, ohne Inbox – listManaged filtert sie).
   const { active, archived } = listManaged(plugin.app);
   const lists: ExportList[] = [...active, ...archived].map(toExportList);
@@ -197,7 +234,7 @@ function buildExportData(plugin: BeautyTasksPlugin): ExportData {
 /** Export in eine .json-Datei im Vault (neben dem BeautyTasks-Ordner). Gibt den Pfad zurück. */
 export async function writeExportFile(plugin: BeautyTasksPlugin): Promise<string> {
   const { app, settings } = plugin;
-  const data = buildExportData(plugin);
+  const data = await buildExportData(plugin);
   const parts = settings.itemsFolder.split("/");
   const base = parts.length > 1 ? parts.slice(0, -1).join("/") : settings.itemsFolder;   // z. B. „BeautyTasks"
   await ensureFolder(app, base);
@@ -231,7 +268,9 @@ async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: Ex
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(settings.itemsFolder + "/" + slug + " " + n + ".md"); n++; if (n > 500) break; }
   const fm = buildFrontmatter(importedTaskFrontmatter(et, fieldKey("type"), titleKey()));
-  await app.vault.create(dest, fm + newTaskBody(et.title, true));
+  // Der Body kommt UNTER die (leere) Titelzeile – wörtlich so, wie er exportiert wurde.
+  const body = (et.body ?? "").trim();
+  await app.vault.create(dest, fm + newTaskBody(et.title, true) + (body ? body + "\n" : ""));
 }
 
 /** Eine importierte Liste mit KORREKTEM Typ (Projekt/Bereich) + Farbe/Archiv-Status anlegen. */

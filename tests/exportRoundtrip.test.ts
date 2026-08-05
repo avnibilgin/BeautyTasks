@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toExportTask, toExportList, importedTaskFrontmatter, importedListFrontmatter, parseExport, ExportTask, ExportList } from "../src/importExport";
+import { toExportTask, toExportList, importedTaskFrontmatter, importedListFrontmatter, parseExport, noteBody, ExportTask, ExportList } from "../src/importExport";
 import { Task } from "../src/types";
 import { ProjItem } from "../src/taskService";
 
@@ -129,5 +129,50 @@ describe("Alte Exporte bleiben lesbar", () => {
     const lfm = importedListFrontmatter(d.lists[0] as ExportList, "type");
     expect(lfm.icon).toBeUndefined();
     expect(lfm.nav_hidden).toBeUndefined();
+  });
+});
+
+describe("noteBody – der Inhalt unter der Titelzeile", () => {
+  const notiz = (body: string): string => "---\ntype: task\ntitle: X\n---\n" + body;
+
+  it("nimmt eigenen Text UND Detail-Log mit – beides hängt in echten Notizen zusammen", () => {
+    const b = "Eigener Text.\n\n## Log\n> [!log] 2026-08-01\n> Etwas passiert.";
+    expect(noteBody(notiz(b))).toBe(b);
+  });
+
+  it("wirft die Titelzeile weg – sonst stünde sie nach einer Rundreise doppelt da", () => {
+    expect(noteBody(notiz("# X\n\nInhalt."))).toBe("Inhalt.");
+  });
+
+  it("lässt eigene Überschriften stehen, die nicht die Titelzeile sind", () => {
+    expect(noteBody(notiz("## Unterpunkt\nText"))).toBe("## Unterpunkt\nText");
+  });
+
+  it("leere Notiz ergibt leeren Body, keine Leerzeichen-Reste", () => {
+    expect(noteBody(notiz(""))).toBe("");
+    expect(noteBody(notiz("\n\n\n"))).toBe("");
+    expect(noteBody(notiz("# X\n"))).toBe("");
+  });
+
+  it("kommt ohne Frontmatter klar", () => {
+    expect(noteBody("Nur Text")).toBe("Nur Text");
+  });
+
+  it("fasst Code-Blöcke nicht als Überschrift auf", () => {
+    const b = "```\n# kein Titel\n```\nDanach";
+    expect(noteBody(notiz(b))).toBe(b);
+  });
+});
+
+describe("Body über die Rundreise", () => {
+  it("wandert in den Datensatz und wieder heraus", () => {
+    const inhalt = "Notiz-Inhalt\n\n> [!log] 2026-08-01\n> Eintrag";
+    const et = toExportTask(AUFGABE, inhalt);
+    expect(et.body).toBe(inhalt);
+  });
+
+  it("leerer Body erzeugt kein Feld – der Normalfall bleibt schlank", () => {
+    expect(toExportTask(AUFGABE, "").body).toBeUndefined();
+    expect(toExportTask(AUFGABE).body).toBeUndefined();
   });
 });
