@@ -1,14 +1,21 @@
 import { App, FuzzySuggestModal, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
-import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged, baseName } from "./taskService";
+import { BeautyTasksSettings, Priority, TaskStatus, Task } from "./types";
+import { buildFrontmatter, ensureFolder, slugify, newId, todayIso, createProjectNote, listManaged, baseName, ProjItem } from "./taskService";
 import { titleKey, newTaskBody } from "./taskTitle";
 import { fieldKey } from "./fieldNames";
 import { combineDT } from "./format";
 import { t } from "./i18n";
 
 const EXPORT_FORMAT = "beautytasks";
-const EXPORT_VERSION = 2;   // v2: eigener `lists`-Abschnitt (Projekt/Bereich mit Typ). v1 = nur Aufgaben.
+const EXPORT_VERSION = 3;
+// v1 = nur Aufgaben · v2 = eigener `lists`-Abschnitt (Projekt/Bereich mit Typ)
+// v3 = `sortOrder` an der Aufgabe, `icon`/`description`/`hidden` an der Liste.
+//
+// Die Zahl ist eine ANGABE, keine Schranke: `parseExport` prüft sie bewusst nicht. Ältere Dateien
+// bleiben lesbar (die neuen Felder sind optional und fehlen dann einfach), und eine v3-Datei lässt
+// sich in einer älteren Fassung importieren – sie verliert dort nur, was sie noch nicht kennt.
+// Deshalb sind alle Zugänge unten `?`-optional typisiert statt als Pflichtfelder.
 
 
 /** Portable Repräsentation einer Aufgabe: Referenzen (Projekt/Bereich/Eltern) als Basename,
@@ -35,6 +42,9 @@ export interface ExportTask {
   completed: string | null;
   cancelled: string | null;
   description: string;
+  /** Manuelle Position (v3). Fehlt bei älteren Exporten UND bei Aufgaben, die nie umsortiert
+   *  wurden – das Feld wird erst beim ersten Umsortieren materialisiert (s. planReorder). */
+  sortOrder?: number | null;
 }
 
 /** Listen-Definition (Projekt/Bereich). Trägt den Typ, den die Aufgaben-Referenz allein nicht
@@ -44,6 +54,10 @@ export interface ExportList {
   type: "project" | "area";
   color: string | null;
   archived: boolean;
+  /** Seit v3. Ältere Exporte kennen sie nicht – dann bleibt es beim Standard der Zielliste. */
+  icon?: string | null;
+  description?: string;
+  hidden?: boolean;
 }
 
 export interface ExportData {
@@ -60,13 +74,14 @@ export interface ImportResult { created: number; skipped: number; listsCreated: 
 
 /** ExportData aus fertigen Records zusammensetzen – für Importer aus Fremdformaten (z. B. TaskNotes),
  *  die direkt Aufgaben-/Listen-Records erzeugen und den gemeinsamen importData()-Writer nutzen. */
-export function makeImportData(lists: ExportList[], labels: string[], tasks: ExportTask[]): ExportData {
-  return { format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(), taskCount: tasks.length, lists, labels, tasks };
-}
+// ── Umwandlung, rein und ohne Vault ───────────────────────────────────────────
+// Export und Import als PAAR an einer Stelle: Nur so lässt sich die eine Eigenschaft prüfen, auf
+// die es ankommt – dass eine Aufgabe die Rundreise übersteht. Verstreut über Vault-Zugriffe wäre
+// genau das nicht testbar, und genau dort ist `sortOrder` jahrelang unbemerkt liegengeblieben.
 
-/** Alle Aufgaben (+ Label-Register) in ein portables Objekt serialisieren. */
-function buildExportData(plugin: BeautyTasksPlugin): ExportData {
-  const tasks: ExportTask[] = plugin.index.all().map((tk) => ({
+/** Aufgabe -> portabler Datensatz. Referenzen als Basename (s. ExportTask). */
+export function toExportTask(tk: Task): ExportTask {
+  return {
     id: tk.id,
     externalId: tk.externalId,
     title: tk.title,
@@ -88,12 +103,77 @@ function buildExportData(plugin: BeautyTasksPlugin): ExportData {
     completed: tk.completed,
     cancelled: tk.cancelled,
     description: tk.description,
-  }));
+    sortOrder: tk.sortOrder,
+  };
+}
+
+/** Liste (Projekt/Bereich) -> portabler Datensatz. */
+export function toExportList(p: ProjItem): ExportList {
+  return {
+    name: p.name, type: p.type, color: p.color, archived: p.archived,
+    icon: p.icon || null, description: p.description || "", hidden: p.hidden,
+  };
+}
+
+/**
+ * Datensatz -> Frontmatter einer Aufgaben-Notiz. Die beiden konfigurierbaren Feldnamen kommen von
+ * außen, damit diese Funktion nichts von der Registry wissen muss (und testbar bleibt).
+ *
+ * `null`/`undefined` verwirft `buildFrontmatter` – ein Feld, das der Export nicht kennt, entsteht
+ * also gar nicht erst. Das ist bei `sortOrder` ausdrücklich gewollt: Es wird erst beim ersten
+ * Umsortieren materialisiert, ein leeres Feld wäre eine Behauptung über eine Reihenfolge, die es
+ * nicht gibt.
+ */
+export function importedTaskFrontmatter(et: ExportTask, typeName: string, titleName: string): Record<string, unknown> {
+  return {
+    [typeName]: "task",
+    id: et.id || newId("t"),
+    [titleName]: et.title,
+    status: et.status || "todo",
+    priority: et.priority && et.priority !== "normal" ? et.priority : undefined,
+    due: et.due ? combineDT(et.due, et.dueTime) : null,
+    scheduled: et.scheduled ? combineDT(et.scheduled, et.scheduledTime) : null,
+    duration: et.duration ?? null,
+    start: et.start ?? null,
+    project: et.project ? "[[" + et.project + "]]" : null,
+    parent: et.parent ? "[[" + et.parent + "]]" : null,
+    labels: et.labels ?? [],
+    recurrence: et.recurrence ?? null,
+    recur_basis: et.recurrence && et.recurBasis === "done" ? "done" : null,
+    reminders: et.reminders ?? [],
+    sort_order: et.sortOrder ?? null,
+    created: et.created || todayIso(),
+    completed: et.completed ?? null,
+    cancelled: et.cancelled ?? null,
+    external_id: et.externalId ?? null,
+    description: (et.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
+  };
+}
+
+/** Datensatz -> Frontmatter einer Listen-Notiz (Projekt/Bereich). */
+export function importedListFrontmatter(list: ExportList, typeName: string): Record<string, unknown> {
+  return {
+    [typeName]: list.type === "area" ? "area" : "project",
+    id: newId("p"),
+    status: list.archived ? "archived" : "active",
+    color: list.color ?? undefined,
+    icon: list.icon || undefined,
+    description: (list.description ?? "").trim() || undefined,
+    nav_hidden: list.hidden ? true : undefined,
+    created: todayIso(),
+  };
+}
+
+export function makeImportData(lists: ExportList[], labels: string[], tasks: ExportTask[]): ExportData {
+  return { format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(), taskCount: tasks.length, lists, labels, tasks };
+}
+
+/** Alle Aufgaben (+ Label-Register) in ein portables Objekt serialisieren. */
+function buildExportData(plugin: BeautyTasksPlugin): ExportData {
+  const tasks: ExportTask[] = plugin.index.all().map(toExportTask);
   // Listen mit Typ mitexportieren (aktive + archivierte, ohne Inbox – listManaged filtert sie).
   const { active, archived } = listManaged(plugin.app);
-  const lists: ExportList[] = [...active, ...archived].map((p) => ({
-    name: p.name, type: p.type, color: p.color, archived: p.archived,
-  }));
+  const lists: ExportList[] = [...active, ...archived].map(toExportList);
   return {
     format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(),
     taskCount: tasks.length, lists, labels: [...plugin.settings.knownLabels], tasks,
@@ -127,35 +207,16 @@ export function parseExport(raw: string): ExportData | null {
   return d as ExportData;
 }
 
-/** Eine importierte Aufgabe verlustfrei als Notiz schreiben (alle Felder erhalten). */
+/** Eine importierte Aufgabe als Notiz schreiben. Übertragen wird, was `ExportTask` führt – NICHT
+ *  der Notiz-Body und nicht die Definitionen eigener Status; beides ist in importExport.ts oben
+ *  benannt. („Verlustfrei" stand hier einmal und war schon damals nicht wahr.) */
 async function writeImportedTask(app: App, settings: BeautyTasksSettings, et: ExportTask): Promise<void> {
   await ensureFolder(app, settings.itemsFolder);
   const slug = slugify(et.title);
   let dest = normalizePath(settings.itemsFolder + "/" + slug + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(settings.itemsFolder + "/" + slug + " " + n + ".md"); n++; if (n > 500) break; }
-  const fm = buildFrontmatter({
-    [fieldKey("type")]: "task",
-    id: et.id || newId("t"),
-    [titleKey()]: et.title,
-    status: et.status || "todo",
-    priority: et.priority && et.priority !== "normal" ? et.priority : undefined,
-    due: et.due ? combineDT(et.due, et.dueTime) : null,
-    scheduled: et.scheduled ? combineDT(et.scheduled, et.scheduledTime) : null,
-    duration: et.duration ?? null,
-    start: et.start ?? null,
-    project: et.project ? "[[" + et.project + "]]" : null,
-    parent: et.parent ? "[[" + et.parent + "]]" : null,
-    labels: et.labels ?? [],
-    recurrence: et.recurrence ?? null,
-    recur_basis: et.recurrence && et.recurBasis === "done" ? "done" : null,
-    reminders: et.reminders ?? [],
-    created: et.created || todayIso(),
-    completed: et.completed ?? null,
-    cancelled: et.cancelled ?? null,
-    external_id: et.externalId ?? null,
-    description: (et.description ?? "").trim() || null,   // Beschreibung im Frontmatter, nicht im Body
-  });
+  const fm = buildFrontmatter(importedTaskFrontmatter(et, fieldKey("type"), titleKey()));
   await app.vault.create(dest, fm + newTaskBody(et.title, true));
 }
 
@@ -167,13 +228,7 @@ async function writeImportedList(app: App, settings: BeautyTasksSettings, list: 
   let dest = normalizePath(folder + "/" + base + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) { dest = normalizePath(folder + "/" + base + " " + n + ".md"); n++; if (n > 200) break; }
-  const fm = buildFrontmatter({
-    [fieldKey("type")]: list.type === "area" ? "area" : "project",
-    id: newId("p"),
-    status: list.archived ? "archived" : "active",
-    color: list.color ?? undefined,
-    created: todayIso(),
-  });
+  const fm = buildFrontmatter(importedListFrontmatter(list, fieldKey("type")));
   await app.vault.create(dest, fm + "\n# " + list.name + "\n");
 }
 
