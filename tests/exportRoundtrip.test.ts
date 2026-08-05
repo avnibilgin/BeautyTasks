@@ -22,7 +22,7 @@ const AUFGABE: Task = {
 
 const LISTE: ProjItem = {
   name: "Haus", path: "BeautyTasks/Projects/Haus.md", icon: "home", color: "#e05c4a",
-  type: "area", hidden: true, archived: true, description: "Alles rund ums Haus",
+  type: "project", hidden: true, archived: true, description: "Alles rund ums Haus",
 };
 
 /** Frontmatter-Wert holen, egal ob der Schlüssel konfiguriert wurde. */
@@ -82,13 +82,20 @@ describe("Aufgabe → Export → Frontmatter", () => {
 describe("Liste → Export → Frontmatter", () => {
   it("bringt Symbol, Beschreibung und Ausgeblendet mit (neu in v3)", () => {
     const el = toExportList(LISTE);
-    expect(el).toEqual({ name: "Haus", type: "area", color: "#e05c4a", archived: true, icon: "home", description: "Alles rund ums Haus", hidden: true });
+    expect(el).toEqual({ name: "Haus", type: "project", color: "#e05c4a", archived: true, icon: "home", description: "Alles rund ums Haus", hidden: true });
     const fm = importedListFrontmatter(el, "type");
-    expect(fm.type).toBe("area");
+    expect(fm.type).toBe("project");
     expect(fm.icon).toBe("home");
     expect(fm.description).toBe("Alles rund ums Haus");
     expect(fm.nav_hidden).toBe(true);
     expect(fm.status).toBe("archived");
+  });
+
+  it("exportiert BERECHNETE Symbole nicht – sonst entstuende beim Import eines aus dem Nichts", () => {
+    // Bereiche bekommen im Modell immer „circle-small", Projekte ohne eigenes Symbol „folder".
+    expect(toExportList({ ...LISTE, type: "area", icon: "circle-small" }).icon).toBeNull();
+    expect(toExportList({ ...LISTE, icon: "folder" }).icon).toBeNull();
+    expect(toExportList({ ...LISTE, icon: "sprout" }).icon).toBe("sprout");   // selbst gesetzt bleibt
   });
 
   it("schreibt keine leeren Felder", () => {
