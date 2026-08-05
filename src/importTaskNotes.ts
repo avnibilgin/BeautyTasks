@@ -6,7 +6,7 @@ import { App, Modal, Notice, Setting, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Priority } from "./types";
 import { ExportList, ExportTask, makeImportData, importData } from "./importExport";
-import { firstOpenStatus, firstDoneStatus, isDone, isKnownStatus } from "./statuses";
+import { firstOpenStatus, firstDoneStatus, isDone, isTrashed, isKnownStatus } from "./statuses";
 import { todayIso } from "./taskService";
 import { t } from "./i18n";
 
@@ -134,6 +134,13 @@ async function buildImportData(app: App, files: { file: TFile; fm: Record<string
     let completed: string | null = null;
     if (completedRaw) { status = firstDoneStatus(); completed = completedRaw; }
     else if (isDone(status)) { completed = asStr(get("dateModified")).trim() || todayIso(); }
+    // Abgebrochene brauchen ihren Stempel genauso: Der Papierkorb sortiert absteigend danach, und
+    // ohne Wert landet die Aufgabe an seinem ENDE — nach einem großen Import also unauffindbar.
+    // TaskNotes führt kein eigenes Abbruch-Datum, deshalb dieselbe Ersatzregel wie oben bei
+    // `completed`: zuletzt geändert, sonst heute. Genauer geht es mit den Quelldaten nicht.
+    const cancelled: string | null = isTrashed(status)
+      ? (asStr(get("dateModified")).trim() || todayIso())
+      : null;
 
     // Datumsfelder
     const due = splitDT(get("due"));
@@ -162,7 +169,7 @@ async function buildImportData(app: App, files: { file: TFile; fm: Record<string
       duration: numOrNull(get("timeEstimate")), start: null,
       project, parent: null, labels, recurrence: rec.recurrence, recurBasis: "due",
       reminders: [], created: (asStr(get("dateCreated")).trim() || todayIso()).slice(0, 10),
-      completed, cancelled: null, description: body,
+      completed, cancelled, description: body,
     });
   }
   return { tasks, lists: [...listByKey.values()], labels: [...labelSet], lossy };
