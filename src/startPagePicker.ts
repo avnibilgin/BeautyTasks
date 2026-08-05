@@ -25,8 +25,17 @@ export interface StartPageOption {
 }
 
 /** Alles, was man als Startseite wählen kann – in derselben Reihenfolge wie die Seitenleiste.
- *  Ausgeblendete und archivierte Einträge fehlen: Was in der Nav nicht auftaucht, taugt nicht
- *  als Startseite. Verwaltungsseiten fehlen ebenfalls – sie zeigen keine Aufgaben. */
+ *
+ *  **Ausgeblendete Einträge sind dabei**, gekennzeichnet. „Aus der Seitenleiste ausblenden" heißt
+ *  „nicht im Weg", nicht „gibt es nicht": Die Seite lässt sich weiter über die Verwaltung öffnen,
+ *  und wer sie ausblendet, während sie seine Startseite ist, soll sie behalten dürfen. Fehlten sie
+ *  hier, widerspräche die Liste außerdem `pageExists` – dort gelten sie als vorhanden.
+ *
+ *  ARCHIVIERTE fehlen (`listProjectsAndAreas` liefert sie gar nicht erst): Ein abgelegtes Projekt
+ *  als Startseite wäre ein Widerspruch. Wird die Startseite archiviert, greift der Rückfall auf
+ *  „Heute" samt Hinweis in den Einstellungen.
+ *
+ *  Verwaltungsseiten fehlen ebenfalls – sie zeigen keine Aufgaben. */
 export function listStartPages(plugin: BeautyTasksPlugin): StartPageOption[] {
   const out: StartPageOption[] = [
     { value: "last", label: t("set_start_view_last"), icon: "history", kind: "" },
@@ -35,26 +44,34 @@ export function listStartPages(plugin: BeautyTasksPlugin): StartPageOption[] {
   for (const id of VIEW_IDS) {
     out.push({ value: { kind: "view", key: id }, label: viewTitle(id), icon: VIEW_ICON[id], kind: t("kind_view") });
   }
+  /** Art-Kennzeichen, bei ausgeblendeten Einträgen ergänzt. */
+  const art = (basis: string, hidden: boolean): string => hidden ? basis + " · " + t("start_page_hidden") : basis;
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  for (const a of bereiche) if (!a.hidden) out.push({ value: { kind: "project", key: a.path }, label: a.name, icon: a.icon || "folder", kind: t("kind_area") });
-  for (const p of projekte) if (!p.hidden) out.push({ value: { kind: "project", key: p.path }, label: p.name, icon: p.icon || "hash", kind: t("kind_project") });
+  for (const a of bereiche) out.push({ value: { kind: "project", key: a.path }, label: a.name, icon: a.icon || "folder", kind: art(t("kind_area"), a.hidden) });
+  for (const p of projekte) out.push({ value: { kind: "project", key: p.path }, label: p.name, icon: p.icon || "hash", kind: art(t("kind_project"), p.hidden) });
   for (const fl of plugin.sortFilters(listFilters(plugin.app))) {
-    if (!fl.hidden) out.push({ value: { kind: "filter", key: fl.path }, label: fl.name, icon: fl.icon || "filter", kind: t("kind_filter") });
+    out.push({ value: { kind: "filter", key: fl.path }, label: fl.name, icon: fl.icon || "filter", kind: art(t("kind_filter"), fl.hidden) });
   }
-  for (const name of plugin.getVisibleLabels()) {
-    out.push({ value: { kind: "label", key: name }, label: name, icon: "hash", kind: t("kind_label") });
+  for (const l of plugin.getLabels()) {
+    out.push({ value: { kind: "label", key: l.name }, label: l.name, icon: "hash", kind: art(t("kind_label"), !plugin.isLabelVisible(l.name)) });
   }
   return out;
 }
 
-/** Beschriftung der aktuellen Wahl für die Einstellungszeile. `missing` = Ziel gibt es nicht mehr. */
+/**
+ * Beschriftung der aktuellen Wahl für die Einstellungszeile.
+ *
+ * `missing` kommt aus `pageExists` und NICHT daraus, ob die Auswahlliste einen Treffer hat: Beides
+ * auseinanderlaufen zu lassen war ein Fehler – ein ausgeblendetes Projekt fehlte in der Liste,
+ * galt aber als vorhanden, und die Zeile behauptete fälschlich, es gäbe die Seite nicht mehr.
+ */
 export function startPageLabel(plugin: BeautyTasksPlugin, setting: StartPage | undefined | null):
   { label: string; icon: string; missing: boolean } {
   if (setting === "last") return { label: t("set_start_view_last"), icon: "history", missing: false };
-  const hit = isRef(setting) ? listStartPages(plugin).find((o) => isRef(o.value) && samePageValue(o.value, setting)) : undefined;
-  if (hit) return { label: hit.label, icon: hit.icon, missing: false };
-  if (isRef(setting)) return { label: setting.key, icon: "alert-triangle", missing: true };
-  return { label: viewTitle("heute"), icon: VIEW_ICON.heute, missing: false };
+  if (!isRef(setting)) return { label: viewTitle("heute"), icon: VIEW_ICON.heute, missing: false };
+  if (!plugin.pageExists(setting)) return { label: setting.key, icon: "alert-triangle", missing: true };
+  const hit = listStartPages(plugin).find((o) => isRef(o.value) && samePageValue(o.value, setting));
+  return { label: hit?.label ?? setting.key, icon: hit?.icon ?? "file", missing: false };
 }
 
 const samePageValue = (a: PageRef, b: PageRef): boolean => a.kind === b.kind && a.key === b.key;

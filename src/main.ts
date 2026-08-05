@@ -280,7 +280,9 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Gibt es diese Seite noch? Verhindert, dass eine gelöschte Startseite ins Leere führt. */
   pageExists(page: PageRef): boolean {
     if (page.kind === "view") return (VIEW_IDS as string[]).includes(page.key);
-    if (page.kind === "label") return this.getVisibleLabels().includes(page.key);
+    // Auch AUSGEBLENDETE Labels gelten als vorhanden – sie sind wählbar (s. listStartPages)
+    // und dürfen als Startseite nicht plötzlich als gelöscht gelten.
+    if (page.kind === "label") return this.getLabels().some((l) => l.name === page.key);
     if (page.kind === "filter") return listFilters(this.app).some((f) => f.path === page.key);
     if (page.kind === "project") {
       if (page.key === INBOX_KEY) return true;
