@@ -2009,7 +2009,7 @@ export class MainView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, private plugin: BeautyTasksPlugin) {
     super(leaf);
-    this.page = { kind: "view", key: plugin.startView() };
+    this.page = plugin.newTabStartPage();
   }
   getViewType(): string { return VIEW_MAIN; }
 
