@@ -159,7 +159,6 @@ export interface BeautyTasksSettings {
   fieldNames?: Partial<Record<import("./fieldNames").FieldId, string>>;   // eigene Namen für `type`/`title` (s. fieldNames.ts)
   chipsIconsOnly: boolean;         // In der Aufgaben-Maske nur die Chip-Icons zeigen (ohne Text)
   chipProfiles?: Partial<Record<ChipSurface, ChipProfile>>;   // Chip-Konfiguration je Fläche (Editor/Schnelleingabe)
-  boardLayout: "list" | "board";   // Projekt-/Label-Boards als Liste oder Kanban (Spalten = Status)
   boardColumnOrder?: Record<string, string[]>;   // manuelle Kanban-Spalten-Reihenfolge je Gruppierung (status/label/project); board-eigen, entkoppelt von der Sidebar
   statuses?: StoredStatus[];        // user-definierbare Status (undefined = eingebaute Defaults, siehe statuses.ts)
   pageViewOptions?: Record<string, Partial<import("./filterEngine").ViewOptions>>;   // Anzeige-Optionen für System-Views (key=ViewId) und Labels (key="label:<name>"); Notiz-Seiten speichern im Frontmatter
@@ -179,6 +178,26 @@ export interface BeautyTasksSettings {
   gcalFeed?: import("./gcalFeed").GCalFeedSettings;   // Google-Termine ANZEIGEN (read-only, getrennt vom Sync)
 }
 
+/**
+ * Standardwerte. **Was hier steht, wird NICHT mehr in data.json geschrieben, solange der Nutzer
+ * es nicht ändert** (s. settingsDelta.ts). Daraus folgt eine Regel:
+ *
+ *   Einen Standardwert, den Nutzer über die Einstellungen bewusst AUSWÄHLEN können, ändern wir
+ *   nicht mehr. Denn „bewusst auf den Standard gestellt" und „nie angefasst" sehen in der Datei
+ *   gleich aus — eine Änderung hier verschöbe also auch die Wahl derer, die sich entschieden
+ *   hatten. Betroffen sind startView, metaTheme, die vier font*Pct, die Schalter und die
+ *   Ordnernamen.
+ *
+ *   Muss ein solcher Wert doch einmal wandern, bekommt GENAU DIESE Einstellung im selben Zug
+ *   einen „automatisch"-Wert, wie ihn `locale` schon hat: Dann heißt der gespeicherte Wert
+ *   ausdrücklich „ich habe gewählt" und der fehlende „entscheide du".
+ *
+ * Werte OHNE Bedienung (Sammlungen wie knownLabels, interne Marker) sind davon nicht betroffen —
+ * dort kann niemand „zufällig den Standard" gewählt haben.
+ *
+ * `statuses` und `fieldNames` gehören ebenfalls zu den Standardwerten, stehen aber in
+ * settingsDelta.ts: types.ts darf statuses.ts nicht importieren (Zirkelbezug).
+ */
 export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   itemsFolder: "BeautyTasks/Items",
   projectsFolder: "BeautyTasks/Projects",
@@ -201,7 +220,6 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   showUnfiledInInbox: true,
   excludeFolders: [],
   chipsIconsOnly: false,
-  boardLayout: "list",
   didInitialSetup: false,
 };
 
