@@ -156,6 +156,38 @@ describe("abgelöste Schlüssel aus früheren Fassungen", () => {
 });
 
 describe("Standardwerte bleiben unberührt", () => {
+  // Die REGRESSION aus 1.37.3, gefunden im Vault-Test: Sammlungen, die in der Datei fehlen (weil
+  // sie dem Standard gleichen), zeigten auf dasselbe Objekt wie der Standard. Wer das erste Label
+  // anlegte, veränderte damit den Standard – und `toDelta` verglich gegen genau dieses veränderte
+  // Objekt, fand Gleichheit und warf das Label weg. Es verschwand beim Neustart.
+  it("ein hinzugefügtes Label wird gespeichert, auch wenn die Liste vorher leer war", () => {
+    const s = geladen({});
+    s.knownLabels.push("ui");
+    expect(toDelta(s).knownLabels).toEqual(["ui"]);
+  });
+
+  it("und verändert dabei NICHT den Standard für alle anderen", () => {
+    const a = geladen({});
+    a.knownLabels.push("ui");
+    expect(geladen({}).knownLabels).toEqual([]);
+    expect(EFFECTIVE_DEFAULTS.knownLabels).toEqual([]);
+  });
+
+  it("gilt für JEDE veränderliche Sammlung, nicht nur die, die mir einfielen", () => {
+    for (const key of ["knownLabels", "visibleLabels", "excludeFolders"] as const) {
+      const s = geladen({});
+      (s[key] as string[]).push("x");
+      expect(toDelta(s)[key], key).toEqual(["x"]);
+      expect((geladen({})[key] as string[]).length, key + " (Standard unberührt)").toBe(0);
+    }
+    for (const key of ["labelColors", "metaColors"] as const) {
+      const s = geladen({});
+      (s[key] as Record<string, string>).a = "#fff";
+      expect(toDelta(s)[key], key).toEqual({ a: "#fff" });
+      expect(Object.keys(geladen({})[key] as object).length, key + " (Standard unberührt)").toBe(0);
+    }
+  });
+
   it("geladene Einstellungen teilen keine Objekte mit den Standardwerten", () => {
     const a = geladen({}), b = geladen({});
     expect(a.statuses).not.toBe(EFFECTIVE_DEFAULTS.statuses);
