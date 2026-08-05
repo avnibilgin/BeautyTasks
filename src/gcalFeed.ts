@@ -56,15 +56,37 @@ export const DEFAULT_GCAL_FEED_SETTINGS: GCalFeedSettings = {
 };
 
 /**
- * Farbe eines Termins. Eine am EINZELNEN Termin gesetzte `colorId` schlägt die Farbe des
- * Kalenders — so hält Google es auch. Der Normalfall ist „keine colorId": dann gilt weiter die
+ * Farbe eines Termins. Eine am EINZELNEN Termin gesetzte Farbe schlägt die Farbe des Kalenders —
+ * so hält Google es auch. Der Normalfall ist „keine eigene Farbe": dann gilt weiter die
  * Kalenderfarbe, und für die allermeisten Termine ändert sich damit nichts.
+ *
+ * Google führt die Termin-Farbe in ZWEI Feldern, und das ist keine Doppelung, sondern zwei
+ * Generationen derselben Sache:
+ *
+ *   `colorId`       – die elf alten Festfarben, Nummern 1–11, global über `/colors`.
+ *   `eventLabelId`  – seit der Farb-Erweiterung im Juni 2026: eine UUID auf ein Label des
+ *                     KALENDERS (`labelProperties.eventLabels`, bis zu 200 je Kalender, jedes mit
+ *                     eigenem `backgroundColor`). Die 24 Standardfarben der Oberfläche sind
+ *                     ebenfalls solche Labels.
+ *
+ * Entscheidend: Wählt man in Google eine Farbe der neuen Palette, LÖSCHT Google `colorId` und
+ * setzt `eventLabelId`. Wer nur `colorId` liest, sieht bei jeder neuen Farbe gar nichts und färbt
+ * still nach Kalender — genau das war der Fehler, der am 2026-08-05 am echten Konto auffiel.
+ * Deshalb hat das Label Vorrang: es ist das neuere und genauere Feld.
  *
  * Unbekannte oder unbrauchbare Werte fallen auf die Kalenderfarbe zurück statt auf nichts: Eine
  * Palette, die (z. B. offline) nicht geladen werden konnte, darf keine farblosen Balken erzeugen.
  */
-export function eventColor(colorId: unknown, palette: Record<string, string>, calColor: string): string {
-  return (typeof colorId === "string" ? palette[colorId] : undefined) ?? calColor;
+export function eventColor(
+  labelId: unknown,
+  colorId: unknown,
+  labels: Record<string, string>,
+  palette: Record<string, string>,
+  calColor: string,
+): string {
+  const von = (v: unknown, m: Record<string, string>): string | undefined =>
+    (typeof v === "string" ? m[v] : undefined);
+  return von(labelId, labels) ?? von(colorId, palette) ?? calColor;
 }
 
 /** Was die Engine vom Plugin braucht (klein gehalten → testbar/entkoppelt). */
@@ -138,6 +160,7 @@ export class GCalFeed {
   private wanted = new Set<string>();                 // Monate, die die Views gerade brauchen
   private cals: CalendarInfo[] | null = null;         // calendarList (Farben/Namen), einmal geholt
   private palette: Record<string, string> | null = null;   // /colors -> Farbe je colorId, einmal geholt
+  private labels = new Map<string, Record<string, string>>();  // calId -> Farbe je eventLabelId
   private cbs = new Set<() => void>();
   private pollTimer: number | null = null;
   private running = false;
@@ -240,6 +263,8 @@ export class GCalFeed {
   async clear(): Promise<void> {
     this.store.clear();
     this.fetched.clear();
+    this.labels.clear();
+    this.palette = null;
     this.status = { loading: false, error: null, lastLoadedAt: null };
     await this.host.setSnapshot([]);
     this.emit();
@@ -308,9 +333,16 @@ export class GCalFeed {
 
     const color = await this.colorOf(calId);
     const palette = await this.eventPalette();
+    let labels = await this.eventLabels(calId);
+    // Eine neue Farbe in Google ist ein neues Label. Trägt ein Termin eine ID, die wir nicht
+    // kennen, ist unsere Liste veraltet – dann einmal je Abruf nachladen, statt bis zum nächsten
+    // Neustart die Kalenderfarbe zu zeigen.
+    if (items.some((raw) => typeof raw.eventLabelId === "string" && !labels[raw.eventLabelId])) {
+      labels = await this.eventLabels(calId, true);
+    }
     const mapped: CalEvent[] = [];
     for (const raw of items) {
-      const ev = this.mapEvent(raw, calId, color, palette);
+      const ev = this.mapEvent(raw, calId, color, palette, labels);
       if (ev) mapped.push(ev);
     }
     this.replaceRange(calId, fromDay, toDay, mapped);
@@ -338,6 +370,33 @@ export class GCalFeed {
     return this.palette;
   }
 
+  /**
+   * Die Farb-Labels EINES Kalenders (`labelProperties.eventLabels`, s. `eventColor`). Sie hängen am
+   * Kalender, nicht global, und stehen nur in `calendars.get` – die `calendarList` führt das Feld
+   * nicht. Ein Aufruf je Kalender und Sitzung, `force` nur beim Treffer auf eine unbekannte ID.
+   *
+   * Schlägt der Abruf fehl, bleibt die zuletzt bekannte Liste stehen (sonst verlöre ein einzelner
+   * Netzfehler die Farben aller Termine); beim ersten Mal ist das eine leere Liste, und dann gilt
+   * wieder `colorId` bzw. die Kalenderfarbe – also das Verhalten von vorher.
+   */
+  private async eventLabels(calId: string, force = false): Promise<Record<string, string>> {
+    const known = this.labels.get(calId);
+    if (known && !force) return known;
+    try {
+      const res = await gcalRequest(this.auth, "GET", `/calendars/${enc(calId)}`);
+      const list = (res.json?.labelProperties as { eventLabels?: { id?: string; backgroundColor?: string }[] } | undefined)
+        ?.eventLabels ?? [];
+      const out: Record<string, string> = {};
+      for (const l of list) if (l?.id && l.backgroundColor) out[l.id] = l.backgroundColor;
+      this.labels.set(calId, out);
+      return out;
+    } catch {
+      const fallback = known ?? {};
+      this.labels.set(calId, fallback);
+      return fallback;
+    }
+  }
+
   private async colorOf(calId: string): Promise<string> {
     try {
       if (!this.cals) await this.calendarList();
@@ -346,7 +405,8 @@ export class GCalFeed {
   }
 
   private mapEvent(
-    raw: Record<string, unknown>, calId: string, calColor: string, palette: Record<string, string>,
+    raw: Record<string, unknown>, calId: string, calColor: string,
+    palette: Record<string, string>, labels: Record<string, string>,
   ): CalEvent | null {
     if (raw.status === "cancelled") return null;
     if (this.host.settings.hideDeclined && isDeclined(raw)) return null;
@@ -368,7 +428,7 @@ export class GCalFeed {
       start: s,
       end: e,
       allDay,
-      color: eventColor(raw.colorId, palette, calColor),
+      color: eventColor(raw.eventLabelId, raw.colorId, labels, palette, calColor),
       htmlLink: (raw.htmlLink as string) ?? "",
       location: (raw.location as string) || undefined,
     };
