@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
+import { Plugin, Notice, TFile, TAbstractFile, WorkspaceLeaf, WorkspaceParent, PaneType, Platform, moment, setIcon, addIcon } from "obsidian";
 import { BeautyTasksSettings, Task, TaskStatus, Priority, StoredStatus, StatusKind, NavSection, NavSortMode, ChipId, ChipTier, CalEvent, DeviceState, DEFAULT_DEVICE_STATE } from "./types";
 import { isDone, initStatuses, ensureStatusInvariants, firstOpenStatus, firstDoneStatus, firstCancelledStatus, isTrashed, DEFAULT_STATUSES, statusLabel } from "./statuses";
 import { schemaVersionOf, pendingSteps, nextSchemaVersion } from "./schema";
@@ -11,6 +11,7 @@ import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
 } from "./heuteView";
 import { PageRef, pageInfo, samePage } from "./pageCtx";
+import { activePlanTabs, pageNoteFile, openDailyNote } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
@@ -361,18 +362,23 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   /**
-   * Planungs-Split: dieselbe Seite links als Liste, rechts als Kalender.
+   * Planungs-Split: dieselbe Seite links als Liste, rechts das, was in den Einstellungen
+   * eingeschaltet ist – Kalender, Projektnotiz, Tagesnotiz (s. planTabs.ts).
    *
    * Warum ein Befehl und nicht „mach dir zwei Tabs auf": Planen ist EINE Bewegung – sehen, was zu
    * tun ist, und entscheiden, wann. Erst nebeneinander lässt sich eine Zeile in einen Tag ziehen,
    * statt sie über den Datumswähler zu terminieren. Dass niemand sich diese Anordnung von Hand
    * zusammensetzt, ist der eigentliche Grund für den Befehl.
    *
-   * Das Layout wird NUR am jeweiligen Tab gesetzt (useLayout), nicht als Seiten-Standard: Der
+   * Das Layout wird NUR am jeweiligen Tab gesetzt (useLocal), nicht als Seiten-Standard: Der
    * Split ist eine Anordnung für jetzt, keine Aussage darüber, wie das Projekt künftig aussehen
    * soll – sonst stünde es beim nächsten Öffnen unversehens im Kalender.
    *
-   * Mobil kennt keine sinnvollen Splits (und keinen HTML5-Zug): dort wird daraus ein zweiter Tab.
+   * Die Notiz-Hälften sind bewusst ECHTE Markdown-Tabs und kein eingebauter Betrachter: Damit
+   * gibt es Live-Vorschau, Bearbeiten, Einbettungen und Rückverweise geschenkt, und der Tab
+   * gehört sichtbar dem Nutzer – er kann ihn schließen, anpinnen oder wegziehen.
+   *
+   * Mobil kennt keine sinnvollen Splits (und keinen HTML5-Zug): dort werden daraus Reiter.
    */
   async openPlanSplit(page?: PageRef): Promise<void> {
     const wanted = page ?? this.activeMain()?.page;
@@ -381,49 +387,151 @@ export default class BeautyTasksPlugin extends Plugin {
     // (der Eintrag fehlt dort), über die Befehlspalette schon: dann wird die Startansicht geplant.
     const target: PageRef = wanted && pageInfo(wanted).tier !== "none"
       ? wanted : this.newTabStartPage();
-    // Steht schon ein Planungs-Split? Dann DIESE beiden Tabs weiterverwenden statt neben ihnen
-    // einen weiteren aufzumachen: „Planen" für eine andere Seite ersetzt die Anordnung, es legt
-    // keine zweite an. Ohne das wuchs die Zahl der Ansichten mit jedem Aufruf (Heute-Liste blieb
-    // links stehen, rechts daneben kamen Liste UND Kalender des Projekts).
+    const roles = activePlanTabs(this.app, this.settings, target);
+
+    // Steht schon ein Planungs-Split? Dann DIESE Tabs weiterverwenden statt neben ihnen weitere
+    // aufzumachen: „Planen" für eine andere Seite ersetzt die Anordnung, es legt keine zweite an.
+    // Ohne das wuchs die Zahl der Ansichten mit jedem Aufruf.
     const open = this.mainViews();
     const known = (role: "list" | "calendar"): MainView | null => open.find((v) => v.planRole === role) ?? null;
 
     // Die Listen-Hälfte: die bekannte, sonst schlicht der Tab, in dem man gerade steht.
     //
     // Bewusst OHNE Vorbehalt gegen die Kalender-Hälfte: Wer sie vor sich hat und „Planen" ruft,
-    // bekommt sie als Liste und den Kalender frisch daneben – zwei Ansichten. Ein NEUER Tab
-    // stattdessen ergäbe eine dritte, und genau das soll der Befehl nicht tun. Ein Tab entsteht
-    // deshalb nur, wenn es überhaupt kein Dashboard gibt.
+    // bekommt sie als Liste und den Rest frisch daneben. Ein NEUER Tab stattdessen ergäbe eine
+    // dritte Ansicht, und genau das soll der Befehl nicht tun. Ein Tab entsteht deshalb nur,
+    // wenn es überhaupt kein Dashboard gibt.
     let left = known("list") ?? this.activeMain();
     if (left) left.openPage(target);
     else left = await this.openPage(target, "tab");
-    // Vor dem Abspalten den Fokus auf die Liste legen – nur so entsteht der neue Tab NEBEN ihr
-    // und nicht neben irgendeinem anderen, der zufällig zuletzt aktiv war.
-    if (left) this.focusMain(left);
+    if (!left) return;
+    // Vor dem Abspalten den Fokus auf die Liste legen – nur so entsteht der neue Bereich NEBEN
+    // ihr und nicht neben irgendeinem anderen, der zufällig zuletzt aktiv war.
+    this.focusMain(left);
+
+    const home = left.leaf.parent;
+    // Auf Mobil gibt es keine Splits: dort ist die „rechte Gruppe" dieselbe Gruppe, und die
+    // Hälften sind Reiter nebeneinander.
+    const mobil = Platform.isMobile;
 
     // Die Kalender-Hälfte weiterverwenden – aber nur, wenn sie das überhaupt sein KANN:
     //  • nicht derselbe Tab, der oben schon zur Liste wurde,
-    //  • und nicht in derselben Tab-Gruppe wie die Liste. Die Rolle sagt, WOZU ein Tab gehört,
-    //    nicht WO er liegt; ein Kalender-Tab neben der Liste in derselben Gruppe ist ein Reiter
-    //    HINTER ihr und kein Split. Dann gibt er seine Rolle ab und es wird wirklich abgespalten.
-    // (Auf Mobil gibt es bewusst keine Splits – dort ist der Reiter der Normalfall.)
-    let right = known("calendar");
-    if (right === left) right = null;
-    if (!Platform.isMobile && right && left && right.leaf.parent === left.leaf.parent) {
-      right.planRole = null;
-      right = null;
-    }
-    if (right) right.openPage(target); else right = await this.openPage(target, Platform.isMobile ? "tab" : "split");
+    //  • und (auf dem Desktop) nicht in derselben Tab-Gruppe wie die Liste. Die Rolle sagt, WOZU
+    //    ein Tab gehört, nicht WO er liegt; ein Kalender-Tab neben der Liste in derselben Gruppe
+    //    ist ein Reiter HINTER ihr und kein Split. Dann gibt er seine Rolle ab.
+    let cal = known("calendar");
+    if (cal === left) cal = null;
+    if (!mobil && cal && cal.leaf.parent === home) { cal.planRole = null; cal = null; }
 
-    left?.useLocal({ layout: "list" }, "list");
-    // Seitenspalte („Nicht terminiert") zu: Der Split halbiert die Breite, und ihre Aufgabe
-    // erfüllt hier die LISTE links – sie ist die Quelle, aus der man ins Raster zieht. Offen
-    // bliebe ein zweiter Vorrat, der dem Kalender genau den Platz nimmt, für den man geteilt hat.
-    // Nur für diesen Tab: der Seiten-Standard („offen") gilt beim normalen Öffnen weiter.
-    right?.useLocal({ layout: "calendar", calPanel: false }, "calendar");
+    // ── Die rechte Gruppe wiederfinden ──
+    // Erst über den Kalender-Tab (der trägt eine Rolle). Gibt es keinen – weil er abgeschaltet
+    // ist –, über die Dateien, die die Liste sich gemerkt hat: Ein MarkdownView kann keine
+    // planRole tragen, deshalb ist ihr Pfad der einzige Anker, den wir haben.
+    let group: WorkspaceParent | null = mobil ? home : (cal?.leaf.parent ?? null);
+    if (!group) {
+      for (const path of Object.values(left.planMates ?? {})) {
+        const mate = path ? this.leafShowing(path) : null;
+        if (mate && (mobil || mate.parent !== home)) { group = mate.parent; break; }
+      }
+    }
+    let anchor: WorkspaceLeaf | null = mobil ? left.leaf : (cal?.leaf ?? null);
+    if (!anchor && group) anchor = this.leavesIn(group)[0] ?? null;
+
+    /** Einen weiteren Tab in der rechten Gruppe erzeugen – bzw. sie überhaupt erst abspalten. */
+    const nextLeaf = (): WorkspaceLeaf => {
+      if (anchor) {
+        // Ohne diesen Fokuswechsel landete der neue Reiter neben der LISTE statt drüben.
+        this.app.workspace.setActiveLeaf(anchor, { focus: false });
+        return this.app.workspace.getLeaf("tab");
+      }
+      this.focusMain(left);
+      return this.app.workspace.getLeaf(mobil ? "tab" : "split");
+    };
+
+    const mates: Partial<Record<"note" | "daily", string>> = {};
+    const placed: WorkspaceLeaf[] = [];
+
+    for (const role of roles) {
+      if (role === "calendar") {
+        let view = cal;
+        if (view) view.openPage(target);
+        else {
+          const leaf = nextLeaf();
+          await leaf.setViewState({ type: VIEW_MAIN, active: true, state: { kind: target.kind, key: target.key } });
+          view = leaf.view instanceof MainView ? leaf.view : null;
+        }
+        if (!view) continue;
+        // Seitenspalte („Nicht terminiert") zu: Der Split halbiert die Breite, und ihre Aufgabe
+        // erfüllt hier die LISTE links – sie ist die Quelle, aus der man ins Raster zieht. Offen
+        // bliebe ein zweiter Vorrat, der dem Kalender den Platz nimmt, für den man geteilt hat.
+        // Nur für diesen Tab: der Seiten-Standard („offen") gilt beim normalen Öffnen weiter.
+        view.useLocal({ layout: "calendar", calPanel: false }, "calendar");
+        cal = view;
+        placed.push(view.leaf);
+        anchor ??= view.leaf;
+        group ??= view.leaf.parent;
+        continue;
+      }
+
+      // ── Notiz-Hälften ──
+      // Einen vorhandenen Tab NUR weiterverwenden, wenn dort noch genau die Datei steht, die wir
+      // hingelegt haben. Ist der Nutzer von dort einem Link gefolgt oder hat er den Tab
+      // angepinnt, gehört er ihm – dann wird er nicht überschrieben, sondern danebengelegt.
+      const remembered = left.planMates?.[role];
+      const reuse = remembered ? this.leafShowing(remembered, group) : null;
+      const leaf = (reuse && !reuse.getViewState().pinned) ? reuse : nextLeaf();
+      const fresh = leaf !== reuse;
+
+      let ok = false;
+      if (role === "note") {
+        const file = pageNoteFile(this.app, target);
+        if (file) { await leaf.openFile(file); ok = true; }
+      } else {
+        ok = await openDailyNote(this.app, leaf);
+      }
+      if (!ok) {
+        // Nichts zu öffnen (Tagesnotiz ließ sich nicht anlegen): einen gerade erst erzeugten,
+        // leeren Tab wieder wegräumen statt ihn stehen zu lassen.
+        if (fresh) leaf.detach();
+        continue;
+      }
+      const shown = (leaf.getViewState().state as { file?: unknown } | undefined)?.file;
+      if (typeof shown === "string") mates[role] = shown;
+      placed.push(leaf);
+      anchor ??= leaf;
+      group ??= leaf.parent;
+    }
+
+    left.planMates = Object.keys(mates).length ? mates : null;
+    left.useLocal({ layout: "list" }, "list");
+    // Vorn liegt der ERSTE eingeschaltete Eintrag: Die Reihenfolge in den Einstellungen IST die
+    // Rangfolge (s. planTabs.ts). Ohne das läge der zuletzt erzeugte Tab vorn – bei „Kalender +
+    // Notiz" also die Notiz, und der Kalender, für den man geteilt hat, wäre unsichtbar.
+    if (placed[0]) await this.app.workspace.revealLeaf(placed[0]);
     // Fokus zurück auf die Liste: Sie ist die Quelle des Zugs und die Seite, auf der man arbeitet.
-    // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste, nicht den Kalender.
-    if (left && left !== right) this.focusMain(left);
+    // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste. „Vorn" und
+    // „fokussiert" sind hier zwei verschiedene Dinge.
+    this.focusMain(left);
+  }
+
+  /** Alle Leaves einer Tab-Gruppe (Reihenfolge = Anzeige). */
+  private leavesIn(group: WorkspaceParent): WorkspaceLeaf[] {
+    const out: WorkspaceLeaf[] = [];
+    this.app.workspace.iterateAllLeaves((l) => { if (l.parent === group) out.push(l); });
+    return out;
+  }
+
+  /** Der (erste) Tab, in dem diese Datei offen steht – optional auf eine Gruppe eingegrenzt.
+   *  Über getViewState statt über den View-Typ: Es geht um den PFAD, egal ob Markdown, PDF
+   *  oder Bild – und so braucht main.ts keine Ansichtsklassen dafür zu kennen. */
+  private leafShowing(path: string, group?: WorkspaceParent | null): WorkspaceLeaf | null {
+    const out: WorkspaceLeaf[] = [];
+    this.app.workspace.iterateAllLeaves((l) => {
+      if (group && l.parent !== group) return;
+      const st = l.getViewState().state as { file?: unknown } | undefined;
+      if (st?.file === path) out.push(l);
+    });
+    return out[0] ?? null;
   }
 
   /**

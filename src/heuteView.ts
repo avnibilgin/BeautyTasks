@@ -1976,6 +1976,19 @@ let viewSeq = 0;
 const oneOfState = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : null;
 
+/** Wie oneOfState, nur für MainView.planMates: aus der Workspace-Datei kommt fremder Input,
+ *  also wird jeder Pfad einzeln geprüft. Ohne brauchbaren Eintrag: null (= nichts gemerkt). */
+function readPlanMates(v: unknown): Partial<Record<"note" | "daily", string>> | null {
+  if (!v || typeof v !== "object") return null;
+  const src = v as Record<string, unknown>;
+  const out: Partial<Record<"note" | "daily", string>> = {};
+  for (const k of ["note", "daily"] as const) {
+    const p = src[k];
+    if (typeof p === "string" && p) out[k] = p;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /**
  * Ein Dashboard-Tab. Er BESITZT seine Seite (this.page) – bis 1.33 stand die auf der Plugin-
  * Instanz, weshalb es per Konstruktion nur einen sinnvollen Tab geben konnte. Über getState/
@@ -2002,6 +2015,19 @@ export class MainView extends ItemView {
    * schickt sie beide auf die neue Seite. Wandert in getState: die Paarung übersteht den Neustart.
    */
   planRole: "list" | "calendar" | null = null;
+  /**
+   * Nur am LISTEN-Tab: welche Dateien er in der rechten Hälfte abgelegt hat (je Rolle ein Pfad).
+   *
+   * Warum das nötig ist: Die rechte Gruppe wird bisher über `planRole` des Kalender-Tabs
+   * wiedergefunden. Seit der Kalender abschaltbar ist (s. planTabs.ts), kann dort aber
+   * ausschließlich ein Markdown-Tab stehen – und ein MarkdownView kann keine Rolle tragen.
+   * Ohne diese Merkung fände „Planen" seine eigene Anordnung nicht wieder und spaltete bei
+   * jedem Aufruf eine weitere ab: genau die Regression, die `planRole` schon einmal behoben hat.
+   *
+   * Wandert in getState und übersteht damit den Neustart – die Markdown-Tabs stellt Obsidian
+   * selbst wieder her, gefunden werden sie danach über ihren Pfad.
+   */
+  planMates: Partial<Record<"note" | "daily", string>> | null = null;
   /** Umschaltbarer Unterzustand der Seite. Bewusst ein eigenes OBJEKT: der Kontext hält eine
    *  Referenz darauf und liest per Getter mit – ein Abzug wäre veraltet, sobald ein Umschalter
    *  ihn setzt und mit demselben Kontext neu zeichnet (Verwaltungs-Tabs machen genau das). */
@@ -2050,6 +2076,7 @@ export class MainView extends ItemView {
       kind: this.page.kind, key: this.page.key,
       layout: this.local.layout ?? null, calPanel: this.local.calPanel ?? null,
       doneTab: this.tab.doneTab, manageTab: this.tab.manageTab, planRole: this.planRole,
+      planMates: this.planMates,
     };
   }
 
@@ -2086,6 +2113,10 @@ export class MainView extends ItemView {
     // spaltete eine dritte Ansicht ab.
     const role = oneOfState<"list" | "calendar">(s.planRole, ["list", "calendar"]);
     if (role) this.planRole = role;
+    // Aus demselben Grund wie die Rolle nur übernehmen, wenn der Zustand wirklich etwas mitbringt:
+    // Eine gewöhnliche Navigation reicht nur {kind, key} herein und darf die Paarung nicht löschen.
+    const mates = readPlanMates(s.planMates);
+    if (mates) this.planMates = mates;
     const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
     if (done) this.tab.doneTab = done;
     const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);

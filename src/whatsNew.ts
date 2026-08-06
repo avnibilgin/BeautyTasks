@@ -19,7 +19,11 @@ export class WhatsNewModal extends Modal {
     // 1.36.2/1.37.0 sind deshalb raus: Wer jetzt 1.38 sieht, hatte den Dialog beim Sprung auf
     // 1.37.0 bereits. Die Termin-Farben stehen hier, obwohl sie aus 1.37.1 stammen – ein stiller
     // Patch zeigt kein Modal, gesehen hat sie also noch niemand.
+    //
+    // ► Beim Sprung auf 1.39.0 fliegen die beiden 1.38.0-Einträge raus (Startseite, Termin-Farben):
+    //   die hat jeder beim Sprung auf 1.38.0 bereits gesehen.
     const items: Highlight[] = [
+      { icon: "square-split-horizontal", title: t("wn_plantabs_t"), desc: t("wn_plantabs_d") },
       { icon: "home", title: t("wn_startpage_t"), desc: t("wn_startpage_d") },
       { icon: "palette", title: t("wn_evcolor_t"), desc: t("wn_evcolor_d") },
     ];
