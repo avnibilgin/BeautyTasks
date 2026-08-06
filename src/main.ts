@@ -397,7 +397,13 @@ export default class BeautyTasksPlugin extends Plugin {
     // den Weg darunter.
     const mate = where ? null : this.planNoteLeafInFocus();
     if (mate) {
+      const vorher = this.pathOf(mate);   // vor der Umstellung ablesen – danach steht dort keine Datei mehr
       await mate.setViewState({ type: VIEW_MAIN, active: true, state: { kind: page.kind, key: page.key } });
+      // Der Reiter ist ab jetzt keine Notiz-Hälfte mehr, sondern eine gewöhnliche Seite –
+      // und muss auch so aussehen. Aufgeräumt wird GENAU HIER, im Augenblick der Umstellung,
+      // statt später beim nächsten „Planen": Der Zweig, der umstellt, ist derselbe, der
+      // aufräumt, also kann nichts übersehen werden.
+      this.releasePlanTab(mate, vorher);
       await workspace.revealLeaf(mate);
       const umgestellt = mate.view instanceof MainView ? mate.view : null;
       umgestellt?.drawIfDirty();
@@ -683,6 +689,41 @@ export default class BeautyTasksPlugin extends Plugin {
    * Gesucht wird im ganzen Arbeitsbereich, nicht nur in der rechten Gruppe: Ein solcher Tab
    * kann längst woandershin gezogen worden sein.
    */
+  /**
+   * Einen Reiter aus der Planungsanordnung entlassen: Er gehört nicht mehr dazu und soll auch
+   * nicht mehr danach aussehen.
+   *
+   * Das entscheidende Stück ist `updateHeader()`. Sowohl `data-type` als auch das gezeichnete
+   * Icon werden AUSSCHLIESSLICH dort gesetzt (s. setLeafIcon). Ohne diesen Aufruf behielte der
+   * Reiter beides aus seinem früheren Leben: `data-type="markdown"` und das alte Zeichen –
+   * unsere Klasse hielte das veraltete Symbol obendrein sichtbar. Danach steht der richtige
+   * Typ dort, und das Icon kommt wie bei jedem anderen Tab aus MainView.getIcon().
+   */
+  private releasePlanTab(leaf: WorkspaceLeaf, frueherePfad: string): void {
+    const host = leaf as WorkspaceLeaf & { updateHeader?: () => void; tabHeaderEl?: HTMLElement };
+    host.tabHeaderEl?.removeClass("bt-plan-tab");
+    this.planTabIcons.delete(leaf);
+    // Auch die Merkung der Liste lösen, sonst suchte „Planen" die Notiz weiterhin hier. Der Pfad
+    // muss von AUSSEN kommen: Nach der Umstellung steht in diesem Tab keine Datei mehr, aus der
+    // er sich noch ablesen ließe.
+    const liste = this.mainViews().find((v) => v.planRole === "list");
+    if (liste?.planMates && frueherePfad) {
+      const rest: Partial<Record<"note" | "daily", string>> = {};
+      for (const rolle of ["note", "daily"] as const) {
+        const p = liste.planMates[rolle];
+        if (p && p !== frueherePfad) rest[rolle] = p;
+      }
+      liste.planMates = Object.keys(rest).length ? rest : null;
+    }
+    host.updateHeader?.();
+  }
+
+  /** Pfad der Datei, die in diesem Tab steht (leer, wenn es keine ist). */
+  private pathOf(leaf: WorkspaceLeaf): string {
+    const datei = (leaf.getViewState().state as { file?: unknown } | undefined)?.file;
+    return typeof datei === "string" ? datei : "";
+  }
+
   private clearStalePlanTabs(keep: WorkspaceLeaf[]): void {
     this.app.workspace.iterateAllLeaves((leaf) => {
       const host = leaf as WorkspaceLeaf & { updateHeader?: () => void; tabHeaderEl?: HTMLElement };
