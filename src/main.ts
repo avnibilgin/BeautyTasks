@@ -437,7 +437,14 @@ export default class BeautyTasksPlugin extends Plugin {
     let anchor: WorkspaceLeaf | null = mobil ? left.leaf : (cal?.leaf ?? null);
     if (!anchor && group) anchor = this.leavesIn(group)[0] ?? null;
 
-    /** Einen weiteren Tab in der rechten Gruppe erzeugen – bzw. sie überhaupt erst abspalten. */
+    /**
+     * Einen weiteren Tab in der rechten Gruppe erzeugen – bzw. sie überhaupt erst abspalten.
+     *
+     * `anchor` ist die EINFÜGESTELLE, nicht bloß „irgendein Tab der Gruppe": getLeaf("tab") hängt
+     * den neuen Reiter direkt HINTER den aktiven. Deshalb muss der Anker nach jedem Platzieren
+     * weiterrücken (s. unten). Blieb er stehen, landete jeder weitere Tab wieder gleich hinter
+     * dem ersten – bei drei Einträgen stand der dritte dann vor dem zweiten.
+     */
     const nextLeaf = (): WorkspaceLeaf => {
       if (anchor) {
         // Ohne diesen Fokuswechsel landete der neue Reiter neben der LISTE statt drüben.
@@ -468,7 +475,7 @@ export default class BeautyTasksPlugin extends Plugin {
         view.useLocal({ layout: "calendar", calPanel: false }, "calendar");
         cal = view;
         placed.push(view.leaf);
-        anchor ??= view.leaf;
+        anchor = view.leaf;   // Einfügestelle rückt weiter – der nächste Tab gehört DAHINTER
         group ??= view.leaf.parent;
         continue;
       }
@@ -498,7 +505,7 @@ export default class BeautyTasksPlugin extends Plugin {
       const shown = (leaf.getViewState().state as { file?: unknown } | undefined)?.file;
       if (typeof shown === "string") mates[role] = shown;
       placed.push(leaf);
-      anchor ??= leaf;
+      anchor = leaf;   // Einfügestelle rückt weiter – der nächste Tab gehört DAHINTER
       group ??= leaf.parent;
     }
 
