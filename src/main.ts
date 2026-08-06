@@ -497,9 +497,17 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!group) {
       for (const path of Object.values(left.planMates ?? {})) {
         const mate = path ? this.leafShowing(path) : null;
-        if (mate && (mobil || mate.parent !== home)) { group = mate.parent; break; }
+        // Nur im selben Wurzelbereich wie die Liste: Steht dieselbe Notiz zufällig in einer
+        // Seitenleiste oder einem anderen Fenster, wäre das keine Planungshälfte – die
+        // Anordnung würde dorthin abwandern.
+        if (!mate || mate.getRoot() !== left.leaf.getRoot()) continue;
+        if (mobil || mate.parent !== home) { group = mate.parent; break; }
       }
     }
+    // Letzte Zusicherung vor der Benutzung: Die rechte Gruppe ist niemals die der Liste. Eine
+    // veraltete Merkung oder ein Sonderfall darf nicht dazu führen, dass „drüben" und „hier"
+    // dasselbe sind – dann entstünde statt eines Splits eine Spalte mit vier Reitern.
+    if (!mobil && group === home) group = null;
     let anchor: WorkspaceLeaf | null = mobil ? left.leaf : (cal?.leaf ?? null);
     if (!anchor && group) anchor = this.leavesIn(group)[0] ?? null;
 
@@ -512,7 +520,19 @@ export default class BeautyTasksPlugin extends Plugin {
      * dem ersten – bei drei Einträgen stand der dritte dann vor dem zweiten.
      */
     const nextLeaf = (): WorkspaceLeaf => {
-      if (anchor) {
+      // Zusicherung, JEDES MAL neu geprüft: Der Anker darf nicht in der Gruppe der Liste liegen.
+      //
+      // Sonst hängt getLeaf("tab") den neuen Reiter NEBEN die Liste statt drüben – und aus dem
+      // Split wird eine einzige Spalte, in der die Liste hinter den neuen Reitern verschwindet.
+      // Genau das passierte, wenn man die rechte Hälfte komplett zuklickte (die leere Gruppe
+      // räumt Obsidian ab) und danach erneut „Planen" rief: Übrig blieb nur noch die Gruppe der
+      // Liste, und die wurde zur Anlaufstelle.
+      //
+      // Die Prüfung steht hier und nicht bei der Gruppensuche, weil sie hier WIRKT: Woher der
+      // Anker stammt, ist egal – er muss in diesem Augenblick drüben liegen, sonst wird
+      // abgespalten. Auf Mobil gibt es keine Splits, dort ist der Reiter nebenan der Normalfall.
+      const brauchbar = anchor && (mobil || anchor.parent !== left.leaf.parent);
+      if (anchor && brauchbar) {
         // Ohne diesen Fokuswechsel landete der neue Reiter neben der LISTE statt drüben.
         this.app.workspace.setActiveLeaf(anchor, { focus: false });
         return this.app.workspace.getLeaf("tab");
