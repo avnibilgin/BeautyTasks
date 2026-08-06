@@ -2693,3 +2693,19 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Herkunft der Feldzuordnung im TaskNotes-Import: dezent, aber vor den Eingabefeldern –
    sie beantwortet die Frage, bevor der Nutzer am Tag herumprobiert. */
 .bt-tn-src { margin: -2px 0 10px; }
+
+/* ── Planungsansicht: Icon auf den Notiz-Reitern ──────────────────────────────
+   Obsidian blendet das Icon von Notiz-Tabs im Hauptbereich absichtlich aus:
+
+     .mod-root .workspace-tab-header[data-type="markdown"] .workspace-tab-header-inner-icon
+       { display: none }
+
+   In der Planungsansicht stehen Kalender, Projektnotiz und Tagesnotiz aber als
+   Reiter NEBENEINANDER – dort trägt das Zeichen Bedeutung, und ohne es wäre nur
+   der Kalender (eigener View-Typ) unterscheidbar. Die Klasse setzt der Befehl
+   ausschließlich auf die Reiter, die er selbst anlegt (s. main.setLeafIcon);
+   jeder andere Notiz-Tab des Vaults bleibt unberührt.
+
+   `display: flex` und nicht `inline`: genau das ist der Wert aus Obsidians
+   eigener Regel für .workspace-tab-header-inner-icon. */
+.workspace-tab-header.bt-plan-tab .workspace-tab-header-inner-icon { display: flex; }

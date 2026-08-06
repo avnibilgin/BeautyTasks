@@ -1,7 +1,7 @@
 import { App, TFile, WorkspaceLeaf, moment } from "obsidian";
 import type { PageRef } from "./pageCtx";
 import type { BeautyTasksSettings } from "./types";
-import { INBOX_KEY, listProjectsAndAreas } from "./taskService";
+import { INBOX_KEY } from "./taskService";
 
 /**
  * Die rechte Hälfte des Planungs-Splits: WELCHE Tabs dort entstehen und in welcher Reihenfolge.
@@ -74,22 +74,18 @@ export function pageNoteFile(app: App, page: PageRef): TFile | null {
 }
 
 /**
- * Das Tab-Icon der Notiz-Hälften.
+ * Die Icons der Notiz-Reiter.
  *
- * Ein Markdown-Tab trägt sonst Obsidians Datei-Icon – zwischen Kalender, Projektnotiz und
- * Tagesnotiz nebeneinander sagt das nichts. Genommen werden dieselben Icons wie in der
- * Seitenleiste und im Verschieben-Menü (Bereich = circle-small, Projekt = folder), damit ein
- * Reiter dasselbe Zeichen trägt wie der Eintrag, aus dem er stammt.
+ * `file-text` ist dasselbe Zeichen wie hinter „Projektnotiz öffnen" im Kontextmenü – und dort
+ * steht es EINHEITLICH für Projekt, Bereich und Filter (s. navMenu.ts). Diese Einheitlichkeit
+ * wird hier bewusst fortgesetzt: Der Reiter beantwortet „was ist das?" (die Notiz der Seite),
+ * nicht „von welcher Art ist die Seite?" – letzteres steht ohnehin im Titel daneben.
  *
- * Die Tagesnotiz bekommt „sun" und bewusst KEIN zweites Kalender-Icon: Neben dem Kalender-Tab
- * (calendar-days) wären zwei Kalenderblätter bei 16 px nicht auseinanderzuhalten.
+ * Die Tagesnotiz bekommt „sun" und ausdrücklich KEIN zweites Kalenderblatt: Neben dem
+ * Kalender-Reiter (calendar-days) wären zwei davon bei 16 px nicht auseinanderzuhalten.
  */
+export const NOTE_ICON = "file-text";
 export const DAILY_ICON = "sun";
-export function pageNoteIcon(app: App, page: PageRef): string {
-  if (page.kind === "filter") return "filter";
-  const { bereiche } = listProjectsAndAreas(app);
-  return bereiche.some((b) => b.path === page.key) ? "circle-small" : "folder";
-}
 
 /** Zugriff auf das Kern-Plugin „Tägliche Notizen". Nicht Teil der öffentlichen API – deshalb an
  *  genau EINER Stelle eng typisiert; alles Weitere geht über die Funktionen hier. */

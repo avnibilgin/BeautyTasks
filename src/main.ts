@@ -11,7 +11,7 @@ import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
 } from "./heuteView";
 import { PageRef, pageInfo, samePage } from "./pageCtx";
-import { activePlanTabs, pageNoteFile, pageNoteIcon, openDailyNote, DAILY_ICON } from "./planTabs";
+import { activePlanTabs, pageNoteFile, openDailyNote, NOTE_ICON, DAILY_ICON } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
@@ -510,7 +510,7 @@ export default class BeautyTasksPlugin extends Plugin {
       const shown = (leaf.getViewState().state as { file?: unknown } | undefined)?.file;
       if (typeof shown === "string") mates[role] = shown;
       placed.push(leaf);
-      icons.push(role === "daily" ? DAILY_ICON : pageNoteIcon(this.app, target));
+      icons.push(role === "daily" ? DAILY_ICON : NOTE_ICON);
       anchor = leaf;   // Einfügestelle rückt weiter – der nächste Tab gehört DAHINTER
       group ??= leaf.parent;
     }
@@ -572,16 +572,31 @@ export default class BeautyTasksPlugin extends Plugin {
   /**
    * Das Reiter-Icon eines fremden (Markdown-)Tabs setzen.
    *
-   * `View.icon` ist öffentlich (seit 1.1.0), und `getIcon()` der ItemView liefert genau diesen
-   * Wert – MarkdownView überschreibt das nicht. Es braucht also keinen Eingriff ins DOM der
-   * Tab-Leiste; updateHeader() zeichnet den Reiter mit dem neuen Zeichen neu.
+   * Zwei Schritte, weil zwei Dinge im Weg stehen:
    *
-   * Gesetzt wird NACH dem Öffnen der Datei: Ein FileView richtet sein Icon beim Laden selbst ein
-   * und überschriebe unseres sonst wieder.
+   * 1. `View.icon` ist öffentlich (seit 1.1.0) und `getIcon()` der ItemView liefert genau diesen
+   *    Wert – MarkdownView überschreibt das nicht. Gesetzt wird NACH dem Öffnen der Datei: Ein
+   *    FileView richtet sein Icon beim Laden selbst ein und überschriebe unseres sonst wieder.
+   *
+   * 2. Damit allein bleibt der Reiter LEER. Obsidian versteckt das Icon von Notiz-Tabs im
+   *    Hauptbereich absichtlich:
+   *      .mod-root .workspace-tab-header[data-type="markdown"] .workspace-tab-header-inner-icon
+   *        { display: none }
+   *    und `data-type` ist wörtlich `view.getViewType()` – bei einer Notiz also "markdown". Der
+   *    Kalender-Reiter trägt deshalb ein Icon und die Notiz-Reiter nicht; an unserem Zuweisen
+   *    liegt es nicht. Aufgehoben wird die Regel deshalb per eigener Klasse, und NUR für die
+   *    Reiter, die dieser Befehl anlegt – alle übrigen Notiz-Tabs des Vaults bleiben, wie
+   *    Obsidian sie vorsieht (s. styles.css, „bt-plan-tab").
+   *
+   * `tabHeaderEl` steht nicht in der Typdatei. Fehlt es einmal, bleibt der Reiter schlicht ohne
+   * Icon – nichts bricht. Ein Neuzeichnen überlebt die Klasse: updateHeader() setzt nur
+   * `data-type` und `mod-unknown`, es räumt keine fremden Klassen ab.
    */
   private setLeafIcon(leaf: WorkspaceLeaf, icon: string): void {
+    const host = leaf as WorkspaceLeaf & { updateHeader?: () => void; tabHeaderEl?: HTMLElement };
     leaf.view.icon = icon;
-    (leaf as WorkspaceLeaf & { updateHeader?: () => void }).updateHeader?.();
+    host.tabHeaderEl?.addClass("bt-plan-tab");
+    host.updateHeader?.();
   }
 
   /** Alle Leaves einer Tab-Gruppe (Reihenfolge = Anzeige). */
