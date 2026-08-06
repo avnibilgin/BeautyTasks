@@ -2232,6 +2232,14 @@ export class MainView extends ItemView {
 
   draw(): void {
     if (!this.contentEl) return;
+    // Titel und Icon IMMER nachziehen – auch verdeckt und auch auf dem Schnellpfad unten. Sie
+    // hängen am REITER, nicht am Inhalt: Ein Tab im Hintergrund ist zwar unsichtbar, seine
+    // Beschriftung in der Tab-Leiste ist es nicht. Lag das hinter der Sichtbarkeitsprüfung,
+    // trug ein Hintergrund-Tab nach einem Seitenwechsel weiter den alten Namen – bis man ihn
+    // anklickte und er sich dabei zeichnete. Zu sehen im Planungs-Split: „Planen" auf einem
+    // zweiten Projekt schickte den verdeckten Kalender-Tab auf die neue Seite, beschriftet
+    // blieb er mit der alten. Kostet zwei setText – kein Grund, es aufzuschieben.
+    this.syncTitle();
     // Ein VERDECKTER Tab (anderer Tab derselben Gruppe) wird nur vorgemerkt. Solange es genau
     // eine Dashboard-Leaf gab, war das kein Thema; mit drei offenen Tabs zahlte man den vollen
     // Aufbau (gemessen ~110 ms) bei JEDER Aufgabenänderung dreifach – zweimal davon für Seiten,
@@ -2257,7 +2265,6 @@ export class MainView extends ItemView {
     else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
     else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
     else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
-    this.syncTitle();
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –

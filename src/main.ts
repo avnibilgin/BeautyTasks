@@ -511,14 +511,55 @@ export default class BeautyTasksPlugin extends Plugin {
 
     left.planMates = Object.keys(mates).length ? mates : null;
     left.useLocal({ layout: "list" }, "list");
+    await this.sortPlanTabs(placed);
     // Vorn liegt der ERSTE eingeschaltete Eintrag: Die Reihenfolge in den Einstellungen IST die
     // Rangfolge (s. planTabs.ts). Ohne das läge der zuletzt erzeugte Tab vorn – bei „Kalender +
     // Notiz" also die Notiz, und der Kalender, für den man geteilt hat, wäre unsichtbar.
     if (placed[0]) await this.app.workspace.revealLeaf(placed[0]);
+    // Sichtbar gewordene Dashboard-Tabs nachzeichnen: draw() merkt sich bei verdecktem Tab nur
+    // vor (dirty) – wie in openPage() muss das nach dem Hervorholen nachgeholt werden.
+    for (const leaf of placed) if (leaf.view instanceof MainView) leaf.view.drawIfDirty();
     // Fokus zurück auf die Liste: Sie ist die Quelle des Zugs und die Seite, auf der man arbeitet.
     // Nebenwirkung mit Absicht – die Seitenleiste navigiert damit weiter die Liste. „Vorn" und
     // „fokussiert" sind hier zwei verschiedene Dinge.
     this.focusMain(left);
+  }
+
+  /**
+   * Die Tabs des Planungs-Splits in die eingestellte Reihenfolge bringen.
+   *
+   * Nötig, weil vorhandene Tabs weiterverwendet werden: Wer die Reihenfolge in den Einstellungen
+   * ändert, hätte sonst zwar den richtigen Tab vorn, aber die alte Abfolge in der Leiste.
+   *
+   * Obsidian hat keine API zum Verschieben eines Reiters. Ein Tab wandert deshalb, indem an der
+   * richtigen Stelle ein neuer entsteht, der seinen Zustand übernimmt (getViewState +
+   * getEphemeralState – bei einer Notiz also auch Cursor und Scrollstand), und der alte
+   * geschlossen wird. `placed` wird dabei mitgeführt, damit der Aufrufer weiter die echten
+   * Leaves in der Hand hat.
+   *
+   * Angerührt wird nur, was WIRKLICH falsch steht: Steht die Reihenfolge schon (der Normalfall),
+   * passiert hier gar nichts – kein Flackern, kein verlorener Bearbeitungsstand. Angepinnte Tabs
+   * bleiben ebenfalls unberührt; sie gehören dem Nutzer.
+   */
+  private async sortPlanTabs(placed: WorkspaceLeaf[]): Promise<void> {
+    if (placed.length < 2) return;
+    const group = placed[0].parent;
+    for (let i = 1; i < placed.length; i++) {
+      const leaf = placed[i];
+      const before = placed[i - 1];
+      if (leaf.parent !== group || before.parent !== group) continue;
+      const reihe = this.leavesIn(group);
+      if (reihe.indexOf(leaf) > reihe.indexOf(before)) continue;   // steht schon richtig
+      if (leaf.getViewState().pinned) continue;
+      const state = leaf.getViewState();
+      const eState: unknown = leaf.getEphemeralState();   // liefert `any` – hier festnageln
+      this.app.workspace.setActiveLeaf(before, { focus: false });
+      const fresh = this.app.workspace.getLeaf("tab");
+      await fresh.setViewState({ ...state, active: false });
+      fresh.setEphemeralState(eState);
+      leaf.detach();
+      placed[i] = fresh;
+    }
   }
 
   /** Alle Leaves einer Tab-Gruppe (Reihenfolge = Anzeige). */
