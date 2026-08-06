@@ -74,6 +74,9 @@ export default class BeautyTasksPlugin extends Plugin {
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
   flashScrolled = false;                                 // pro Sprung nur einmal ins Bild scrollen
   private lastMain: MainView | null = null;              // zuletzt benutzter Dashboard-Tab (s. activeMain)
+  /** Zuletzt angeklickter Tab im Hauptbereich – EGAL welcher Art. Wird AUSSCHLIESSLICH von
+   *  planNoteLeafInFocus() ausgewertet; `lastMain` bleibt für alles andere zuständig. */
+  private lastLeaf: WorkspaceLeaf | null = null;
   /** Ursprüngliches Reiter-Icon der Notiz-Tabs, die der Planungs-Split übermalt hat – zum
    *  Zurückgeben, sobald ein Tab nicht mehr dazugehört (s. setLeafIcon/clearStalePlanTabs).
    *  Eine WeakMap, damit ein geschlossener Tab hier nichts festhält. */
@@ -165,6 +168,12 @@ export default class BeautyTasksPlugin extends Plugin {
     // (also genau beim Klick dorthin), bleibt alles stehen. Ein renderNav() an dieser Stelle
     // führe c.empty() mitten in der Klick-Geste aus und schluckte den Klick (s. layout-change).
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
+      // Zuerst den zuletzt angeklickten Tab des Hauptbereichs merken – auch wenn dort eine Notiz
+      // steht. Ausgewertet wird das NUR für die Notiz-Reiter der Planungsansicht (s.
+      // planNoteLeafInFocus). Seitenleisten-Leafs zählen nicht: Der Klick dorthin ist die
+      // Bedienung, nicht das Ziel.
+      const ws = this.app.workspace;
+      if (leaf && leaf.getRoot() !== ws.leftSplit && leaf.getRoot() !== ws.rightSplit) this.lastLeaf = leaf;
       if (!(leaf?.view instanceof MainView)) return;
       leaf.view.drawIfDirty();   // war der Tab verdeckt, ist seine Zeichnung nachzuholen
       if (this.lastMain === leaf.view) return;
@@ -270,6 +279,35 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Seite des aktiven Tabs – Grundlage der Markierung in der Seitenleiste (s. renderNavInto). */
   activePage(): PageRef | null { return this.activeMain()?.page ?? null; }
 
+  /**
+   * Der Notiz-Reiter der Planungsansicht, in dem man gerade steht – sonst null.
+   *
+   * Nur diese Reiter dürfen das Ziel eines Seitenleisten-Klicks umbiegen (s. openPage).
+   * `lastMain` kann das nicht beantworten: Er hält ausschließlich eigene Ansichten fest, ein
+   * Markdown-Tab fällt bei ihm durch. Genau deshalb landete ein Klick in der Seitenleiste
+   * zuletzt immer im Kalender – egal, in welchem Reiter man stand.
+   *
+   * Streng geprüft, damit außerhalb der Anordnung nichts anders wird als bisher:
+   *   • der Tab lebt noch,
+   *   • er ist nicht angepinnt (angepinnt heißt „nicht anfassen"),
+   *   • und die Datei darin ist genau eine, die der Planungs-Split dort abgelegt hat.
+   * Ist der Nutzer von dort einem Link gefolgt, trifft die letzte Bedingung nicht mehr zu: Der
+   * Tab gehört dann ihm und bleibt unberührt.
+   */
+  private planNoteLeafInFocus(): WorkspaceLeaf | null {
+    const leaf = this.lastLeaf;
+    if (!leaf) return null;
+    const mates = this.mainViews().find((v) => v.planRole === "list")?.planMates;
+    if (!mates) return null;
+    let lebt = false;
+    this.app.workspace.iterateAllLeaves((l) => { if (l === leaf) lebt = true; });
+    if (!lebt) { this.lastLeaf = null; return null; }
+    const st = leaf.getViewState();
+    if (st.pinned) return null;
+    const datei = (st.state as { file?: unknown } | undefined)?.file;
+    return typeof datei === "string" && Object.values(mates).includes(datei) ? leaf : null;
+  }
+
   // ── Öffnen / Navigieren ──
   async openBeautyTasks(): Promise<void> {
     await this.activateNav();
@@ -349,6 +387,24 @@ export default class BeautyTasksPlugin extends Plugin {
     if (page.kind === "view" && this.device.lastView !== page.key) {
       this.device.lastView = page.key; this.saveDevice();   // für startView === "last"
     }
+    // ── Vorlauf: steht man in einem Notiz-Reiter der Planungsansicht? ──
+    // Dann öffnet die Seite GENAU DORT – wie ein Klick in Obsidians Dateiliste den aktiven
+    // Reiter ersetzt. Bewusst als vorgeschalteter Zweig und nicht als Umbau der Zielfindung
+    // darunter: Dieser Zweig erzeugt keinen Tab (kein getLeaf) und schließt keinen (kein
+    // detach), er stellt einen vorhandenen um. Die Gruppe hat davor und danach gleich viele
+    // Reiter – ein Split kann dadurch nicht leerlaufen und verschwinden. Alles andere
+    // (Ribbon, Startseite, Befehlspalette, „Zum Projekt", fremde Notizen) nimmt unverändert
+    // den Weg darunter.
+    const mate = where ? null : this.planNoteLeafInFocus();
+    if (mate) {
+      await mate.setViewState({ type: VIEW_MAIN, active: true, state: { kind: page.kind, key: page.key } });
+      await workspace.revealLeaf(mate);
+      const umgestellt = mate.view instanceof MainView ? mate.view : null;
+      umgestellt?.drawIfDirty();
+      this.renderNav();
+      return umgestellt;
+    }
+
     const target = where ? null : this.activeMain();
     if (target) {
       target.openPage(page);
