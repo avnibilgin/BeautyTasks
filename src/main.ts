@@ -74,6 +74,10 @@ export default class BeautyTasksPlugin extends Plugin {
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
   flashScrolled = false;                                 // pro Sprung nur einmal ins Bild scrollen
   private lastMain: MainView | null = null;              // zuletzt benutzter Dashboard-Tab (s. activeMain)
+  /** Ursprüngliches Reiter-Icon der Notiz-Tabs, die der Planungs-Split übermalt hat – zum
+   *  Zurückgeben, sobald ein Tab nicht mehr dazugehört (s. setLeafIcon/clearStalePlanTabs).
+   *  Eine WeakMap, damit ein geschlossener Tab hier nichts festhält. */
+  private planTabIcons = new WeakMap<WorkspaceLeaf, string>();
   private reminderScan = 0;                              // Obergrenze des zuletzt geprüften Zeitfensters (Epoch-ms)
 
   async onload(): Promise<void> {
@@ -519,6 +523,7 @@ export default class BeautyTasksPlugin extends Plugin {
     left.useLocal({ layout: "list" }, "list");
     await this.sortPlanTabs(placed);
     placed.forEach((leaf, i) => { if (icons[i]) this.setLeafIcon(leaf, icons[i]); });
+    this.clearStalePlanTabs(placed);
     // Vorn liegt der ERSTE eingeschaltete Eintrag: Die Reihenfolge in den Einstellungen IST die
     // Rangfolge (s. planTabs.ts). Ohne das läge der zuletzt erzeugte Tab vorn – bei „Kalender +
     // Notiz" also die Notiz, und der Kalender, für den man geteilt hat, wäre unsichtbar.
@@ -594,9 +599,36 @@ export default class BeautyTasksPlugin extends Plugin {
    */
   private setLeafIcon(leaf: WorkspaceLeaf, icon: string): void {
     const host = leaf as WorkspaceLeaf & { updateHeader?: () => void; tabHeaderEl?: HTMLElement };
+    // Das ursprüngliche Zeichen einmalig merken – nur so lässt sich der Reiter später wieder
+    // zurückgeben (s. clearStalePlanTabs). Beim zweiten Aufruf auf demselben Tab stünde dort
+    // sonst UNSER Icon als „Original".
+    if (!this.planTabIcons.has(leaf)) this.planTabIcons.set(leaf, leaf.view.icon);
     leaf.view.icon = icon;
     host.tabHeaderEl?.addClass("bt-plan-tab");
     host.updateHeader?.();
+  }
+
+  /**
+   * Reiter, die nicht mehr zur Anordnung gehören, wieder zurückgeben.
+   *
+   * Folgt man aus der Projektnotiz einem Link, steht in diesem Tab etwas anderes – er gehört
+   * dann dem Nutzer, und der Befehl legt beim nächsten Aufruf einen frischen daneben (s. die
+   * Weiterverwenden-Regel oben). Ohne dieses Aufräumen behielte der abgewanderte Tab aber
+   * unser Icon und die Klasse und sähe weiter aus wie ein Teil der Planungsansicht.
+   *
+   * Gesucht wird im ganzen Arbeitsbereich, nicht nur in der rechten Gruppe: Ein solcher Tab
+   * kann längst woandershin gezogen worden sein.
+   */
+  private clearStalePlanTabs(keep: WorkspaceLeaf[]): void {
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const host = leaf as WorkspaceLeaf & { updateHeader?: () => void; tabHeaderEl?: HTMLElement };
+      const el = host.tabHeaderEl;
+      if (!el?.hasClass("bt-plan-tab") || keep.includes(leaf)) return;
+      el.removeClass("bt-plan-tab");
+      const vorher = this.planTabIcons.get(leaf);
+      if (vorher !== undefined) { leaf.view.icon = vorher; this.planTabIcons.delete(leaf); }
+      host.updateHeader?.();
+    });
   }
 
   /** Alle Leaves einer Tab-Gruppe (Reihenfolge = Anzeige). */
