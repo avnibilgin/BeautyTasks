@@ -2028,6 +2028,16 @@ export class MainView extends ItemView {
    * selbst wieder her, gefunden werden sie danach über ihren Pfad.
    */
   planMates: Partial<Record<"note" | "daily", string>> | null = null;
+  /**
+   * Kam die Layout-Wahl dieses Tabs vom Planen-Befehl – und darf beim Auflösen der Anordnung
+   * deshalb wieder zurückgenommen werden?
+   *
+   * Ohne diese Unterscheidung ginge beim Aufräumen auch verloren, was der Nutzer im Split von
+   * Hand eingestellt hat. `useLocal` selbst kann das nicht wissen: Ihm sieht man nicht an, ob
+   * der Befehl oder ein Mensch dahintersteckt. Die Merkung verfällt, sobald jemand den
+   * Layout-Umschalter benutzt (s. setLocal) oder der Tab die Seite wechselt.
+   */
+  planForced = false;
   /** Umschaltbarer Unterzustand der Seite. Bewusst ein eigenes OBJEKT: der Kontext hält eine
    *  Referenz darauf und liest per Getter mit – ein Abzug wäre veraltet, sobald ein Umschalter
    *  ihn setzt und mit demselben Kontext neu zeichnet (Verwaltungs-Tabs machen genau das). */
@@ -2095,7 +2105,7 @@ export class MainView extends ItemView {
       kind: this.page.kind, key: this.page.key,
       layout: this.local.layout ?? null, calPanel: this.local.calPanel ?? null,
       doneTab: this.tab.doneTab, manageTab: this.tab.manageTab, planRole: this.planRole,
-      planMates: this.planMates,
+      planMates: this.planMates, planForced: this.planForced,
     };
   }
 
@@ -2116,6 +2126,7 @@ export class MainView extends ItemView {
       // gehören zu ihr, nicht zum Tab – sonst erbte die neue Seite eine fremde Position.
       dropViewKeys(this.id);
       this.local = {};              // neue Seite startet bei IHREN Standards
+      this.planForced = false;      // die erzwungene Wahl galt der ALTEN Seite
       this.tab.doneTab = "done";
       this.tab.doneCollapsed = true;
     }
@@ -2136,6 +2147,7 @@ export class MainView extends ItemView {
     // Eine gewöhnliche Navigation reicht nur {kind, key} herein und darf die Paarung nicht löschen.
     const mates = readPlanMates(s.planMates);
     if (mates) this.planMates = mates;
+    if (typeof s.planForced === "boolean") this.planForced = s.planForced;
     const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
     if (done) this.tab.doneTab = done;
     const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);
@@ -2172,6 +2184,31 @@ export class MainView extends ItemView {
     this.draw();
   }
 
+  /**
+   * Die Planungsanordnung ist vorbei – diesen Tab wieder zu einem gewöhnlichen machen.
+   *
+   * Zurückgenommen wird NUR, was der Befehl selbst erzwungen hat (planForced). Der Tab fällt
+   * damit auf den Seiten-Standard zurück: Wer sein Projekt normalerweise als Board sieht, sieht
+   * es danach wieder als Board. Ohne das blieb die Liste stehen, bis der Tab zufällig die Seite
+   * wechselte – dann räumt setState `local` ohnehin ab, und genau deshalb kam das Board zurück,
+   * sobald man in der Seitenleiste weg und wieder hin klickte.
+   *
+   * `planRole` bleibt bewusst erhalten: Sie sagt, WOZU dieser Tab gehört, und sorgt dafür, dass
+   * ein späteres „Planen" wieder ihn als Liste nimmt statt einen dritten aufzumachen.
+   */
+  endPlanArrangement(): void {
+    const hatteMates = this.planMates !== null;
+    if (!hatteMates && !this.planForced) return;   // nichts aufzuräumen
+    this.planMates = null;
+    if (this.planForced) {
+      this.planForced = false;
+      delete this.local.layout;
+      delete this.local.calPanel;
+    }
+    this.plugin.app.workspace.requestSaveLayout();
+    this.draw();
+  }
+
   setLocal(patch: Partial<LocalOptions>): void {
     const before = this.plugin.pageOptions(this.page);
     for (const other of this.plugin.mainViews()) {
@@ -2183,6 +2220,9 @@ export class MainView extends ItemView {
         if (other.local[k] === undefined) Object.assign(other.local, { [k]: before[k] });
       }
     }
+    // Wer den Umschalter selbst benutzt, entscheidet selbst: Ab hier gilt die Wahl als seine,
+    // und das Auflösen der Anordnung nimmt sie nicht mehr zurück (s. planForced).
+    if (patch.layout !== undefined) this.planForced = false;
     Object.assign(this.local, patch);
     void this.plugin.setPageOption(this.page, patch);
     // Sofort zeichnen statt auf den Speicher zu warten: auf einer PROJEKT-Seite landet der neue

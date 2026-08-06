@@ -77,6 +77,10 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Zuletzt angeklickter Tab im Hauptbereich – EGAL welcher Art. Wird AUSSCHLIESSLICH von
    *  planNoteLeafInFocus() ausgewertet; `lastMain` bleibt für alles andere zuständig. */
   private lastLeaf: WorkspaceLeaf | null = null;
+  /** Läuft gerade ein Auf- oder Abbau der Planungsanordnung? Solange wird nicht aufgeräumt:
+   *  Zwischen „Liste gesetzt" und „Kalender da" gibt es Momente ohne Partner, und ein
+   *  layout-change genau dann ließe die Anordnung sich selbst abräumen. */
+  private planBusy = false;
   /** Ursprüngliches Reiter-Icon der Notiz-Tabs, die der Planungs-Split übermalt hat – zum
    *  Zurückgeben, sobald ein Tab nicht mehr dazugehört (s. setLeafIcon/clearStalePlanTabs).
    *  Eine WeakMap, damit ein geschlossener Tab hier nichts festhält. */
@@ -160,6 +164,7 @@ export default class BeautyTasksPlugin extends Plugin {
     // der Klick-Geste ausführen -> das Klickziel verschwindet vor mouseup, der erste Klick
     // im neuen Bereich geht verloren. Badges/Inhalte bleiben via index.subscribe aktuell.
     this.registerEvent(this.app.workspace.on("layout-change", () => {
+      this.endStalePlanArrangements();   // rechte Hälfte zugeklickt? Dann ist die Anordnung vorbei
       this.renderAll();
       this.gcalFeed?.refreshIfStale();   // Ansicht wieder sichtbar -> Termine auffrischen (falls alt)
     }));
@@ -209,6 +214,14 @@ export default class BeautyTasksPlugin extends Plugin {
       },
     });
     this.addCommand({ id: "plan-split", name: t("plan_open"), callback: () => void this.openPlanSplit() });
+    // Eigener Befehl statt eines Umschalters mit festem Namen: In der Befehlspalette steht der
+    // Name fest, ein Eintrag „öffnen", der schließt, wäre schlicht falsch beschriftet.
+    // checkCallback blendet ihn aus, solange keine Anordnung steht.
+    this.addCommand({ id: "plan-split-close", name: t("plan_close"), checkCallback: (checking) => {
+      if (!this.planSplitFor()) return false;
+      if (!checking) void this.openPlanSplit();
+      return true;
+    } });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -447,6 +460,16 @@ export default class BeautyTasksPlugin extends Plugin {
    * Mobil kennt keine sinnvollen Splits (und keinen HTML5-Zug): dort werden daraus Reiter.
    */
   async openPlanSplit(page?: PageRef): Promise<void> {
+    // Umschalter: Steht die Anordnung schon für DIESE Seite, bedeutet derselbe Befehl
+    // „ich bin fertig" und macht die rechte Hälfte wieder zu (s. closePlanSplit).
+    this.planBusy = true;
+    try {
+      const steht = this.planSplitFor(page);
+      if (steht) this.closePlanSplit(steht); else await this.buildPlanSplit(page);
+    } finally { this.planBusy = false; }
+  }
+
+  private async buildPlanSplit(page?: PageRef): Promise<void> {
     const wanted = page ?? this.activeMain()?.page;
     // Seiten ohne Layout-Wahl (Wiederkehrend, Erledigt, Verwaltung) haben keine Kalender-Ansicht –
     // ein Split daraus wäre zweimal dieselbe Liste. Aus dem Kontextmenü kann das gar nicht kommen
@@ -563,6 +586,7 @@ export default class BeautyTasksPlugin extends Plugin {
         // bliebe ein zweiter Vorrat, der dem Kalender den Platz nimmt, für den man geteilt hat.
         // Nur für diesen Tab: der Seiten-Standard („offen") gilt beim normalen Öffnen weiter.
         view.useLocal({ layout: "calendar", calPanel: false }, "calendar");
+        view.planForced = true;   // vom Befehl verordnet -> beim Auflösen zurücknehmen
         cal = view;
         placed.push(view.leaf);
         icons.push("");       // MainView.getIcon() liefert das Layout-Icon selbst
@@ -603,6 +627,7 @@ export default class BeautyTasksPlugin extends Plugin {
 
     left.planMates = Object.keys(mates).length ? mates : null;
     left.useLocal({ layout: "list" }, "list");
+    left.planForced = true;   // dito – sonst bliebe die Liste stehen, wenn die Anordnung endet
     await this.sortPlanTabs(placed);
     placed.forEach((leaf, i) => { if (icons[i]) this.setLeafIcon(leaf, icons[i]); });
     this.clearStalePlanTabs(placed);
@@ -754,6 +779,84 @@ export default class BeautyTasksPlugin extends Plugin {
       if (vorher !== undefined) { leaf.view.icon = vorher; this.planTabIcons.delete(leaf); }
       host.updateHeader?.();
     });
+  }
+
+  /**
+   * Steht für diese Seite schon eine Planungsanordnung? Liefert deren Listen-Hälfte, sonst null.
+   *
+   * „Für diese Seite" ist die entscheidende Einschränkung: Nur dann heißt ein zweiter Aufruf
+   * „fertig". Ruft man „Planen" auf einer ANDEREN Seite, während die Anordnung noch steht, soll
+   * sie weiterziehen und nicht zugehen.
+   */
+  planSplitFor(page?: PageRef): MainView | null {
+    const gemeint = page ?? this.activeMain()?.page;
+    if (!gemeint) return null;
+    const liste = this.mainViews().find((v) => v.planRole === "list" && samePage(v.page, gemeint));
+    return liste && this.planPartnerAlive(liste) ? liste : null;
+  }
+
+  /**
+   * Hat die Listen-Hälfte drüben überhaupt noch einen Partner?
+   *
+   * Zählt sowohl der Kalender-Tab (trägt eine Rolle) als auch ein Reiter mit einer der Dateien,
+   * die sich die Liste gemerkt hat. „Drüben" heißt: andere Tab-Gruppe, gleicher Wurzelbereich –
+   * ein Reiter in derselben Gruppe wie die Liste ist kein Split, und einer in einer Seitenleiste
+   * oder einem anderen Fenster gehört nicht zur Anordnung.
+   */
+  private planPartnerLeaves(liste: MainView): WorkspaceLeaf[] {
+    const home = liste.leaf.parent;
+    const mobil = Platform.isMobile;
+    const gesucht = new Set(Object.values(liste.planMates ?? {}).filter((p): p is string => !!p));
+    const treffer: WorkspaceLeaf[] = [];
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf === liste.leaf || leaf.getRoot() !== liste.leaf.getRoot()) return;
+      if (!mobil && leaf.parent === home) return;
+      // Über getViewState und NICHT über `leaf.view instanceof MainView`: Obsidian lädt Reiter im
+      // Hintergrund verzögert; deren View gibt es noch gar nicht. Fragte man die Instanz, gälte
+      // die Anordnung beim Programmstart als verwaist und löste sich selbst auf, bevor der
+      // Kalender überhaupt geladen ist.
+      const st = leaf.getViewState();
+      const s = st.state as { planRole?: unknown; file?: unknown } | undefined;
+      if (st.type === VIEW_MAIN && s?.planRole === "calendar") { treffer.push(leaf); return; }
+      if (typeof s?.file === "string" && gesucht.has(s.file)) treffer.push(leaf);
+    });
+    return treffer;
+  }
+
+  private planPartnerAlive(liste: MainView): boolean {
+    return this.planPartnerLeaves(liste).length > 0;
+  }
+
+  /**
+   * Anordnungen auflösen, deren rechte Hälfte verschwunden ist.
+   *
+   * Klickt man die drei Reiter drüben einzeln zu, erfährt die Liste davon nichts und bliebe in
+   * der Listenansicht stehen, die der Befehl ihr verordnet hat – obwohl das Projekt normalerweise
+   * als Board erscheint. Hier endet die Anordnung, und der Tab fällt auf seinen Seiten-Standard
+   * zurück.
+   */
+  private endStalePlanArrangements(): void {
+    if (this.planBusy) return;   // mitten im Auf-/Abbau gibt es kurz keinen Partner
+    for (const v of this.mainViews()) {
+      if (v.planRole === "list" && !this.planPartnerAlive(v)) v.endPlanArrangement();
+    }
+  }
+
+  /**
+   * Die rechte Hälfte wieder zumachen – der Gegenbefehl zum Aufbauen.
+   *
+   * Geschlossen wird NUR, was diese Anordnung selbst hingestellt hat und was noch zeigt, was wir
+   * hingelegt haben: der Kalender-Tab mit seiner Rolle und die Notiz-Reiter aus `planMates`.
+   * Angepinntes bleibt offen, Abgewandertes bleibt offen – das gehört dem Nutzer. Die Liste
+   * selbst bleibt stehen und bekommt ihr gewohntes Layout zurück.
+   */
+  private closePlanSplit(liste: MainView): void {
+    for (const leaf of this.planPartnerLeaves(liste)) {
+      if (!leaf.getViewState().pinned) leaf.detach();
+    }
+    liste.endPlanArrangement();
+    this.focusMain(liste);
+    this.renderNav();
   }
 
   /** Alle Leaves einer Tab-Gruppe (Reihenfolge = Anzeige). */
