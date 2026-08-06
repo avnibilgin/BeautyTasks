@@ -1250,10 +1250,15 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   // ── Label-Verwaltung (Strings auf den Aufgaben + Register für leere Labels) ──
-  /** Alle Labels (aus Aufgaben + Register) mit Häufigkeit (alphabetisch). */
+  /** Alle Labels (aus Aufgaben + Register + angeheftete) mit Häufigkeit (alphabetisch). */
   getLabels(): { name: string; count: number }[] {
     const counts = new Map<string, number>();
     for (const name of this.settings.knownLabels) counts.set(name, 0);   // Register zuerst (count 0)
+    // Angeheftet IST bekannt. Sonst entstünde mit getVisibleLabels (das nicht mehr gegen den
+    // Index filtert, s. dort) ein Geist: eine Zeile in der Seitenleiste, die in der Verwaltung
+    // fehlt, beim Umsortieren aus der Reihe fällt und als Startseite als gelöscht gilt
+    // (s. currentNavKeys, manageView, pageExists).
+    for (const name of this.settings.visibleLabels) if (!counts.has(name)) counts.set(name, 0);
     for (const task of this.index.all()) for (const l of task.labels) counts.set(l, (counts.get(l) ?? 0) + 1);
     return [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, "de"));
   }
@@ -1400,10 +1405,23 @@ export default class BeautyTasksPlugin extends Plugin {
 
   // ── Label-Sichtbarkeit in der Seitenleiste (Default: aus) ──
   isLabelVisible(name: string): boolean { return this.settings.visibleLabels.includes(name); }
-  /** Sichtbar geschaltete Labels, die es noch gibt – in der eingestellten Reihenfolge. */
+  /**
+   * Angeheftete Labels in der eingestellten Reihenfolge.
+   *
+   * BEWUSST OHNE Existenzprüfung gegen den Index. Bis 1.39.0 stand hier ein Filter gegen
+   * `getLabels()` – und der zählt die Labels der AUFGABEN mit, also den Index. Beim Start ist der
+   * noch leer: Angeheftete Labels, die nur auf Aufgaben leben (der Normalfall – vergeben am Chip,
+   * per Texterkennung oder im Frontmatter, und keiner dieser Wege trägt ins Register ein),
+   * verschwanden dadurch für die ersten Sekunden aus der Seitenleiste.
+   *
+   * Anheften ist eine ausdrückliche Entscheidung des Nutzers und steht in den Einstellungen –
+   * sie darf nicht davon abhängen, ob eine Hintergrundarbeit schon durch ist. Aufgeräumt wird an
+   * den beiden Stellen, an denen ein Label wirklich verschwindet: `deleteLabel` und `renameLabel`
+   * ziehen `visibleLabels` mit. Trägt die letzte Aufgabe das Label nicht mehr, bleibt die Zeile
+   * mit Zähler 0 stehen – wie bei jedem im Register angelegten Label auch.
+   */
   getVisibleLabels(): string[] {
-    const exist = new Set(this.getLabels().map((l) => l.name));
-    const raw = this.settings.visibleLabels.filter((n) => exist.has(n)).map((n) => ({ name: n }));
+    const raw = this.settings.visibleLabels.map((n) => ({ name: n }));
     return this.orderNav("labels", raw, (x) => x.name, (x) => x.name).map((x) => x.name);
   }
 

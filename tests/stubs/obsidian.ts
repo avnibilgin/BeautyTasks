@@ -12,7 +12,14 @@ export function stringifyYaml(obj: Record<string, unknown>): string {
 
 export class App {}
 export class TFile {}
-export class Component {}
+/** Nur so viel Component, wie TaskIndex braucht: Abos einsammeln. `registerEvent` zählt
+ *  bewusst NICHT selbst mit – wie oft ein Kanal belegt ist, weiß der Fake-App-Stub im Test
+ *  (sonst prüfte der Test seine eigene Buchhaltung statt der von TaskIndex). */
+export class Component {
+  private refs: unknown[] = [];
+  registerEvent(ref: unknown): void { this.refs.push(ref); }
+  addChild<T>(child: T): T { return child; }
+}
 export class FuzzySuggestModal {}
 export class Modal {}
 export class Setting {}

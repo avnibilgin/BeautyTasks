@@ -198,3 +198,60 @@ describe("Standardwerte bleiben unberührt", () => {
     expect(geladen({}).statuses![0].labelKey).not.toBe("kaputt");
   });
 });
+
+/**
+ * Der Rundlauf, den es 1.37.3 nicht gab – und zwar AUFGEZÄHLT VOM STANDARD, nicht von Hand.
+ *
+ * Der Fehler von damals war nicht, die falschen drei Felder kopiert zu haben, sondern überhaupt
+ * eine Liste gepflegt zu haben, an die man beim nächsten neuen Feld denken muss. Deshalb geht
+ * dieser Block über JEDE veränderliche Sammlung in EFFECTIVE_DEFAULTS: Was künftig dazukommt, ist
+ * ohne Zutun mitgeprüft.
+ *
+ * Ausgangslage ist immer eine LEERE data.json – genau der Zustand, in dem die Falle zuschnappte
+ * (was dem Standard gleicht, steht nicht in der Datei und teilte sich sein Objekt mit ihm).
+ */
+describe("Rundlauf für jede Sammlung, ausgehend von einer leeren data.json", () => {
+  const sammlungen = Object.entries(EFFECTIVE_DEFAULTS as unknown as Record<string, unknown>)
+    .filter(([, v]) => v !== null && typeof v === "object");
+
+  /** Etwas hinzufügen, ohne Vorhandenes anzutasten – wie jede Schreibstelle im Plugin. */
+  const ergaenzen = (wert: unknown): unknown =>
+    Array.isArray(wert) ? [...wert, wert.length && typeof wert[0] === "object" ? { probe: true } : "probe"]
+      : { ...(wert as Record<string, unknown>), probe: "x" };
+
+  it("findet überhaupt Sammlungen (sonst prüft der Block nichts)", () => {
+    expect(sammlungen.length).toBeGreaterThan(5);
+  });
+
+  for (const [key] of sammlungen) {
+    it(key + ": ergänzt -> gespeichert -> wieder geladen", () => {
+      const s = geladen({}) as unknown as Record<string, unknown>;
+      const neu = ergaenzen(s[key]);
+      s[key] = neu;
+      const datei = toDelta(s as unknown as BeautyTasksSettings);
+      expect(datei[key], key + " fehlt in der Datei").toEqual(neu);
+      expect((geladen(datei)as unknown as Record<string, unknown>)[key], key + " überlebt den Neustart nicht").toEqual(neu);
+    });
+
+    it(key + ": der Standard bleibt für alle anderen unberührt", () => {
+      const a = geladen({}) as unknown as Record<string, unknown>;
+      a[key] = ergaenzen(a[key]);
+      // Frisch geladen (= anderer Vault, nächster Start) muss der Standard wieder der Standard sein.
+      expect((geladen({}) as unknown as Record<string, unknown>)[key], key)
+        .toEqual((EFFECTIVE_DEFAULTS as unknown as Record<string, unknown>)[key]);
+    });
+  }
+
+  it("auch an Ort und Stelle veränderte Sammlungen (push/[k]=v) überleben – nicht nur zugewiesene", () => {
+    // Die Importe wiesen bis hierher teils per push zu (importExport/importTaskNotes). Beides muss
+    // halten: Die Zuweisung ist die Regel, aber das Speichern darf nicht daran hängen.
+    for (const [key, def] of sammlungen) {
+      if (!Array.isArray(def)) continue;
+      const s = geladen({}) as unknown as Record<string, unknown>;
+      (s[key] as unknown[]).push(typeof def[0] === "object" && def.length ? { probe: true } : "probe");
+      expect(toDelta(s as unknown as BeautyTasksSettings)[key], key).toEqual(s[key]);
+      expect((geladen({}) as unknown as Record<string, unknown>)[key], key + " (Standard verunreinigt)")
+        .toEqual((EFFECTIVE_DEFAULTS as unknown as Record<string, unknown>)[key]);
+    }
+  });
+});
