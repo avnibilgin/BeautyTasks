@@ -2061,6 +2061,25 @@ export class MainView extends ItemView {
    * Seite – ihre Titel sind ja identisch, und für „Liste links, Kalender rechts" ist das die
    * einzige Angabe, die zählt. Seiten ohne Layout-Wahl (Wiederkehrend, Erledigt, Verwaltung)
    * behalten ihr eigenes Ansichts-Icon.
+   *
+   * ══ Reiter-Icons gibt es im Plugin auf ZWEI Wegen – dies ist der eine ══════════
+   * Gerendert wird beides gleich: updateHeader() ruft leaf.getIcon() -> view.getIcon().
+   * Auseinander gehen die Wege davor und danach:
+   *
+   *   HIER (eigene View): Wir besitzen die Klasse, also überschreiben wir getIcon() und
+   *   BERECHNEN das Zeichen bei jeder Zeichnung neu. Es kann per Konstruktion nicht veralten,
+   *   und weil unser View-Typ nicht "markdown" ist, greift Obsidians Ausblende-Regel nicht –
+   *   es braucht keine Zeile CSS.
+   *
+   *   DORT (fremde View, s. main.setLeafIcon): Ein Markdown-Tab gehört Obsidian; eine Methode
+   *   lässt sich dort nicht überschreiben. Stattdessen wird die Eigenschaft `view.icon`
+   *   GESTEMPELT, die die Basis-getIcon() zurückgibt. Ein Stempel kann veralten (der Nutzer
+   *   folgt einem Link) – deshalb gibt es dort eine Aufräumpflicht (clearStalePlanTabs), die
+   *   es hier nicht braucht. Und weil `data-type` dort "markdown" ist, muss die Sichtbarkeit
+   *   per Klasse `bt-plan-tab` erkämpft werden (s. styles.css).
+   *
+   * Wer an einem der beiden Wege etwas ändert, sollte den anderen kennen.
+   * ═══════════════════════════════════════════════════════════════════════════════
    */
   getIcon(): string {
     const p = this.page;

@@ -577,6 +577,14 @@ export default class BeautyTasksPlugin extends Plugin {
   /**
    * Das Reiter-Icon eines fremden (Markdown-)Tabs setzen.
    *
+   * ══ Reiter-Icons gibt es im Plugin auf ZWEI Wegen – dies ist der andere ════════
+   * Der Gegenpart ist MainView.getIcon() in heuteView.ts (dort steht der Vergleich
+   * ausführlich). Kurz: Unsere eigenen Tabs ÜBERSCHREIBEN getIcon() und leiten ihr Zeichen
+   * bei jeder Zeichnung neu ab – selbstkorrigierend, ohne CSS. Hier geht beides nicht, weil
+   * die View Obsidian gehört: Das Zeichen wird GESTEMPELT und muss aufgeräumt werden, und
+   * sichtbar wird es erst durch eine eigene CSS-Klasse.
+   * ═══════════════════════════════════════════════════════════════════════════════
+   *
    * Zwei Schritte, weil zwei Dinge im Weg stehen:
    *
    * 1. `View.icon` ist öffentlich (seit 1.1.0) und `getIcon()` der ItemView liefert genau diesen

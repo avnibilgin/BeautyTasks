@@ -2695,6 +2695,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-tn-src { margin: -2px 0 10px; }
 
 /* ── Planungsansicht: Icon auf den Notiz-Reitern ──────────────────────────────
+   Gilt NUR für den Weg über fremde Views (main.setLeafIcon). Unsere eigenen
+   Tabs – Liste, Board, Kalender – brauchen hiervon nichts: Sie überschreiben
+   getIcon() selbst und tragen einen View-Typ, den Obsidian nicht ausblendet
+   (der Vergleich beider Wege steht bei MainView.getIcon in heuteView.ts).
+
    Obsidian blendet das Icon von Notiz-Tabs im Hauptbereich absichtlich aus:
 
      .mod-root .workspace-tab-header[data-type="markdown"] .workspace-tab-header-inner-icon
