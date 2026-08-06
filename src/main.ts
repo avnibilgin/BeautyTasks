@@ -74,11 +74,6 @@ export default class BeautyTasksPlugin extends Plugin {
   flashPath: string | null = null;                       // aus der Suche angesprungene Aufgabe (kurz hervorgehoben)
   flashScrolled = false;                                 // pro Sprung nur einmal ins Bild scrollen
   private lastMain: MainView | null = null;              // zuletzt benutzter Dashboard-Tab (s. activeMain)
-  /** Zuletzt angeklickter Tab im Hauptbereich – EGAL welcher Art (auch eine Notiz). Dorthin
-   *  öffnet ein Klick in der Seitenleiste, wie in Obsidians Dateiliste (s. openPage). Nicht
-   *  dasselbe wie `lastMain`: Der merkt sich nur eigene Ansichten und beantwortet, welche Seite
-   *  in der Seitenleiste markiert wird. */
-  private lastLeaf: WorkspaceLeaf | null = null;
   /** Ursprüngliches Reiter-Icon der Notiz-Tabs, die der Planungs-Split übermalt hat – zum
    *  Zurückgeben, sobald ein Tab nicht mehr dazugehört (s. setLeafIcon/clearStalePlanTabs).
    *  Eine WeakMap, damit ein geschlossener Tab hier nichts festhält. */
@@ -170,12 +165,6 @@ export default class BeautyTasksPlugin extends Plugin {
     // (also genau beim Klick dorthin), bleibt alles stehen. Ein renderNav() an dieser Stelle
     // führe c.empty() mitten in der Klick-Geste aus und schluckte den Klick (s. layout-change).
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
-      // ZUERST den zuletzt angeklickten Tab des Hauptbereichs merken – unabhängig davon, was
-      // darin steht. Das ist der Tab, in dem ein Klick in der Seitenleiste landet (s. openPage).
-      // Seitenleisten-Leafs zählen NICHT: Der Klick dorthin ist ja gerade die Bedienung, nicht
-      // das Ziel. Popout-Fenster zählen mit – dort arbeitet man genauso.
-      const ws = this.app.workspace;
-      if (leaf && leaf.getRoot() !== ws.leftSplit && leaf.getRoot() !== ws.rightSplit) this.lastLeaf = leaf;
       if (!(leaf?.view instanceof MainView)) return;
       leaf.view.drawIfDirty();   // war der Tab verdeckt, ist seine Zeichnung nachzuholen
       if (this.lastMain === leaf.view) return;
@@ -281,25 +270,6 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Seite des aktiven Tabs – Grundlage der Markierung in der Seitenleiste (s. renderNavInto). */
   activePage(): PageRef | null { return this.activeMain()?.page ?? null; }
 
-  /**
-   * Der Tab, in dem ein Klick in der Seitenleiste landet: der zuletzt angeklickte im
-   * Hauptbereich, egal ob eigene Ansicht oder Notiz.
-   *
-   * Geschlossene Tabs dürfen nicht nachwirken – deshalb wird die Merkung gegen den aktuellen
-   * Arbeitsbereich geprüft. Ist sie hinfällig, fällt es auf den zuletzt benutzten Dashboard-Tab
-   * zurück (das alte Verhalten), und gibt es auch den nicht, entsteht ein neuer Tab.
-   */
-  private lastMainAreaLeaf(): WorkspaceLeaf | null {
-    const wanted = this.lastLeaf;
-    if (wanted) {
-      let lebt = false;
-      this.app.workspace.iterateAllLeaves((l) => { if (l === wanted) lebt = true; });
-      if (lebt) return wanted;
-      this.lastLeaf = null;
-    }
-    return this.activeMain()?.leaf ?? null;
-  }
-
   // ── Öffnen / Navigieren ──
   async openBeautyTasks(): Promise<void> {
     await this.activateNav();
@@ -369,36 +339,24 @@ export default class BeautyTasksPlugin extends Plugin {
   }
 
   /**
-   * Eine Seite öffnen. Ohne `where` landet sie im zuletzt angeklickten Tab des Hauptbereichs
-   * (gibt es keinen, entsteht einer). Mit `where` entsteht IMMER ein neuer: "tab" · "split"
-   * (rechts daneben) · "window" – bzw. direkt der Rückgabewert von Keymap.isModEvent, damit
-   * Strg-/Mittelklick genau das tun, was der Nutzer in Obsidian ohnehin gewohnt ist.
-   *
-   * „Der zuletzt angeklickte Tab" heißt wörtlich das – auch wenn dort gerade eine NOTIZ steht.
-   * Genau so verhält sich Obsidians Dateiliste: Was man dort anklickt, ersetzt den Inhalt des
-   * aktiven Reiters. Vorher galt hier „der zuletzt benutzte Dashboard-Tab", was dasselbe war,
-   * solange im Hauptbereich nur eigene Ansichten standen. Seit die Planungsansicht Notiz-Reiter
-   * dazustellt, fällt das auseinander: Ein Klick auf die Projektnotiz ließ den Merker stehen,
-   * und die Seitenleiste öffnete danach immer im Kalender – egal, wo man stand.
+   * Eine Seite öffnen. Ohne `where` landet sie im zuletzt benutzten Dashboard-Tab (gibt es keinen,
+   * entsteht einer). Mit `where` entsteht IMMER ein neuer: "tab" · "split" (rechts daneben) ·
+   * "window" – bzw. direkt der Rückgabewert von Keymap.isModEvent, damit Strg-/Mittelklick genau
+   * das tun, was der Nutzer in Obsidian ohnehin gewohnt ist.
    */
   async openPage(page: PageRef, where?: PaneType | boolean): Promise<MainView | null> {
     const { workspace } = this.app;
     if (page.kind === "view" && this.device.lastView !== page.key) {
       this.device.lastView = page.key; this.saveDevice();   // für startView === "last"
     }
-    const home = where ? null : this.lastMainAreaLeaf();
-    // Eigene Ansicht: einfach auf die neue Seite schicken, der Tab bleibt derselbe.
-    if (home?.view instanceof MainView) {
-      const target = home.view;
+    const target = where ? null : this.activeMain();
+    if (target) {
       target.openPage(page);
       await workspace.revealLeaf(target.leaf);
       target.drawIfDirty();             // lag der Tab im Hintergrund, steht seine Zeichnung noch aus
       return target;
     }
-    // Fremder Tab (Projektnotiz, Tagesnotiz, irgendeine Datei): Die Seite ERSETZT ihn – wie ein
-    // Klick in der Dateiliste. Angepinnt heißt „nicht anfassen"; dann entsteht wie in Obsidian
-    // ein neuer Reiter daneben.
-    const leaf = home && !home.getViewState().pinned ? home : workspace.getLeaf(where ?? "tab");
+    const leaf = workspace.getLeaf(where ?? "tab");
     await leaf.setViewState({ type: VIEW_MAIN, active: true, state: { kind: page.kind, key: page.key } });
     await workspace.revealLeaf(leaf);   // awaited -> View vollständig geladen
     const view = leaf.view instanceof MainView ? leaf.view : null;
