@@ -6,7 +6,7 @@ import { StartPageModal, listStartPages, startPageLabel } from "./startPagePicke
 import { renderStatusEditor } from "./statusEditor";
 import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
 import { FieldId, FIELD_IDS, normalizeFieldName, allFieldNames } from "./fieldNames";
-import { PlanTabId, readPlanTabs, dailyNotesEnabled } from "./planTabs";
+import { PlanTabId, readPlanTabs, dailyNotesEnabled, forceListLeft } from "./planTabs";
 import { t } from "./i18n";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
@@ -135,6 +135,15 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       });
     };
     zeichne();
+
+    // Bewusst UNTER der Reiter-Liste und außerhalb von zeichne(): Der Schalter betrifft nicht die
+    // rechte Hälfte, sondern die linke – er gehört nicht in das Bild der Tab-Leiste darüber und
+    // soll beim Umsortieren nicht mit neu aufgebaut werden.
+    new Setting(containerEl).setName(t("set_plan_forcelist")).setDesc(t("set_plan_forcelist_desc"))
+      .addToggle((tg) => tg.setValue(forceListLeft(p.settings)).onChange(async (v) => {
+        p.settings.planForceList = v;
+        await p.saveSettings();
+      }));
   }
 
   display(): void {

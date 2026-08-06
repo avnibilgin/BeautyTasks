@@ -61,6 +61,19 @@ export function readPlanTabs(settings: BeautyTasksSettings): PlanTab[] {
   return out;
 }
 
+/**
+ * Soll der Befehl die LINKE Hälfte auf Liste stellen?
+ *
+ * Standard ja – die Planungsansicht ist die Anordnung „Liste links, Kalender rechts", und aus
+ * einer flachen Liste terminiert man am schnellsten. Wer seine Projekte als Board führt, erlebt
+ * das aber bei jedem Aufruf als Bruch; ausgeschaltet behält die Seite links ihr eigenes Layout.
+ * Ziehen in den Kalender geht aus dem Board genauso.
+ *
+ * `!== false` statt `=== true`: nie gewählt bedeutet ja, ohne dass der Wert in data.json stehen
+ * muss (dasselbe Muster wie calPanel).
+ */
+export const forceListLeft = (settings: BeautyTasksSettings): boolean => settings.planForceList !== false;
+
 /** Die Notiz der Seite: Projekt, Bereich oder gespeicherter Filter. Bei diesen dreien IST der
  *  `key` der Pfad ihrer Notiz. Alles andere hat keine – ein Label ist ein Name, der Eingang und
  *  die eingebauten Ansichten sind gar keine Datei. */

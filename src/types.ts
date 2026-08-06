@@ -163,6 +163,7 @@ export interface BeautyTasksSettings {
   statuses?: StoredStatus[];        // user-definierbare Status (undefined = eingebaute Defaults, siehe statuses.ts)
   pageViewOptions?: Record<string, Partial<import("./filterEngine").ViewOptions>>;   // Anzeige-Optionen für System-Views (key=ViewId) und Labels (key="label:<name>"); Notiz-Seiten speichern im Frontmatter
   pageFilters?: Record<string, Record<string, unknown>>;   // Ansichtsfilter derselben Seiten (gleiche Schlüssel); serialisiert wie im Frontmatter (s. pageOptions.writeCriteria), damit beide Speicherorte EIN Format haben
+  planForceList?: boolean;                      // Planungsansicht: linke Hälfte auf Liste stellen? (undefined = ja, s. planTabs.forceListLeft)
   planTabs?: import("./planTabs").PlanTab[];    // Planungsansicht: welche Tabs rechts entstehen, in welcher Reihenfolge (Reihenfolge = welcher vorn liegt, s. planTabs.ts)
   navSort?: Record<NavSection, NavSortMode>;    // Sortiermodus je Seitenleisten-Sektion (Default "name")
   navOrder?: Record<NavSection, string[]>;      // manuelle Reihenfolge (Pfade bzw. Label-Namen)

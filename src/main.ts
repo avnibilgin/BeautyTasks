@@ -11,7 +11,7 @@ import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
 } from "./heuteView";
 import { PageRef, pageInfo, samePage } from "./pageCtx";
-import { activePlanTabs, pageNoteFile, openDailyNote, NOTE_ICON, DAILY_ICON } from "./planTabs";
+import { activePlanTabs, pageNoteFile, openDailyNote, forceListLeft, NOTE_ICON, DAILY_ICON } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
@@ -626,8 +626,16 @@ export default class BeautyTasksPlugin extends Plugin {
     }
 
     left.planMates = Object.keys(mates).length ? mates : null;
-    left.useLocal({ layout: "list" }, "list");
-    left.planForced = true;   // dito – sonst bliebe die Liste stehen, wenn die Anordnung endet
+    // Linke Hälfte: Liste nur, wenn die Einstellung es will. Aus heißt „die Seite behält ihr
+    // Layout" – ein Board-Projekt bleibt dann auch beim Planen ein Board. Die Rolle bekommt der
+    // Tab in beiden Fällen, sonst fände der Befehl seine Listen-Hälfte nicht wieder.
+    if (forceListLeft(this.settings)) {
+      left.useLocal({ layout: "list" }, "list");
+      left.planForced = true;   // vom Befehl verordnet -> beim Auflösen zurücknehmen
+    } else {
+      left.dropForcedLayout();  // Rest aus einem früheren Aufruf, als die Einstellung noch an war
+      left.useLocal({}, "list");
+    }
     await this.sortPlanTabs(placed);
     placed.forEach((leaf, i) => { if (icons[i]) this.setLeafIcon(leaf, icons[i]); });
     this.clearStalePlanTabs(placed);

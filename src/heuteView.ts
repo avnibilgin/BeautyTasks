@@ -2196,15 +2196,21 @@ export class MainView extends ItemView {
    * `planRole` bleibt bewusst erhalten: Sie sagt, WOZU dieser Tab gehört, und sorgt dafür, dass
    * ein späteres „Planen" wieder ihn als Liste nimmt statt einen dritten aufzumachen.
    */
+  /** Nur die vom Befehl erzwungene Layout-Wahl zurücknehmen – ohne die Anordnung zu beenden.
+   *  Gebraucht auch beim Aufbau, wenn „Liste links erzwingen" inzwischen ausgeschaltet wurde:
+   *  Der Tab trüge sonst noch die Liste aus einem früheren Aufruf. */
+  dropForcedLayout(): void {
+    if (!this.planForced) return;
+    this.planForced = false;
+    delete this.local.layout;
+    delete this.local.calPanel;
+  }
+
   endPlanArrangement(): void {
     const hatteMates = this.planMates !== null;
     if (!hatteMates && !this.planForced) return;   // nichts aufzuräumen
     this.planMates = null;
-    if (this.planForced) {
-      this.planForced = false;
-      delete this.local.layout;
-      delete this.local.calPanel;
-    }
+    this.dropForcedLayout();
     this.plugin.app.workspace.requestSaveLayout();
     this.draw();
   }
