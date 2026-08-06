@@ -11,7 +11,7 @@ import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
 } from "./heuteView";
 import { PageRef, pageInfo, samePage } from "./pageCtx";
-import { activePlanTabs, pageNoteFile, openDailyNote } from "./planTabs";
+import { activePlanTabs, pageNoteFile, pageNoteIcon, openDailyNote, DAILY_ICON } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
@@ -457,6 +457,10 @@ export default class BeautyTasksPlugin extends Plugin {
 
     const mates: Partial<Record<"note" | "daily", string>> = {};
     const placed: WorkspaceLeaf[] = [];
+    // Parallel zu `placed`: das Tab-Icon der Notiz-Hälften (leer = eigene View, bringt ihres
+    // selbst mit). Angewandt wird es erst NACH dem Umsortieren – ein verschobener Reiter ist
+    // ein neu erzeugter, und dessen View kennt unsere Zuweisung noch nicht.
+    const icons: string[] = [];
 
     for (const role of roles) {
       if (role === "calendar") {
@@ -475,6 +479,7 @@ export default class BeautyTasksPlugin extends Plugin {
         view.useLocal({ layout: "calendar", calPanel: false }, "calendar");
         cal = view;
         placed.push(view.leaf);
+        icons.push("");       // MainView.getIcon() liefert das Layout-Icon selbst
         anchor = view.leaf;   // Einfügestelle rückt weiter – der nächste Tab gehört DAHINTER
         group ??= view.leaf.parent;
         continue;
@@ -505,6 +510,7 @@ export default class BeautyTasksPlugin extends Plugin {
       const shown = (leaf.getViewState().state as { file?: unknown } | undefined)?.file;
       if (typeof shown === "string") mates[role] = shown;
       placed.push(leaf);
+      icons.push(role === "daily" ? DAILY_ICON : pageNoteIcon(this.app, target));
       anchor = leaf;   // Einfügestelle rückt weiter – der nächste Tab gehört DAHINTER
       group ??= leaf.parent;
     }
@@ -512,6 +518,7 @@ export default class BeautyTasksPlugin extends Plugin {
     left.planMates = Object.keys(mates).length ? mates : null;
     left.useLocal({ layout: "list" }, "list");
     await this.sortPlanTabs(placed);
+    placed.forEach((leaf, i) => { if (icons[i]) this.setLeafIcon(leaf, icons[i]); });
     // Vorn liegt der ERSTE eingeschaltete Eintrag: Die Reihenfolge in den Einstellungen IST die
     // Rangfolge (s. planTabs.ts). Ohne das läge der zuletzt erzeugte Tab vorn – bei „Kalender +
     // Notiz" also die Notiz, und der Kalender, für den man geteilt hat, wäre unsichtbar.
@@ -560,6 +567,21 @@ export default class BeautyTasksPlugin extends Plugin {
       leaf.detach();
       placed[i] = fresh;
     }
+  }
+
+  /**
+   * Das Reiter-Icon eines fremden (Markdown-)Tabs setzen.
+   *
+   * `View.icon` ist öffentlich (seit 1.1.0), und `getIcon()` der ItemView liefert genau diesen
+   * Wert – MarkdownView überschreibt das nicht. Es braucht also keinen Eingriff ins DOM der
+   * Tab-Leiste; updateHeader() zeichnet den Reiter mit dem neuen Zeichen neu.
+   *
+   * Gesetzt wird NACH dem Öffnen der Datei: Ein FileView richtet sein Icon beim Laden selbst ein
+   * und überschriebe unseres sonst wieder.
+   */
+  private setLeafIcon(leaf: WorkspaceLeaf, icon: string): void {
+    leaf.view.icon = icon;
+    (leaf as WorkspaceLeaf & { updateHeader?: () => void }).updateHeader?.();
   }
 
   /** Alle Leaves einer Tab-Gruppe (Reihenfolge = Anzeige). */
