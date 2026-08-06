@@ -55,7 +55,12 @@ export function addOpenItems(menu: Menu, plugin: BeautyTasksPlugin, page: PageRe
   if (pageInfo(page).tier !== "none") {
     // „square-split-horizontal" ist der aktuelle Lucide-Name; „split-square-horizontal" ist der
     // Alt-Alias von vor der Umbenennung (2024) und wird nur noch aus Kompatibilität mitgeführt.
-    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t("plan_open")).setIcon("square-split-horizontal")
+    //
+    // Der Eintrag beschriftet sich um: Steht die Anordnung für GENAU DIESE Seite schon, macht
+    // derselbe Befehl sie wieder zu. Ohne die sichtbare Umbeschriftung wäre der Ausgang aus der
+    // Planungsansicht nicht auffindbar – man käme nur heraus, indem man Reiter einzeln zuklickt.
+    const steht = plugin.planSplitFor(page) !== null;
+    menu.addItem((m) => m.setSection("bt-newtab").setTitle(t(steht ? "plan_close" : "plan_open")).setIcon("square-split-horizontal")
       .onClick(() => void plugin.openPlanSplit(page)));
   }
 }

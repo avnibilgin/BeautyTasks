@@ -1976,6 +1976,19 @@ let viewSeq = 0;
 const oneOfState = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : null;
 
+/** Wie oneOfState, nur für MainView.planMates: aus der Workspace-Datei kommt fremder Input,
+ *  also wird jeder Pfad einzeln geprüft. Ohne brauchbaren Eintrag: null (= nichts gemerkt). */
+function readPlanMates(v: unknown): Partial<Record<"note" | "daily", string>> | null {
+  if (!v || typeof v !== "object") return null;
+  const src = v as Record<string, unknown>;
+  const out: Partial<Record<"note" | "daily", string>> = {};
+  for (const k of ["note", "daily"] as const) {
+    const p = src[k];
+    if (typeof p === "string" && p) out[k] = p;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /**
  * Ein Dashboard-Tab. Er BESITZT seine Seite (this.page) – bis 1.33 stand die auf der Plugin-
  * Instanz, weshalb es per Konstruktion nur einen sinnvollen Tab geben konnte. Über getState/
@@ -2002,6 +2015,29 @@ export class MainView extends ItemView {
    * schickt sie beide auf die neue Seite. Wandert in getState: die Paarung übersteht den Neustart.
    */
   planRole: "list" | "calendar" | null = null;
+  /**
+   * Nur am LISTEN-Tab: welche Dateien er in der rechten Hälfte abgelegt hat (je Rolle ein Pfad).
+   *
+   * Warum das nötig ist: Die rechte Gruppe wird bisher über `planRole` des Kalender-Tabs
+   * wiedergefunden. Seit der Kalender abschaltbar ist (s. planTabs.ts), kann dort aber
+   * ausschließlich ein Markdown-Tab stehen – und ein MarkdownView kann keine Rolle tragen.
+   * Ohne diese Merkung fände „Planen" seine eigene Anordnung nicht wieder und spaltete bei
+   * jedem Aufruf eine weitere ab: genau die Regression, die `planRole` schon einmal behoben hat.
+   *
+   * Wandert in getState und übersteht damit den Neustart – die Markdown-Tabs stellt Obsidian
+   * selbst wieder her, gefunden werden sie danach über ihren Pfad.
+   */
+  planMates: Partial<Record<"note" | "daily", string>> | null = null;
+  /**
+   * Kam die Layout-Wahl dieses Tabs vom Planen-Befehl – und darf beim Auflösen der Anordnung
+   * deshalb wieder zurückgenommen werden?
+   *
+   * Ohne diese Unterscheidung ginge beim Aufräumen auch verloren, was der Nutzer im Split von
+   * Hand eingestellt hat. `useLocal` selbst kann das nicht wissen: Ihm sieht man nicht an, ob
+   * der Befehl oder ein Mensch dahintersteckt. Die Merkung verfällt, sobald jemand den
+   * Layout-Umschalter benutzt (s. setLocal) oder der Tab die Seite wechselt.
+   */
+  planForced = false;
   /** Umschaltbarer Unterzustand der Seite. Bewusst ein eigenes OBJEKT: der Kontext hält eine
    *  Referenz darauf und liest per Getter mit – ein Abzug wäre veraltet, sobald ein Umschalter
    *  ihn setzt und mit demselben Kontext neu zeichnet (Verwaltungs-Tabs machen genau das). */
@@ -2035,6 +2071,25 @@ export class MainView extends ItemView {
    * Seite – ihre Titel sind ja identisch, und für „Liste links, Kalender rechts" ist das die
    * einzige Angabe, die zählt. Seiten ohne Layout-Wahl (Wiederkehrend, Erledigt, Verwaltung)
    * behalten ihr eigenes Ansichts-Icon.
+   *
+   * ══ Reiter-Icons gibt es im Plugin auf ZWEI Wegen – dies ist der eine ══════════
+   * Gerendert wird beides gleich: updateHeader() ruft leaf.getIcon() -> view.getIcon().
+   * Auseinander gehen die Wege davor und danach:
+   *
+   *   HIER (eigene View): Wir besitzen die Klasse, also überschreiben wir getIcon() und
+   *   BERECHNEN das Zeichen bei jeder Zeichnung neu. Es kann per Konstruktion nicht veralten,
+   *   und weil unser View-Typ nicht "markdown" ist, greift Obsidians Ausblende-Regel nicht –
+   *   es braucht keine Zeile CSS.
+   *
+   *   DORT (fremde View, s. main.setLeafIcon): Ein Markdown-Tab gehört Obsidian; eine Methode
+   *   lässt sich dort nicht überschreiben. Stattdessen wird die Eigenschaft `view.icon`
+   *   GESTEMPELT, die die Basis-getIcon() zurückgibt. Ein Stempel kann veralten (der Nutzer
+   *   folgt einem Link) – deshalb gibt es dort eine Aufräumpflicht (clearStalePlanTabs), die
+   *   es hier nicht braucht. Und weil `data-type` dort "markdown" ist, muss die Sichtbarkeit
+   *   per Klasse `bt-plan-tab` erkämpft werden (s. styles.css).
+   *
+   * Wer an einem der beiden Wege etwas ändert, sollte den anderen kennen.
+   * ═══════════════════════════════════════════════════════════════════════════════
    */
   getIcon(): string {
     const p = this.page;
@@ -2050,6 +2105,7 @@ export class MainView extends ItemView {
       kind: this.page.kind, key: this.page.key,
       layout: this.local.layout ?? null, calPanel: this.local.calPanel ?? null,
       doneTab: this.tab.doneTab, manageTab: this.tab.manageTab, planRole: this.planRole,
+      planMates: this.planMates, planForced: this.planForced,
     };
   }
 
@@ -2070,6 +2126,7 @@ export class MainView extends ItemView {
       // gehören zu ihr, nicht zum Tab – sonst erbte die neue Seite eine fremde Position.
       dropViewKeys(this.id);
       this.local = {};              // neue Seite startet bei IHREN Standards
+      this.planForced = false;      // die erzwungene Wahl galt der ALTEN Seite
       this.tab.doneTab = "done";
       this.tab.doneCollapsed = true;
     }
@@ -2086,6 +2143,11 @@ export class MainView extends ItemView {
     // spaltete eine dritte Ansicht ab.
     const role = oneOfState<"list" | "calendar">(s.planRole, ["list", "calendar"]);
     if (role) this.planRole = role;
+    // Aus demselben Grund wie die Rolle nur übernehmen, wenn der Zustand wirklich etwas mitbringt:
+    // Eine gewöhnliche Navigation reicht nur {kind, key} herein und darf die Paarung nicht löschen.
+    const mates = readPlanMates(s.planMates);
+    if (mates) this.planMates = mates;
+    if (typeof s.planForced === "boolean") this.planForced = s.planForced;
     const done = oneOfState<"done" | "trash">(s.doneTab, ["done", "trash"]);
     if (done) this.tab.doneTab = done;
     const mtab = oneOfState<"active" | "archive">(s.manageTab, ["active", "archive"]);
@@ -2122,6 +2184,37 @@ export class MainView extends ItemView {
     this.draw();
   }
 
+  /**
+   * Die Planungsanordnung ist vorbei – diesen Tab wieder zu einem gewöhnlichen machen.
+   *
+   * Zurückgenommen wird NUR, was der Befehl selbst erzwungen hat (planForced). Der Tab fällt
+   * damit auf den Seiten-Standard zurück: Wer sein Projekt normalerweise als Board sieht, sieht
+   * es danach wieder als Board. Ohne das blieb die Liste stehen, bis der Tab zufällig die Seite
+   * wechselte – dann räumt setState `local` ohnehin ab, und genau deshalb kam das Board zurück,
+   * sobald man in der Seitenleiste weg und wieder hin klickte.
+   *
+   * `planRole` bleibt bewusst erhalten: Sie sagt, WOZU dieser Tab gehört, und sorgt dafür, dass
+   * ein späteres „Planen" wieder ihn als Liste nimmt statt einen dritten aufzumachen.
+   */
+  /** Nur die vom Befehl erzwungene Layout-Wahl zurücknehmen – ohne die Anordnung zu beenden.
+   *  Gebraucht auch beim Aufbau, wenn „Liste links erzwingen" inzwischen ausgeschaltet wurde:
+   *  Der Tab trüge sonst noch die Liste aus einem früheren Aufruf. */
+  dropForcedLayout(): void {
+    if (!this.planForced) return;
+    this.planForced = false;
+    delete this.local.layout;
+    delete this.local.calPanel;
+  }
+
+  endPlanArrangement(): void {
+    const hatteMates = this.planMates !== null;
+    if (!hatteMates && !this.planForced) return;   // nichts aufzuräumen
+    this.planMates = null;
+    this.dropForcedLayout();
+    this.plugin.app.workspace.requestSaveLayout();
+    this.draw();
+  }
+
   setLocal(patch: Partial<LocalOptions>): void {
     const before = this.plugin.pageOptions(this.page);
     for (const other of this.plugin.mainViews()) {
@@ -2133,6 +2226,9 @@ export class MainView extends ItemView {
         if (other.local[k] === undefined) Object.assign(other.local, { [k]: before[k] });
       }
     }
+    // Wer den Umschalter selbst benutzt, entscheidet selbst: Ab hier gilt die Wahl als seine,
+    // und das Auflösen der Anordnung nimmt sie nicht mehr zurück (s. planForced).
+    if (patch.layout !== undefined) this.planForced = false;
     Object.assign(this.local, patch);
     void this.plugin.setPageOption(this.page, patch);
     // Sofort zeichnen statt auf den Speicher zu warten: auf einer PROJEKT-Seite landet der neue
@@ -2201,6 +2297,14 @@ export class MainView extends ItemView {
 
   draw(): void {
     if (!this.contentEl) return;
+    // Titel und Icon IMMER nachziehen – auch verdeckt und auch auf dem Schnellpfad unten. Sie
+    // hängen am REITER, nicht am Inhalt: Ein Tab im Hintergrund ist zwar unsichtbar, seine
+    // Beschriftung in der Tab-Leiste ist es nicht. Lag das hinter der Sichtbarkeitsprüfung,
+    // trug ein Hintergrund-Tab nach einem Seitenwechsel weiter den alten Namen – bis man ihn
+    // anklickte und er sich dabei zeichnete. Zu sehen im Planungs-Split: „Planen" auf einem
+    // zweiten Projekt schickte den verdeckten Kalender-Tab auf die neue Seite, beschriftet
+    // blieb er mit der alten. Kostet zwei setText – kein Grund, es aufzuschieben.
+    this.syncTitle();
     // Ein VERDECKTER Tab (anderer Tab derselben Gruppe) wird nur vorgemerkt. Solange es genau
     // eine Dashboard-Leaf gab, war das kein Thema; mit drei offenen Tabs zahlte man den vollen
     // Aufbau (gemessen ~110 ms) bei JEDER Aufgabenänderung dreifach – zweimal davon für Seiten,
@@ -2226,7 +2330,6 @@ export class MainView extends ItemView {
     else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
     else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
     else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
-    this.syncTitle();
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –

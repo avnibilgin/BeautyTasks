@@ -2693,3 +2693,37 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Herkunft der Feldzuordnung im TaskNotes-Import: dezent, aber vor den Eingabefeldern –
    sie beantwortet die Frage, bevor der Nutzer am Tag herumprobiert. */
 .bt-tn-src { margin: -2px 0 10px; }
+
+/* ── Planungsansicht: Icon auf den Notiz-Reitern ──────────────────────────────
+   Gilt NUR für den Weg über fremde Views (main.setLeafIcon). Unsere eigenen
+   Tabs – Liste, Board, Kalender – brauchen hiervon nichts: Sie überschreiben
+   getIcon() selbst und tragen einen View-Typ, den Obsidian nicht ausblendet
+   (der Vergleich beider Wege steht bei MainView.getIcon in heuteView.ts).
+
+   Obsidian blendet das Icon von Notiz-Tabs im Hauptbereich absichtlich aus:
+
+     .mod-root .workspace-tab-header[data-type="markdown"] .workspace-tab-header-inner-icon
+       { display: none }
+
+   In der Planungsansicht stehen Kalender, Projektnotiz und Tagesnotiz aber als
+   Reiter NEBENEINANDER – dort trägt das Zeichen Bedeutung, und ohne es wäre nur
+   der Kalender (eigener View-Typ) unterscheidbar. Die Klasse setzt der Befehl
+   ausschließlich auf die Reiter, die er selbst anlegt (s. main.setLeafIcon);
+   jeder andere Notiz-Tab des Vaults bleibt unberührt.
+
+   ── SPEZIFITÄT ──
+   Obsidians Regel wiegt 0-4-0 (.mod-root · .workspace-tab-header · [data-type] ·
+   .workspace-tab-header-inner-icon). Eine Gegenregel MUSS schwerer sein; die
+   erste Fassung hier wog 0-3-0 und griff deshalb nie — Icon und Klasse waren
+   längst gesetzt, das Element blieb trotzdem ausgeblendet. Die zweite Zeile
+   nimmt `.mod-root` und `[data-type]` mit auf und kommt damit auf 0-5-0.
+   Nicht auf die Reihenfolge der Stylesheets verlassen: Bei Gleichstand
+   entschiede sie zwar für uns, aber nur solange niemand daran rührt.
+
+   Die erste Zeile (0-4-0) gilt außerhalb von .mod-root — Popout-Fenster und
+   Seitenleisten, wo Obsidian gar nichts ausblendet.
+
+   `display: flex` und nicht `inline`: genau der Wert aus Obsidians eigener
+   Regel für .workspace-tab-header-inner-icon. */
+.workspace-tab-header.bt-plan-tab[data-type="markdown"] .workspace-tab-header-inner-icon,
+.mod-root .workspace-tab-header.bt-plan-tab[data-type="markdown"] .workspace-tab-header-inner-icon { display: flex; }

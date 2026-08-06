@@ -6,6 +6,7 @@ import { StartPageModal, listStartPages, startPageLabel } from "./startPagePicke
 import { renderStatusEditor } from "./statusEditor";
 import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
 import { FieldId, FIELD_IDS, normalizeFieldName, allFieldNames } from "./fieldNames";
+import { PlanTabId, readPlanTabs, dailyNotesEnabled, forceListLeft } from "./planTabs";
 import { t } from "./i18n";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
@@ -73,6 +74,78 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
 
   hide(): void { this.gcalStatusUnsub?.(); this.gcalStatusUnsub = null; }
 
+  /**
+   * „Planungsansicht": was im rechten Bereich entsteht – und in welcher Reihenfolge.
+   *
+   * Die Liste ist absichtlich ein Bild der Tab-Leiste, die sie erzeugt: oben = vorn. Deshalb
+   * gibt es hier auch keine Auswahl „das ist der Standard"; der erste eingeschaltete Eintrag
+   * IST er (s. planTabs.ts). Erzwungen wird nur, dass einer übrig bleibt – der letzte
+   * eingeschaltete Schalter ist gesperrt, statt den Nutzer hinterher auf einen Fehler zu
+   * stoßen, den er in einer Einstellungsseite gar nicht erwartet.
+   */
+  private renderPlanTabs(containerEl: HTMLElement): void {
+    const p = this.plugin;
+    new Setting(containerEl).setName(t("set_plan_heading")).setDesc(t("set_plan_desc")).setHeading();
+    const host = containerEl.createDiv();
+
+    const label: Record<PlanTabId, string> = {
+      calendar: t("plan_tab_calendar"), note: t("plan_tab_note"), daily: t("plan_tab_daily"),
+    };
+    const desc: Record<PlanTabId, string> = {
+      calendar: t("plan_tab_calendar_desc"), note: t("plan_tab_note_desc"), daily: t("plan_tab_daily_desc"),
+    };
+
+    const zeichne = (): void => {
+      host.empty();
+      const tabs = readPlanTabs(p.settings);
+      const anCount = tabs.filter((e) => e.on).length;
+      const speichern = async (next: typeof tabs): Promise<void> => {
+        p.settings.planTabs = next;
+        await p.saveSettings();
+        zeichne();
+      };
+      tabs.forEach((tab, i) => {
+        const row = new Setting(host).setName(label[tab.id]);
+        // Die Tagesnotiz hängt am Kern-Plugin. Ist es aus, bleibt der Schalter bedienbar (die
+        // Wahl gehört dem Nutzer), aber die Zeile sagt, warum gerade nichts passieren würde.
+        const aus = tab.id === "daily" && !dailyNotesEnabled(p.app);
+        row.setDesc(aus ? t("plan_tab_daily_off") : desc[tab.id]);
+        row.addExtraButton((b) => b.setIcon("chevron-up").setTooltip(t("btn_move_up"))
+          .setDisabled(i === 0)
+          .onClick(() => {
+            const next = tabs.slice();
+            [next[i - 1], next[i]] = [next[i], next[i - 1]];
+            void speichern(next);
+          }));
+        row.addExtraButton((b) => b.setIcon("chevron-down").setTooltip(t("btn_move_down"))
+          .setDisabled(i === tabs.length - 1)
+          .onClick(() => {
+            const next = tabs.slice();
+            [next[i], next[i + 1]] = [next[i + 1], next[i]];
+            void speichern(next);
+          }));
+        row.addToggle((tg) => {
+          const letzter = tab.on && anCount === 1;
+          tg.setValue(tab.on).setDisabled(letzter).setTooltip(letzter ? t("plan_tab_last") : "")
+            .onChange((v) => {
+              const next = tabs.map((e, k) => (k === i ? { ...e, on: v } : e));
+              void speichern(next);
+            });
+        });
+      });
+    };
+    zeichne();
+
+    // Bewusst UNTER der Reiter-Liste und außerhalb von zeichne(): Der Schalter betrifft nicht die
+    // rechte Hälfte, sondern die linke – er gehört nicht in das Bild der Tab-Leiste darüber und
+    // soll beim Umsortieren nicht mit neu aufgebaut werden.
+    new Setting(containerEl).setName(t("set_plan_forcelist")).setDesc(t("set_plan_forcelist_desc"))
+      .addToggle((tg) => tg.setValue(forceListLeft(p.settings)).onChange(async (v) => {
+        p.settings.planForceList = v;
+        await p.saveSettings();
+      }));
+  }
+
   display(): void {
     const { containerEl } = this;
     this.gcalStatusUnsub?.(); this.gcalStatusUnsub = null;   // altes Status-Abo lösen (Re-Render)
@@ -128,6 +201,9 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
         await p.saveSettings();
         p.renderAll();   // Eingang + Zähler neu zeichnen
       }));
+
+    // ── Planungsansicht ──
+    this.renderPlanTabs(containerEl);
 
     // ── Darstellung ──
     new Setting(containerEl).setName(t("set_appearance_heading")).setHeading();
