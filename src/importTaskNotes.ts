@@ -242,11 +242,14 @@ export class ImportTaskNotesModal extends Modal {
       const { tasks, lists, labels, lossy } = await buildImportData(this.app, files, this.mapping, this.taskTag, this.toStatus, this.toPriority);
       const r = await importData(this.plugin, makeImportData(lists, labels, tasks));
       // Importierte Labels in der Seitenleiste einblenden (wie importierte Projekte sichtbar sind).
-      let shown = false;
-      for (const l of labels) {
-        if (l && !this.plugin.settings.visibleLabels.includes(l)) { this.plugin.settings.visibleLabels.push(l); shown = true; }
+      // NEU ZUWEISEN statt `push` – aus demselben Grund wie in importData (s. dort): ein `push`
+      // auf eine Sammlung, die dem Standard gleicht, hat bis 1.38.3 den Standard mitverändert und
+      // das Speichern still verhindert. Genau hier ist der Verlust aufgetreten.
+      const neueSichtbare = [...new Set(labels.filter((l) => l && !this.plugin.settings.visibleLabels.includes(l)))];
+      if (neueSichtbare.length) {
+        this.plugin.settings.visibleLabels = [...this.plugin.settings.visibleLabels, ...neueSichtbare];
+        await this.plugin.saveSettings();
       }
-      if (shown) await this.plugin.saveSettings();
       this.close();
       new Notice(t("tn_import_done", r.created, r.skipped) + (lossy ? " " + t("tn_import_lossy", lossy) : ""));
       window.setTimeout(() => this.plugin.index.build(), 800);   // Frontmatter der neuen Notizen ist erst kurz später im Cache

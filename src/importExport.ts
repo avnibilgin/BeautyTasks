@@ -385,20 +385,27 @@ export async function importData(plugin: BeautyTasksPlugin, data: ExportData): P
   }
 
   // 2) Label-Register ergänzen (aus Export-Register + Aufgaben-Labels).
+  //
+  // NEU ZUWEISEN statt `push`: Eine Sammlung, die dem Standard gleicht, steht nicht in der
+  // data.json – bis 1.38.3 zeigte sie deshalb auf DASSELBE Array wie der Standard, und ein `push`
+  // veränderte den Standard des ganzen Prozesses. `toDelta` verglich danach gegen genau dieses
+  // veränderte Objekt, fand Gleichheit und warf den Schlüssel weg: In der Sitzung standen die
+  // importierten Labels in der Seitenleiste, nach dem Neustart waren sie fort. `applyDefaults`
+  // kopiert seit 1.38.4 jeden veränderlichen Standardwert (s. `frisch`) – hier wird trotzdem
+  // zugewiesen, damit das Speichern nicht wieder an einer Kopier-Regel woanders hängt.
   const labels = new Set<string>([...(data.labels ?? []), ...data.tasks.flatMap((t) => t.labels ?? [])]);
-  let labelsAdded = 0;
-  for (const l of labels) {
-    if (l && !settings.knownLabels.includes(l)) { settings.knownLabels.push(l); labelsAdded++; }
-  }
+  const neueLabels = [...labels].filter((l) => l && !settings.knownLabels.includes(l));
+  const labelsAdded = neueLabels.length;
+  if (labelsAdded) settings.knownLabels = [...settings.knownLabels, ...neueLabels];
   // Farbe und Sichtbarkeit gehören zum Label, nicht zur Aufgabe. Vorhandenes wird NICHT
   // überschrieben: Wer im Zielvault schon eine Farbe für „ui" gewählt hat, behält sie.
   let labelMeta = false;
-  for (const [name, farbe] of Object.entries(data.labelColors ?? {})) {
-    if (name && farbe && !settings.labelColors[name]) { settings.labelColors[name] = farbe; labelMeta = true; }
-  }
-  for (const name of data.visibleLabels ?? []) {
-    if (name && labels.has(name) && !settings.visibleLabels.includes(name)) { settings.visibleLabels.push(name); labelMeta = true; }
-  }
+  const neueFarben = Object.entries(data.labelColors ?? {}).filter(([name, farbe]) => name && farbe && !settings.labelColors[name]);
+  if (neueFarben.length) { settings.labelColors = { ...settings.labelColors, ...Object.fromEntries(neueFarben) }; labelMeta = true; }
+  // `new Set` auch hier: Die alte Fassung prüfte gegen die WACHSENDE Liste und fing Doppelte in
+  // `data.visibleLabels` damit nebenbei ab – ein Filter gegen den Ausgangsstand tut das nicht.
+  const neueSichtbare = [...new Set((data.visibleLabels ?? []).filter((name) => name && labels.has(name) && !settings.visibleLabels.includes(name)))];
+  if (neueSichtbare.length) { settings.visibleLabels = [...settings.visibleLabels, ...neueSichtbare]; labelMeta = true; }
   if (labelsAdded || labelMeta) await plugin.saveSettings();
 
   // 2b) Filter anlegen – nur fehlende, verglichen über den Namen (wie bei den Listen).

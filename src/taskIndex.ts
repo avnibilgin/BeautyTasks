@@ -29,6 +29,13 @@ export class TaskIndex extends Component {
   // (nicht bei jeder Aufgaben-Änderung) -> projectLink ist O(1)-Lookup ohne Vault-Scan pro Bearbeitung.
   private projPathDirty = true;
   private projPathSet = new Map<string, string>(); // lowercase Basename -> Pfad der Projekt-/Bereichs-Notiz
+  /** Wurde der Index MINDESTENS EINMAL aufgebaut? Vorher ist er nicht leer, sondern UNBEKANNT –
+   *  wer daraus „dieser Vault hat nichts davon" schließt, irrt (s. ready). */
+  private built = false;
+  /** Sind die Abos schon verdrahtet? build() wird mehrfach gerufen (Migrationen, Importe, s.
+   *  main.ts) und registrierte bis hierher JEDES MAL neue Handler auf metadataCache/vault. Nach
+   *  drei Aufbauten lief upsert bei jeder Dateiänderung dreifach – unsichtbar, aber teuer. */
+  private wired = false;
 
   // ── Abfrage-Cache ────────────────────────────────────────────────────────────────────────
   // open() filtert über ALLE Aufgaben und schlägt dabei je Aufgabe den Projekt-Basename nach
@@ -85,6 +92,14 @@ export class TaskIndex extends Component {
     return false;
   }
 
+  /**
+   * Steht der Index? Solange das false ist, heißt „keine Aufgabe mit diesem Label" NICHT „gibt es
+   * nicht", sondern „noch nicht nachgesehen". Genau diese beiden Zustände hat die Seitenleiste
+   * bis 1.39.0 verwechselt und beim Start „+ Label erstellen" angeboten, obwohl der Vault voller
+   * Labels war (s. renderNavInto).
+   */
+  get ready(): boolean { return this.built; }
+
   /** NACH onLayoutReady aufrufen – dann sind Wikilinks auflösbar. */
   build(): void {
     this.byPath.clear();
@@ -102,8 +117,20 @@ export class TaskIndex extends Component {
       if (changed.some(Boolean)) this.notify();
     });
 
+    this.built = true;
+    if (this.wired) { this.notify(); return; }   // Abos nur EINMAL verdrahten (s. wired)
+    this.wired = true;
+
     const { metadataCache: mc, vault } = this.app;
     this.registerEvent(mc.on("changed", (f) => this.upsert(f)));
+    // Sicherheitsnetz gegen einen kalten Metadaten-Cache: `onLayoutReady` sagt NICHTS darüber, ob
+    // Obsidian mit dem Indizieren fertig ist – das ist ein eigenes Ereignis ("resolved": „Called
+    // when all files has been resolved", obsidian.d.ts). War der Cache beim Aufbau noch kalt,
+    // stünde der Index sonst dauerhaft zu kurz: Aufgaben, deren Frontmatter erst danach ankommt,
+    // meldet "changed" zwar – Dateien, die Obsidian aus seinem Cache lädt, aber nicht.
+    // Einmal nachbauen, dann abmelden; Folge-"resolved" (jede spätere Änderung) sind uninteressant.
+    const nachbauen = mc.on("resolved", () => { mc.offref(nachbauen); this.build(); });
+    this.registerEvent(nachbauen);
     // Neu angelegte Dateien: beim "create" ist das Frontmatter noch nicht geparst ->
     // kurz später erneut versuchen (sonst erscheinen neue Aufgaben erst nach Reload).
     this.registerEvent(vault.on("create", (f) => {

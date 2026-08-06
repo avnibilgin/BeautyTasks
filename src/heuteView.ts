@@ -1804,7 +1804,12 @@ function navSignature(plugin: BeautyTasksPlugin): string {
     projects: plugin.sortProjItems("projects", projekte).map(proj),
     filters: plugin.sortFilters(listFilters(plugin.app)).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
     labels: plugin.getVisibleLabels().map((n) => n + "~" + plugin.getLabelColor(n)),
-    labelsTotal: plugin.getLabels().length,                       // steuert die „+ Label erstellen"-Zeile
+    // Nicht die ANZAHL der Labels, sondern OB die Hinweiszeile steht. Die Zahl springt beim Start
+    // von 0 auf N und erzwang damit einen vollständigen Neuaufbau der Seitenleiste, der am Bild
+    // nichts änderte. `ready` steht daneben, weil es auch die Zeilen bei Projekten/Bereichen/
+    // Filtern steuert – deren Listen sind oben schon in der Signatur.
+    ready: plugin.index.ready,
+    labelHint: plugin.index.ready && !plugin.getLabels().length,
     active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
     collapsed: ["filters", "labels", "areas", "projects"].map((id) => plugin.isNavCollapsed(id)),
     reorder: plugin.reorderSec,
@@ -1835,6 +1840,11 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const isActive = (kind: PageRef["kind"], key: string): boolean => !!act && act.kind === kind && act.key === key;
   const badges = new Map<string, HTMLElement>();
   navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
+  // „Dieser Vault hat kein einziges Projekt/Filter/Label" ist eine Aussage über den GANZEN Vault –
+  // und die kann niemand treffen, bevor der Index einmal stand. Bis 1.39.0 fragten die
+  // „+ …erstellen"-Zeilen ungeprüft den leeren Anfangszustand ab und boten beim Start das Anlegen
+  // an, obwohl alles längst da war (s. TaskIndex.ready).
+  const indexReady = plugin.index.ready;
 
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
@@ -1901,7 +1911,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       });
     }
     // Leer (frisches Setup): dezenter „+ …erstellen"-Hinweis wie bei Labels/Filtern.
-    if (!items.length) navHintRow(c, "plus", t(kind === "area" ? "create_area" : "create_project"), () => new NewItemModal(plugin, kind).open());
+    if (indexReady && !items.length) navHintRow(c, "plus", t(kind === "area" ? "create_area" : "create_project"), () => new NewItemModal(plugin, kind).open());
   };
 
   // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor. Rechtsklick = bearbeiten.
@@ -1921,7 +1931,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
         onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
       });
     }
-    if (!filters.length) navHintRow(c, "plus", t("create_filter"), () => new FilterModal(plugin).open());
+    if (indexReady && !filters.length) navHintRow(c, "plus", t("create_filter"), () => new FilterModal(plugin).open());
   }
 
   // Labels-Sektion: „+" öffnet das Neu-Modal. Rechtsklick = bearbeiten; leer = „+ Label erstellen".
@@ -1942,7 +1952,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
         onDropTask: (task) => { if (!task.labels.includes(name)) void plugin.swapTaskLabel(task, null, name); },
       });
     }
-    if (!plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
+    if (indexReady && !plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
   }
 
   // Bereiche: „+" öffnet das Neu-Modal (Name + Farbe), legt als type:area an.
