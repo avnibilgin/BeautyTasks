@@ -2407,8 +2407,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-calview-ev::before {
   content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 3px;
   border-radius: 999px;
-  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
-  background: oklch(from var(--bt-ev-color) clamp(0.5, l, 0.66) c h);   /* nur die WAHRGENOMMENE Helligkeit begrenzen (Light UND Dark lesbar), Farbton und Buntheit bleiben */
+  background: var(--bt-ev-color);   /* Grundfall; Aufhellung siehe @supports weiter unten */
 }
 /* Hover deckend mischen statt --background-modifier-hover (halbtransparent) darüberzulegen –
    sonst schimmern Stundenraster und „Heute"-Tönung durch die Kachel. */
@@ -2431,8 +2430,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-calview-evbar {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 14px;
   border-radius: 999px;
-  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
-  background: oklch(from var(--bt-ev-color) clamp(0.5, l, 0.66) c h);   /* nur die WAHRGENOMMENE Helligkeit begrenzen (Light UND Dark lesbar), Farbton und Buntheit bleiben */
+  background: var(--bt-ev-color);   /* Grundfall; Aufhellung siehe @supports weiter unten */
 }
 /* Uhrzeit der Termine heller und NICHT fett (die Aufgaben-Chip-Zeit bleibt kräftig/fett). */
 .bt-calview-evchip .bt-calview-chip-time { font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
@@ -2470,8 +2468,21 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-gcal-band-bar {
   flex-shrink: 0; align-self: stretch; width: 3px; min-height: 16px;
   border-radius: 999px;
-  background: var(--bt-ev-color);   /* Fallback: ältere Chromium ohne relative Farben */
-  background: oklch(from var(--bt-ev-color) clamp(0.5, l, 0.66) c h);   /* nur die WAHRGENOMMENE Helligkeit begrenzen (Light UND Dark lesbar), Farbton und Buntheit bleiben */
+  background: var(--bt-ev-color);   /* Grundfall; Aufhellung siehe @supports direkt darunter */
+}
+/* Die drei Farbbalken (Wochen-/Monatsansicht, Chip, Listen-Band) tragen dieselbe echte
+   Google-Kalenderfarbe und dieselbe Korrektur: nur die WAHRGENOMMENE Helligkeit begrenzen
+   (Light UND Dark lesbar), Farbton und Buntheit bleiben.
+
+   Als Feature-Abfrage statt als zweite `background`-Zeile über der ersten: Wer relative Farben
+   nicht kann, bekommt die rohe Kalenderfarbe von oben – dasselbe Ergebnis wie beim
+   Überschreiben, aber ohne doppelte Eigenschaft (die der CSS-Linter des Community-Stores
+   anmerkt und die man beim Lesen leicht für einen Versehen-Doppler hält). Steht bewusst NACH
+   allen drei Regeln: gleiche Spezifität, also entscheidet die Reihenfolge. */
+@supports (color: oklch(from red l c h)) {
+  .bt-calview-ev::before,
+  .bt-calview-evbar,
+  .bt-gcal-band-bar { background: oklch(from var(--bt-ev-color) clamp(0.5, l, 0.66) c h); }
 }
 .bt-gcal-band-time { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 400; color: color-mix(in srgb, var(--text-faint) 50%, var(--text-muted)); }
 .bt-gcal-band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }

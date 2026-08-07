@@ -114,13 +114,21 @@ export function dailyNotesEnabled(app: App): boolean {
   return dailyCore(app)?.enabled === true;
 }
 
+/** Das EINE, was wir von `moment` brauchen. Obsidian reicht die Bibliothek zwar typisiert
+ *  durch (`moment: typeof Moment`), aber diese Typkette hängt daran, dass das Paket `moment`
+ *  – eine Abhängigkeit von `obsidian`, keine von uns – im Prüf-Setup auch wirklich aufgelöst
+ *  wird. Wo das nicht klappt, wird der Aufruf zu `any` und schleppt das durch. Deshalb wie bei
+ *  `DailyNotesCore` oben: an genau EINER Stelle eng binden, danach ist der Typ unsere Sache. */
+type DateFormatter = { format(fmt: string): string };
+const today = (): DateFormatter => (moment as unknown as () => DateFormatter)();
+
 /** Die HEUTIGE Tagesnotiz, sofern sie schon existiert. Format und Ordner kommen aus dem
  *  Kern-Plugin; fehlen sie, gilt dessen eigener Standard (Datum im Vault-Wurzelordner). */
 export function todaysDailyNote(app: App): TFile | null {
   const o = dailyCore(app)?.instance?.options ?? {};
   const fmt = typeof o.format === "string" && o.format.trim() ? o.format : "YYYY-MM-DD";
   const folder = typeof o.folder === "string" ? o.folder.replace(/^\/+|\/+$/g, "") : "";
-  const name = moment().format(fmt) + ".md";
+  const name = today().format(fmt) + ".md";
   const f = app.vault.getAbstractFileByPath(folder ? folder + "/" + name : name);
   return f instanceof TFile ? f : null;
 }
