@@ -7,6 +7,7 @@ import type BeautyTasksPlugin from "./main";
 import { Priority } from "./types";
 import { ExportList, ExportTask, makeImportData, importData } from "./importExport";
 import { firstOpenStatus, firstDoneStatus, isDone, isTrashed, isKnownStatus } from "./statuses";
+import { isValidRecurrence, legacyToRRule } from "./recurrence";
 import { readTaskNotesConfig, mergeFieldMapping, buildStatusResolver, buildPriorityResolver, TnConfig } from "./tasknotesApi";
 import { todayIso } from "./taskService";
 import { t } from "./i18n";
@@ -66,26 +67,24 @@ export function splitDT(v: unknown): { date: string | null; time: string | null 
   return { date: s.slice(0, 10), time: /^\d\d:\d\d$/.test(time) ? time : null };
 }
 
-/** RRULE (RFC 5545) → BeautyTasks-Recurrence-Text. Nur FREQ+INTERVAL abbildbar; bei Zusatzregeln
- *  (BYDAY, COUNT, UNTIL …) Annäherung + Original zur Notiz. Unbekannt → keine Recurrence, Original gemerkt. */
+/**
+ * Wiederholungsregel aus TaskNotes übernehmen.
+ *
+ * Seit unser Speicherformat selbst RRULE ist, wird eine gültige Regel UNVERÄNDERT übernommen –
+ * samt BYDAY, BYSETPOS und UNTIL. Vorher wurde hier auf „every n unit" angenähert und alles
+ * Weitere als Verlust gemeldet; genau diese Verluste entfallen jetzt.
+ *
+ * Die alte Schreibweise wird beim Übernehmen mit umgestellt, damit aus einem Import nicht das
+ * zweite Schreibformat zurückkommt, das wir gerade abgeschafft haben.
+ *
+ * `lossyOriginal` bleibt für das, was wir wirklich nicht führen können – etwa `COUNT`, das in
+ * unserem Ketten-Modell nie ablaufen würde (s. recurrence.ts).
+ */
 export function rruleToRecurrence(v: unknown): { recurrence: string | null; lossyOriginal: string | null } {
   const s = asStr(v).trim();
   if (!s) return { recurrence: null, lossyOriginal: null };
-  const parts: Record<string, string> = {};
-  for (const seg of s.split(";")) {
-    const p = seg.trim();
-    if (!p || /^DTSTART/i.test(p) || /^RRULE/i.test(p)) continue;   // Start-Datum/Prefix sind keine Zusatzregeln
-    const eq = p.indexOf("=");
-    if (eq === -1) continue;
-    parts[p.slice(0, eq).toUpperCase().trim()] = p.slice(eq + 1).trim();
-  }
-  const unit = ({ DAILY: "day", WEEKLY: "week", MONTHLY: "month", YEARLY: "year" } as Record<string, string>)[parts.FREQ?.toUpperCase()];
-  if (!unit) return { recurrence: null, lossyOriginal: s };
-  const n = parts.INTERVAL ? parseInt(parts.INTERVAL, 10) : 1;
-  const recurrence = "every " + (n > 1 ? n + " " + unit + "s" : unit);
-  const IGNORED = new Set(["FREQ", "INTERVAL", "WKST"]);   // beeinflussen die Basis-Übersetzung nicht
-  const hasExtra = Object.keys(parts).some((k) => !IGNORED.has(k));
-  return { recurrence, lossyOriginal: hasExtra ? s : null };
+  if (!isValidRecurrence(s)) return { recurrence: null, lossyOriginal: s };
+  return { recurrence: legacyToRRule(s) ?? s, lossyOriginal: null };
 }
 
 export function mapStatus(raw: string): string {

@@ -15,18 +15,18 @@ const opts = (over: Partial<QuickEntryOptions> = {}): QuickEntryOptions =>
 
 describe("Wiederholung – Erkennung", () => {
   it.each([
-    ["jeden tag sport", "every day"],
-    ["täglich sport", "every day"],
-    ["taeglich sport", "every day"],       // ohne Umlaut, wird real so getippt
-    ["daily standup", "every day"],
-    ["jede woche einkaufen", "every week"],
-    ["wöchentlich putzen", "every week"],
-    ["jeden monat miete", "every month"],
-    ["jedes jahr tüv", "every year"],
-    ["alle 3 tage gießen", "every 3 days"],
-    ["alle 2 wochen müll", "every 2 weeks"],
-    ["alle 3 monate zahnarzt", "every 3 months"],
-    ["every 2 days water", "every 2 days"],
+    ["jeden tag sport", "FREQ=DAILY"],
+    ["täglich sport", "FREQ=DAILY"],
+    ["taeglich sport", "FREQ=DAILY"],       // ohne Umlaut, wird real so getippt
+    ["daily standup", "FREQ=DAILY"],
+    ["jede woche einkaufen", "FREQ=WEEKLY"],
+    ["wöchentlich putzen", "FREQ=WEEKLY"],
+    ["jeden monat miete", "FREQ=MONTHLY"],
+    ["jedes jahr tüv", "FREQ=YEARLY"],
+    ["alle 3 tage gießen", "FREQ=DAILY;INTERVAL=3"],
+    ["alle 2 wochen müll", "FREQ=WEEKLY;INTERVAL=2"],
+    ["alle 3 monate zahnarzt", "FREQ=MONTHLY;INTERVAL=3"],
+    ["every 2 days water", "FREQ=DAILY;INTERVAL=2"],
   ])("%s -> %s", (raw, rule) => {
     expect(parseQuickEntry(raw).recurrence).toBe(rule);
   });
@@ -39,7 +39,7 @@ describe("Wiederholung – Erkennung", () => {
   // Der Chip und recurrence.ts sind die Abnehmer: was der Parser liefert, muessen sie verstehen.
   it("erzeugt ausschließlich Regeln, die recurrence.ts akzeptiert", () => {
     for (const raw of ["jeden tag", "täglich", "jede woche", "alle 3 tage", "alle 2 wochen",
-                       "jeden monat", "alle 3 monate", "jedes jahr", "every 2 days"]) {
+                       "jeden monat", "alle 3 monate", "jedes jahr", "FREQ=DAILY;INTERVAL=2"]) {
       const r = parseQuickEntry(raw).recurrence;
       expect(r, raw).not.toBeNull();
       expect(parseRecurrence(r!), raw).not.toBeNull();
@@ -57,13 +57,13 @@ describe("Wiederholung – Wochentag (jeden Montag)", () => {
     ["every monday standup", "2026-06-22"],
   ])("%s -> woechentlich, verankert am Wochentag", (raw, due) => {
     const r = parseQuickEntry(raw);
-    expect(r.recurrence).toBe("every week");
+    expect(r.recurrence).toBe("FREQ=WEEKLY");
     expect(r.faellig).toBe(due);
   });
 
   it("laesst den Rest des Titels in Ruhe und vertraegt eine Uhrzeit", () => {
     const r = parseQuickEntry("jeden montag um 20:00 sport");
-    expect(r.recurrence).toBe("every week");
+    expect(r.recurrence).toBe("FREQ=WEEKLY");
     expect(r.faellig).toBe("2026-06-22");
     expect(r.time).toBe("20:00");
     expect(r.title).toBe("sport");
@@ -124,13 +124,13 @@ describe("Wiederholung – was KEINE Wiederholung ist", () => {
 describe("Wiederholung – Zusammenspiel", () => {
   it("greift vor den Datumsregeln, das Datum bleibt erhalten", () => {
     const r = parseQuickEntry("alle 3 tage ab morgen gießen");
-    expect(r.recurrence).toBe("every 3 days");
+    expect(r.recurrence).toBe("FREQ=DAILY;INTERVAL=3");
     expect(r.faellig).toBe("2026-06-16");
   });
 
   it("verträgt sich mit Uhrzeit, Label und Priorität", () => {
     const r = parseQuickEntry("jeden tag um 20:00 sport #fit p1");
-    expect(r.recurrence).toBe("every day");
+    expect(r.recurrence).toBe("FREQ=DAILY");
     expect(r.time).toBe("20:00");
     expect(r.tags).toEqual(["fit"]);
     expect(r.priority).toBe("highest");
@@ -143,7 +143,7 @@ describe("Wiederholung – braucht einen Anker (applyQuickEntry)", () => {
   // ohne dass je etwas wiederkehrt.
   it("setzt heute, wenn kein Datum im Text steht", () => {
     const r = applyQuickEntry("jeden tag sport", fields(), emptyQuickEntryState(), opts());
-    expect(r.fields.recurrence).toBe("every day");
+    expect(r.fields.recurrence).toBe("FREQ=DAILY");
     expect(r.fields.due).toBe(HEUTE);
   });
 
@@ -154,7 +154,7 @@ describe("Wiederholung – braucht einen Anker (applyQuickEntry)", () => {
 
   it("erfindet bei manuell geleertem Datum nichts", () => {
     const r = applyQuickEntry("jeden tag sport", fields(), emptyQuickEntryState(), opts({ duePinned: true }));
-    expect(r.fields.recurrence).toBe("every day");
+    expect(r.fields.recurrence).toBe("FREQ=DAILY");
     expect(r.fields.due).toBeNull();
   });
 

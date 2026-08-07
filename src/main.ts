@@ -22,7 +22,7 @@ import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidde
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, DEFAULT_CRITERIA, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions, readNoteCriteria, setNoteCriteria, readCriteria, writeCriteria } from "./pageOptions";
-import { nextInstance } from "./recurrence";
+import { nextInstance, legacyToRRule } from "./recurrence";
 import { todayStr, localStamp, dateOf, timeOf, combineDT } from "./format";
 import { t, setLocale } from "./i18n";
 import { BeautyTasksSettingTab } from "./settingsTab";
@@ -1856,6 +1856,35 @@ export default class BeautyTasksPlugin extends Plugin {
     return isUnderFolder(path, this.settings.itemsFolder);
   }
 
+  /**
+   * Wiederholungsregeln von der alten Schreibweise auf RRULE (RFC 5545) umstellen.
+   *
+   * Ein Format zum Schreiben statt zwei: Solange beide Schreibweisen entstehen könnten, müsste
+   * für immer irgendwo die Regel stehen, wann welche – und jeder Mitleser fragte sich, warum eine
+   * Aufgabe `every week` sagt und die daneben `FREQ=WEEKLY;BYDAY=MO`. Gelesen werden weiterhin
+   * beide (recurrence.ts), schon wegen fremder Programme und alter Vaults.
+   *
+   * Wiederholbar, wie es der Schema-Mechanismus verlangt: `legacyToRRule` liefert `null` für
+   * alles, was schon RRULE ist oder keine erkannte Schreibweise – dann wird die Datei nicht
+   * einmal geöffnet. Ein zweiter Lauf findet also nichts mehr vor.
+   */
+  async migrateRecurrenceToRRule(): Promise<void> {
+    for (const tk of this.index.all()) {
+      if (!tk.recurrence) continue;
+      const next = legacyToRRule(tk.recurrence);
+      if (!next) continue;
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (!(f instanceof TFile)) continue;
+      await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+        // Erneut prüfen statt dem Index zu vertrauen: Zwischen Lesen und Schreiben kann die Datei
+        // sich geändert haben, und dann gehörte der Wert nicht mehr uns.
+        if (typeof fm.recurrence !== "string") return;
+        const fresh = legacyToRRule(fm.recurrence);
+        if (fresh) fm.recurrence = fresh;
+      });
+    }
+  }
+
   async migrateTitles(opts: { silent?: boolean } = {}): Promise<void> {
     let moved = 0;
     for (const tk of this.index.all()) {
@@ -2010,6 +2039,7 @@ export default class BeautyTasksPlugin extends Plugin {
     for (const step of pending) {
       if (step === "descriptions") await this.migrateDescriptions({ silent: true });
       else if (step === "inboxRemoval") await this.migrateInboxRemoval({ silent: true });
+      else if (step === "recurrenceRRule") await this.migrateRecurrenceToRRule();
       else await this.migrateTitles({ silent: true });
     }
     this.settings.schemaVersion = nextSchemaVersion(version);

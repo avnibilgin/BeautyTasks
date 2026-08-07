@@ -58,8 +58,13 @@ const PUA = /[\uE000-\uF8FF]/g;
 const rxEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── Wiederholung ──
-// Ergebnis ist stets das kanonische „every N unit" – das Format, das recurrence.ts versteht und der
-// Chip schreibt (RECUR in chips.ts). „jeden Tag" ist also nur Eingabe, nie Speicherwert.
+// Ergebnis ist stets eine RRULE (RFC 5545) – das Format, das recurrence.ts rechnet und der Chip
+// schreibt (RECUR in chips.ts). „jeden Tag" ist also nur Eingabe, nie Speicherwert.
+//
+// Die Regel wird hier von Hand zusammengesetzt statt über recurrence.ts: Diese Datei wird auch
+// eigenständig gebündelt (KRunner-Schnellerfassung), und ein Import würde die rrule-Bibliothek in
+// dieses Bündel ziehen – für drei Zeichenketten.
+const FREQ: Record<string, string> = { day: "DAILY", week: "WEEKLY", month: "MONTHLY", year: "YEARLY" };
 const RECUR_UNITS: Record<string, string> = {
   tag: "day", tage: "day", tagen: "day", day: "day", days: "day",
   woche: "week", wochen: "week", week: "week", weeks: "week",
@@ -68,17 +73,17 @@ const RECUR_UNITS: Record<string, string> = {
 };
 // Adverbien ohne Zahl. Umlautlose Schreibweisen mit, weil sie real getippt werden.
 const RECUR_ADV: Record<string, string> = {
-  täglich: "every day", taeglich: "every day", daily: "every day",
-  wöchentlich: "every week", woechentlich: "every week", weekly: "every week",
-  monatlich: "every month", monthly: "every month",
-  jährlich: "every year", jaehrlich: "every year", yearly: "every year", annually: "every year",
+  täglich: "FREQ=DAILY", taeglich: "FREQ=DAILY", daily: "FREQ=DAILY",
+  wöchentlich: "FREQ=WEEKLY", woechentlich: "FREQ=WEEKLY", weekly: "FREQ=WEEKLY",
+  monatlich: "FREQ=MONTHLY", monthly: "FREQ=MONTHLY",
+  jährlich: "FREQ=YEARLY", jaehrlich: "FREQ=YEARLY", yearly: "FREQ=YEARLY", annually: "FREQ=YEARLY",
 };
 // Längste zuerst – sonst träfe „tag" vor „tagen" und ließe ein „en" im Titel stehen.
 const longestFirst = (o: Record<string, string>): string => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
 const RUNITS = longestFirst(RECUR_UNITS);
 const RADV = longestFirst(RECUR_ADV);
-/** { n, unit } -> „every day" / „every 3 months" (trifft die Chip-Presets exakt). */
-const recurRule = (n: number, unit: string): string => (n === 1 ? "every " + unit : "every " + n + " " + unit + "s");
+/** { n, unit } -> „FREQ=DAILY" / „FREQ=MONTHLY;INTERVAL=3". INTERVAL=1 bleibt weg (Vorgabewert). */
+const recurRule = (n: number, unit: string): string => "FREQ=" + FREQ[unit] + (n > 1 ? ";INTERVAL=" + n : "");
 
 export interface QuickEntry {
   title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null;
@@ -157,7 +162,7 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   if (!recurrence) {
     const m = text.match(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + WDNAMES + ")"));
     if (m) {
-      recurrence = "every week";
+      recurrence = "FREQ=WEEKLY";
       recurSrc = trigger(m[0]);
       text = text.replace(m[0], " " + m[1] + " ");
     }

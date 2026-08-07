@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseRecurrence, isValidRecurrence, nextInstance } from "../src/recurrence";
+import { parseRecurrence, isValidRecurrence, nextInstance, toRRuleString, legacyToRRule } from "../src/recurrence";
 import { Task } from "../src/types";
 
 const task = (p: Partial<Task>): Task => ({
@@ -91,5 +91,31 @@ describe("Sommerzeit", () => {
     expect(due("FREQ=DAILY", "2026-03-28", "2026-03-28")).toBe("2026-03-29");
     expect(due("FREQ=DAILY", "2026-03-29", "2026-03-29")).toBe("2026-03-30");
     expect(due("every day", "2026-03-28", "2026-03-28")).toBe("2026-03-29");
+  });
+});
+
+describe("Schreibformat und Umstellung", () => {
+  it("schreibt RRULE, INTERVAL=1 bleibt weg", () => {
+    expect(toRRuleString({ n: 1, unit: "week" })).toBe("FREQ=WEEKLY");
+    expect(toRRuleString({ n: 3, unit: "month" })).toBe("FREQ=MONTHLY;INTERVAL=3");
+  });
+
+  it("stellt die alte Schreibweise um", () => {
+    expect(legacyToRRule("every day")).toBe("FREQ=DAILY");
+    expect(legacyToRRule("every 2 weeks")).toBe("FREQ=WEEKLY;INTERVAL=2");
+  });
+
+  it("lässt in Ruhe, was nicht umzustellen ist – das macht die Migration wiederholbar", () => {
+    expect(legacyToRRule("FREQ=WEEKLY")).toBeNull();          // schon umgestellt
+    expect(legacyToRRule("FREQ=MONTHLY;BYDAY=-1FR")).toBeNull();
+    expect(legacyToRRule("manchmal")).toBeNull();             // nie von uns geschrieben
+    expect(legacyToRRule("")).toBeNull();
+  });
+
+  it("die Umstellung ändert die Bedeutung nicht", () => {
+    // Alte und neue Schreibweise müssen denselben nächsten Termin liefern.
+    for (const [alt, neu] of [["every day", "FREQ=DAILY"], ["every 3 months", "FREQ=MONTHLY;INTERVAL=3"]]) {
+      expect(due(neu, "2026-06-01", "2026-06-01")).toBe(due(alt, "2026-06-01", "2026-06-01"));
+    }
   });
 });

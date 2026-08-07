@@ -14,6 +14,7 @@ import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
 import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
+import { parseRecurrence } from "./recurrence";
 
 
 /**
@@ -44,16 +45,25 @@ export const PRIO_KEY: Record<Priority, string> = {
 // Priorität -> Kurz-Kürzel „P1"–„P3" (normal/low = keine Anzeige) für kompakte Chip-Labels.
 const PRIO_NUM: Record<Priority, number | null> = { highest: 1, high: 2, medium: 3, normal: null, low: null, lowest: null };
 
+// Geschrieben wird RRULE (RFC 5545) – siehe recurrence.ts. Die fünf Vorlagen sind die einfachen
+// Intervalle; alles darüber (nur werktags, letzter Freitag …) kommt aus der Regel selbst.
 export const RECUR: { key: string; val: string }[] = [
-  { key: "recur_daily", val: "every day" },
-  { key: "recur_weekly", val: "every week" },
-  { key: "recur_monthly", val: "every month" },
-  { key: "recur_quarterly", val: "every 3 months" },
-  { key: "recur_yearly", val: "every year" },
+  { key: "recur_daily", val: "FREQ=DAILY" },
+  { key: "recur_weekly", val: "FREQ=WEEKLY" },
+  { key: "recur_monthly", val: "FREQ=MONTHLY" },
+  { key: "recur_quarterly", val: "FREQ=MONTHLY;INTERVAL=3" },
+  { key: "recur_yearly", val: "FREQ=YEARLY" },
 ];
+
+/** Vorlagen-Beschriftung nach der BEDEUTUNG suchen, nicht nach dem Wortlaut: `every week` und
+ *  `FREQ=WEEKLY` sind dieselbe Regel. Sonst stünde in Notizen, die noch nicht umgestellt sind,
+ *  der Rohtext im Chip – ein Schönheitsfehler, der wie ein Datenfehler aussieht. */
+const RECUR_SHAPE = RECUR.map((r) => ({ ...r, shape: parseRecurrence(r.val) }));
+
 export const recurLabel = (v: string, basis?: "due" | "done"): string => {
-  const r = RECUR.find((x) => x.val === v);
-  const base = r ? t(r.key) : v;
+  const shape = parseRecurrence(v);
+  const hit = shape ? RECUR_SHAPE.find((r) => r.shape?.n === shape.n && r.shape.unit === shape.unit) : undefined;
+  const base = hit ? t(hit.key) : v;
   return basis === "done" ? base + " · " + t("recur_when_done") : base;
 };
 

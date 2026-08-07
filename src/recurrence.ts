@@ -63,6 +63,10 @@ function parseRRuleText(rule: string): Partial<Options> | null {
     // COUNT um eins verringert, und bei COUNT=1 entsteht keine mehr. Das ist Stufe 2.)
     // UNTIL ist davon nicht betroffen: ein absolutes Datum gilt für jede Instanz gleich.
     if (opts.count != null) return null;
+    // Unterhalb eines Tages hat unser Modell keine Auflösung: Fälligkeiten sind Kalendertage.
+    // `FREQ=HOURLY` lieferte sonst immer wieder denselben Tag – eine Wiederholung, die sich
+    // nicht bewegt. Ablehnen ist die einzige ehrliche Antwort darauf.
+    if (!FREQ_UNIT.has(opts.freq)) return null;
     return opts;
   } catch { return null; }   // kaputte Regel -> wie „keine Regel"
 }
@@ -92,6 +96,28 @@ export function parseRecurrence(rule: string): Rule | null {
  *  komplexe RRULE gültig IST, sich aber nicht auf `{n, unit}` verkürzen lässt. */
 export function isValidRecurrence(rule: string): boolean {
   return parseEveryText(rule) !== null || parseRRuleText(rule) !== null;
+}
+
+const FREQ_NAME: Record<Rule["unit"], string> = {
+  day: "DAILY", week: "WEEKLY", month: "MONTHLY", year: "YEARLY",
+};
+
+/** Ein einfaches Intervall als RRULE. `INTERVAL=1` wird weggelassen – es ist der Vorgabewert,
+ *  und die kürzere Regel ist die, die man beim Draufschauen noch versteht. */
+export function toRRuleString(rule: Rule): string {
+  return "FREQ=" + FREQ_NAME[rule.unit] + (rule.n > 1 ? ";INTERVAL=" + rule.n : "");
+}
+
+/**
+ * Alte Schreibweise -> RRULE, für die einmalige Umstellung bestehender Notizen.
+ *
+ * `null` heisst „hier ist nichts zu tun" – entweder steht dort schon eine RRULE, oder der Text
+ * ist keiner, den wir je geschrieben haben. Beides bleibt unangetastet: Eine Migration, die im
+ * Zweifel nichts tut, ist wiederholbar; eine, die rät, ist es nicht.
+ */
+export function legacyToRRule(rule: string): string | null {
+  const simple = parseEveryText(rule);
+  return simple ? toRRuleString(simple) : null;
 }
 
 // ── Datumsrechnung ───────────────────────────────────────────────────────────
