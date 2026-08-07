@@ -197,7 +197,13 @@ export function nextInstance(task: Task, today: string): { due: string | null; s
     const next = nextAfter(task.recurrence, anchor, after);
     return next ? { due: null, scheduled: next, recurrence: rule } : null;
   }
-  return null;
+  // Regel ohne jedes Datum. Das ist ein Widerspruch – die Regel sagt WANN, ohne Anker gibt es kein
+  // Wann – und wird deshalb gar nicht erst zugelassen (chips.ts haelt das Datum nach). In
+  // Bestandsdaten steht es aber: frueher liess sich das Datum leeren, ohne dass die Regel mitging.
+  // Statt aufzugeben wird ab heute gerechnet. Sonst verschwaende die Aufgabe beim Abhaken
+  // ERSATZLOS, und der Nutzer merkte es erst, wenn sie nie wiederkam.
+  const fallback = nextAfter(task.recurrence, today, today);
+  return fallback ? { due: fallback, scheduled: null, recurrence: rule } : null;
 }
 
 /**

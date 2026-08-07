@@ -131,3 +131,22 @@ describe("Schreibformat und Umstellung", () => {
     }
   });
 });
+
+describe("Regel ohne Datum", () => {
+  it("verschwindet beim Abhaken nicht ersatzlos, sondern rechnet ab heute", () => {
+    // Diesen Zustand laesst die Oberflaeche nicht mehr zu (chips.keepRecurrenceAnchored), in
+    // Bestandsdaten steht er aber: Frueher liess sich das Datum leeren, ohne dass die Regel
+    // mitging. Beim Abhaken entstand dann NICHTS - die Aufgabe war einfach weg.
+    const r = nextInstance(task({ recurrence: "FREQ=MONTHLY;BYMONTHDAY=15", due: null, scheduled: null }), "2026-08-07");
+    expect(r?.due).toBe("2026-08-15");
+  });
+
+  it("nimmt den naechsten Termin, nicht heute – erledigt ist erledigt", () => {
+    const r = nextInstance(task({ recurrence: "FREQ=DAILY", due: null, scheduled: null }), "2026-08-07");
+    expect(r?.due).toBe("2026-08-08");
+  });
+
+  it("bleibt null, wenn die Regel selbst nichts hergibt", () => {
+    expect(nextInstance(task({ recurrence: "manchmal", due: null, scheduled: null }), "2026-08-07")).toBeNull();
+  });
+});

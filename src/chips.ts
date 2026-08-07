@@ -117,6 +117,21 @@ export interface ChipDef {
 }
 
 // ── Picker (aus TaskModal extrahiert, host-getrieben) ──
+/**
+ * Eine Wiederholung ohne Datum ist ein Widerspruch: Die Regel sagt WANN – ohne Anker gibt es kein
+ * Wann. Die Aufgabe taucht dann in keiner Datumsansicht auf, und beim Abhaken entstuende nichts.
+ *
+ * Deshalb setzt ein geleertes Datum sich selbst neu, solange eine Regel steht: auf den ersten
+ * Termin der Regel ab heute, mit derselben Funktion wie bei der Ersteingabe. Wer kein Datum will,
+ * nimmt die Wiederholung weg – das ✕ sitzt an ihrem Chip. So haelt es auch Todoist, wo die
+ * Faelligkeit die Wiederholung IST und beides gar nicht getrennt existiert.
+ */
+function keepRecurrenceAnchored(f: ChipFields): void {
+  if (f.due || !f.recurrence) return;
+  const today = todayIso();
+  f.due = firstOccurrence(f.recurrence, today) ?? today;
+}
+
 function openDate(host: ChipHost, anchor: HTMLElement, field: "due" | "scheduled"): void {
   const f = host.f;
   const timeField = field === "due" ? "dueTime" : "scheduledTime";
@@ -129,7 +144,7 @@ function openDate(host: ChipHost, anchor: HTMLElement, field: "due" | "scheduled
   openDatePicker(anchor, value, (v) => {
     f[field] = v ? dateOf(v) : null;
     f[timeField] = v ? timeOf(v) : null;
-    if (field === "due") host.pinDue();
+    if (field === "due") { keepRecurrenceAnchored(f); host.pinDue(); }
     host.rerender();
   }, dur);
 }
@@ -338,7 +353,9 @@ export const CHIPS: Record<ChipId, ChipDef> = {
     // wie bisher einfach leeren.
     clear: (host) => {
       if (host.unparseDue?.()) return;
-      host.f.due = null; host.f.dueTime = null; host.f.duration = null; host.pinDue();
+      host.f.due = null; host.f.dueTime = null; host.f.duration = null;
+      keepRecurrenceAnchored(host.f);
+      host.pinDue();
     },
   },
   priority: {
