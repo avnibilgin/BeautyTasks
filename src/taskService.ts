@@ -163,7 +163,7 @@ export async function createTaskNote(app: App, settings: BeautyTasksSettings, f:
     duration: f.duration ?? null,
     project: f.project ? "[[" + f.project + "]]" : null,
     parent: f.parent ? "[[" + f.parent + "]]" : null,
-    labels: f.labels ?? [],
+    [fieldKey("labels")]: f.labels ?? [],
     recurrence: f.recurrence ?? null,
     recur_basis: f.recurrence && f.recurBasis === "done" ? "done" : null,
     reminders: f.reminders ?? [],

@@ -10,6 +10,7 @@ import { DetailLogView } from "./detailLogView";
 import { SubtaskList } from "./subtaskList";
 import { ConfirmModal } from "./confirmModal";
 import { firstOpenStatus } from "./statuses";
+import { labelKey } from "./fieldNames";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 
@@ -665,7 +666,7 @@ export class TaskModal extends Modal {
           set("recur_basis", this.f.recurrence && this.f.recurBasis === "done" ? "done" : null);
           set("project", this.f.project ? "[[" + this.f.project + "]]" : null);
           set("parent", this.f.parent ? "[[" + this.f.parent + "]]" : null);
-          set("labels", this.f.labels);
+          set(labelKey(), this.f.labels);   // Feldname konfigurierbar (s. fieldNames.ts)
           set("reminders", this.f.reminders);
           set("description", (this.f.description ?? "").trim() || null);   // leer => Feld entfernen
         });

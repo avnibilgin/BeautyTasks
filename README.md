@@ -333,6 +333,47 @@ Project, label and filter pages deliberately stay free of them: those are about 
 
 Your Client ID/secret and the OAuth token are stored locally in `.obsidian/plugins/beautytasks/data.json` (git-ignored). **Disconnect** in settings revokes the token with Google and deletes it locally. If you sync your vault by other means (Obsidian Sync, Dropbox, iCloud…), this file travels with it.
 
+## On your phone
+
+BeautyTasks itself runs on Obsidian mobile — the views, the editor and quick capture all work there. What a plugin *cannot* do on iOS or Android is put a widget on your home screen or notify you while Obsidian is closed. That is an operating-system boundary, not something a plugin can work around: reminders only fire while Obsidian is open and in the foreground.
+
+Two ways around it, depending on what you need:
+
+- **Notifications** — turn on Google Calendar sync (above). Dated tasks become calendar events, and your phone's calendar app notifies you reliably, even with the screen off.
+- **A real task app with widgets** — because every task is a plain Markdown note, other apps can read your vault directly. [TaskForge](https://taskforge.md) is one such app (third party, not affiliated, free with a paid tier).
+
+### Setting up TaskForge
+
+Everything below was tested on a real device against a copy of a real vault, in August 2026. It describes what actually happened, not what the documentation promises.
+
+**In TaskForge:**
+
+1. Point it at your vault and set the **tasks folder** — by default `BeautyTasks/Items`, or whatever you chose under *Settings → Folders*.
+2. Set task identification to **by property → `type: task`**. Do not skip this: it is also what makes TaskForge *write* that property, so tasks you create on your phone show up in BeautyTasks. Folder-only detection reads your tasks fine but creates ones BeautyTasks cannot see.
+3. Under field mapping, point **`dateCreated` at `created`**.
+
+**In BeautyTasks → Settings:**
+
+4. **Field names → Labels:** set it to `tags`. TaskForge writes Obsidian's own tag field and cannot be remapped away from it, so this is the side that has to move. Your labels are stored as slugs already (lower case, no spaces), so they are valid tags as they are.
+5. **Statuses:** TaskForge writes `status: open` for tasks it creates. Open the stored value of your own open status (the `</>` button next to it) and set it to `open`, so both sides mean the same thing.
+
+### What works
+
+| | |
+| --- | --- |
+| Viewing your tasks | Titles, dates, descriptions, priorities, recurring, completed and cancelled tasks — all read correctly |
+| Creating tasks on your phone | They appear in BeautyTasks. Without a project they land in the **Inbox**, which is where you want them |
+| Editing existing tasks | Your project link, manual sort order and Google Calendar link survive untouched — TaskForge keeps properties it does not know |
+| Recurring tasks | TaskForge rewrites the rule in iCalendar notation; BeautyTasks reads that as of 1.41.0 |
+
+TaskForge also adds a few fields of its own (`taskSource`, `dateModified`). They are harmless — BeautyTasks ignores them and leaves them alone.
+
+### Two things worth knowing
+
+**Your labels become real Obsidian tags.** That is the point of step 4, and it cuts both ways: every tag you put on a task note now counts as a BeautyTasks label. If you use tags on task notes for something else, keep the label field at `labels` and accept that labels stay behind on the phone.
+
+**“Repeat from completion” is ours alone.** A task set to repeat *after it is done* uses an extra field that the iCalendar standard has no concept for — Outlook and Todoist solve it the same way, outside the standard. TaskForge will show such a task as a plain repeat and cannot edit that part. The behaviour in BeautyTasks is unaffected.
+
 ## Commands
 
 | Command | What it does |

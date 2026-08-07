@@ -76,9 +76,12 @@ describe("toDelta – was in der Datei landet", () => {
   });
 
   it("behält geänderte Feldnamen, lässt die Standardnamen weg", () => {
-    expect(toDelta(geladen({ fieldNames: { type: "type", title: "title" } })).fieldNames).toBeUndefined();
-    expect(toDelta(geladen({ fieldNames: { type: "art", title: "title" } })).fieldNames)
-      .toEqual({ type: "art", title: "title" });
+    // Vollstaendige Tabelle, wie sie nach dem Laden immer vorliegt: loadSettings setzt
+    // `fieldNames = allFieldNames()` direkt nach initFieldNames. Eine luekenhafte Tabelle aus einer
+    // alten data.json erreicht toDelta also nie.
+    expect(toDelta(geladen({ fieldNames: { type: "type", title: "title", labels: "labels" } })).fieldNames).toBeUndefined();
+    expect(toDelta(geladen({ fieldNames: { type: "art", title: "title", labels: "tags" } })).fieldNames)
+      .toEqual({ type: "art", title: "title", labels: "tags" });
   });
 });
 

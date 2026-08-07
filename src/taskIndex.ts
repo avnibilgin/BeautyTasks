@@ -3,7 +3,7 @@ import { Task, Priority, BeautyTasksSettings } from "./types";
 import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName, isUnderFolder } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { titleKey, fmTitle, firstH1, resolveTitle } from "./taskTitle";
-import { fieldKey } from "./fieldNames";
+import { fieldKey, labelKey } from "./fieldNames";
 import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -250,7 +250,7 @@ export class TaskIndex extends Component {
       // Fremd-Notizen, s. resolveProjectPath). `parent` bleibt beim generischen Link-Resolver.
       project: resolveProjectPath(fm.project, this.projectPaths()),
       parent: link(fm.parent),
-      labels: Array.isArray(fm.labels) ? fm.labels.map(String) : [],
+      labels: Array.isArray(fm[labelKey()]) ? (fm[labelKey()] as unknown[]).map(String) : [],
       description: typeof fm.description === "string" ? fm.description : "",
       recurrence: typeof fm.recurrence === "string" ? fm.recurrence : null,
       recurBasis: fm.recur_basis === "done" ? "done" : "due",

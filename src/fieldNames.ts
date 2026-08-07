@@ -1,21 +1,34 @@
 // Namen der Frontmatter-Felder, die BeautyTasks benutzt.
 //
-// `type` und `title` sind beliebte Eigenschaftsnamen – wer sie schon für etwas Eigenes belegt,
-// stellt hier andere ein. Konfigurierbar ist nur der NAME, nicht der Wert: Wer `bt_type` einstellt,
-// kann unter diesem Schlüssel gar nicht mehr kollidieren.
+// `type`, `title` und `labels` sind beliebte Eigenschaftsnamen – wer sie schon für etwas Eigenes
+// belegt, stellt hier andere ein. Konfigurierbar ist nur der NAME, nicht der Wert: Wer `bt_type`
+// einstellt, kann unter diesem Schlüssel gar nicht mehr kollidieren.
 //
-// Bewusst NUR diese beiden. Alle übrigen Felder (`status`, `due`, `description` …) liest
+// Bewusst nur diese drei. Alle übrigen Felder (`status`, `due`, `description` …) liest
 // taskIndex.parse erst, NACHDEM `type` stimmt – eine Kollision dort trifft also ohnehin nur
 // Notizen, die bereits Aufgaben sind. Weitere Felder aufzunehmen ist ein Eintrag in FieldId,
 // DEFAULT_FIELD_NAMES und der Einstellungsseite; das Modell hier trägt sie schon.
 //
 // Rein (kein obsidian-Import, keine App) und damit vollständig testbar.
 
-export type FieldId = "type" | "title";
+export type FieldId = "type" | "title" | "labels";
 
-export const FIELD_IDS: FieldId[] = ["type", "title"];
+export const FIELD_IDS: FieldId[] = ["type", "title", "labels"];
 
-export const DEFAULT_FIELD_NAMES: Record<FieldId, string> = { type: "type", title: "title" };
+export const DEFAULT_FIELD_NAMES: Record<FieldId, string> = { type: "type", title: "title", labels: "labels" };
+
+/**
+ * Fremde Schlüssel, die für EIN bestimmtes Feld trotzdem erlaubt sind.
+ *
+ * `tags` gehört Obsidian und ist deshalb unten gesperrt – für das Label-Feld ist es aber genau
+ * das sinnvolle Ziel: Wer seine Labels dort führt, hat echte Obsidian-Tags, die andere Programme
+ * lesen. Feldweise geöffnet und nicht global, damit niemand seinen Aufgabentyp auf `tags` legt.
+ *
+ * Ungefährlich, weil `normalizeLabel` (taskService.ts) jedes Label ohnehin zu einem Slug macht:
+ * kleingeschrieben, ohne führendes `#`, Leerzeichen zu Bindestrichen. Was wir schreiben, ist
+ * bereits ein gültiger Obsidian-Tag.
+ */
+const FIELD_EXCEPTION: Partial<Record<FieldId, string>> = { labels: "tags" };
 
 /** Feste Feldnamen, die BeautyTasks selbst führt, plus die von Obsidian belegten. Als Ziel eines
  *  Wechsels gesperrt – sonst schriebe die App beim nächsten Speichern über ihre eigenen Daten
@@ -23,7 +36,7 @@ export const DEFAULT_FIELD_NAMES: Record<FieldId, string> = { type: "type", titl
  *  kommen dynamisch dazu, siehe normalizeFieldName. */
 const FIXED_KEYS = new Set([
   "id", "status", "priority", "due", "scheduled", "start", "duration", "project", "parent",
-  "labels", "recurrence", "recur_basis", "reminders", "sort_order", "created", "completed",
+  "recurrence", "recur_basis", "reminders", "sort_order", "created", "completed",
   "cancelled", "description", "external_id", "gcal_event_id", "gcal_calendar_id", "gcal_sync",
   "icon", "color", "nav_hidden",
   "tags", "aliases", "cssclasses", "cssclass", "publish", "permalink",
@@ -38,7 +51,7 @@ export function normalizeFieldName(id: FieldId, raw: unknown, current: Record<Fi
   const s = typeof raw === "string" ? raw.trim() : "";
   if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(s)) return DEFAULT_FIELD_NAMES[id];
   const lower = s.toLowerCase();
-  if (FIXED_KEYS.has(lower)) return DEFAULT_FIELD_NAMES[id];
+  if (FIXED_KEYS.has(lower) && FIELD_EXCEPTION[id] !== lower) return DEFAULT_FIELD_NAMES[id];
   // Namen der anderen konfigurierbaren Felder – aktueller Wert UND deren Vorgabe, damit man sich
   // nicht über einen Zwischenschritt doch auf ein besetztes Feld legen kann.
   for (const other of FIELD_IDS) {
@@ -67,6 +80,8 @@ export function initFieldNames(saved?: Partial<Record<FieldId, string>> | null):
   CURRENT = resolveFieldNames(saved);
 }
 export function fieldKey(id: FieldId): string { return CURRENT[id]; }
+/** Kurzform fuer die haeufigste Abfrage – wie `titleKey()` in taskTitle.ts. */
+export const labelKey = (): string => fieldKey("labels");
 export function allFieldNames(): Record<FieldId, string> { return { ...CURRENT }; }
 
 /** Frontmatter-Werte, an denen BeautyTasks seine eigenen Notizen erkennt. Die EINE Liste – sie

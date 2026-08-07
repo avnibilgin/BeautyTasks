@@ -408,8 +408,8 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     // passiert (bei `type` umschreiben, bei `title` optional übernehmen).
     new Setting(containerEl).setName(t("set_fields_heading")).setHeading();
     containerEl.createDiv({ cls: "setting-item-description", text: t("set_fields_desc") });
-    const fieldLabel: Record<FieldId, string> = { type: t("set_field_type"), title: t("set_field_title") };
-    const fieldDesc: Record<FieldId, string> = { type: t("set_field_type_desc"), title: t("set_field_title_desc") };
+    const fieldLabel: Record<FieldId, string> = { type: t("set_field_type"), title: t("set_field_title"), labels: t("set_field_labels") };
+    const fieldDesc: Record<FieldId, string> = { type: t("set_field_type_desc"), title: t("set_field_title_desc"), labels: t("set_field_labels_desc") };
     for (const id of FIELD_IDS) {
       // Bewusst KEIN Auslösen beim Verlassen des Feldes: Der Wechsel schreibt den halben Vault um,
       // das gehört an einen Klick und nicht daran, dass man zufällig woanders hinklickt (beim
