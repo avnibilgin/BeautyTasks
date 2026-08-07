@@ -23,6 +23,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "chrono-node": "^2.10.0"
+    "chrono-node": "^2.10.0",
+    "rrule": "^2.8.1"
   }
 }
