@@ -14,7 +14,7 @@ import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
 import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
-import { parseRecurrence } from "./recurrence";
+import { describeRecurrence } from "./recurrence";
 
 
 /**
@@ -55,15 +55,11 @@ export const RECUR: { key: string; val: string }[] = [
   { key: "recur_yearly", val: "FREQ=YEARLY" },
 ];
 
-/** Vorlagen-Beschriftung nach der BEDEUTUNG suchen, nicht nach dem Wortlaut: `every week` und
- *  `FREQ=WEEKLY` sind dieselbe Regel. Sonst stünde in Notizen, die noch nicht umgestellt sind,
- *  der Rohtext im Chip – ein Schönheitsfehler, der wie ein Datenfehler aussieht. */
-const RECUR_SHAPE = RECUR.map((r) => ({ ...r, shape: parseRecurrence(r.val) }));
-
+/** Gespeichert wird die Regel, gezeigt wird Klartext – die Übersetzung macht recurrence.ts, damit
+ *  Chip, Gruppenüberschrift und alles Weitere dieselbe Formulierung zeigen. Hier kommt nur der
+ *  Zusatz „wenn erledigt" dazu; der hängt an der Aufgabe, nicht an der Regel. */
 export const recurLabel = (v: string, basis?: "due" | "done"): string => {
-  const shape = parseRecurrence(v);
-  const hit = shape ? RECUR_SHAPE.find((r) => r.shape?.n === shape.n && r.shape.unit === shape.unit) : undefined;
-  const base = hit ? t(hit.key) : v;
+  const base = describeRecurrence(v);
   return basis === "done" ? base + " · " + t("recur_when_done") : base;
 };
 

@@ -14,7 +14,7 @@ import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEd
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { ConfirmModal } from "./confirmModal";
-import { parseRecurrence } from "./recurrence";
+import { parseRecurrence, describeRecurrence } from "./recurrence";
 import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
@@ -367,7 +367,8 @@ function renderRecurring(root: HTMLElement, ctx: PageCtx, today: string): void {
     if (items) recurSection(t(key), items);
   }
   for (const [key, items] of groups) {
-    if (key.startsWith("raw:")) recurSection(key.slice(4), items);
+    // Klartext statt Rohregel – dieselbe Formulierung wie im Chip (recurrence.describeRecurrence).
+    if (key.startsWith("raw:")) recurSection(describeRecurrence(key.slice(4)), items);
   }
 }
 
