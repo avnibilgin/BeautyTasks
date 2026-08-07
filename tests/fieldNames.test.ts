@@ -48,7 +48,7 @@ describe("normalizeFieldName – eine vertippte Einstellung darf nie Daten treff
 
 describe("resolveFieldNames – gespeicherte Einstellung zu geprüfter Tabelle", () => {
   it("ergänzt Fehlendes mit den Vorgaben", () => {
-    expect(resolveFieldNames({ type: "bt_type" })).toEqual({ type: "bt_type", title: "title" });
+    expect(resolveFieldNames({ type: "bt_type" })).toEqual({ type: "bt_type", title: "title", labels: "labels" });
     expect(resolveFieldNames(null)).toEqual(DEFAULT_FIELD_NAMES);
     expect(resolveFieldNames(undefined)).toEqual(DEFAULT_FIELD_NAMES);
   });
@@ -71,7 +71,7 @@ describe("Feldnamen-Registry", () => {
     initFieldNames({ type: "bt_type", title: "status" });   // `status` ist reserviert
     expect(fieldKey("type")).toBe("bt_type");
     expect(fieldKey("title")).toBe("title");
-    expect(allFieldNames()).toEqual({ type: "bt_type", title: "title" });
+    expect(allFieldNames()).toEqual({ type: "bt_type", title: "title", labels: "labels" });
   });
 });
 
@@ -104,5 +104,38 @@ describe("isTypeRenameTarget – welche Notizen ein type-Wechsel umschreibt", ()
   it("ist idempotent: was den neuen Schlüssel schon führt, wird nicht erneut angefasst", () => {
     expect(isTypeRenameTarget({ type: "task", bt_type: "task" }, "type", "bt_type")).toBe(false);
     expect(isTypeRenameTarget({ bt_type: "task" }, "type", "bt_type")).toBe(false);
+  });
+});
+
+/**
+ * Das Label-Feld ist seit 1.42.0 konfigurierbar – vor allem, damit es auf `tags` zeigen kann.
+ * Dann sind BeautyTasks-Labels echte Obsidian-Tags, und fremde Programme (TaskForge) finden sie.
+ */
+describe("Label-Feldname", () => {
+  it("erlaubt `tags` NUR fürs Label-Feld", () => {
+    // Genau der Zielwert war vorher gesperrt: `tags` gehört Obsidian und steht in FIXED_KEYS.
+    expect(normalizeFieldName("labels", "tags")).toBe("tags");
+    // Für die anderen bleibt es verboten – niemand soll seinen Aufgabentyp auf `tags` legen.
+    expect(normalizeFieldName("type", "tags")).toBe("type");
+    expect(normalizeFieldName("title", "tags")).toBe("title");
+  });
+
+  it("lässt sich frei benennen, solange der Name in YAML ohne Anführungszeichen auskommt", () => {
+    expect(normalizeFieldName("labels", "bt_labels")).toBe("bt_labels");
+    expect(normalizeFieldName("labels", "2tags")).toBe("labels");     // Ziffer voran
+    expect(normalizeFieldName("labels", "meine tags")).toBe("labels"); // Leerzeichen
+  });
+
+  it("bleibt gegen die anderen konfigurierbaren Felder gesperrt", () => {
+    expect(normalizeFieldName("labels", "title")).toBe("labels");
+    expect(normalizeFieldName("labels", "type")).toBe("labels");
+    // Und umgekehrt: `labels` ist kein freies Ziel mehr fuer die anderen.
+    expect(normalizeFieldName("type", "labels")).toBe("type");
+  });
+
+  it("bleibt gegen die FESTEN Felder gesperrt – die schreibt BeautyTasks selbst", () => {
+    for (const fest of ["status", "due", "project", "recurrence", "aliases"]) {
+      expect(normalizeFieldName("labels", fest), fest).toBe("labels");
+    }
   });
 });

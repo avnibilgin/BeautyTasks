@@ -17,7 +17,13 @@ import { QuickAddModal } from "./quickAddModal";
 import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
-import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget } from "./fieldNames";
+import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget, labelKey } from "./fieldNames";
+
+/** Je Feld ein eigener Bestaetigungstext – die Folgen unterscheiden sich zu sehr fuer einen
+ *  gemeinsamen Satz: `type` schreibt vault-weit um, `title` und `labels` nur Aufgaben. */
+const CONFIRM_KEY: Record<FieldId, string> = {
+  type: "set_field_confirm_type", title: "set_field_confirm_title", labels: "set_field_confirm_labels",
+};
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
 import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, DEFAULT_CRITERIA, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
@@ -1280,8 +1286,8 @@ export default class BeautyTasksPlugin extends Plugin {
       if (!task.labels.includes(oldName)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-        const arr = Array.isArray(fm.labels) ? (fm.labels as unknown[]).map(String) : [];
-        fm.labels = [...new Set(arr.map((x) => (x === oldName ? nu : x)))];
+        const arr = Array.isArray(fm[labelKey()]) ? (fm[labelKey()] as unknown[]).map(String) : [];
+        fm[labelKey()] = [...new Set(arr.map((x) => (x === oldName ? nu : x)))];
       });
     }
     // Filter-Kriterien, die dieses Label per Klartext referenzieren, mitziehen (Obsidian fasst das nie an).
@@ -1383,8 +1389,8 @@ export default class BeautyTasksPlugin extends Plugin {
       if (!task.labels.includes(name)) continue;
       const f = this.app.vault.getAbstractFileByPath(task.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
-        const arr = Array.isArray(fm.labels) ? (fm.labels as unknown[]).map(String) : [];
-        fm.labels = arr.filter((x) => x !== name);
+        const arr = Array.isArray(fm[labelKey()]) ? (fm[labelKey()] as unknown[]).map(String) : [];
+        fm[labelKey()] = arr.filter((x) => x !== name);
       });
     }
     this.settings.knownLabels = this.settings.knownLabels.filter((x) => x !== name);
@@ -1941,7 +1947,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const targets = this.fieldRenameTargets(id, prev, next);
     new ConfirmModal(this.app, {
       title: t("set_field_confirm_t"),
-      message: t(move ? "set_field_confirm_type" : "set_field_confirm_title", next, prev, targets.length),
+      message: t(CONFIRM_KEY[id], next, prev, targets.length),
       confirmText: t("btn_save"),
       destructive: false,
       checkbox: move ? undefined : { label: t("set_field_drop_old", prev), checked: false },
@@ -1996,7 +2002,13 @@ export default class BeautyTasksPlugin extends Plugin {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (!(f instanceof TFile)) continue;
       const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
-      if (fmTitle(fm?.[prev]) !== null && fmTitle(fm?.[next]) === null) out.push(f.path);
+      // Labels sind eine Liste, kein Text: „brauchbar" heisst hier „ist ein Array mit Inhalt".
+      // Wie bei `title` bleiben Notizen aussen vor, die den neuen Schluessel schon fuehren – das
+      // macht den Lauf wiederholbar.
+      const useful = id === "labels"
+        ? Array.isArray(fm?.[prev]) && (fm?.[prev] as unknown[]).length > 0 && fm?.[next] === undefined
+        : fmTitle(fm?.[prev]) !== null && fmTitle(fm?.[next]) === null;
+      if (useful) out.push(f.path);
     }
     return out;
   }
@@ -2194,10 +2206,10 @@ export default class BeautyTasksPlugin extends Plugin {
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
       this.ensureCanonical(fm);
-      let arr = Array.isArray(fm.labels) ? (fm.labels as unknown[]).map(String) : [];
+      let arr = Array.isArray(fm[labelKey()]) ? (fm[labelKey()] as unknown[]).map(String) : [];
       if (remove) arr = arr.filter((x) => x !== remove);
       if (add && !arr.includes(add)) arr.push(add);
-      fm.labels = arr;
+      fm[labelKey()] = arr;
     });
   }
   /** Priorität einer Aufgabe setzen (Kanban „nach Priorität"). „normal" = kein Frontmatter-Feld. */
