@@ -51,6 +51,27 @@ export const statusDef = (id: string): StoredStatus | undefined => BY_ID.get(id)
 export const statusIds = (): string[] => CURRENT.map((s) => s.id);
 export const isKnownStatus = (id: string): boolean => BY_ID.has(id);
 
+/** Ergebnis der Prüfung eines eingegebenen Frontmatter-Werts. Zwei Ablehnungsgründe getrennt,
+ *  weil der Nutzer bei „schon vergeben" etwas anderes tun muss als bei „so nicht schreibbar". */
+export type StatusIdCheck = { ok: true; id: string } | { ok: false; reason: "format" | "taken" };
+
+/** Einen eingegebenen Wert auf einen brauchbaren Status-Wert reduzieren – das ist der Text, der
+ *  im `status:`-Feld der Notizen landet und den fremde Programme lesen.
+ *
+ *  Erlaubt ist, was in YAML ohne Anführungszeichen auskommt: Buchstabe voran, dann Buchstaben,
+ *  Ziffern, `_` und `-`. Kleingeschrieben wie bei neu angelegten Status (main.addStatus bildet
+ *  denselben Slug), damit derselbe Name nicht je nach Weg zwei verschiedene Werte ergibt.
+ *
+ *  `taken` sind die Werte der ANDEREN Status – der eigene bisherige Wert gehört nicht hinein,
+ *  sonst liesse sich eine unveränderte Eingabe nicht bestätigen. Rein: keine Registry, kein
+ *  Obsidian, vollständig testbar. */
+export function checkStatusId(raw: unknown, taken: readonly string[]): StatusIdCheck {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!/^[a-z][a-z0-9_-]*$/.test(s)) return { ok: false, reason: "format" };
+  if (taken.some((x) => x.toLowerCase() === s)) return { ok: false, reason: "taken" };
+  return { ok: true, id: s };
+}
+
 export const statusLabel = (id: string): string => {
   const d = BY_ID.get(id);
   if (!d) return id;

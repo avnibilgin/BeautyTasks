@@ -1500,6 +1500,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-view .bt-manage-count { color: var(--text-faint); font-size: 0.82em; flex-shrink: 0; }
 .bt-view .bt-manage-row.is-archived .bt-manage-name { color: var(--text-muted); }
 .bt-view .bt-manage-input { flex: 1; }
+/* Gespeicherten Status-Wert bearbeiten: Der erklärende Hinweis gehört UNTER das Feld, nicht
+   daneben – deshalb darf genau diese Zeile umbrechen (eigene Klasse statt :has, damit sie auch
+   in älteren Umgebungen greift). Volle Breite erzwingt den Umbruch nach den Aktionsknöpfen. */
+.bt-status-row.is-editing-id { flex-wrap: wrap; }
+.bt-status-row .bt-manage-hint { flex: 1 0 100%; margin-top: 4px; font-size: 0.85em; color: var(--text-muted); }
 .bt-view .bt-manage-actions { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bt-view .bt-manage-btn {
   display: inline-flex; align-items: center; padding: 4px; border-radius: 5px; cursor: pointer;

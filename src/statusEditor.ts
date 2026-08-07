@@ -1,11 +1,12 @@
 // Status-Editor – lebt jetzt in den Einstellungen (Custom-Status ist Konfiguration, kein
 // Listen-Inhalt). Rendert in einen Container; lokaler Redraw, weil im Settings-Fenster kein
 // renderAll()-Kaskaden-Redraw greift (plugin.setStatusX() zeichnet nur die Haupt-Boards neu).
-import { setIcon } from "obsidian";
+import { Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
-import { statusLabel, statusIcon, statusTint, firstOpenStatus, firstDoneStatus, StatusKind, StoredStatus } from "./statuses";
+import { statusLabel, statusIcon, statusTint, firstOpenStatus, firstDoneStatus, checkStatusId, StatusKind, StoredStatus } from "./statuses";
 import { openPopover } from "./popover";
 import { iconBtn, addRow, openColorPicker, confirmInline, attachRowDrag } from "./manageView";
+import { ConfirmModal } from "./confirmModal";
 import { t } from "./i18n";
 
 /** Standard-Rollen (welcher Status wird wofür genommen) – für die Badges im Editor. */
@@ -99,6 +100,7 @@ function statusRow(list: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus
   kindBtn.onclick = (e) => { e.stopPropagation(); openKindPicker(kindBtn, plugin, s, redraw); };
   const iconB = iconBtn(actions, "shapes", t("status_pick_icon"), () => openIconPicker(iconB, plugin, s, redraw));
   const colB = iconBtn(actions, "palette", t("status_pick_color"), () => openColorPicker(colB, s.color ?? null, (c) => then(plugin.setStatusColor(s.id, c), redraw)));
+  iconBtn(actions, "code", t("status_edit_id"), () => startStatusIdEdit(row, plugin, s, redraw));
   const delB = iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => then(plugin.deleteStatus(s.id), redraw), redraw));
   // Letzten einer Pflicht-Kategorie (auch den einzigen Papierkorb) nicht löschbar.
   if (groupCount <= 1) delB.disabled = true;
@@ -115,6 +117,45 @@ function startStatusRename(row: HTMLElement, plugin: BeautyTasksPlugin, s: Store
   iconBtn(actions, "x", t("btn_cancel"), redraw);
   input.onkeydown = (e) => {
     if (e.key === "Enter") { e.preventDefault(); void save(); }
+    else if (e.key === "Escape") { e.preventDefault(); redraw(); }
+  };
+  window.setTimeout(() => { input.focus(); input.select(); }, 0);
+}
+
+/**
+ * Den gespeicherten Wert bearbeiten – bewusst getrennt vom Umbenennen, obwohl beides wie ein
+ * Textfeld aussieht: Umbenennen ändert nur die Anzeige, das hier schreibt jede Aufgabe um.
+ * Deshalb dieselbe Bedienung, aber mit Prüfung, Zahl und Bestätigung davor.
+ */
+function startStatusIdEdit(row: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus, redraw: () => void): void {
+  row.empty();
+  row.addClass("is-editing", "is-editing-id");   // eigene Klasse: nur hier bricht die Zeile um
+  const input = row.createEl("input", { type: "text", cls: "bt-manage-input" });
+  input.value = s.id;
+  const actions = row.createDiv({ cls: "bt-manage-actions" });
+  // Hinweis NACH den Aktionen angelegt, aber per CSS in die zweite Zeile umgebrochen: Er erklärt,
+  // warum es dieses Feld überhaupt gibt – ohne ihn liest sich „Wert" wie ein zweiter Name.
+  row.createDiv({ cls: "bt-manage-hint", text: t("status_id_hint") });
+
+  const save = (): void => {
+    const taken = plugin.getStatuses().filter((x) => x.id !== s.id).map((x) => x.id);
+    const res = checkStatusId(input.value, taken);
+    if (!res.ok) { new Notice(t(res.reason === "taken" ? "status_id_taken" : "status_id_bad")); return; }
+    if (res.id === s.id) { redraw(); return; }   // unverändert -> nichts zu bestätigen
+    new ConfirmModal(plugin.app, {
+      title: t("status_id_confirm_title"),
+      message: t("status_id_confirm", plugin.statusTaskCount(s.id), s.id, res.id, statusLabel(s.id)),
+      confirmText: t("status_id_apply"),
+      destructive: false,
+    }, () => {
+      void plugin.setStatusId(s.id, res.id).then((n) => { new Notice(t("status_id_done", n)); redraw(); });
+    }).open();
+  };
+
+  iconBtn(actions, "check", t("btn_save"), save);
+  iconBtn(actions, "x", t("btn_cancel"), redraw);
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); save(); }
     else if (e.key === "Escape") { e.preventDefault(); redraw(); }
   };
   window.setTimeout(() => { input.focus(); input.select(); }, 0);
