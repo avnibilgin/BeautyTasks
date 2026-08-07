@@ -15,18 +15,17 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Die Einträge aus
-    // 1.38.0 (Startseite, Termin-Farben) sind deshalb raus: Wer jetzt 1.39 sieht, hatte den
-    // Dialog beim Sprung auf 1.38.0 bereits.
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Die Einträge zur
+    // Planungsansicht sind deshalb raus: Wer jetzt 1.40 sieht, hatte den Dialog beim Sprung auf
+    // 1.39.0 bereits.
     //
-    // Drei Einträge, eine Erzählung: WAS man sich hinstellen kann, WIE man darin navigiert, und
-    // dass man auch wieder herauskommt. Der letzte Punkt steht bewusst dabei – ein Modus ohne
-    // sichtbare Tür ist der häufigste Grund, warum Leute ein Feature nach einmal Ausprobieren
-    // nie wieder anfassen.
+    // 1.40.0 hat GENAU EINE sichtbare Neuerung – 1.39.1/1.39.2 waren stille Patches. Ein Eintrag
+    // statt der gewohnten drei ist hier Absicht: Aufgefüllt würde der Dialog seine eigene Währung
+    // entwerten, denn wer ihn zweimal ohne Gewinn wegklickt, liest ihn beim dritten Mal nicht
+    // mehr. Der Text nennt bewusst weder „Frontmatter" noch „ID" – wer das Feature braucht,
+    // versteht es auch so; wer es nicht braucht, soll nicht über Fachbegriffe stolpern.
     const items: Highlight[] = [
-      { icon: "square-split-horizontal", title: t("wn_plantabs_t"), desc: t("wn_plantabs_d") },
-      { icon: "mouse-pointer-click", title: t("wn_plannav_t"), desc: t("wn_plannav_d") },
-      { icon: "panel-right-close", title: t("wn_planclose_t"), desc: t("wn_planclose_d") },
+      { icon: "code", title: t("wn_statusid_t"), desc: t("wn_statusid_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
