@@ -188,7 +188,7 @@ function openRecur(host: ChipHost, anchor: HTMLElement): void {
       // die GEDEUTETE Regel, nicht die Eingabe: So sieht man vor dem Uebernehmen, ob verstanden
       // wurde, was gemeint war.
       pop.createDiv({ cls: "bt-pop-head", text: t("recur_custom") });
-      const inp = pop.createEl("input", { type: "text", cls: "bt-manage-input bt-pop-input", attr: { placeholder: t("recur_custom_ph") } });
+      const inp = pop.createEl("input", { type: "text", cls: "bt-pop-input", attr: { placeholder: t("recur_custom_ph") } });
       const preview = pop.createDiv({ cls: "bt-pop-hint" });
       const readRule = (): string | null => parseQuickEntry(inp.value).recurrence;
       const update = (): void => {

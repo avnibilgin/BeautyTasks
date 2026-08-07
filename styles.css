@@ -815,22 +815,18 @@ body {
 .bt-pop .bt-row:hover, .bt-pop .bt-row.is-active { background: var(--background-modifier-hover); }
 .bt-pop .bt-row-ic { display: inline-flex; }
 .bt-pop .bt-row-ic svg { width: 15px; height: 15px; }
-.bt-pop-input {
-  width: 100%; margin: 2px 0 6px; padding: 5px 7px; border-radius: 5px;
-  border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal);
-}
 
 /* ── Datums-Picker (Eingabe + Schnellzeilen + Monatskalender) ── */
 /* Feste Breite: verhindert, dass die (breite) Dauer-Zeile das Popover verbreitert und
    damit die aspect-ratio-Kalenderzellen aufbläht. */
 .bt-pop.bt-date { width: 268px; max-height: min(560px, calc(100vh - 16px)); overflow-y: auto; }
-.bt-pop .bt-date-input {
+.bt-pop .bt-date-input, .bt-pop .bt-pop-input {
   width: 100%; box-sizing: border-box; margin: 1px 0 6px; padding: 6px 8px; font-size: 0.88em;
   color: var(--text-normal); background: var(--background-primary);
   border: 1px solid var(--background-modifier-border); border-radius: 5px;
 }
-.bt-pop .bt-date-input::placeholder { color: var(--text-faint); }
-.bt-pop .bt-date-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
+.bt-pop .bt-date-input::placeholder, .bt-pop .bt-pop-input::placeholder { color: var(--text-faint); }
+.bt-pop .bt-date-input:focus, .bt-pop .bt-pop-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
 .bt-pop .bt-date-input.is-invalid { border-color: var(--text-error); }
 .bt-pop .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bt-pop .bt-date-hint { padding-left: 10px; color: var(--text-faint); font-size: 0.9em; white-space: nowrap; }
@@ -1503,11 +1499,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 /* Eigene Wiederholungsregel im Popover: Feld auf volle Breite, darunter Vorschau bzw. Beispiele.
    Die Vorschau wird kraeftiger, sobald die Eingabe verstanden wurde - so sieht man den Unterschied
    zwischen "noch nichts erkannt" und "so wuerde es gespeichert", ohne einen zweiten Text. */
-.bt-pop-input { width: 100%; margin: 2px 0 4px; }
 /* Zwei Zustaende in EINEM Element: unerkannt = Beispiele (klein und zurueckhaltend), erkannt =
    die gedeutete Regel. Letztere ist die Auskunft, auf die es ankommt – deshalb groesser und
    kraeftiger. Das Beispiel aus dem Platzhalter wiederholt sich hier bewusst nicht. */
-.bt-pop-hint { font-size: 0.78em; color: var(--text-faint); padding: 0 2px 4px; line-height: 1.35; }
+/* Ohne Breitengrenze zoege die lange Beispielzeile das ganze Popover auseinander - es hat kein
+   max-width und waechst mit seinem laengsten Kind. */
+.bt-pop-hint { max-width: 320px; font-size: 0.78em; color: var(--text-faint); padding: 0 4px 4px; line-height: 1.35; white-space: normal; }
 .bt-pop-hint.is-set { font-size: 0.9em; color: var(--text-normal); }
 /* Gespeicherten Status-Wert bearbeiten: Der erklärende Hinweis gehört UNTER das Feld, nicht
    daneben – deshalb darf genau diese Zeile umbrechen (eigene Klasse statt :has, damit sie auch
