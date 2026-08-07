@@ -25,7 +25,11 @@ describe("describeRecurrence", () => {
 
   it("benennt Wochentagsregeln", () => {
     expect(describeRecurrence("FREQ=WEEKLY;BYDAY=MO")).toBe("Jeden Montag");
-    expect(describeRecurrence("FREQ=WEEKLY;INTERVAL=2;BYDAY=TU")).toBe("Jeden 2. Dienstag");
+    // Bewusst NICHT "Jeden 2. Dienstag": Das liest sich wie der zweite Dienstag im MONAT und
+    // stuende damit neben "2. Montag im Monat" fuer etwas ganz anderes. Der Umweg ueber
+    // "Alle 2 Wochen" ist eindeutig - und braucht keine Ordnungszahl, die JavaScript ohnehin
+    // nicht ausschreiben kann (Intl kennt kein RBNF).
+    expect(describeRecurrence("FREQ=WEEKLY;INTERVAL=2;BYDAY=TU")).toBe("Alle 2 Wochen am Dienstag");
   });
 
   it("fasst Werktage und Wochenende zusammen, statt sie aufzuzählen", () => {

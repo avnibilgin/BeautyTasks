@@ -20,6 +20,16 @@ const WD: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
 };
 const WDNAMES = "montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday";
+// RRULE benennt Wochentage mit zwei Buchstaben; WD zaehlt wie JavaScript ab Sonntag.
+const WD_CODE = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+// Ausgeschriebene Ordnungszahlen. „jeden zweiten Montag" ist die Schreibweise, die Leute
+// tatsaechlich tippen – und Todoist kann sie auch. Bis vier reicht: darueber sagt niemand mehr
+// „jeden fuenften Montag", sondern nennt die Zahl.
+const ORD: Record<string, number> = {
+  zweiten: 2, zweite: 2, zweiter: 2, zweites: 2, second: 2, other: 2,
+  dritten: 3, dritte: 3, dritter: 3, drittes: 3, third: 3,
+  vierten: 4, vierte: 4, vierter: 4, viertes: 4, fourth: 4,
+};
 // Monatsnamen (DE + EN, inkl. gängiger Abkürzungen) -> Monatsindex 0–11.
 const MONTHS: Record<string, number> = {
   januar: 0, jänner: 0, january: 0, jan: 0,
@@ -79,9 +89,10 @@ const RECUR_ADV: Record<string, string> = {
   jährlich: "FREQ=YEARLY", jaehrlich: "FREQ=YEARLY", yearly: "FREQ=YEARLY", annually: "FREQ=YEARLY",
 };
 // Längste zuerst – sonst träfe „tag" vor „tagen" und ließe ein „en" im Titel stehen.
-const longestFirst = (o: Record<string, string>): string => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
+const longestFirst = (o: Record<string, unknown>): string => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
 const RUNITS = longestFirst(RECUR_UNITS);
 const RADV = longestFirst(RECUR_ADV);
+const ORDNAMES = longestFirst(ORD);
 /** { n, unit } -> „FREQ=DAILY" / „FREQ=MONTHLY;INTERVAL=3". INTERVAL=1 bleibt weg (Vorgabewert). */
 const recurRule = (n: number, unit: string): string => "FREQ=" + FREQ[unit] + (n > 1 ? ";INTERVAL=" + n : "");
 
@@ -151,6 +162,9 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   grabRecur(re("(?:jeden|jede[nsr]?|alle|every)\\s+(?:(\\d+)\\s+)?(" + RUNITS + ")"),
     (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()]));
   grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
+  // „jede zweite Woche", „every other week": dieselbe Regel, nur ausgeschrieben statt beziffert.
+  grabRecur(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + ORDNAMES + ")\\s+(" + RUNITS + ")"),
+    (m) => recurRule(ORD[m[1].toLowerCase()], RECUR_UNITS[m[2].toLowerCase()]));
   // „jeden Montag", „every friday": wöchentlich, verankert am Wochentag. Das Regelmodell {n, unit}
   // in recurrence.ts kennt keine Wochentage – es braucht sie aber auch nicht: „every week" plus
   // Fälligkeit am nächsten Montag IST „jeden Montag", weil advance() von der Fälligkeit aus
@@ -159,10 +173,19 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   // Auslöser ist die GANZE Phrase, nicht nur das Vorwort: Das ✕ escapt sie dann zu „jeden montag"
   // im Titel – die Wörter des Nutzers, unversehrt. Nur „jeden" zu escapen ließe den Montag als
   // Datum stehen, hinterließe aber den Titel „jeden sport", und solchen Wortmüll erfinden wir nicht.
+  // „jeden zweiten Montag" zuerst – sonst schluckte die schlichte Regel darunter schon „jeden".
+  if (!recurrence) {
+    const m = text.match(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + ORDNAMES + ")\\s+(" + WDNAMES + ")"));
+    if (m) {
+      recurrence = "FREQ=WEEKLY;INTERVAL=" + ORD[m[1].toLowerCase()] + ";BYDAY=" + WD_CODE[WD[m[2].toLowerCase()]];
+      recurSrc = trigger(m[0]);
+      text = text.replace(m[0], " " + m[2] + " ");   // Wochentag stehen lassen -> Datumsregel setzt ihn
+    }
+  }
   if (!recurrence) {
     const m = text.match(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + WDNAMES + ")"));
     if (m) {
-      recurrence = "FREQ=WEEKLY";
+      recurrence = "FREQ=WEEKLY;BYDAY=" + WD_CODE[WD[m[1].toLowerCase()]];
       recurSrc = trigger(m[0]);
       text = text.replace(m[0], " " + m[1] + " ");
     }

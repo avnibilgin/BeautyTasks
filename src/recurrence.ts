@@ -246,7 +246,11 @@ function describeBase(opts: Partial<Options>): string | null {
     if (set.length === 2 && set.join() === "5,6") return t("recur_weekend");
     if (set.length === 1) {
       const name = weekdayName(set[0]);
-      return n === 1 ? t("recur_every_weekday", name) : t("recur_every_nth_weekday", n, name);
+      // Ab Intervall 2 bewusst NICHT „Jeden 2. Dienstag": Das liest sich wie der zweite Dienstag
+      // im MONAT und stünde damit neben „2. Montag im Monat" für etwas ganz anderes. Der Umweg
+      // über „Alle 2 Wochen" ist eindeutig und braucht nebenbei keine Ordnungszahl – die kann
+      // JavaScript ohnehin nicht ausschreiben (Intl kennt kein RBNF).
+      return n === 1 ? t("recur_every_weekday", name) : t("recur_n_weeks_on", n, name);
     }
     return set.map(weekdayName).join(", ");   // eigene Auswahl: aufzählen statt deuten
   }

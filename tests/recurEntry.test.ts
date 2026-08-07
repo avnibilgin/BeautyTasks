@@ -48,22 +48,23 @@ describe("Wiederholung – Erkennung", () => {
 });
 
 describe("Wiederholung – Wochentag (jeden Montag)", () => {
-  // Das Regelmodell {n, unit} in recurrence.ts kennt keine Wochentage – es braucht sie auch nicht:
-  // „every week" + Faelligkeit am naechsten Montag ist dasselbe, weil advance() von der
-  // Faelligkeit aus weiterzaehlt. Deshalb schluckt die Regel nur das Vorwort.
+  // Seit RRULE traegt die REGEL den Wochentag (BYDAY), nicht mehr nur die Faelligkeit. Vorher
+  // ging das nicht: {n, unit} kannte keine Wochentage, und "jede Woche" + Faelligkeit am naechsten
+  // Montag war der Behelf. Der Unterschied wird sichtbar, sobald jemand die Faelligkeit auf einen
+  // Mittwoch schiebt - die Regel bleibt jetzt montags, statt stillschweigend mitzuwandern.
   it.each([
-    ["jeden montag sport", "2026-06-22"],       // Testdatum ist Montag, 15.06. -> naechster Montag
-    ["jeden Freitag Müll", "2026-06-19"],
-    ["every monday standup", "2026-06-22"],
-  ])("%s -> woechentlich, verankert am Wochentag", (raw, due) => {
+    ["jeden montag sport", "2026-06-22", "MO"],   // Testdatum ist Montag, 15.06. -> naechster Montag
+    ["jeden Freitag Müll", "2026-06-19", "FR"],
+    ["every monday standup", "2026-06-22", "MO"],
+  ])("%s -> woechentlich am Wochentag selbst", (raw, due, code) => {
     const r = parseQuickEntry(raw);
-    expect(r.recurrence).toBe("FREQ=WEEKLY");
+    expect(r.recurrence).toBe("FREQ=WEEKLY;BYDAY=" + code);
     expect(r.faellig).toBe(due);
   });
 
   it("laesst den Rest des Titels in Ruhe und vertraegt eine Uhrzeit", () => {
     const r = parseQuickEntry("jeden montag um 20:00 sport");
-    expect(r.recurrence).toBe("FREQ=WEEKLY");
+    expect(r.recurrence).toBe("FREQ=WEEKLY;BYDAY=MO");
     expect(r.faellig).toBe("2026-06-22");
     expect(r.time).toBe("20:00");
     expect(r.title).toBe("sport");
@@ -179,5 +180,37 @@ describe("Wiederholung – ✕ am Chip", () => {
     const next = escapeTriggers("alle 3 tage gießen", [p.recurSrc]);
     expect(next).toBe("\\alle \\3 \\tage gießen");
     expect(parseQuickEntry(next).recurrence).toBeNull();
+  });
+});
+
+/**
+ * Ausgeschriebene Ordnungszahlen – „jeden zweiten Montag" ist die Schreibweise, die Leute
+ * tatsächlich tippen. Erst seit RRULE lässt sie sich auch speichern: `INTERVAL` und `BYDAY`
+ * zusammen. Vorher wäre daraus ein blosses „jede Woche" geworden.
+ */
+describe("Wiederholung – ausgeschriebene Ordnungszahlen", () => {
+  it.each([
+    ["jeden zweiten montag sport", "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"],
+    ["jeden dritten freitag bericht", "FREQ=WEEKLY;INTERVAL=3;BYDAY=FR"],
+    ["every second tuesday standup", "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU"],
+    ["every other monday review", "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"],
+  ])("%s -> %s", (raw, rule) => {
+    expect(parseQuickEntry(raw).recurrence).toBe(rule);
+  });
+
+  it("erkennt den Wochentag jetzt auch ohne Ordnungszahl als Regel, nicht nur als Datum", () => {
+    expect(parseQuickEntry("jeden montag sport").recurrence).toBe("FREQ=WEEKLY;BYDAY=MO");
+  });
+
+  it("versteht die Ordnungszahl auch vor einer Einheit", () => {
+    expect(parseQuickEntry("jede zweite woche putzen").recurrence).toBe("FREQ=WEEKLY;INTERVAL=2");
+    expect(parseQuickEntry("every other week cleaning").recurrence).toBe("FREQ=WEEKLY;INTERVAL=2");
+  });
+
+  it("lässt den Wochentag im Text stehen, damit die Fälligkeit darauf fällt", () => {
+    // „jeden zweiten montag" -> Regel ist die Wiederholung, der Montag bleibt fürs Datum stehen.
+    const r = parseQuickEntry("jeden zweiten montag sport");
+    expect(r.title).toBe("sport");
+    expect(r.faellig).not.toBe("");
   });
 });
