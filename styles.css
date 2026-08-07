@@ -1504,8 +1504,11 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Die Vorschau wird kraeftiger, sobald die Eingabe verstanden wurde - so sieht man den Unterschied
    zwischen "noch nichts erkannt" und "so wuerde es gespeichert", ohne einen zweiten Text. */
 .bt-pop-input { width: 100%; margin: 2px 0 4px; }
-.bt-pop-hint { font-size: 0.85em; color: var(--text-faint); padding: 0 2px 4px; line-height: 1.35; }
-.bt-pop-hint.is-set { color: var(--text-normal); }
+/* Zwei Zustaende in EINEM Element: unerkannt = Beispiele (klein und zurueckhaltend), erkannt =
+   die gedeutete Regel. Letztere ist die Auskunft, auf die es ankommt – deshalb groesser und
+   kraeftiger. Das Beispiel aus dem Platzhalter wiederholt sich hier bewusst nicht. */
+.bt-pop-hint { font-size: 0.78em; color: var(--text-faint); padding: 0 2px 4px; line-height: 1.35; }
+.bt-pop-hint.is-set { font-size: 0.9em; color: var(--text-normal); }
 /* Gespeicherten Status-Wert bearbeiten: Der erklärende Hinweis gehört UNTER das Feld, nicht
    daneben – deshalb darf genau diese Zeile umbrechen (eigene Klasse statt :has, damit sie auch
    in älteren Umgebungen greift). Volle Breite erzwingt den Umbruch nach den Aktionsknöpfen. */
