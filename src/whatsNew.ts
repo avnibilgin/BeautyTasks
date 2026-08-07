@@ -15,17 +15,21 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Die Einträge zur
-    // Planungsansicht sind deshalb raus: Wer jetzt 1.40 sieht, hatte den Dialog beim Sprung auf
-    // 1.39.0 bereits.
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Eintrag zu den
+    // Statuswerten ist deshalb raus: Wer jetzt 1.41 sieht, hatte den Dialog beim Sprung auf
+    // 1.40.0 bereits.
     //
-    // 1.40.0 hat GENAU EINE sichtbare Neuerung – 1.39.1/1.39.2 waren stille Patches. Ein Eintrag
-    // statt der gewohnten drei ist hier Absicht: Aufgefüllt würde der Dialog seine eigene Währung
-    // entwerten, denn wer ihn zweimal ohne Gewinn wegklickt, liest ihn beim dritten Mal nicht
-    // mehr. Der Text nennt bewusst weder „Frontmatter" noch „ID" – wer das Feature braucht,
-    // versteht es auch so; wer es nicht braucht, soll nicht über Fachbegriffe stolpern.
+    // Drei Einträge, eine Reihenfolge: WAS jetzt möglich ist, WIE man es sagt, WAS man dann sieht.
+    //
+    // Die Umstellung der bestehenden Regeln (`every week` -> `FREQ=WEEKLY` im Frontmatter) steht
+    // bewusst NICHT hier: Sie ändert die Bedeutung nicht, und ein vierter Eintrag über eine
+    // Schreibweise verwässert die drei, die vom Gewinn handeln. Die beiden Fehlerbehebungen der
+    // Fassung fehlen aus demselben Grund – Reparaturen sind keine Neuigkeiten und rechtfertigen
+    // keinen Dialog, der die Arbeit unterbricht.
     const items: Highlight[] = [
-      { icon: "code", title: t("wn_statusid_t"), desc: t("wn_statusid_d") },
+      { icon: "repeat", title: t("wn_recurmore_t"), desc: t("wn_recurmore_d") },
+      { icon: "text-cursor-input", title: t("wn_recurtype_t"), desc: t("wn_recurtype_d") },
+      { icon: "eye", title: t("wn_recurplain_t"), desc: t("wn_recurplain_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
