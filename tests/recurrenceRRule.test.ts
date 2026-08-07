@@ -61,14 +61,26 @@ describe("Regeln, die unser altes Modell nicht konnte", () => {
     expect(due("FREQ=WEEKLY;UNTIL=20260615T000000Z", "2026-06-15", "2026-06-15")).toBeNull();
   });
 
-  it("lehnt COUNT ab, statt eine endlose Kette daraus zu machen", () => {
-    // Wir wiederholen über eine KETTE: jede neue Aufgabe trägt die Regel mit ihrem eigenen
-    // Datum als Anker. Eine Zählung „noch n-mal" begänne dadurch jedes Mal von vorn und liefe
-    // nie ab. Ein Ende zu versprechen, das nie kommt, wäre schlimmer als die Regel abzulehnen.
-    expect(isValidRecurrence("FREQ=WEEKLY;COUNT=2")).toBe(false);
-    expect(due("FREQ=WEEKLY;COUNT=2", "2026-06-01", "2026-06-01")).toBeNull();
-    // UNTIL ist davon nicht betroffen – ein absolutes Datum gilt für jede Instanz gleich.
-    expect(isValidRecurrence("FREQ=WEEKLY;UNTIL=20260615T000000Z")).toBe(true);
+  it("zählt COUNT über die Kette herunter, statt jedes Mal von vorn zu beginnen", () => {
+    // Jede neue Aufgabe verankert die Regel an ihrem eigenen Datum. Bliebe COUNT stehen, liefe
+    // die Zählung nie ab. Deshalb trägt die Folgeaufgabe eine um eins verringerte Regel.
+    const step = (rule: string, from: string) =>
+      nextInstance(task({ recurrence: rule, due: from, recurBasis: "due" }), from);
+
+    const a = step("FREQ=WEEKLY;COUNT=3", "2026-06-01");
+    expect(a).toEqual({ due: "2026-06-08", scheduled: null, recurrence: "FREQ=WEEKLY;COUNT=2" });
+    const b = step(a!.recurrence, a!.due!);
+    expect(b).toEqual({ due: "2026-06-15", scheduled: null, recurrence: "FREQ=WEEKLY;COUNT=1" });
+    // COUNT=1: die eine erlaubte Wiederholung IST der Anker – also endet die Kette hier.
+    expect(step(b!.recurrence, b!.due!)).toBeNull();
+  });
+
+  it("lässt die Regel unangetastet, wo es nichts herunterzuzählen gibt", () => {
+    const r = nextInstance(task({ recurrence: "FREQ=WEEKLY;BYDAY=MO", due: "2026-06-01" }), "2026-06-01");
+    expect(r?.recurrence).toBe("FREQ=WEEKLY;BYDAY=MO");
+    // UNTIL braucht kein Herunterzählen – ein absolutes Datum gilt für jede Instanz gleich.
+    const u = nextInstance(task({ recurrence: "FREQ=WEEKLY;UNTIL=20260615T000000Z", due: "2026-06-01" }), "2026-06-01");
+    expect(u?.recurrence).toBe("FREQ=WEEKLY;UNTIL=20260615T000000Z");
   });
 });
 

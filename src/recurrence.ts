@@ -55,14 +55,6 @@ function parseRRuleText(rule: string): Partial<Options> | null {
   try {
     const opts = RRule.parseString(body);
     if (opts.freq === undefined) return null;
-    // COUNT wird ABGELEHNT, nicht ignoriert. Grund liegt im Modell: Wir wiederholen über eine
-    // Kette neuer Aufgaben, und jede trägt die Regel erneut mit ihrem eigenen Datum als Anker.
-    // Eine Zählung „noch zehnmal" begänne dadurch bei jeder Instanz von vorn und liefe nie ab –
-    // die Regel verspräche ein Ende, das nie käme. Lieber sichtbar nicht unterstützt als still
-    // falsch. (Sauber lösbar, sobald wir Regeln auch SCHREIBEN: dann bekommt die Folgeaufgabe
-    // COUNT um eins verringert, und bei COUNT=1 entsteht keine mehr. Das ist Stufe 2.)
-    // UNTIL ist davon nicht betroffen: ein absolutes Datum gilt für jede Instanz gleich.
-    if (opts.count != null) return null;
     // Unterhalb eines Tages hat unser Modell keine Auflösung: Fälligkeiten sind Kalendertage.
     // `FREQ=HOURLY` lieferte sonst immer wieder denselben Tag – eine Wiederholung, die sich
     // nicht bewegt. Ablehnen ist die einzige ehrliche Antwort darauf.
@@ -143,6 +135,27 @@ function nextAfter(rule: string, anchorIso: string, afterIso: string): string | 
 }
 
 /**
+ * Welche Regel trägt die FOLGEAUFGABE?
+ *
+ * Normalerweise dieselbe. Bei `COUNT` aber eine um eins verringerte – und darin steckt die
+ * Lösung für ein Problem, das unser Modell sonst hätte: Wir wiederholen über eine Kette neuer
+ * Aufgaben, und jede verankert die Regel an ihrem eigenen Datum. Bliebe `COUNT=10` stehen,
+ * begänne die Zählung bei jeder Instanz von vorn und liefe nie ab.
+ *
+ * Verringert wandert der Rest mit: Aus `COUNT=3` wird `COUNT=2`, dann `COUNT=1` – und bei
+ * `COUNT=1` liefert die Regel von sich aus keinen weiteren Termin mehr, weil die eine erlaubte
+ * Wiederholung der Anker selbst ist. Die Kette endet also ohne Sonderfall, und im Frontmatter
+ * kann man ablesen, wie viele noch kommen.
+ *
+ * Gezielt ersetzt statt die Regel neu zu serialisieren: So bleibt alles andere Zeichen für
+ * Zeichen erhalten – auch Reihenfolge und Schreibweisen, die wir gar nicht deuten.
+ */
+function successorRule(rule: string): string {
+  return rule.replace(/(^|[;:\s])COUNT=(\d+)/i, (_m, pre: string, n: string) =>
+    pre + "COUNT=" + Math.max(1, parseInt(n, 10) - 1));
+}
+
+/**
  * Fälligkeit(en) der nächsten Instanz. `null` = keine gültige oder keine weitere Wiederholung.
  *
  * basis „done": ab dem Erledigungstag (heute) – der Abstand zwischen zwei Erledigungen ist der
@@ -155,9 +168,10 @@ function nextAfter(rule: string, anchorIso: string, afterIso: string): string | 
  * `scheduled` wandert mit und behält seinen Abstand zu `due` – wer „drei Tage vorher einplanen"
  * eingestellt hat, will das auch in der nächsten Runde.
  */
-export function nextInstance(task: Task, today: string): { due: string | null; scheduled: string | null } | null {
+export function nextInstance(task: Task, today: string): { due: string | null; scheduled: string | null; recurrence: string } | null {
   if (!task.recurrence || !isValidRecurrence(task.recurrence)) return null;
   const fromDone = task.recurBasis === "done";
+  const rule = successorRule(task.recurrence);
 
   if (task.due) {
     const anchor = fromDone ? today : task.due;
@@ -169,13 +183,13 @@ export function nextInstance(task: Task, today: string): { due: string | null; s
       const gap = Math.round((ms(task.scheduled) - ms(task.due)) / 86400000);
       nextScheduled = addDays(nextDue, gap);
     }
-    return { due: nextDue, scheduled: nextScheduled };
+    return { due: nextDue, scheduled: nextScheduled, recurrence: rule };
   }
   if (task.scheduled) {
     const anchor = fromDone ? today : task.scheduled;
     const after = fromDone ? today : (ms(task.scheduled) > ms(today) ? task.scheduled : today);
     const next = nextAfter(task.recurrence, anchor, after);
-    return next ? { due: null, scheduled: next } : null;
+    return next ? { due: null, scheduled: next, recurrence: rule } : null;
   }
   return null;
 }

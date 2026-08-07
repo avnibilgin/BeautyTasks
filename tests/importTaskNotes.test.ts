@@ -30,8 +30,9 @@ describe("rruleToRecurrence", () => {
     expect(rruleToRecurrence("")).toEqual({ recurrence: null, lossyOriginal: null });
     // Unterhalb eines Tages: unsere Faelligkeiten sind Kalendertage.
     expect(rruleToRecurrence("FREQ=HOURLY")).toEqual({ recurrence: null, lossyOriginal: "FREQ=HOURLY" });
-    // COUNT liefe in unserem Ketten-Modell nie ab (s. recurrence.ts).
-    expect(rruleToRecurrence("FREQ=WEEKLY;COUNT=5")).toEqual({ recurrence: null, lossyOriginal: "FREQ=WEEKLY;COUNT=5" });
+    // COUNT wird uebernommen: Die Folgeaufgabe traegt es um eins verringert, dadurch laeuft die
+    // Kette ab (s. recurrence.successorRule).
+    expect(rruleToRecurrence("FREQ=WEEKLY;COUNT=5")).toEqual({ recurrence: "FREQ=WEEKLY;COUNT=5", lossyOriginal: null });
   });
 });
 

@@ -23,19 +23,19 @@ describe("parseRecurrence", () => {
 describe("nextInstance", () => {
   it("springt ab Fälligkeit bis in die Zukunft (nicht sofort wieder überfällig)", () => {
     const r = nextInstance(task({ recurrence: "every week", due: "2026-06-01", recurBasis: "due" }), "2026-06-15");
-    expect(r).toEqual({ due: "2026-06-22", scheduled: null });
+    expect(r).toMatchObject({ due: "2026-06-22", scheduled: null });
   });
   it("basis 'done' rechnet ab heute", () => {
     const r = nextInstance(task({ recurrence: "every week", due: "2026-06-01", recurBasis: "done" }), "2026-06-15");
-    expect(r).toEqual({ due: "2026-06-22", scheduled: null });
+    expect(r).toMatchObject({ due: "2026-06-22", scheduled: null });
   });
   it("erhält den Abstand scheduled↔due", () => {
     const r = nextInstance(task({ recurrence: "every month", due: "2026-06-10", scheduled: "2026-06-08", recurBasis: "due" }), "2026-06-15");
-    expect(r).toEqual({ due: "2026-07-10", scheduled: "2026-07-08" });
+    expect(r).toMatchObject({ due: "2026-07-10", scheduled: "2026-07-08" });
   });
   it("ohne Fälligkeit, nur scheduled", () => {
     const r = nextInstance(task({ recurrence: "every day", scheduled: "2026-06-14", recurBasis: "due" }), "2026-06-15");
-    expect(r).toEqual({ due: null, scheduled: "2026-06-16" });
+    expect(r).toMatchObject({ due: null, scheduled: "2026-06-16" });
   });
   it("null ohne gültige Wiederholung", () => {
     expect(nextInstance(task({ recurrence: null, due: "2026-06-01" }), "2026-06-15")).toBeNull();
