@@ -14,7 +14,8 @@ import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
 import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
-import { describeRecurrence } from "./recurrence";
+import { firstOccurrence } from "./recurrence";
+import { describeRecurrence } from "./recurrenceText";
 import { parseQuickEntry } from "./quickEntry";
 
 
@@ -163,6 +164,7 @@ function openRecur(host: ChipHost, anchor: HTMLElement): void {
           // an, ohne dass je etwas wiederkehrt. Genau wie bei der Texterkennung: ohne Datum heute.
           // pinDue, weil das hier eine Handauswahl ist – der Titel soll es nicht ueberschreiben.
           if (!f.due) { f.due = todayIso(); host.pinDue(); }
+          f.due = firstOccurrence(r.val, f.due) ?? f.due;
           host.rerender(); render();
         }, f.recurrence === r.val);
       }
@@ -186,7 +188,9 @@ function openRecur(host: ChipHost, anchor: HTMLElement): void {
         const r = readRule();
         if (!r) return;                       // nicht verstanden -> Feld bleibt offen, Hinweis steht da
         f.recurrence = r;
+        // Die Regel bestimmt den ersten Termin, nicht das zufaellig eingestellte Datum.
         if (!f.due) { f.due = todayIso(); host.pinDue(); }
+        f.due = firstOccurrence(r, f.due) ?? f.due;
         host.rerender(); render();
       };
       update();

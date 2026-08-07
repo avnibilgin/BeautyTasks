@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { describeRecurrence } from "../src/recurrence";
+import { describeRecurrence } from "../src/recurrenceText";
 import { setLocale } from "../src/i18n";
 
 /**

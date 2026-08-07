@@ -14,7 +14,8 @@ import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEd
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { ConfirmModal } from "./confirmModal";
-import { parseRecurrence, describeRecurrence } from "./recurrence";
+import { parseRecurrence } from "./recurrence";
+import { describeRecurrence } from "./recurrenceText";
 import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";

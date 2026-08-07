@@ -9,6 +9,7 @@
 import { Chrono } from "chrono-node";
 import { chronoFallback } from "./chronoLocale";
 import { Priority } from "./types";
+import { firstOccurrence } from "./recurrence";
 
 const z = (n: number) => String(n).padStart(2, "0");
 const iso = (d: Date) => d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
@@ -328,6 +329,17 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
 
   // Rücktausch NACH dem Kollabieren der Leerzeichen: eigene Formatierung im geschützten Text bleibt.
+  // ── Die Regel bestimmt den ersten Termin ──
+  // Eine Wiederholung schreibt vor, welche Tage überhaupt in Frage kommen. „letzter Freitag im
+  // Monat" darf deshalb nicht auf irgendeinem Freitag beginnen, nur weil die Datumsregel den
+  // nächsten gefunden hat – das wäre schlicht falsch. Für Regeln ohne Tagesvorgabe (jede Woche,
+  // alle 3 Tage) ist das gefundene Datum selbst der erste Termin, dort ändert sich nichts.
+  //
+  // Ohne Datum im Text wird ab heute gerechnet: Eine Wiederholung ohne Anker liefert nie eine
+  // nächste Instanz (nextInstance braucht due oder scheduled) – der Chip zeigte dann eine Regel
+  // an, die nichts tut.
+  if (recurrence) faellig = firstOccurrence(recurrence, faellig || iso(now)) ?? faellig;
+
   return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, recurrence, faelligSrc, timeSrc, recurSrc };
 }
 
@@ -422,6 +434,10 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   if (p.recurrence) {
     f.recurrence = p.recurrence; recurSrc = p.recurSrc;
     if (!opts.duePinned && f.due == null) { f.due = opts.today; dueFromTitle = true; }
+    // Auch der Ersatz-Anker „heute" muss der Regel gehorchen: „am 15. jedes Monats" darf nicht
+    // auf dem 7. beginnen, nur weil heute der 7. ist. parseQuickEntry gleicht bereits an, hier
+    // greift es für den Fall, dass das Datum erst oben entstanden ist.
+    if (f.due) f.due = firstOccurrence(p.recurrence, f.due) ?? f.due;
   }
 
   // @Projekt: erkannt -> setzen; wieder aus dem Titel gelöscht -> zurück auf den Default.
