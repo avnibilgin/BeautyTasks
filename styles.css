@@ -1500,6 +1500,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-view .bt-manage-count { color: var(--text-faint); font-size: 0.82em; flex-shrink: 0; }
 .bt-view .bt-manage-row.is-archived .bt-manage-name { color: var(--text-muted); }
 .bt-view .bt-manage-input { flex: 1; }
+/* Eigene Wiederholungsregel im Popover: Feld auf volle Breite, darunter Vorschau bzw. Beispiele.
+   Die Vorschau wird kraeftiger, sobald die Eingabe verstanden wurde - so sieht man den Unterschied
+   zwischen "noch nichts erkannt" und "so wuerde es gespeichert", ohne einen zweiten Text. */
+.bt-pop-input { width: 100%; margin: 2px 0 4px; }
+.bt-pop-hint { font-size: 0.85em; color: var(--text-faint); padding: 0 2px 4px; line-height: 1.35; }
+.bt-pop-hint.is-set { color: var(--text-normal); }
 /* Gespeicherten Status-Wert bearbeiten: Der erklärende Hinweis gehört UNTER das Feld, nicht
    daneben – deshalb darf genau diese Zeile umbrechen (eigene Klasse statt :has, damit sie auch
    in älteren Umgebungen greift). Volle Breite erzwingt den Umbruch nach den Aktionsknöpfen. */

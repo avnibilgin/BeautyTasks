@@ -15,6 +15,7 @@ import { TaskPickerModal } from "./searchModal";
 import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
 import { describeRecurrence } from "./recurrence";
+import { parseQuickEntry } from "./quickEntry";
 
 
 /**
@@ -165,6 +166,31 @@ function openRecur(host: ChipHost, anchor: HTMLElement): void {
           host.rerender(); render();
         }, f.recurrence === r.val);
       }
+      // Eigene Regel eintippen. Nutzt dieselbe Erkennung wie der Aufgabentitel – wer „jeden
+      // zweiten Montag" schreiben kann, soll es nicht zweimal lernen muessen. Die Vorschau zeigt
+      // die GEDEUTETE Regel, nicht die Eingabe: So sieht man vor dem Uebernehmen, ob verstanden
+      // wurde, was gemeint war.
+      pop.createDiv({ cls: "bt-pop-head", text: t("recur_custom") });
+      const inp = pop.createEl("input", { type: "text", cls: "bt-manage-input bt-pop-input", attr: { placeholder: t("recur_custom_ph") } });
+      const preview = pop.createDiv({ cls: "bt-pop-hint" });
+      const readRule = (): string | null => parseQuickEntry(inp.value).recurrence;
+      const update = (): void => {
+        const r = inp.value.trim() ? readRule() : null;
+        preview.setText(r ? describeRecurrence(r) : t("recur_custom_hint"));
+        preview.toggleClass("is-set", !!r);
+      };
+      inp.oninput = update;
+      inp.onkeydown = (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const r = readRule();
+        if (!r) return;                       // nicht verstanden -> Feld bleibt offen, Hinweis steht da
+        f.recurrence = r;
+        if (!f.due) { f.due = todayIso(); host.pinDue(); }
+        host.rerender(); render();
+      };
+      update();
+
       if (f.recurrence) {
         pop.createDiv({ cls: "bt-pop-head", text: t("recur_basis") });
         popRow(pop, f.recurBasis === "done" ? "check-circle-2" : "circle", t("recur_when_done"),
