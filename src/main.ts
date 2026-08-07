@@ -1585,6 +1585,67 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Wie viele Aufgaben tragen diesen Status (für Löschen-Umzug/Anzeige). */
   statusTaskCount(id: string): number { return this.index.all().filter((tk) => tk.status === id).length; }
 
+  /**
+   * Den GESPEICHERTEN WERT eines Status ändern – das, was im `status:`-Feld der Notizen steht.
+   *
+   * Anders als `renameStatus` (nur die Anzeige) trifft das die Daten: Jede Aufgabe mit diesem
+   * Status wird umgeschrieben. Der Aufrufer hat das vorher bestätigen lassen und den Wert mit
+   * `checkStatusId` geprüft; hier wird nicht noch einmal gefragt.
+   *
+   * Reihenfolge zählt: erst die Notizen, dann die Registry. Andersherum liefe der Index einmal
+   * über Aufgaben, deren alter Wert schon unbekannt wäre – die stünden für einen Moment im
+   * Rückfall (taskIndex: unbekannt -> erster offener Status) und würden beim nächsten Schreiben
+   * mit dem falschen Wert festgeschrieben.
+   *
+   * Rückgabe: Zahl der umgeschriebenen Aufgaben (für die Meldung danach).
+   */
+  async setStatusId(oldId: string, newId: string): Promise<number> {
+    const list = this.statusList();
+    const s = list.find((x) => x.id === oldId);
+    if (!s || oldId === newId) return 0;
+    const affected = this.index.all().filter((tk) => tk.status === oldId);
+    for (const tk of affected) {
+      const f = this.app.vault.getAbstractFileByPath(tk.path);
+      if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { fm.status = newId; });
+    }
+    await this.remapStatusRefs(oldId, newId);
+    s.id = newId;
+    this.settings.statuses = list;
+    await this.commitStatuses();
+    return affected.length;
+  }
+
+  /** Status-Werte stehen ausser in den Aufgaben an drei weiteren Stellen: im Frontmatter der
+   *  Filter-Notizen UND der Seiten (beide `statuses`/`statuses_not`, s. pageOptions) sowie in der
+   *  Spaltenreihenfolge des Boards. Ohne dieses Nachziehen verschwänden sie lautlos – pageOptions
+   *  filtert beim Lesen mit `isKnownStatus`, ein nicht mitgezogener Wert wäre danach einfach weg. */
+  private async remapStatusRefs(oldId: string, newId: string): Promise<void> {
+    // `null` heisst „hier steht der alte Wert nicht drin" – dann wird die Datei gar nicht erst
+    // angefasst. Array.isArray verengt nur auf `any[]`, deshalb der Zwischenschritt über
+    // `unknown[]`: sonst schleppte der Rückgabewert ein `any` durch die Aufrufer.
+    const swap = (v: unknown): string[] | null => {
+      if (!Array.isArray(v)) return null;
+      const arr: unknown[] = v;
+      if (!arr.includes(oldId)) return null;
+      return arr.map((x) => (x === oldId ? newId : String(x)));
+    };
+    for (const f of this.app.vault.getMarkdownFiles()) {
+      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+      if (!fm || (!swap(fm.statuses) && !swap(fm.statuses_not))) continue;
+      await this.app.fileManager.processFrontMatter(f, (m: Record<string, unknown>) => {
+        for (const key of ["statuses", "statuses_not"]) {
+          const next = swap(m[key]);
+          if (next) m[key] = next;
+        }
+      });
+    }
+    const map = this.settings.boardColumnOrder;
+    if (map) for (const key of Object.keys(map)) {
+      const next = swap(map[key]);
+      if (next) map[key] = next;
+    }
+  }
+
   /** Registry aktualisieren, speichern, Index neu bewerten (isKnownStatus), Views neu. Vorher die
    *  Pflicht-Kategorien erzwingen (einziger Choke-Point aller Status-Mutationen). */
   private async commitStatuses(): Promise<void> {

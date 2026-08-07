@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   initStatuses, isOpen, isDone, isCancelled, isTrashed, isKnownStatus,
   boardStatuses, allStatuses, statusLabel, statusIcon, statusColor,
-  firstOpenStatus, firstDoneStatus, firstCancelledStatus, ensureStatusInvariants,
+  firstOpenStatus, firstDoneStatus, firstCancelledStatus, ensureStatusInvariants, checkStatusId,
 } from "../src/statuses";
 import { StoredStatus, StatusKind } from "../src/types";
 
@@ -115,5 +115,40 @@ describe("Pflicht-Kategorien (ensureStatusInvariants, self-healing)", () => {
     const trash = healed.filter((s) => s.kind === "cancelled");
     expect(trash).toHaveLength(1);
     expect(trash[0].id).not.toBe("cancelled");
+  });
+});
+
+/**
+ * checkStatusId – der gespeicherte Wert eines Status, also das, was im `status:`-Feld der Notizen
+ * landet und was fremde Programme (TaskForge/TaskNotes) lesen.
+ *
+ * Zwei Ablehnungsgründe müssen unterscheidbar bleiben: Bei „schon vergeben" muss der Nutzer einen
+ * anderen Wert wählen, bei „Format" die Schreibweise korrigieren. Eine gemeinsame Fehlermeldung
+ * hätte ihn im ersten Fall an der Schreibweise suchen lassen.
+ */
+describe("checkStatusId", () => {
+  it("nimmt gültige Werte und schreibt sie klein", () => {
+    expect(checkStatusId("in-progress", [])).toEqual({ ok: true, id: "in-progress" });
+    expect(checkStatusId("  In-Progress  ", [])).toEqual({ ok: true, id: "in-progress" });
+    expect(checkStatusId("on_hold2", [])).toEqual({ ok: true, id: "on_hold2" });
+  });
+
+  it("lehnt ab, was in YAML Anführungszeichen bräuchte oder nicht mit einem Buchstaben beginnt", () => {
+    for (const bad of ["", "  ", "2do", "-todo", "in progress", "in:progress", "tödo", "a b", 42, null, undefined]) {
+      expect(checkStatusId(bad, [])).toEqual({ ok: false, reason: "format" });
+    }
+  });
+
+  it("lehnt bereits vergebene Werte ab – unabhängig von der Schreibweise", () => {
+    expect(checkStatusId("done", ["todo", "done"])).toEqual({ ok: false, reason: "taken" });
+    expect(checkStatusId("DONE", ["done"])).toEqual({ ok: false, reason: "taken" });
+  });
+
+  it("Format schlägt Dopplung: unbrauchbare Eingabe meldet nie „schon vergeben“", () => {
+    expect(checkStatusId("in progress", ["in progress"])).toEqual({ ok: false, reason: "format" });
+  });
+
+  it("der eigene bisherige Wert gehört NICHT in `taken` – sonst wäre Bestätigen ohne Änderung unmöglich", () => {
+    expect(checkStatusId("doing", ["todo", "done"])).toEqual({ ok: true, id: "doing" });
   });
 });
