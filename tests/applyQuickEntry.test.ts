@@ -89,7 +89,7 @@ describe("applyQuickEntry – der Titel besitzt, was er gesetzt hat", () => {
 
   it("raeumt eine Wiederholung ab, wenn sie aus dem Titel verschwindet", () => {
     const first = applyQuickEntry("jeden tag sport", fields(), emptyQuickEntryState(), opts());
-    expect(first.fields.recurrence).toBe("every day");
+    expect(first.fields.recurrence).toBe("FREQ=DAILY");
     const second = applyQuickEntry("sport", first.fields, first.state, opts());
     expect(second.fields.recurrence).toBeNull();
     expect(second.fields.due).toBeNull();      // der Anker geht mit

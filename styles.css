@@ -815,27 +815,29 @@ body {
 .bt-pop .bt-row:hover, .bt-pop .bt-row.is-active { background: var(--background-modifier-hover); }
 .bt-pop .bt-row-ic { display: inline-flex; }
 .bt-pop .bt-row-ic svg { width: 15px; height: 15px; }
-.bt-pop-input {
-  width: 100%; margin: 2px 0 6px; padding: 5px 7px; border-radius: 5px;
-  border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal);
-}
 
 /* ── Datums-Picker (Eingabe + Schnellzeilen + Monatskalender) ── */
 /* Feste Breite: verhindert, dass die (breite) Dauer-Zeile das Popover verbreitert und
    damit die aspect-ratio-Kalenderzellen aufbläht. */
 .bt-pop.bt-date { width: 268px; max-height: min(560px, calc(100vh - 16px)); overflow-y: auto; }
-.bt-pop .bt-date-input {
+.bt-pop .bt-date-input, .bt-pop .bt-pop-input {
   width: 100%; box-sizing: border-box; margin: 1px 0 6px; padding: 6px 8px; font-size: 0.88em;
   color: var(--text-normal); background: var(--background-primary);
   border: 1px solid var(--background-modifier-border); border-radius: 5px;
 }
-.bt-pop .bt-date-input::placeholder { color: var(--text-faint); }
-.bt-pop .bt-date-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
+.bt-pop .bt-date-input::placeholder, .bt-pop .bt-pop-input::placeholder { color: var(--text-faint); }
+.bt-pop .bt-date-input:focus, .bt-pop .bt-pop-input:focus { border-color: var(--interactive-accent); box-shadow: none; outline: none; }
 .bt-pop .bt-date-input.is-invalid { border-color: var(--text-error); }
 .bt-pop .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bt-pop .bt-date-hint { padding-left: 10px; color: var(--text-faint); font-size: 0.9em; white-space: nowrap; }
 
 /* Label-Picker (Eingabe + Liste mit rechtsbündiger Häkchen-Box) */
+/* Wiederholung: Fuenf Vorlagen, das Regel-Feld samt Beispielen und die Basis-Zeile ergeben mehr
+   als die 320px, die fuer ein schlichtes Menue reichen. Ohne eigene Grenze waere die letzte Zeile
+   ("Naechstes Datum ab") abgeschnitten und nur durch Scrollen erreichbar - man saehe nicht
+   einmal, dass sie existiert. Wie beim Datums-Popover also eine eigene, groessere Grenze; der
+   Bildschirm bleibt die harte Schranke. */
+.bt-pop.bt-recur { min-width: 240px; max-height: min(520px, calc(100vh - 16px)); }
 .bt-pop.bt-tags { min-width: 240px; }
 .bt-pop.bt-tags .bt-tag-add { width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 5px 7px; border-radius: 5px; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); }
 .bt-pop.bt-tags .bt-tag-list { max-height: 220px; overflow-y: auto; }
@@ -1500,6 +1502,16 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-view .bt-manage-count { color: var(--text-faint); font-size: 0.82em; flex-shrink: 0; }
 .bt-view .bt-manage-row.is-archived .bt-manage-name { color: var(--text-muted); }
 .bt-view .bt-manage-input { flex: 1; }
+/* Eigene Wiederholungsregel im Popover: Feld auf volle Breite, darunter Vorschau bzw. Beispiele.
+   Die Vorschau wird kraeftiger, sobald die Eingabe verstanden wurde - so sieht man den Unterschied
+   zwischen "noch nichts erkannt" und "so wuerde es gespeichert", ohne einen zweiten Text. */
+/* Zwei Zustaende in EINEM Element: unerkannt = Beispiele (klein und zurueckhaltend), erkannt =
+   die gedeutete Regel. Letztere ist die Auskunft, auf die es ankommt – deshalb groesser und
+   kraeftiger. Das Beispiel aus dem Platzhalter wiederholt sich hier bewusst nicht. */
+/* Ohne Breitengrenze zoege die lange Beispielzeile das ganze Popover auseinander - es hat kein
+   max-width und waechst mit seinem laengsten Kind. */
+.bt-pop-hint { max-width: 320px; font-size: 0.78em; color: var(--text-faint); padding: 0 4px 4px; line-height: 1.35; white-space: normal; }
+.bt-pop-hint.is-set { font-size: 0.9em; color: var(--text-normal); }
 /* Gespeicherten Status-Wert bearbeiten: Der erklärende Hinweis gehört UNTER das Feld, nicht
    daneben – deshalb darf genau diese Zeile umbrechen (eigene Klasse statt :has, damit sie auch
    in älteren Umgebungen greift). Volle Breite erzwingt den Umbruch nach den Aktionsknöpfen. */

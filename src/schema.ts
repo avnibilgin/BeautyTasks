@@ -23,7 +23,7 @@
  */
 
 /** Die Einmal-Migrationen in ihrer Reihenfolge. Anhängen, nie umsortieren, nie entfernen. */
-export const SCHEMA_STEPS = ["descriptions", "inboxRemoval", "titles"] as const;
+export const SCHEMA_STEPS = ["descriptions", "inboxRemoval", "titles", "recurrenceRRule"] as const;
 export type SchemaStep = typeof SCHEMA_STEPS[number];
 
 /** Stand, den dieser Build erwartet. */

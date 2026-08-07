@@ -14,6 +14,9 @@ import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
 import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
+import { firstOccurrence } from "./recurrence";
+import { describeRecurrence } from "./recurrenceText";
+import { parseQuickEntry } from "./quickEntry";
 
 
 /**
@@ -44,16 +47,21 @@ export const PRIO_KEY: Record<Priority, string> = {
 // Priorität -> Kurz-Kürzel „P1"–„P3" (normal/low = keine Anzeige) für kompakte Chip-Labels.
 const PRIO_NUM: Record<Priority, number | null> = { highest: 1, high: 2, medium: 3, normal: null, low: null, lowest: null };
 
+// Geschrieben wird RRULE (RFC 5545) – siehe recurrence.ts. Die fünf Vorlagen sind die einfachen
+// Intervalle; alles darüber (nur werktags, letzter Freitag …) kommt aus der Regel selbst.
 export const RECUR: { key: string; val: string }[] = [
-  { key: "recur_daily", val: "every day" },
-  { key: "recur_weekly", val: "every week" },
-  { key: "recur_monthly", val: "every month" },
-  { key: "recur_quarterly", val: "every 3 months" },
-  { key: "recur_yearly", val: "every year" },
+  { key: "recur_daily", val: "FREQ=DAILY" },
+  { key: "recur_weekly", val: "FREQ=WEEKLY" },
+  { key: "recur_monthly", val: "FREQ=MONTHLY" },
+  { key: "recur_quarterly", val: "FREQ=MONTHLY;INTERVAL=3" },
+  { key: "recur_yearly", val: "FREQ=YEARLY" },
 ];
+
+/** Gespeichert wird die Regel, gezeigt wird Klartext – die Übersetzung macht recurrence.ts, damit
+ *  Chip, Gruppenüberschrift und alles Weitere dieselbe Formulierung zeigen. Hier kommt nur der
+ *  Zusatz „wenn erledigt" dazu; der hängt an der Aufgabe, nicht an der Regel. */
 export const recurLabel = (v: string, basis?: "due" | "done"): string => {
-  const r = RECUR.find((x) => x.val === v);
-  const base = r ? t(r.key) : v;
+  const base = describeRecurrence(v);
   return basis === "done" ? base + " · " + t("recur_when_done") : base;
 };
 
@@ -109,6 +117,21 @@ export interface ChipDef {
 }
 
 // ── Picker (aus TaskModal extrahiert, host-getrieben) ──
+/**
+ * Eine Wiederholung ohne Datum ist ein Widerspruch: Die Regel sagt WANN – ohne Anker gibt es kein
+ * Wann. Die Aufgabe taucht dann in keiner Datumsansicht auf, und beim Abhaken entstuende nichts.
+ *
+ * Deshalb setzt ein geleertes Datum sich selbst neu, solange eine Regel steht: auf den ersten
+ * Termin der Regel ab heute, mit derselben Funktion wie bei der Ersteingabe. Wer kein Datum will,
+ * nimmt die Wiederholung weg – das ✕ sitzt an ihrem Chip. So haelt es auch Todoist, wo die
+ * Faelligkeit die Wiederholung IST und beides gar nicht getrennt existiert.
+ */
+function keepRecurrenceAnchored(f: ChipFields): void {
+  if (f.due || !f.recurrence) return;
+  const today = todayIso();
+  f.due = firstOccurrence(f.recurrence, today) ?? today;
+}
+
 function openDate(host: ChipHost, anchor: HTMLElement, field: "due" | "scheduled"): void {
   const f = host.f;
   const timeField = field === "due" ? "dueTime" : "scheduledTime";
@@ -121,7 +144,7 @@ function openDate(host: ChipHost, anchor: HTMLElement, field: "due" | "scheduled
   openDatePicker(anchor, value, (v) => {
     f[field] = v ? dateOf(v) : null;
     f[timeField] = v ? timeOf(v) : null;
-    if (field === "due") host.pinDue();
+    if (field === "due") { keepRecurrenceAnchored(f); host.pinDue(); }
     host.rerender();
   }, dur);
 }
@@ -145,6 +168,7 @@ function openStatus(host: ChipHost, anchor: HTMLElement): void {
 function openRecur(host: ChipHost, anchor: HTMLElement): void {
   const f = host.f;
   openPopover(anchor, (pop, close) => {
+    pop.addClass("bt-recur");
     const render = () => {
       pop.empty();
       popRow(pop, "x", t("recur_none"), () => { f.recurrence = null; host.rerender(); close(); }, !f.recurrence);
@@ -156,9 +180,37 @@ function openRecur(host: ChipHost, anchor: HTMLElement): void {
           // an, ohne dass je etwas wiederkehrt. Genau wie bei der Texterkennung: ohne Datum heute.
           // pinDue, weil das hier eine Handauswahl ist – der Titel soll es nicht ueberschreiben.
           if (!f.due) { f.due = todayIso(); host.pinDue(); }
+          f.due = firstOccurrence(r.val, f.due) ?? f.due;
           host.rerender(); render();
         }, f.recurrence === r.val);
       }
+      // Eigene Regel eintippen. Nutzt dieselbe Erkennung wie der Aufgabentitel – wer „jeden
+      // zweiten Montag" schreiben kann, soll es nicht zweimal lernen muessen. Die Vorschau zeigt
+      // die GEDEUTETE Regel, nicht die Eingabe: So sieht man vor dem Uebernehmen, ob verstanden
+      // wurde, was gemeint war.
+      pop.createDiv({ cls: "bt-pop-head", text: t("recur_custom") });
+      const inp = pop.createEl("input", { type: "text", cls: "bt-pop-input", attr: { placeholder: t("recur_custom_ph") } });
+      const preview = pop.createDiv({ cls: "bt-pop-hint" });
+      const readRule = (): string | null => parseQuickEntry(inp.value).recurrence;
+      const update = (): void => {
+        const r = inp.value.trim() ? readRule() : null;
+        preview.setText(r ? describeRecurrence(r) : t("recur_custom_hint"));
+        preview.toggleClass("is-set", !!r);
+      };
+      inp.oninput = update;
+      inp.onkeydown = (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const r = readRule();
+        if (!r) return;                       // nicht verstanden -> Feld bleibt offen, Hinweis steht da
+        f.recurrence = r;
+        // Die Regel bestimmt den ersten Termin, nicht das zufaellig eingestellte Datum.
+        if (!f.due) { f.due = todayIso(); host.pinDue(); }
+        f.due = firstOccurrence(r, f.due) ?? f.due;
+        host.rerender(); render();
+      };
+      update();
+
       if (f.recurrence) {
         pop.createDiv({ cls: "bt-pop-head", text: t("recur_basis") });
         popRow(pop, f.recurBasis === "done" ? "check-circle-2" : "circle", t("recur_when_done"),
@@ -302,7 +354,9 @@ export const CHIPS: Record<ChipId, ChipDef> = {
     // wie bisher einfach leeren.
     clear: (host) => {
       if (host.unparseDue?.()) return;
-      host.f.due = null; host.f.dueTime = null; host.f.duration = null; host.pinDue();
+      host.f.due = null; host.f.dueTime = null; host.f.duration = null;
+      keepRecurrenceAnchored(host.f);
+      host.pinDue();
     },
   },
   priority: {

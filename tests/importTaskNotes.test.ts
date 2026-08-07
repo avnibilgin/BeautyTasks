@@ -2,24 +2,37 @@ import { describe, it, expect } from "vitest";
 import { rruleToRecurrence, splitDT, mapStatus, mapPriority, linkBase } from "../src/importTaskNotes";
 
 describe("rruleToRecurrence", () => {
-  it("maps simple FREQ to BeautyTasks text", () => {
-    expect(rruleToRecurrence("FREQ=WEEKLY")).toEqual({ recurrence: "every week", lossyOriginal: null });
-    expect(rruleToRecurrence("FREQ=DAILY;INTERVAL=3")).toEqual({ recurrence: "every 3 days", lossyOriginal: null });
-    expect(rruleToRecurrence("FREQ=MONTHLY;INTERVAL=2")).toEqual({ recurrence: "every 2 months", lossyOriginal: null });
+  // Seit unser Speicherformat selbst RRULE ist, wird uebernommen statt uebersetzt. Frueher wurde
+  // hier auf "every n unit" angenaehert und der Rest als Verlust gemeldet - genau die Verluste
+  // gibt es nicht mehr.
+  it("uebernimmt eine gueltige Regel unveraendert", () => {
+    expect(rruleToRecurrence("FREQ=WEEKLY")).toEqual({ recurrence: "FREQ=WEEKLY", lossyOriginal: null });
+    expect(rruleToRecurrence("FREQ=DAILY;INTERVAL=3")).toEqual({ recurrence: "FREQ=DAILY;INTERVAL=3", lossyOriginal: null });
   });
-  it("ignores the DTSTART prefix TaskNotes adds (no false lossy note)", () => {
-    expect(rruleToRecurrence("DTSTART:20260708;FREQ=DAILY;INTERVAL=1")).toEqual({ recurrence: "every day", lossyOriginal: null });
-    expect(rruleToRecurrence("DTSTART:20260708;FREQ=WEEKLY;INTERVAL=2")).toEqual({ recurrence: "every 2 weeks", lossyOriginal: null });
+
+  it("behaelt jetzt auch, was frueher verlorenging", () => {
+    // BYDAY war bis 1.40.x ein "Annaeherung + Original merken"-Fall.
+    expect(rruleToRecurrence("FREQ=WEEKLY;BYDAY=FR")).toEqual({ recurrence: "FREQ=WEEKLY;BYDAY=FR", lossyOriginal: null });
+    expect(rruleToRecurrence("FREQ=MONTHLY;BYDAY=-1FR")).toEqual({ recurrence: "FREQ=MONTHLY;BYDAY=-1FR", lossyOriginal: null });
   });
-  it("keeps the original for complex rules (BYDAY etc.)", () => {
-    const r = rruleToRecurrence("FREQ=WEEKLY;BYDAY=FR");
-    expect(r.recurrence).toBe("every week");
-    expect(r.lossyOriginal).toBe("FREQ=WEEKLY;BYDAY=FR");   // Annäherung → Original merken
+
+  it("stellt die alte Schreibweise beim Import gleich mit um", () => {
+    // Sonst kaeme ueber einen Import das zweite Schreibformat zurueck, das wir abgeschafft haben.
+    expect(rruleToRecurrence("every 2 weeks")).toEqual({ recurrence: "FREQ=WEEKLY;INTERVAL=2", lossyOriginal: null });
   });
-  it("returns null recurrence for unknown/empty", () => {
+
+  it("DTSTART gehoert zur Quelle, nicht zur Regel - und stoert nicht", () => {
+    expect(rruleToRecurrence("DTSTART:20260708;FREQ=DAILY;INTERVAL=1").lossyOriginal).toBeNull();
+    expect(rruleToRecurrence("DTSTART:20260708;FREQ=DAILY;INTERVAL=1").recurrence).toContain("FREQ=DAILY");
+  });
+
+  it("meldet nur noch, was wir wirklich nicht fuehren koennen", () => {
     expect(rruleToRecurrence("")).toEqual({ recurrence: null, lossyOriginal: null });
-    expect(rruleToRecurrence("FREQ=HOURLY").recurrence).toBeNull();
-    expect(rruleToRecurrence("FREQ=HOURLY").lossyOriginal).toBe("FREQ=HOURLY");
+    // Unterhalb eines Tages: unsere Faelligkeiten sind Kalendertage.
+    expect(rruleToRecurrence("FREQ=HOURLY")).toEqual({ recurrence: null, lossyOriginal: "FREQ=HOURLY" });
+    // COUNT wird uebernommen: Die Folgeaufgabe traegt es um eins verringert, dadurch laeuft die
+    // Kette ab (s. recurrence.successorRule).
+    expect(rruleToRecurrence("FREQ=WEEKLY;COUNT=5")).toEqual({ recurrence: "FREQ=WEEKLY;COUNT=5", lossyOriginal: null });
   });
 });
 

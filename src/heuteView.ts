@@ -15,6 +15,7 @@ import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
 import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
+import { describeRecurrence } from "./recurrenceText";
 import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
@@ -133,6 +134,7 @@ function pageTop(c: HTMLElement, layout: PageLayout): HTMLElement {
 
 /** Rendert eine Dashboard-Ansicht in ein angehängtes DOM-Element (Deferred-sicher). */
 export function renderViewInto(c: HTMLElement, ctx: PageCtx, view: ViewId): void {
+  markIndexReady(ctx);
   const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
@@ -367,7 +369,8 @@ function renderRecurring(root: HTMLElement, ctx: PageCtx, today: string): void {
     if (items) recurSection(t(key), items);
   }
   for (const [key, items] of groups) {
-    if (key.startsWith("raw:")) recurSection(key.slice(4), items);
+    // Klartext statt Rohregel – dieselbe Formulierung wie im Chip (recurrence.describeRecurrence).
+    if (key.startsWith("raw:")) recurSection(describeRecurrence(key.slice(4)), items);
   }
 }
 
@@ -380,10 +383,25 @@ function applyReadableWidth(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
 const byDue = (a: Task, b: Task) => (a.due ?? "").localeCompare(b.due ?? "");
 
+/**
+ * „Noch nicht nachgesehen" ist nicht „nichts da".
+ *
+ * Der Aufgaben-Index entsteht erst in `onLayoutReady`; die Ansichten zeichnen davor schon einmal.
+ * Ohne diese Auskunft behauptete der Leerzustand beim Start eine halbe Sekunde lang „Nichts für
+ * heute", bevor die Aufgaben erschienen – eine Aussage, die schlicht falsch war.
+ *
+ * Dieselbe Lehre wie bei den Labels in der Seitenleiste (1.39.1); dort wurde sie nur an EINER
+ * Stelle gezogen. Der Wert wird zu Beginn jedes Aufbaus gesetzt, damit `emptyState` ihn nicht
+ * durch zwölf Aufrufstellen gereicht bekommen muss.
+ */
+let indexReady = true;
+const markIndexReady = (ctx: PageCtx): void => { indexReady = ctx.plugin.index.ready; };
+
 /** Einheitlicher Leerzustand für alle Boards: zentriert im Restraum, Icon + Text (Akzentfarbe).
  *  Struktur/Position/Style sind bewusst identisch – die Optik steuert `.bt-empty` in styles.css.
  *  `action` hängt einen Knopf darunter (derzeit „Filter zurücksetzen"). */
 function emptyState(root: HTMLElement, icon: string, key: string, action?: { label: string; onClick: () => void }): void {
+  if (!indexReady) return;   // lieber gar nichts als eine falsche Auskunft
   root.addClass("is-empty");   // zentriert den Leerzustand (ersetzt :has(> .bt-empty))
   const box = root.createDiv({ cls: "bt-empty" });
   setIcon(box.createDiv({ cls: "bt-empty-ic" }), icon);
@@ -417,6 +435,7 @@ function addBar(root: HTMLElement, plugin: BeautyTasksPlugin, onAdd: () => void)
 
 /** Projekt-Board: alle Aufgaben eines Projekts, nach Status/Datum gruppiert. */
 export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath: string): void {
+  markIndexReady(ctx);
   const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
@@ -460,6 +479,7 @@ export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
 export function renderLabelBoardInto(c: HTMLElement, ctx: PageCtx, label: string): void {
+  markIndexReady(ctx);
   const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();
@@ -539,6 +559,7 @@ function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], o
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
  *  Optionen. Layout (Liste/Kanban) folgt – wie Projekte – dem globalen Umschalter. */
 export function renderFilterBoardInto(c: HTMLElement, ctx: PageCtx, filterPath: string): void {
+  markIndexReady(ctx);
   const plugin = ctx.plugin;
   const today = todayStr();
   c.empty();

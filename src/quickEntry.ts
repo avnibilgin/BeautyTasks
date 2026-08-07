@@ -9,6 +9,7 @@
 import { Chrono } from "chrono-node";
 import { chronoFallback } from "./chronoLocale";
 import { Priority } from "./types";
+import { firstOccurrence } from "./recurrence";
 
 const z = (n: number) => String(n).padStart(2, "0");
 const iso = (d: Date) => d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
@@ -20,6 +21,25 @@ const WD: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
 };
 const WDNAMES = "montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday";
+// RRULE benennt Wochentage mit zwei Buchstaben; WD zaehlt wie JavaScript ab Sonntag.
+const WD_CODE = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+// Ausgeschriebene Ordnungszahlen. „jeden zweiten Montag" ist die Schreibweise, die Leute
+// tatsaechlich tippen – und Todoist kann sie auch. Bis vier reicht: darueber sagt niemand mehr
+// „jeden fuenften Montag", sondern nennt die Zahl.
+// Positionen im Monat. Enthaelt anders als ORD auch „erster" und „letzter": beim Wochenintervall
+// gibt es kein „jeden ersten Montag" (das waere schlicht „jeden Montag") und kein „letzter".
+const POS: Record<string, number> = {
+  ersten: 1, erste: 1, erster: 1, erstes: 1, first: 1,
+  zweiten: 2, zweite: 2, zweiter: 2, zweites: 2, second: 2,
+  dritten: 3, dritte: 3, dritter: 3, drittes: 3, third: 3,
+  vierten: 4, vierte: 4, vierter: 4, viertes: 4, fourth: 4,
+  letzten: -1, letzte: -1, letzter: -1, letztes: -1, last: -1,
+};
+const ORD: Record<string, number> = {
+  zweiten: 2, zweite: 2, zweiter: 2, zweites: 2, second: 2, other: 2,
+  dritten: 3, dritte: 3, dritter: 3, drittes: 3, third: 3,
+  vierten: 4, vierte: 4, vierter: 4, viertes: 4, fourth: 4,
+};
 // Monatsnamen (DE + EN, inkl. gängiger Abkürzungen) -> Monatsindex 0–11.
 const MONTHS: Record<string, number> = {
   januar: 0, jänner: 0, january: 0, jan: 0,
@@ -58,8 +78,13 @@ const PUA = /[\uE000-\uF8FF]/g;
 const rxEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── Wiederholung ──
-// Ergebnis ist stets das kanonische „every N unit" – das Format, das recurrence.ts versteht und der
-// Chip schreibt (RECUR in chips.ts). „jeden Tag" ist also nur Eingabe, nie Speicherwert.
+// Ergebnis ist stets eine RRULE (RFC 5545) – das Format, das recurrence.ts rechnet und der Chip
+// schreibt (RECUR in chips.ts). „jeden Tag" ist also nur Eingabe, nie Speicherwert.
+//
+// Die Regel wird hier von Hand zusammengesetzt statt über recurrence.ts: Diese Datei wird auch
+// eigenständig gebündelt (KRunner-Schnellerfassung), und ein Import würde die rrule-Bibliothek in
+// dieses Bündel ziehen – für drei Zeichenketten.
+const FREQ: Record<string, string> = { day: "DAILY", week: "WEEKLY", month: "MONTHLY", year: "YEARLY" };
 const RECUR_UNITS: Record<string, string> = {
   tag: "day", tage: "day", tagen: "day", day: "day", days: "day",
   woche: "week", wochen: "week", week: "week", weeks: "week",
@@ -68,17 +93,19 @@ const RECUR_UNITS: Record<string, string> = {
 };
 // Adverbien ohne Zahl. Umlautlose Schreibweisen mit, weil sie real getippt werden.
 const RECUR_ADV: Record<string, string> = {
-  täglich: "every day", taeglich: "every day", daily: "every day",
-  wöchentlich: "every week", woechentlich: "every week", weekly: "every week",
-  monatlich: "every month", monthly: "every month",
-  jährlich: "every year", jaehrlich: "every year", yearly: "every year", annually: "every year",
+  täglich: "FREQ=DAILY", taeglich: "FREQ=DAILY", daily: "FREQ=DAILY",
+  wöchentlich: "FREQ=WEEKLY", woechentlich: "FREQ=WEEKLY", weekly: "FREQ=WEEKLY",
+  monatlich: "FREQ=MONTHLY", monthly: "FREQ=MONTHLY",
+  jährlich: "FREQ=YEARLY", jaehrlich: "FREQ=YEARLY", yearly: "FREQ=YEARLY", annually: "FREQ=YEARLY",
 };
 // Längste zuerst – sonst träfe „tag" vor „tagen" und ließe ein „en" im Titel stehen.
-const longestFirst = (o: Record<string, string>): string => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
+const longestFirst = (o: Record<string, unknown>): string => Object.keys(o).sort((a, b) => b.length - a.length).join("|");
 const RUNITS = longestFirst(RECUR_UNITS);
 const RADV = longestFirst(RECUR_ADV);
-/** { n, unit } -> „every day" / „every 3 months" (trifft die Chip-Presets exakt). */
-const recurRule = (n: number, unit: string): string => (n === 1 ? "every " + unit : "every " + n + " " + unit + "s");
+const ORDNAMES = longestFirst(ORD);
+const POSNAMES = longestFirst(POS);
+/** { n, unit } -> „FREQ=DAILY" / „FREQ=MONTHLY;INTERVAL=3". INTERVAL=1 bleibt weg (Vorgabewert). */
+const recurRule = (n: number, unit: string): string => "FREQ=" + FREQ[unit] + (n > 1 ? ";INTERVAL=" + n : "");
 
 export interface QuickEntry {
   title: string; faellig: string; time: string; tags: string[]; priority: Priority | null; project: string | null;
@@ -146,6 +173,9 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   grabRecur(re("(?:jeden|jede[nsr]?|alle|every)\\s+(?:(\\d+)\\s+)?(" + RUNITS + ")"),
     (m) => recurRule(m[1] ? parseInt(m[1], 10) : 1, RECUR_UNITS[m[2].toLowerCase()]));
   grabRecur(re("(" + RADV + ")"), (m) => RECUR_ADV[m[1].toLowerCase()]);
+  // „jede zweite Woche", „every other week": dieselbe Regel, nur ausgeschrieben statt beziffert.
+  grabRecur(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + ORDNAMES + ")\\s+(" + RUNITS + ")"),
+    (m) => recurRule(ORD[m[1].toLowerCase()], RECUR_UNITS[m[2].toLowerCase()]));
   // „jeden Montag", „every friday": wöchentlich, verankert am Wochentag. Das Regelmodell {n, unit}
   // in recurrence.ts kennt keine Wochentage – es braucht sie aber auch nicht: „every week" plus
   // Fälligkeit am nächsten Montag IST „jeden Montag", weil advance() von der Fälligkeit aus
@@ -154,10 +184,48 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   // Auslöser ist die GANZE Phrase, nicht nur das Vorwort: Das ✕ escapt sie dann zu „jeden montag"
   // im Titel – die Wörter des Nutzers, unversehrt. Nur „jeden" zu escapen ließe den Montag als
   // Datum stehen, hinterließe aber den Titel „jeden sport", und solchen Wortmüll erfinden wir nicht.
+  // ── Monatsregeln zuerst ──
+  // „jeden zweiten Dienstag IM MONAT" ist monatlich, nicht zweiwoechentlich. Stuenden die
+  // Wochenregeln davor, griffen sie zuerst und der Zusatz „im Monat" bliebe wirkungslos im Titel.
+  //
+  // Der Wochentag bleibt wie bei den Wochenregeln im Text stehen, damit die Datumsregel eine
+  // Faelligkeit setzt. Bei „letzter Freitag" trifft sie den naechsten Freitag, nicht zwingend den
+  // letzten des Monats – die ERSTE Instanz kann also in der falschen Woche liegen. Ab der zweiten
+  // rechnet die Regel selbst, und die stimmt. Eine genaue Erstbelegung braeuchte die
+  // rrule-Bibliothek, die hier bewusst nicht liegt (KRunner-Buendel).
+  if (!recurrence) {
+    const m = text.match(re("(?:jeden|jede[nsr]?|am|every|on\\s+the)?\\s*(" + POSNAMES + ")\\s+(" + WDNAMES + ")\\s+(?:im|des|jeden|of\\s+(?:the|each|every))\\s+(?:monats?|month)"));
+    if (m && m[1] && m[2]) {
+      recurrence = "FREQ=MONTHLY;BYDAY=" + POS[m[1].toLowerCase()] + WD_CODE[WD[m[2].toLowerCase()]];
+      recurSrc = trigger(m[0]);
+      text = text.replace(m[0], " " + m[2] + " ");
+    }
+  }
+  // „am 15. jedes Monats", „on the 15th of each month".
+  if (!recurrence) {
+    const m = text.match(re("(?:am|on\\s+the)\\s+(\\d{1,2})(?:\\.|st|nd|rd|th)?\\s+(?:jedes|im|des|of\\s+(?:the|each|every))\\s+(?:monats?|month)"));
+    if (m && m[1]) {
+      const d = parseInt(m[1], 10);
+      if (d >= 1 && d <= 31) {
+        recurrence = "FREQ=MONTHLY;BYMONTHDAY=" + d;
+        recurSrc = trigger(m[0]);
+        text = text.replace(m[0], " ");
+      }
+    }
+  }
+  // „jeden zweiten Montag" zuerst – sonst schluckte die schlichte Regel darunter schon „jeden".
+  if (!recurrence) {
+    const m = text.match(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + ORDNAMES + ")\\s+(" + WDNAMES + ")"));
+    if (m) {
+      recurrence = "FREQ=WEEKLY;INTERVAL=" + ORD[m[1].toLowerCase()] + ";BYDAY=" + WD_CODE[WD[m[2].toLowerCase()]];
+      recurSrc = trigger(m[0]);
+      text = text.replace(m[0], " " + m[2] + " ");   // Wochentag stehen lassen -> Datumsregel setzt ihn
+    }
+  }
   if (!recurrence) {
     const m = text.match(re("(?:jeden|jede[nsr]?|alle|every)\\s+(" + WDNAMES + ")"));
     if (m) {
-      recurrence = "every week";
+      recurrence = "FREQ=WEEKLY;BYDAY=" + WD_CODE[WD[m[1].toLowerCase()]];
       recurSrc = trigger(m[0]);
       text = text.replace(m[0], " " + m[1] + " ");
     }
@@ -261,6 +329,17 @@ export function parseQuickEntry(raw: string, projects: string[] = [], now: Date 
   if (pm) { priority = (["highest", "high", "medium", "normal"] as Priority[])[+pm[1] - 1]; text = text.replace(pm[0], " "); }
 
   // Rücktausch NACH dem Kollabieren der Leerzeichen: eigene Formatierung im geschützten Text bleibt.
+  // ── Die Regel bestimmt den ersten Termin ──
+  // Eine Wiederholung schreibt vor, welche Tage überhaupt in Frage kommen. „letzter Freitag im
+  // Monat" darf deshalb nicht auf irgendeinem Freitag beginnen, nur weil die Datumsregel den
+  // nächsten gefunden hat – das wäre schlicht falsch. Für Regeln ohne Tagesvorgabe (jede Woche,
+  // alle 3 Tage) ist das gefundene Datum selbst der erste Termin, dort ändert sich nichts.
+  //
+  // Ohne Datum im Text wird ab heute gerechnet: Eine Wiederholung ohne Anker liefert nie eine
+  // nächste Instanz (nextInstance braucht due oder scheduled) – der Chip zeigte dann eine Regel
+  // an, die nichts tut.
+  if (recurrence) faellig = firstOccurrence(recurrence, faellig || iso(now)) ?? faellig;
+
   return { title: unmask(text.replace(/\s{2,}/g, " ").trim()), faellig, time, tags: [...new Set(tags)], priority, project, recurrence, faelligSrc, timeSrc, recurSrc };
 }
 
@@ -355,6 +434,10 @@ export function applyQuickEntry(raw: string, fields: QuickEntryFields, state: Qu
   if (p.recurrence) {
     f.recurrence = p.recurrence; recurSrc = p.recurSrc;
     if (!opts.duePinned && f.due == null) { f.due = opts.today; dueFromTitle = true; }
+    // Auch der Ersatz-Anker „heute" muss der Regel gehorchen: „am 15. jedes Monats" darf nicht
+    // auf dem 7. beginnen, nur weil heute der 7. ist. parseQuickEntry gleicht bereits an, hier
+    // greift es für den Fall, dass das Datum erst oben entstanden ist.
+    if (f.due) f.due = firstOccurrence(p.recurrence, f.due) ?? f.due;
   }
 
   // @Projekt: erkannt -> setzen; wieder aus dem Titel gelöscht -> zurück auf den Default.
