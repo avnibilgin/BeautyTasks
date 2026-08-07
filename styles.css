@@ -832,6 +832,12 @@ body {
 .bt-pop .bt-date-hint { padding-left: 10px; color: var(--text-faint); font-size: 0.9em; white-space: nowrap; }
 
 /* Label-Picker (Eingabe + Liste mit rechtsbündiger Häkchen-Box) */
+/* Wiederholung: Fuenf Vorlagen, das Regel-Feld samt Beispielen und die Basis-Zeile ergeben mehr
+   als die 320px, die fuer ein schlichtes Menue reichen. Ohne eigene Grenze waere die letzte Zeile
+   ("Naechstes Datum ab") abgeschnitten und nur durch Scrollen erreichbar - man saehe nicht
+   einmal, dass sie existiert. Wie beim Datums-Popover also eine eigene, groessere Grenze; der
+   Bildschirm bleibt die harte Schranke. */
+.bt-pop.bt-recur { min-width: 240px; max-height: min(520px, calc(100vh - 16px)); }
 .bt-pop.bt-tags { min-width: 240px; }
 .bt-pop.bt-tags .bt-tag-add { width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 5px 7px; border-radius: 5px; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); }
 .bt-pop.bt-tags .bt-tag-list { max-height: 220px; overflow-y: auto; }

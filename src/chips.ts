@@ -168,6 +168,7 @@ function openStatus(host: ChipHost, anchor: HTMLElement): void {
 function openRecur(host: ChipHost, anchor: HTMLElement): void {
   const f = host.f;
   openPopover(anchor, (pop, close) => {
+    pop.addClass("bt-recur");
     const render = () => {
       pop.empty();
       popRow(pop, "x", t("recur_none"), () => { f.recurrence = null; host.rerender(); close(); }, !f.recurrence);
