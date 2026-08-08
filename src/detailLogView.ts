@@ -76,9 +76,9 @@ export class DetailLogView {
 
     const list = wrap.createDiv({ cls: "bt-log-list" });
     // Klicks in den gerenderten Kommentaren: Bilder öffnen die Lightbox, interne
-    // Links (Notizen/PDF) öffnen im Tab. MarkdownRenderer verdrahtet im Modal keine
-    // Navigation. Delegation am transienten `list` (bei jedem Re-Render neu erzeugt)
-    // → kein manuelles Cleanup, kein doppelter Listener.
+    // Links (Notizen/PDF) öffnen im Tab, externe gehen an das Fenster. MarkdownRenderer
+    // verdrahtet im Modal keine Navigation. Delegation am transienten `list` (bei jedem
+    // Re-Render neu erzeugt) → kein manuelles Cleanup, kein doppelter Listener.
     list.addEventListener("click", (e) => {
       if (!(e.target instanceof HTMLElement)) return;
       const img = e.target.closest(".bt-log-content img");
@@ -88,11 +88,24 @@ export class DetailLogView {
         this.openLightbox(imgs, imgs.indexOf(img));
         return;
       }
-      const link = e.target.closest("a.internal-link");
-      if (link) {
+      const link = e.target.closest("a");
+      if (!link) return;
+      if (link.hasClass("internal-link")) {
         const href = link.getAttribute("data-href") || link.getAttribute("href");
         if (href) { e.preventDefault(); void this.app.workspace.openLinkText(href, src, true); this.host.close(); }
+        return;
       }
+      // Externe Links selbst öffnen – mit demselben window.open, das die Notiz-Ansicht
+      // benutzt. Ohne diesen Griff bliebe die Standard-Navigation des Ankers
+      // (target="_blank") übrig, und die verwirft der Unterbau bei file:-Adressen
+      // wortlos: der Link sieht normal aus und tut nichts. Über window.open geht die
+      // Adresse dagegen an das Fenster und wird dort nach Schema aufgelöst – file: im
+      // Dateimanager, samt der Rückfragen bei Netzlaufwerk/ausführbarer Datei.
+      // Anker auf „#…" (Tags, Fußnoten) meinen die Seite selbst und gehören nicht dorthin.
+      const href = link.getAttribute("href");
+      if (!href || href.startsWith("#")) return;
+      e.preventDefault();
+      window.open(href);
     });
     this.entries.forEach((entry, idx) => {
       const row = list.createDiv({ cls: "bt-log-entry" });
