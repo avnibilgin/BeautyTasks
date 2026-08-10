@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, TFile, ViewStateResult } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
 import { dragTask, dragFromCol, startTaskDrag, endTaskDrag, applyDropPage } from "./taskDrag";
@@ -7,7 +7,7 @@ import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, 
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
@@ -474,7 +474,8 @@ export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? { project: null } : { project: name });
+  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? { project: null } : { project: name },
+    () => noteHeadSig(plugin, isInbox ? null : projectPath));
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -500,7 +501,8 @@ export function renderLabelBoardInto(c: HTMLElement, ctx: PageCtx, label: string
     else emptyState(root, "hash", "empty_no_label_tasks");
     return;
   }
-  renderPageBody(root, ctx, source, ctx.opts, today, { label });
+  renderPageBody(root, ctx, source, ctx.opts, today, { label },
+    () => [label, plugin.getLabelColor(label) ?? "", plugin.isLabelVisible(label)].join("~"));
 }
 
 /** Reihenfolge der Label-Gruppen = die der Seitenleiste (Name · Anzahl · manuell), damit Liste
@@ -517,7 +519,7 @@ function labelOrderOf(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
 function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], opts: ViewOptions, today: string,
-  add: BoardAdd): void {
+  add: BoardAdd, headSig: () => string): void {
   const plugin = ctx.plugin;
   const tasks = source();
   const open = tasks.filter((t) => isOpen(t.status));
@@ -538,22 +540,67 @@ function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], o
     renderCalendar(root, ctx, calSource, today, opts, () => ctx.redraw(), add);
     return;
   }
-  const sorted = sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin));
-  // JEDE Sektion bestimmt ihre Wirte aus IHRER eigenen Menge. Eine gemeinsame Menge liess beide
-  // Richtungen verschwinden: eine erledigte Unteraufgabe mit offenem Parent fiel aus „Erledigt"
-  // (der Parent galt als Wirt, stand aber in einer anderen Sektion), und umgekehrt rutschte eine
-  // offene Unteraufgabe mit erledigtem Parent in die eingeklappte Erledigt-Sektion hinein.
-  // Die Erledigt-ANSICHT macht es seit 1.20.3 schon so – hier war es uebersehen.
   const subs = effectiveSubtasks(opts);
-  const openHosts = nestingHosts(plugin, open, subs);
-  const doneHosts = nestingHosts(plugin, done, subs);
   // Bei Gruppierung „Datum"/„Deadline" gewinnt das eigene Datum der Unteraufgabe (agendaOwnRow) –
   // sie steht in IHRER Tages-Sektion, nicht nur verschachtelt beim Parent in dessen Sektion.
   const ownRow = agendaOwnRow(opts.group);
-  for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
-    if (visibleRows(g.tasks, openHosts, ownRow).length) section(root, ctx, g.title, g.tasks, today, false, false, openHosts, [], "", ownRow);
+  /**
+   * Welche Sektionen die Seite zeigt – reine Herleitung, zeichnet nichts. EINE Stelle, von der
+   * sowohl die erste Zeichnung als auch der Abgleich (tryPatchList) leben; zwei Herleitungen
+   * würden über kurz oder lang auseinanderlaufen und der Patch-Pfad zeigte etwas anderes als
+   * der Neuaufbau.
+   */
+  const plan = (): { title: string; tasks: Task[]; hosts: Set<string>; ownRow?: (t: Task) => boolean; collapsible: boolean }[] => {
+    const all = source();
+    const offen = all.filter((tk) => isOpen(tk.status));
+    const fertig = all.filter((tk) => isDone(tk.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+    const sorted = sortTasks(offen, opts.sort, opts.sortDir, orderKey(plugin));
+    // JEDE Sektion bestimmt ihre Wirte aus IHRER eigenen Menge. Eine gemeinsame Menge liess beide
+    // Richtungen verschwinden: eine erledigte Unteraufgabe mit offenem Parent fiel aus „Erledigt"
+    // (der Parent galt als Wirt, stand aber in einer anderen Sektion), und umgekehrt rutschte eine
+    // offene Unteraufgabe mit erledigtem Parent in die eingeklappte Erledigt-Sektion hinein.
+    // Die Erledigt-ANSICHT macht es seit 1.20.3 schon so – hier war es uebersehen.
+    const openHosts = nestingHosts(plugin, offen, subs);
+    const doneHosts = nestingHosts(plugin, fertig, subs);
+    const out: { title: string; tasks: Task[]; hosts: Set<string>; ownRow?: (tk: Task) => boolean; collapsible: boolean }[] = [];
+    for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
+      if (visibleRows(g.tasks, openHosts, ownRow).length) out.push({ title: g.title, tasks: g.tasks, hosts: openHosts, ownRow, collapsible: false });
+    }
+    if (opts.showDone && visibleRows(fertig, doneHosts).length) out.push({ title: t("sec_done"), tasks: fertig, hosts: doneHosts, collapsible: true });
+    return out;
+  };
+
+  // Zeichnen und dabei aufzeichnen (s. `recording` bei tryPatchList).
+  const rec: SectionRec[] = [];
+  const outer = recording;
+  recording = rec;
+  try {
+    for (const s of plan()) section(root, ctx, s.title, s.tasks, today, s.collapsible, false, s.hosts, [], "", s.ownRow);
+  } finally {
+    recording = outer;
   }
-  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, ctx, t("sec_done"), done, today, true, false, doneHosts);
+
+  /** Nachziehen statt neu bauen: gleiche Sektionen in gleicher Reihenfolge -> nur die füllen,
+   *  deren Signatur sich geändert hat. Jede strukturelle Abweichung -> false (voll neu bauen). */
+  let patches = 0;
+  const repaint = (): boolean => {
+    // Der Patch-Pfad kehrt VOR dem Wechsel der Render-Component zurück (s. MainView.draw), lässt
+    // also dieselbe stehen. Gerenderte Markdown-Titel hängen ihre Kindkomponenten dort ein und
+    // werden beim Entfernen der Zeile nicht abgemeldet – nach vielen Patches summiert sich das.
+    // Alle PATCH_LIMIT Durchgänge deshalb einmal regulär neu bauen; das räumt sie mit ab.
+    if (++patches > PATCH_LIMIT) return false;
+    const jetzt = plan();
+    const dran = planDiff(rec, jetzt.map((s) => ({ title: s.title, sig: sectionSig(ctx, s.tasks, s.hosts, s.ownRow, false) })));
+    if (!dran) return false;
+    for (const i of dran) {
+      const s = jetzt[i];
+      rec[i].paintRows(visibleRows(s.tasks, s.hosts, s.ownRow));
+      rec[i].sig = sectionSig(ctx, s.tasks, s.hosts, s.ownRow, false);
+    }
+    return true;
+  };
+  const host = root.parentElement;
+  if (host) listMounts.set(host, { headSig, sig: frameSig(ctx, opts, headSig()), root, sections: rec, repaint });
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
@@ -583,7 +630,8 @@ export function renderFilterBoardInto(c: HTMLElement, ctx: PageCtx, filterPath: 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
   const tasks = applyFilter(plugin.index, filter.criteria, opts, today);
   if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
-  renderPageBody(root, ctx, () => applyFilter(plugin.index, filter.criteria, opts, today), opts, today, {});
+  renderPageBody(root, ctx, () => applyFilter(plugin.index, filter.criteria, opts, today), opts, today, {},
+    () => JSON.stringify(readFilter(plugin.app, filterPath) ?? ""));
 }
 
 // ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
@@ -1210,7 +1258,7 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });
-  head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
+  const countEl = head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), ctx, events, eventKey);
@@ -1233,8 +1281,20 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
   // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
   const impliedDate = dateImplied && eventKey ? eventKey : undefined;
-  for (const task of top) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
-  annotateSubtaskTree(list);
+  // Die Zeilen einer Sektion füllen – als Closure, damit der Abgleich (tryPatchList) sie später
+  // mit GENAU denselben Parametern neu zeichnen kann, ohne sie ein zweites Mal herzuleiten.
+  // Dasselbe Mittel wie `paint` bei tryPatchCalendar.
+  const paintRows = (rows: Task[]): void => {
+    // Nur die Zeilen, nicht den ganzen Container: davor kann die Termin-Box des Tages stehen
+    // (renderEventBands), und die gehört nicht zu den Aufgaben.
+    list.querySelectorAll(":scope > .bt-task").forEach((el) => el.remove());
+    for (const task of rows) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
+    annotateSubtaskTree(list);
+    countEl.setText(String(rows.length));
+  };
+  paintRows(top);
+  // Termin-Bänder zeichnet der Abgleich nicht mit -> solche Sektionen nehmen am Patch nicht teil.
+  if (recording && !events.length) recording.push({ title, sig: sectionSig(ctx, tasks, present, ownRow, trash), paintRows });
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
@@ -1281,6 +1341,118 @@ function annotateSubtaskTree(list: HTMLElement): void {
     if (row.hasClass("bt-subtask")) row.toggleClass("bt-last-sub", !nextIsSub);
     else row.toggleClass("bt-has-sub", nextIsSub);
   }
+}
+
+/* ══ Inkrementelles Nachzeichnen der Liste (tryPatchList) ═══════════════════════════════════
+ *
+ * Jede Index-Meldung liess die Seite bisher `c.empty()` machen und ALLE Zeilen neu bauen – bei
+ * 2000 Aufgaben rund 50.000 Elemente und ~4.000 SVG-Icons, und das schon beim Abhaken einer
+ * einzigen Aufgabe. Kalender und Seitenleiste haben dafür längst einen Weg (tryPatchCalendar,
+ * tryPatchNav); die Liste war die letzte Fläche ohne.
+ *
+ * Das Verfahren ist dasselbe: Beim Zeichnen merkt sich die Seite ihre Sektionen samt einer
+ * Signatur und einer `paintRows`-Closure. Meldet der Index etwas, werden die Daten mit GENAU
+ * demselben Code neu hergeleitet (die `repaint`-Closure ruft die Zeilen von oben nochmal auf,
+ * es gibt keine zweite Herleitung) und nur die Sektionen neu gefüllt, deren Signatur sich
+ * geändert hat. Der Rest des DOM bleibt unangetastet.
+ *
+ * Sicherheitsnetz, wie beim Kalender: Bei der KLEINSTEN strukturellen Abweichung – anderer
+ * Rahmen, andere Sektionen, andere Reihenfolge der Sektionen – liefert der Abgleich false und
+ * der Aufrufer baut vollständig neu. Die Signaturen dürfen dabei gern zu viel abdecken: ein
+ * überflüssiger Neuaufbau kostet Zeit, eine übersehene Änderung zeigt veraltete Daten.
+ */
+interface SectionRec {
+  title: string;
+  sig: string;
+  paintRows: (rows: Task[]) => void;   // füllt NUR die Zeilen dieser Sektion (s. section)
+}
+interface ListMount {
+  headSig: () => string;            // Kopf der Seite – frisch gelesen, s. frameSig
+  sig: string;                      // Rahmen-Signatur (s. frameSig)
+  root: HTMLElement;                // Wurzel der gezeichneten Liste (isConnected-Prüfung)
+  sections: SectionRec[];
+  repaint: () => boolean;           // false = Struktur geändert, bitte voll neu bauen
+}
+const listMounts = new WeakMap<HTMLElement, ListMount>();
+/** Läuft gerade eine aufzeichnende Zeichnung? Dann trägt sich jede Sektion hier ein. */
+let recording: SectionRec[] | null = null;
+/** So viele Patches am Stück, dann einmal regulär neu bauen (s. repaint). */
+const PATCH_LIMIT = 200;
+
+
+/** Alles, was das AUSSEHEN EINER ZEILE bestimmt – inklusive der Werte, die renderTask sich
+ *  woanders holt (Kommentarzahl, Titel der Elternaufgabe). Ändert sich hier etwas, muss die
+ *  Sektion neu gezeichnet werden. */
+function rowSig(plugin: BeautyTasksPlugin, t: Task): string {
+  return [
+    t.path, t.status, t.priority, t.title, t.description,
+    t.due ?? "", t.dueTime ?? "", t.duration ?? "", t.scheduled ?? "", t.scheduledTime ?? "",
+    t.recurrence ?? "", t.reminders.join(","), t.labels.join(","), t.sortOrder ?? "",
+    t.parent ?? "", t.parent ? (plugin.index.get(t.parent)?.title ?? "") : "",
+    plugin.index.commentsOf(t.path),
+  ].join("");
+}
+
+/** Signatur einer Sektion: über ihre Anker UND deren Unterbaum – verschachtelte Zeilen gehören
+ *  zur Sektion, auch wenn sie nicht in `tasks` stehen. Bewusst ohne Rücksicht auf den Auf-/
+ *  Zugeklappt-Zustand: die Menge ist damit eher zu groß als zu klein (s. o.), und der Zustand
+ *  selbst steckt in der Rahmen-Signatur. */
+function sectionSig(ctx: PageCtx, tasks: Task[], present: Set<string> | undefined, ownRow: ((t: Task) => boolean) | undefined, trash: boolean): string {
+  const plugin = ctx.plugin;
+  const subs = effectiveSubtasks(ctx.opts);
+  const top = trash ? tasks : visibleRows(tasks, present, ownRow);
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  const walk = (tk: Task): void => {
+    if (seen.has(tk.path)) return;
+    seen.add(tk.path);
+    // Der Auf-/Zugeklappt-Zustand gehört dazu: das Unteraufgaben-Badge klappt per ctx.redraw()
+    // um, ohne dass sich an den Aufgaben selbst etwas ändert. Fehlte er hier, bliebe der Klick
+    // auf einer gepatchten Seite wirkungslos.
+    parts.push(rowSig(plugin, tk), subsExpanded(ctx, tk.path, subs) ? "+" : "-");
+    for (const kid of plugin.index.children(tk.path)) if (!isTrashed(kid.status)) walk(kid);
+  };
+  for (const tk of top) walk(tk);
+  return parts.join("");
+}
+
+/** Der Rahmen: alles, was NICHT die Zeilen selbst sind. Weicht davon etwas ab, ist der
+ *  Patch-Pfad ungültig – auch bei Dingen, die weit oben auf der Seite stehen (Kopf, Filter-
+ *  Kriterien), denn die zeichnet der Abgleich nicht mit. */
+function frameSig(ctx: PageCtx, opts: ViewOptions, headSig: string): string {
+  const o = opts;
+  return [
+    ctx.pageKey, headSig, o.layout, o.sort, o.sortDir, o.group, o.showDone, o.subtasks ?? "",
+    effectiveSubtasks(o), todayStr(), JSON.stringify(ctx.crit), ctx.doneCollapsed, menuHoldPath() ?? "",
+    // Aus der Suche angesprungen: das Hervorheben UND das Scrollen passieren beim Bauen der
+    // Zeile (applyFlash). Steht ein Sprung an, muss also gebaut werden, nicht gepatcht.
+    ctx.plugin.flashPath ?? "",
+    settingsSig(ctx.plugin),
+  ].join("|");
+}
+/** Kopf-Signatur einer Seite, die an einer NOTIZ hängt (Projekt/Bereich): alles, was der
+ *  Seitenkopf daraus zeigt. Frisch aus dem Metadaten-Cache gelesen – ein reiner Map-Zugriff,
+ *  kein Vault-Scan. `null` = Systemansicht ohne Notiz (Eingang). */
+function noteHeadSig(plugin: BeautyTasksPlugin, path: string | null): string {
+  if (!path) return "";
+  const f = plugin.app.vault.getAbstractFileByPath(path);
+  const fm = f instanceof TFile ? plugin.app.metadataCache.getFileCache(f)?.frontmatter : null;
+  return [path, fm?.description ?? "", fm?.color ?? "", fm?.status ?? "", fm?.nav_hidden ?? ""].join("~");
+}
+
+/** Einstellungen, die in JEDER Zeile stecken (und beim Patchen nicht neu gelesen würden). */
+function settingsSig(plugin: BeautyTasksPlugin): string {
+  const s = plugin.settings;
+  return [s.showDescriptionInList, s.metaTheme, s.chipsIconsOnly, s.locale].join(",");
+}
+
+/** Versucht, die bereits gezeichnete Liste in `c` nur nachzufüllen. true = erledigt,
+ *  der Aufrufer darf das Neuzeichnen überspringen. */
+export function tryPatchList(c: HTMLElement, ctx: PageCtx): boolean {
+  const m = listMounts.get(c);
+  if (!m || !m.root.isConnected) return false;
+  if (m.sig !== frameSig(ctx, ctx.opts, m.headSig())) return false;
+  return m.repaint();
 }
 
 // Marker, die einen Link andeuten – nur dann als Markdown rendern (Performance-Guard).
@@ -2348,6 +2520,10 @@ export class MainView extends ItemView {
     // Neuaufbau unten kostete gemessen ~80 ms Style + Layout + Paint bei JEDER Änderung.
     // tryPatchCalendar lehnt bei der kleinsten Abweichung ab; dann läuft der normale Pfad.
     if (this.page.kind !== "manage" && tryPatchCalendar(this.contentEl, this.ctx())) return;
+    // Dasselbe für die LISTE: gleicher Rahmen -> nur die Sektionen nachfüllen, deren Inhalt sich
+    // geändert hat (s. tryPatchList). Der Kopf der Seite steckt über headSig in der Signatur,
+    // deshalb hängt der Versuch an derselben Herleitung wie die Zeichnung selbst.
+    if (this.page.kind !== "manage" && tryPatchList(this.contentEl, this.ctx())) return;
     // Frische Render-Component pro Zeichnung: Markdown-Titel (Links) sauber auf-/abbauen,
     // damit sich Hover-/Embed-Kindkomponenten nicht über Redraws hinweg ansammeln. Sie hängt an
     // DIESER View (früher an der Plugin-Instanz): bei zwei zeichnenden Tabs überschrieb der

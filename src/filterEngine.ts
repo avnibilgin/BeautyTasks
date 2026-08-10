@@ -552,6 +552,27 @@ export function visibleRows(tasks: Task[], present?: Set<string>, ownRow?: (t: T
 }
 
 /**
+ * Der Kern der Entscheidung: Welche Sektionen müssen neu gefüllt werden – und geht es überhaupt?
+ *
+ * `null` heisst „Struktur geändert, bitte vollständig neu bauen": eine Sektion ist dazugekommen,
+ * weggefallen oder heisst anders (Gruppierung nach Datum: ein neuer Tag). Sonst die Indizes der
+ * Sektionen, deren Inhalt sich geändert hat – meist genau eine, oft gar keine (der Index meldet
+ * auch bei Änderungen, die diese Seite nicht betreffen).
+ *
+ * Rein und deshalb geprüft: An dieser Verzweigung entscheidet sich, ob der Nutzer veraltete
+ * Zeilen sieht. Der Rest des Patch-Pfades ist mechanisch.
+ */
+export function planDiff(prev: { title: string; sig: string }[], next: { title: string; sig: string }[]): number[] | null {
+  if (prev.length !== next.length) return null;
+  const dran: number[] = [];
+  for (let i = 0; i < next.length; i++) {
+    if (prev[i].title !== next[i].title) return null;
+    if (prev[i].sig !== next[i].sig) dran.push(i);
+  }
+  return dran;
+}
+
+/**
  * „Das eigene Datum gewinnt" (Todoist-Modell, Nutzer-Entscheidung 2026-07-26): in datums-
  * gebuckelten Flächen (Heute-Split, Demnächst-Tage, Gruppierung/Spalten „Datum"/„Deadline")
  * steht jede Unteraufgabe MIT eigenem Wert auf der Sektions-Achse als eigene Zeile/Karte an
