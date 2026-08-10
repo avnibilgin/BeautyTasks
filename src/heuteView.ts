@@ -1623,9 +1623,17 @@ function observeSentinel(el: HTMLElement, grow: () => boolean): void {
 function rowSig(plugin: BeautyTasksPlugin, t: Task): string {
   return [
     t.path, t.status, t.priority, t.title, t.description,
-    t.due ?? "", t.dueTime ?? "", t.duration ?? "", t.scheduled ?? "", t.scheduledTime ?? "",
-    t.recurrence ?? "", t.reminders.join(","), t.labels.join(","), t.sortOrder ?? "",
+    t.due ?? "", t.dueTime ?? "", t.duration ?? "", t.scheduled ?? "", t.scheduledTime ?? "", t.start ?? "",
+    t.recurrence ?? "", t.recurBasis, t.reminders.join(","), t.labels.join(","), t.sortOrder ?? "",
+    // Das Projekt gehört DAZU: Die Zeile zeigt es als @Backlink. Ohne dieses Feld galt eine in ein
+    // anderes Projekt gezogene Aufgabe als unverändert – auf einer Projektseite fiel sie wenigstens
+    // aus der Menge und die Sektion zeichnete neu, auf Filter- und Label-Seiten bleibt sie stehen
+    // und trug weiter das alte Projekt. Der Zug hatte funktioniert, nur die Zeile log.
+    t.project ?? "",
     t.parent ?? "", t.parent ? (plugin.index.get(t.parent)?.title ?? "") : "",
+    // Zeitstempel der Übergänge: Sie ordnen die Erledigt-/Papierkorb-Sektionen und sind der
+    // einzige sichtbare Unterschied, wenn sich sonst nichts an der Aufgabe ändert.
+    t.completed ?? "", t.cancelled ?? "",
     plugin.index.commentsOf(t.path),
   ].join("");
 }
