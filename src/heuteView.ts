@@ -1155,8 +1155,18 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
         return gezeigt < colTasks.length;
       });
     };
-    zeichne(Math.max(0, Math.min(colTasks.length, pageBudget)));
-    pageBudget -= gezeigt;
+    // Erste Füllung: so viele Karten, wie in DIESE Spalte passen, plus etwas Reserve.
+    //
+    // Ein Anteil am Seiten-Budget taugt hier nicht – das war der Fehler: Das Budget wird von
+    // links nach rechts vergeben, die Spalten stehen aber NEBENeinander. Die vierte ist genauso
+    // sichtbar wie die erste, bekam aber nichts mehr ab, startete leer und füllte sich erst,
+    // wenn der Wächter zuschlug. Beim Abhaken in Spalte 1 blinzelten deshalb die Spalten
+    // daneben. Waagerecht weit rechts stehende Spalten bleiben trotzdem billig: Ihr Wächter
+    // schneidet nicht, weil der Beobachter die Beschneidung durch den Board-Scroller mitrechnet.
+    zeichne(Math.min(colTasks.length, MESS_KARTEN));       // erst wenige – nur, um messen zu können
+    if (gezeigt) kartePx = listEl.scrollHeight / gezeigt;  // noch ohne Wächter in der Liste
+    const sicht = listEl.clientHeight || 600;              // 0, falls das Board noch kein Layout hat
+    zeichne(Math.min(colTasks.length, Math.max(gezeigt, Math.ceil(sicht / (kartePx || CARD_PX)) + 4)));
     // War die Spalte gescrollt, wird BIS DAHIN gezeichnet, bevor die Position gesetzt wird.
     //
     // Ein Platzhalter allein genügt hier nicht: Solange die Spalte keine einzige Karte gezeichnet
@@ -1168,11 +1178,7 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     // Teuer ist das nicht: gezeichnet wird nur, was der Nutzer ohnehin schon durchgescrollt hat.
     const savedTop = colScroll.get(colKey);
     if (savedTop) {
-      // Erst etwas zeichnen, um überhaupt messen zu können – noch ohne Wächter, sonst stünde
-      // dessen Höhe mit in der Messung.
-      if (!gezeigt) zeichne(Math.min(colTasks.length, CHUNK_ROWS));
-      if (gezeigt) kartePx = listEl.scrollHeight / gezeigt;
-      const noetig = Math.ceil((savedTop + listEl.clientHeight) / (kartePx || CARD_PX)) + CHUNK_ROWS;
+      const noetig = Math.ceil((savedTop + sicht) / (kartePx || CARD_PX)) + CHUNK_ROWS;
       zeichne(Math.min(colTasks.length, Math.max(gezeigt, noetig)));
     }
     platzhalter();
@@ -1560,6 +1566,9 @@ const ROW_PX = 34;
 /** Dasselbe für eine Board-KARTE (höher als eine Listenzeile). Nur Rückfall: sobald eine Spalte
  *  Karten gezeichnet hat, misst sie ihre eigene Höhe. */
 const CARD_PX = 64;
+/** So viele Karten zeichnet eine Board-Spalte, bevor sie ihre echte Kartenhöhe misst. Klein
+ *  halten: Die Zahl fällt für JEDE Spalte an, auch für die waagerecht nicht sichtbaren. */
+const MESS_KARTEN = 6;
 /** Laufender Schätzwert der Zeilenhöhe, aus echten Messungen nachgeführt (s. recycle). */
 let rowPxEst = ROW_PX;
 
