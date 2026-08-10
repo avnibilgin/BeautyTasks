@@ -573,15 +573,11 @@ function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], o
   // Zeichnen und dabei aufzeichnen (s. `recording` bei tryPatchList).
   const rec: SectionRec[] = [];
   const outer = recording;
-  const outerBudget = pageBudget;
   recording = rec;
-  // Budget für DIESE Seite: Was darüber hinausgeht, entsteht erst beim Hinscrollen (s. section).
-  pageBudget = FIRST_PAINT_ROWS;
   try {
     for (const s of plan()) section(root, ctx, s.title, s.tasks, today, s.collapsible, false, s.hosts, [], "", s.ownRow);
   } finally {
     recording = outer;
-    pageBudget = outerBudget;
   }
 
   /** Nachziehen statt neu bauen: gleiche Sektionen in gleicher Reihenfolge -> nur die füllen,
@@ -1405,11 +1401,10 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   };
 
   paintRows(top);
-  // Termin-Bänder zeichnet der Abgleich nicht mit -> solche Sektionen nehmen am Patch nicht teil.
-  if (recording && !events.length) {
-    recording.push({ title, sig: sectionSig(ctx, tasks, present, ownRow, trash), paintRows });
-    armRecycler();
-  }
+  // Termin-Bänder zeichnet paintRows nicht mit -> solche Sektionen nehmen am Abgleich nicht teil.
+  if (recording && !events.length) recording.push({ title, sig: sectionSig(ctx, tasks, present, ownRow, trash), paintRows });
+  // Das Aushängen dagegen betrifft nur die Zeilen; ein Termin-Band bleibt stehen und stört nicht.
+  if (budgeted) armRecycler();
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
@@ -1491,6 +1486,9 @@ interface ListMount {
 const listMounts = new WeakMap<HTMLElement, ListMount>();
 /** Läuft gerade eine aufzeichnende Zeichnung? Dann trägt sich jede Sektion hier ein. */
 let recording: SectionRec[] | null = null;
+/** Läuft gerade eine Seiten-Zeichnung mit Budget? Dann hängen Sektionen ausserhalb des
+ *  Sichtfelds ihre Zeilen wieder aus (s. recycle). */
+let budgeted = false;
 /** So viele Patches am Stück, dann einmal regulär neu bauen (s. repaint). */
 const PATCH_LIMIT = 200;
 /** Zeilen je Schub. Grob ein Bildschirm plus Reserve – klein genug, dass das Öffnen nicht mehr
@@ -2708,11 +2706,23 @@ export class MainView extends ItemView {
     this.renderComp = this.addChild(new Component());
     const ctx = this.ctx();
     this.contentEl.removeClass("bt-view-calendar");   // setzt renderCalendar bei Bedarf wieder
-    if (this.page.kind === "manage") renderManageInto(this.contentEl, ctx);
-    else if (this.page.kind === "filter") renderFilterBoardInto(this.contentEl, ctx, this.page.key);
-    else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
-    else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
-    else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
+    // Das Zeilen-Budget gilt für JEDE Seite, nicht nur für die vollen Seiten (s. section).
+    // „Demnächst" zeigt ALLE künftig datierten Aufgaben – gedeckelt ist dort nur, wie weit die
+    // Termine reichen (upcomingMonths), nicht die Aufgaben. Gemessen an einem echten Vault
+    // zeichnete es 589 Zeilen auf einen Schlag, während die dreimal so grosse Filterseite
+    // längst mit 80 startete.
+    pageBudget = FIRST_PAINT_ROWS;
+    budgeted = true;
+    try {
+      if (this.page.kind === "manage") renderManageInto(this.contentEl, ctx);
+      else if (this.page.kind === "filter") renderFilterBoardInto(this.contentEl, ctx, this.page.key);
+      else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
+      else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
+      else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
+    } finally {
+      budgeted = false;
+      pageBudget = Number.POSITIVE_INFINITY;
+    }
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –
