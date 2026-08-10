@@ -15,16 +15,15 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Die drei Einträge zu
-    // den Wiederholungen sind deshalb raus: Wer jetzt 1.42 sieht, hatte den Dialog beim Sprung
-    // auf 1.41.0 bereits.
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Handy-Eintrag ist
+    // deshalb raus: Wer jetzt 1.43 sieht, hatte den Dialog beim Sprung auf 1.42.0 bereits.
     //
-    // EIN Eintrag, weil es eine Neuerung ist. Er nennt den Nutzen zuerst („auf dem Handy
-    // bearbeiten") und die Technik dahinter („Label-Feld frei benennbar") – umgekehrt wäre es
-    // für die meisten eine Zeile ohne Bedeutung. Die Einrichtung steht im README und nicht hier:
-    // Sie ist zu lang für einen Dialog, der die Arbeit unterbricht.
+    // EIN Eintrag, und er beschreibt, was man MERKT (Listen öffnen schneller, die Seite bleibt
+    // beim Abhaken stabil) – nicht, was dahinter umgebaut wurde. Die Größenangabe steht dabei,
+    // damit niemand vergeblich nach einem Unterschied sucht: In einem kleinen Vault gab es
+    // nichts zu beschleunigen.
     const items: Highlight[] = [
-      { icon: "smartphone", title: t("wn_mobile_t"), desc: t("wn_mobile_d") },
+      { icon: "gauge", title: t("wn_perf_t"), desc: t("wn_perf_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
