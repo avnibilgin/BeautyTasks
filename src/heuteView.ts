@@ -1301,6 +1301,8 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   let first = true;
   let shown = 0;
   let rowsNow: Task[] = [];
+  let recycled = false;      // Zeilen ausgehängt, nur der Platzhalter steht (s. recycle)
+  let pxProRow = 0;          // an DIESER Sektion gemessene Zeilenhöhe (0 = noch nie gemessen)
   const drawSlice = (von: number, bis: number): void => {
     for (const task of rowsNow.slice(von, bis)) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
     annotateSubtaskTree(list);
@@ -1310,7 +1312,15 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     const bis = Math.min(rowsNow.length, shown + CHUNK_ROWS);
     drawSlice(shown, bis);
     shown = bis;
+    recycled = false;
     return shown < rowsNow.length;
+  };
+  /** Rückruf des Wächters – EINE Fassung, die sowohl das Nachladen als auch das
+   *  Wieder-Auffüllen nach dem Aushängen bedient. */
+  const sentinelGrow = (): boolean => {
+    const rest = grow();
+    if (sentinel) list.appendChild(sentinel);   // Wächter bleibt das letzte Element
+    return rest;
   };
   const paintRows = (rows: Task[]): void => {
     // Beim Nachfüllen fallen die Zeilen kurz weg. Wer tief gescrollt ist, dem klemmt der Browser
@@ -1330,7 +1340,11 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     // und Ins-Bild-Scrollen hängen daran, dass es die Zeile gibt – und sie kann überall stehen.
     const mindest = first ? startRows : CHUNK_ROWS;
     first = false;
-    const ziel = ctx.plugin.flashPath ? rows.length : Math.min(rows.length, Math.max(mindest, bisher));
+    // Ausgehängte Sektion (weit außerhalb des Sichtfelds) bleibt ausgehängt: nur Zahl und
+    // Platzhalter nachziehen. Sie zu zeichnen wäre Arbeit für etwas, das niemand ansieht.
+    const ziel = recycled && !ctx.plugin.flashPath ? 0
+      : ctx.plugin.flashPath ? rows.length
+      : Math.min(rows.length, Math.max(mindest, bisher));
     drawSlice(0, ziel);
     shown = ziel;
     countEl.setText(String(rows.length));   // die Überschrift zählt IMMER alle, nicht die gezeichneten
@@ -1345,12 +1359,57 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     else list.appendChild(sentinel);   // ans Ende nachziehen
     // Platzhalter-Höhe für das, was noch fehlt. Ohne sie wären ALLE ungezeichneten Sektionen
     // gleichzeitig im Sichtfeld (sie wären ja 0 hoch) und würden sich sofort alle füllen.
-    sentinel.style.height = ((rowsNow.length - shown) * ROW_PX) + "px";
-    observeSentinel(sentinel, () => { const rest = grow(); if (sentinel) list.appendChild(sentinel); return rest; });
+    setLazyHeight(sentinel, (rowsNow.length - shown) * (pxProRow || rowPxEst));
+    observeSentinel(sentinel, sentinelGrow);
   };
+  /**
+   * Die Zeilen einer weit abgescrollten Sektion wieder AUSHÄNGEN und ihre Höhe durch einen
+   * Platzhalter ersetzen. Damit wächst der Baum nicht mehr mit dem, was man schon gesehen hat:
+   * im DOM steht ungefähr das, was auf den Bildschirm passt, und nicht die ganze Liste.
+   *
+   * Die Höhe wird GEMESSEN, nicht geschätzt (Differenz vor/nach dem Aushängen). Ein geschätzter
+   * Platzhalter verschöbe alles darunter und risse dem Nutzer die Zeile unter dem Finger weg.
+   */
+  const recycle = (): void => {
+    if (shown === 0) return;
+    const vorher = list.getBoundingClientRect().height;
+    const raus = shown;
+    list.querySelectorAll(":scope > .bt-task").forEach((el) => el.remove());
+    shown = 0;
+    if (!sentinel) sentinel = list.createDiv({ cls: "bt-lazy-sentinel" });
+    else list.appendChild(sentinel);
+    setLazyHeight(sentinel, 0);
+    const nachher = list.getBoundingClientRect().height;
+    const hoehe = Math.max(0, vorher - nachher);
+    setLazyHeight(sentinel, hoehe);
+    recycled = true;
+    // Was wir dabei über die echte Zeilenhöhe gelernt haben, kommt allen zugute: Sektionen, die
+    // noch nie gezeichnet wurden, schätzen damit besser (und der Rollbalken springt weniger).
+    //
+    // NUR bei vollständig gezeichneten Sektionen: War noch ein Platzhalter für den Rest da,
+    // steckt DESSEN geschätzte Höhe mit in der Messung – daraus eine Zeilenhöhe zu rechnen hiesse,
+    // die eigene Schätzung für eine Messung zu halten. Für den Platzhalter oben ist `hoehe`
+    // trotzdem richtig: sie ist genau das, was die Sektion vorher eingenommen hat.
+    if (raus === rowsNow.length && hoehe > 0) { pxProRow = hoehe / raus; rowPxEst = rowPxEst * 0.7 + pxProRow * 0.3; }
+    observeSentinel(sentinel, sentinelGrow);
+  };
+  // Auslösen erst deutlich weiter draußen als das Nachladen (900 px) – sonst geriete eine Sektion
+  // am Rand in ein Füllen/Aushängen-Pendel.
+  const armRecycler = (): void => {
+    const win = sec.ownerDocument.defaultView;
+    if (!win) return;
+    const io = new win.IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) recycle();
+    }, { rootMargin: "1800px 0px" });
+    io.observe(sec);   // hält nur diese Sektion; fällt sie weg, fällt der Beobachter mit
+  };
+
   paintRows(top);
   // Termin-Bänder zeichnet der Abgleich nicht mit -> solche Sektionen nehmen am Patch nicht teil.
-  if (recording && !events.length) recording.push({ title, sig: sectionSig(ctx, tasks, present, ownRow, trash), paintRows });
+  if (recording && !events.length) {
+    recording.push({ title, sig: sectionSig(ctx, tasks, present, ownRow, trash), paintRows });
+    armRecycler();
+  }
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
@@ -1449,10 +1508,18 @@ const FIRST_PAINT_ROWS = 80;
 /** Geschätzte Zeilenhöhe für den Platzhalter ungezeichneter Zeilen. Betrifft NUR die Länge des
  *  Rollbalkens, nie den Inhalt: zu klein geschätzt heisst, der Balken wächst beim Scrollen. */
 const ROW_PX = 34;
+/** Laufender Schätzwert der Zeilenhöhe, aus echten Messungen nachgeführt (s. recycle). */
+let rowPxEst = ROW_PX;
 
 /** Verbleibendes Zeichen-Budget der laufenden Seite (Infinity = keine Deckelung, z. B.
  *  Heute/Demnächst – dort ist die Zeilenzahl klein). */
 let pageBudget = Number.POSITIVE_INFINITY;
+
+/** Höhe des Platzhalters. Über eine CSS-Variable statt `style.height`, wie `--bt-depth` an der
+ *  Aufgaben-Zeile – die Gestaltung bleibt damit in styles.css (s. obsidianmd-Lint-Regel). */
+function setLazyHeight(el: HTMLElement, px: number): void {
+  el.style.setProperty("--bt-lazy-h", Math.round(px) + "px");
+}
 
 const sentinelObservers = new WeakMap<Element, IntersectionObserver>();
 /**
