@@ -2789,19 +2789,13 @@ export class MainView extends ItemView {
     // Sektionen liefern die Höhe bereits mit, die Position trifft also auch dann, wenn erst ein
     // Bruchteil der Zeilen steht – nachgefüllt wird, was dadurch ins Bild kommt.
     // Bei einem Sprung aus der Suche NICHT: dort scrollt applyFlash absichtlich woandershin.
+    // Genau EINMAL setzen, synchron. Ein zweiter Versuch im nächsten Bild ist verlockend (die
+    // Seite ist dann länger, weil sich Sektionen gefüllt haben) – aber genau der ist sichtbar:
+    // Die Zeilen springen kurz, weil zwischen beiden Setzungen ein Bild gezeichnet wird. Beim
+    // Abhaken, also ständig. Eine unsichtbar richtige Position ist mehr wert als eine sichtbar
+    // korrigierte; ein Restversatz bleibt notfalls stehen, statt zu ruckeln.
     const gemerkt = listScroll.get(this.scrollKey());
-    if (gemerkt && !this.plugin.flashPath && this.contentEl.scrollTop !== gemerkt) {
-      this.contentEl.scrollTop = gemerkt;
-      // Zweiter Versuch im nächsten Bild: Waren die Platzhalter der ungezeichneten Sektionen zu
-      // knapp geschätzt, war die Seite eben noch zu kurz und der Browser hat den Wert auf sein
-      // Maximum geklemmt. Der erste Versuch hat dann aber Sektionen ins Bild geholt, die sich
-      // daraufhin füllen – die Seite ist jetzt länger und die Position trifft. Genau EIN
-      // Nachschlag, keine Schleife: Bleibt es auch dann zu kurz, gibt es dort schlicht nicht
-      // mehr Inhalt.
-      window.requestAnimationFrame(() => {
-        if (this.contentEl.isConnected && !this.plugin.flashPath && this.contentEl.scrollTop < gemerkt) this.contentEl.scrollTop = gemerkt;
-      });
-    }
+    if (gemerkt && !this.plugin.flashPath && this.contentEl.scrollTop !== gemerkt) this.contentEl.scrollTop = gemerkt;
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –
