@@ -3,9 +3,10 @@ import type BeautyTasksPlugin from "./main";
 import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
 import { dragTask, dragFromCol, startTaskDrag, endTaskDrag, applyDropPage } from "./taskDrag";
 import { sectionSig, SigLookup } from "./rowSignature";
+import { rowPlan, NO_PROJECT } from "./rowPlan";
 import { takeFromBudget, repaintCount, rowsForScroll, columnFirstPaint, placeholderPx } from "./chunkPlan";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
+import { todayStr, combineDT, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
@@ -18,7 +19,6 @@ import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manag
 import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
-import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
@@ -764,7 +764,6 @@ function labelColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd): 
   return cols;
 }
 
-const NO_PROJECT = " noproject";   // Sentinel-ID der „Kein Projekt"-Spalte
 
 /** Prioritäts-Spalten (Gruppierung = Priorität): eine Spalte je Stufe (P1–P4); Ziehen setzt die
  *  Priorität. low/lowest fallen unter „normal" (P4). */
@@ -1739,12 +1738,22 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile ctx.opts zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
-  const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
+  // WAS die Zeile zeigt, entscheidet rowPlan – rein und geprüft (s. rowPlan.ts). Hier wird nur
+  // noch gezeichnet und verdrahtet.
+  const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
+  const plan = rowPlan({
+    task, today, depth, trash, flat: opts.flat,
+    onProjectPage: ctx.page.kind === "project",
+    showDescription: plugin.settings.showDescriptionInList,
+    impliedDate: opts.impliedDate, deadlineImplied: opts.deadlineImplied, hideProject: opts.hideProject,
+    parentTitle: task.parent ? plugin.index.get(task.parent)?.title : undefined,
+    comments: plugin.index.commentsOf(task.path),
+    kids, expanded: subsExpanded(ctx, task.path, subs),
+  });
+  const row = list.createDiv({ cls: plan.classes.join(" ") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
   if (task.path === menuHoldPath()) row.addClass("bt-menu-hold");   // offenes Kontextmenü hält das Hover
-  if (isDone(task.status)) row.addClass("is-done");
-  if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);   // aus der Suche angesprungen? -> hervorheben + ins Bild scrollen
 
   // Griff zum Einsortieren – nur bei Sortierung „Manuell" und nur in der Liste (die Karte im Board
@@ -1792,12 +1801,7 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
 
   // Beschreibungs-Vorschau (einzeilig, gekürzt) – aus dem Frontmatter (`description`), optional
   // per Einstellung. Bild-/Embed-Syntax wird entfernt, damit die Zeile nie zu einem Block aufgeht.
-  if (plugin.settings.showDescriptionInList) {
-    const desc = task.description
-      .replace(/!\[\[[^\]]*\]\]/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "")   // Embeds/Bilder raus
-      .replace(/\s+/g, " ").trim();
-    if (desc) renderLinkedText(body.createDiv({ cls: "bt-desc" }), ctx, desc, task.path);
-  }
+  if (plan.description) renderLinkedText(body.createDiv({ cls: "bt-desc" }), ctx, plan.description, task.path);
 
   const meta = body.createDiv({ cls: "bt-meta" });
   // Hauptaufgaben-Link ganz vorn als normales Meta-Icon: an jeder Unteraufgabe, die hier auf
@@ -1805,8 +1809,8 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   // auf der KARTE (Board „Einblenden": ohne das Icon wäre einer Unterkarte nicht anzusehen,
   // dass sie eine ist). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die
   // Hauptaufgabe – konsistent zu den übrigen Meta-Icons.
-  if (depth === 0 && task.parent) {
-    const parent = plugin.index.get(task.parent);
+  if (plan.parentLink) {
+    const parent = plugin.index.get(task.parent!);
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",
         attr: { role: "button", tabindex: "0", "aria-label": t("menu_goto_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
@@ -1825,20 +1829,16 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // Verglichen wird das Datum, NICHT bloß „liegt in der Zukunft": In „Heute" stehen seit der
     // Deadline-Aufnahme auch Aufgaben, die erst später fällig sind. Deren Fälligkeit ist alles
     // andere als redundant – sie ist der Grund, warum ihre Zeile dort überhaupt erklärbar ist.
-    const compactHide = depth === 0 && !!opts.impliedDate && task.due === opts.impliedDate;
-    if (!(compactHide && !task.dueTime)) {
-      const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
+    if (plan.due) {
       const chip = meta.createSpan({ cls: "bt-chip bt-due" });
-      chip.createSpan({ cls: "bt-meta-txt", text });   // Text im eigenen Span -> unabhängig vom Kalender-Icon justierbar
-      chip.dataset.when = dueWhen(task.due, today);
+      chip.createSpan({ cls: "bt-meta-txt", text: plan.due.text });   // eigener Span -> unabhängig vom Icon justierbar
+      chip.dataset.when = plan.due.when;
       // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7) – IMMER, wenn der
       // Chip überhaupt gezeichnet wird. Früher hing das an einer Bedingung, die „Datum sichtbar"
       // bloß annäherte (nicht datumsgruppiert ODER nur-Uhrzeit-Chip); seit in datierten Sektionen
       // auch abweichende Fälligkeiten stehen können, hätte deren Datum sonst keine Distanzfarbe.
-      // Überfällig (< heute) behält seine rote data-when-Farbe (dueDist liefert dort ""); ab Tag 8
-      // heller Grau.
-      const dist = dueDist(task.due, today);
-      if (dist) chip.dataset.dist = dist;
+      // Welche Distanzstufe gilt (und ob überhaupt eine), entscheidet rowPlan.
+      if (plan.due.dist) chip.dataset.dist = plan.due.dist;
       chip.onclick = (e) => {
         e.stopPropagation();
         openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),
@@ -1859,52 +1859,47 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // (scheduled < heute) – und dort soll der Chip ja gerade stehen bleiben. Ein Datumsvergleich
     // wie bei impliedDate wäre möglich, verlangte aber, die Gruppen-Frist bis hierher zu reichen,
     // ohne dass sich etwas am Ergebnis änderte.
-    const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
-    if (!(schedHide && !task.scheduledTime)) {
+    if (plan.deadline) {
       const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
       // Wie beim Datums-Chip: data-when trägt „verstrichen", data-dist die Nähe-Abstufung
       // (heute/morgen/übermorgen/Tag 3–7). Beide Angaben lesen sich damit gleich (s. styles.css).
-      chip.dataset.when = dueWhen(task.scheduled, today);
-      const sdist = dueDist(task.scheduled, today);
-      if (sdist) chip.dataset.dist = sdist;
-      chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDeadline(combineDT(task.scheduled, task.scheduledTime), today) });
+      chip.dataset.when = plan.deadline.when;
+      if (plan.deadline.dist) chip.dataset.dist = plan.deadline.dist;
+      chip.createSpan({ cls: "bt-meta-txt", text: plan.deadline.text });
       chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
     }
   }
-  if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
+  if (plan.recur) meta.createSpan({ cls: "bt-chip bt-recur" });
   // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.
-  if (task.reminders.length) {
-    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
+  if (plan.reminders.length) {
+    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": plan.reminders.join(" · "), "data-tooltip-position": "top" } });
     setIcon(rem, "alarm-clock");
   }
   // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
   // ALLE Labels der Aufgabe werden gezeigt – auch auf einer #Label-Seite bzw. bei Gruppierung nach Label
   // das gleichnamige. Selektives Ausblenden verwirrt, sobald eine Aufgabe mehrere Labels hat (anders als
   // beim @Projekt-Backlink, wo eine Aufgabe genau ein Projekt hat).
-  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
+  for (const l of plan.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
-  const comments = plugin.index.commentsOf(task.path);
-  if (comments > 0) {
+  if (plan.comments) {
     const chip = meta.createSpan({ cls: "bt-comments" });
     const ic = chip.createSpan({ cls: "bt-comments-ic" }); setIcon(ic, "paperclip");
-    chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
+    chip.createSpan({ cls: "bt-comments-n", text: String(plan.comments) });
   }
   // Unteraufgaben-Badge: an JEDER Hauptaufgabe mit (nicht-abgebrochenen) Kindern, in ALLEN Modi
   // (list-checks + „erledigt/gesamt"). Klick klappt DIESE eine Aufgabe auf/zu – der Default kommt
   // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt" zu. Auf einer Karte (flat) ist es
   // reine ANZEIGE: aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf),
   // daher ohne role/Klick.
-  if (!trash) {
-    const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
-    if (kids.length) {
-      const done = kids.filter((k) => isDone(k.status)).length;
-      const open = !opts.flat && subsExpanded(ctx, task.path, subs);
-      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, kids.length) };
+  if (plan.subs) {
+    {
+      const { done, total, open } = plan.subs;
+      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, total) };
       if (opts.flat) attr["data-tooltip-position"] = "top";
       else { attr.role = "button"; attr.tabindex = "0"; }
       const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : "") + (opts.flat ? " is-static" : ""), attr });
       setIcon(badge.createSpan({ cls: "bt-subs-ic" }), "list-checks");
-      badge.createSpan({ cls: "bt-subs-n", text: done + "/" + kids.length });
+      badge.createSpan({ cls: "bt-subs-n", text: done + "/" + total });
       if (!opts.flat) {
         const toggle = (e: Event): void => {
           e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
@@ -1923,24 +1918,13 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (depth === 0) {
-    // Rechte Zone: nur der @Projekt-Backlink (der Hauptaufgaben-Link sitzt jetzt links in der Meta-Zeile).
-    // @Projekt weglassen: wenn DIESER Tab schon auf einer Projekt-/Eingang-Seite steht ODER wenn die Gruppierung nach Projekt
-    // das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang);
-    // „nicht einsortiert" = @Eingang.
-    const inbox = isInboxLink(task.project);
-    const projName = inbox ? null : baseName(task.project!);
-    const backlink = ctx.page.kind !== "project" && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
-    if (backlink) {
-      const extras = row.createDiv({ cls: "bt-extras" });
-      if (inbox) {
-        const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-        bl.onclick = (e) => { e.stopPropagation(); ctx.open({ kind: "project", key: INBOX_KEY }); };
-      } else {
-        const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName) });
-        bl.onclick = (e) => { e.stopPropagation(); ctx.open({ kind: "project", key: task.project! }); };   // zum Projekt-/Bereich-Board
-      }
-    }
+  } else if (plan.backlink) {
+    // Rechte Zone: nur der @Projekt-Verweis (der Hauptaufgaben-Link sitzt links in der Meta-Zeile).
+    // WANN er erscheint, entscheidet rowPlan; hier steht nur, wohin der Klick führt.
+    const extras = row.createDiv({ cls: "bt-extras" });
+    const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + (plan.backlink.inbox ? t("nav_inbox") : plan.backlink.text) });
+    const ziel: PageRef = plan.backlink.inbox ? { kind: "project", key: INBOX_KEY } : { kind: "project", key: task.project! };
+    bl.onclick = (e) => { e.stopPropagation(); ctx.open(ziel); };
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
   // MIT Modifier stattdessen die NOTIZ – dieselbe Geste, die in der Seitenleiste (navItem) und
@@ -1978,7 +1962,7 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // Unteraufgaben zeigen IMMER ihr eigenes Datum distanz-gefärbt (nie ausgeblendet): die Sektions-/
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
     // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. impliedDate wird bewusst
-    // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
+    // NICHT durchgereicht (zusätzlich schützt die Tiefen-Prüfung in rowPlan).
     renderTask(list, ctx, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
   }
 }
