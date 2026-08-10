@@ -1123,7 +1123,34 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     // Datums-Spalten heißen „d:<ISO>" (s. dateColumns); „Überfällig"/„ohne Datum" tragen kein
     // einzelnes Datum und blenden deshalb nichts aus.
     const impliedDate = dateImplied && col.id.startsWith("d:") ? col.id.slice(2) : undefined;
-    for (const tk of colTasks) renderTask(listEl, ctx, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
+    // Karten stückweise, wie die Zeilen einer Sektion (s. section): Ein Board zeichnete bisher
+    // ALLE Karten ALLER Spalten auf einen Schlag – auch die der Spalten, die waagerecht weit
+    // rechts außerhalb des Bildes liegen. Die Spalten teilen sich dasselbe Seiten-Budget.
+    let gezeigt = 0;
+    let kartePx = 0;                       // an DIESER Spalte gemessene Kartenhöhe
+    let colSentinel: HTMLElement | null = null;
+    const zeichne = (bis: number): void => {
+      for (const tk of colTasks.slice(gezeigt, bis)) renderTask(listEl, ctx, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
+      gezeigt = bis;
+    };
+    /** Platzhalter für die noch fehlenden Karten – hält die Spaltenhöhe, damit die gemerkte
+     *  Scrollposition unten weiterhin trifft und nur nachlädt, was ins Bild kommt. */
+    const platzhalter = (): void => {
+      if (gezeigt >= colTasks.length) { colSentinel?.remove(); colSentinel = null; return; }
+      // Einmal messen, solange NUR Karten in der Liste stehen (der Wächter käme sonst mit hinein).
+      if (!kartePx && gezeigt > 0) kartePx = listEl.scrollHeight / gezeigt;
+      if (!colSentinel) colSentinel = listEl.createDiv({ cls: "bt-lazy-sentinel" });
+      else listEl.appendChild(colSentinel);
+      setLazyHeight(colSentinel, (colTasks.length - gezeigt) * (kartePx || CARD_PX));
+      observeSentinel(colSentinel, () => {
+        zeichne(Math.min(colTasks.length, gezeigt + CHUNK_ROWS));
+        platzhalter();
+        return gezeigt < colTasks.length;
+      });
+    };
+    zeichne(Math.max(0, Math.min(colTasks.length, pageBudget)));
+    pageBudget -= gezeigt;
+    platzhalter();
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
@@ -1506,6 +1533,9 @@ const FIRST_PAINT_ROWS = 80;
 /** Geschätzte Zeilenhöhe für den Platzhalter ungezeichneter Zeilen. Betrifft NUR die Länge des
  *  Rollbalkens, nie den Inhalt: zu klein geschätzt heisst, der Balken wächst beim Scrollen. */
 const ROW_PX = 34;
+/** Dasselbe für eine Board-KARTE (höher als eine Listenzeile). Nur Rückfall: sobald eine Spalte
+ *  Karten gezeichnet hat, misst sie ihre eigene Höhe. */
+const CARD_PX = 64;
 /** Laufender Schätzwert der Zeilenhöhe, aus echten Messungen nachgeführt (s. recycle). */
 let rowPxEst = ROW_PX;
 
