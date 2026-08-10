@@ -1425,10 +1425,6 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
    */
   const recycle = (): void => {
     if (shown === 0) return;
-    // Nicht mitten in einen Zug hinein: Das Auto-Scrollen am Fensterrand kann eine Sektion
-    // während des Ziehens aus dem Sichtfeld schieben – würden ihre Zeilen dabei ausgehängt,
-    // stürbe der Zug mit der gezogenen Zeile (s. MainView.draw).
-    if (dragTask()) return;
     const vorher = list.getBoundingClientRect().height;
     const raus = shown;
     list.querySelectorAll(":scope > .bt-task").forEach((el) => el.remove());
@@ -1806,8 +1802,6 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
       endTaskDrag();
       row.removeClass("is-dragging");
       clearDropTarget(list);
-      // Was während des Zuges zurückgehalten wurde, jetzt nachholen (s. MainView.draw).
-      ctx.redraw();
       // Abbruch per Escape über einem Abwurfziel liefert dort kein `dragleave` – die Hervorhebung
       // bliebe sonst stehen. `dragend` ist der eine Punkt, der jedes Ende sicher sieht. Seit die
       // Liste im Planungs-Split neben dem Kalender steht, gilt das auch für dessen Zellen
@@ -2764,12 +2758,6 @@ export class MainView extends ItemView {
     // die niemand ansieht. Nachgezogen wird beim Sichtbarwerden (onResize bzw. der
     // active-leaf-change-Zweig in main.ts).
     if (!this.containerEl.isShown()) { this.dirty = true; return; }
-    // Läuft gerade ein Zug, bleibt das DOM stehen. Nimmt man dem Browser das gezogene Element
-    // weg, bricht er den Zug auf der Stelle ab: Er feuert dragend, und der Abwurf auf die
-    // Seitenleiste kommt nie an. Genau das passierte, seit Sektionen ihre Zeilen neu füllen
-    // (paintRows) und abgescrollte sie aushängen (recycle) – auf kurzen Seiten nie, auf langen
-    // ständig. Vorgemerkt wird trotzdem; nachgeholt wird es, sobald der Zug endet.
-    if (dragTask()) { this.dirty = true; return; }
     this.dirty = false;
     // Kalender: Ist der Rahmen unverändert (gleiche Seite, gleicher Modus, gleicher Zeitraum), reicht
     // es, die Aufgaben-Elemente nachzuziehen – ein Dutzend statt ~1800 Elemente. Der komplette
