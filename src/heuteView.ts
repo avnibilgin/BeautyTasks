@@ -36,7 +36,7 @@ const viewKey = (ctx: PageCtx, rest: string): string => ctx.id + "|" + rest;
 /** Alle Einträge eines Tabs verwerfen (beim Schließen bzw. beim Seitenwechsel des Tabs). */
 function dropViewKeys(id: string): void {
   const prefix = id + "|";
-  for (const map of [boardScroll, colScroll, subtaskToggle] as Map<string, unknown>[]) {
+  for (const map of [boardScroll, colScroll, listScroll, subtaskToggle] as Map<string, unknown>[]) {
     for (const k of [...map.keys()]) if (k.startsWith(prefix)) map.delete(k);
   }
   for (const k of [...gcalExpanded]) if (k.startsWith(prefix)) gcalExpanded.delete(k);
@@ -49,6 +49,13 @@ const boardScroll = new Map<string, number>();
 // zwangsläufig bei 0. In der Listenansicht stellt sich die Frage nicht: dort ist der Scroller
 // contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
 const colScroll = new Map<string, number>();
+// Senkrechte Position der LISTE (Schlüssel: Tab). Der Scroller ist hier contentEl selbst, das
+// Element überlebt also – aber sein Inhalt nicht: Beim Neuaufbau ist die Seite kurzzeitig leer,
+// und sobald in diesem Moment irgendwo Layout gelesen wird, klemmt der Browser scrollTop auf 0.
+// Dann springt die Seite bei JEDER Änderung nach oben, und wer weiter unten mehrere Aufgaben
+// abhaken will, muss nach jeder einzelnen erneut hinunterscrollen – dieselbe Not wie bei den
+// Board-Spalten, nur eine Ebene höher.
+const listScroll = new Map<string, number>();
 // Klappzustand der verschachtelten Unteraufgaben je Hauptaufgabe: EXPLIZITE Nutzer-Klicks aufs
 // Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, sonst zu –, ein Klick
 // überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(), ein
@@ -2691,6 +2698,10 @@ export class MainView extends ItemView {
     // Der Kontext wird als Funktion gereicht, nicht als Wert: die Delegation lebt so lange wie
     // der Tab, der Kontext dagegen wird je Zeichnung neu gebaut.
     installTaskMenuDelegation(this.contentEl, () => this.ctx());
+    // Scrollposition der Liste mitschreiben (s. listScroll). Wie bei den Board-Spalten schreibt
+    // das Ereignis auch einen vom Browser geklemmten Wert zurück – die Erinnerung korrigiert
+    // sich damit selbst, wenn die Seite kürzer geworden ist.
+    this.registerDomEvent(this.contentEl, "scroll", () => listScroll.set(this.scrollKey(), this.contentEl.scrollTop));
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();
   }
@@ -2698,6 +2709,9 @@ export class MainView extends ItemView {
     this.unsub?.(); this.unsub = null;
     dropViewKeys(this.id);   // sonst wüchsen die Modul-Maps mit jedem geschlossenen Tab weiter
   }
+  /** Schlüssel der gemerkten Scrollposition. Nur die Tab-Kennung: Beim Seitenwechsel wirft
+   *  dropViewKeys den Eintrag ohnehin weg, die neue Seite startet also oben. */
+  private scrollKey(): string { return this.id + "|scroll"; }
   /** Beim Sichtbarwerden nachziehen, falls in der Zwischenzeit vorgemerkt (s. draw). */
   drawIfDirty(): void { if (this.dirty) this.draw(); }
   onResize(): void { this.drawIfDirty(); }
@@ -2753,6 +2767,13 @@ export class MainView extends ItemView {
       budgeted = false;
       pageBudget = Number.POSITIVE_INFINITY;
     }
+    // Erst NACH dem Zeichnen: vorher hat die Seite keine Höhe und der Wert würde auf 0 geklemmt
+    // (dieselbe Reihenfolge wie bei den Board-Spalten). Die Platzhalter der noch ungezeichneten
+    // Sektionen liefern die Höhe bereits mit, die Position trifft also auch dann, wenn erst ein
+    // Bruchteil der Zeilen steht – nachgefüllt wird, was dadurch ins Bild kommt.
+    // Bei einem Sprung aus der Suche NICHT: dort scrollt applyFlash absichtlich woandershin.
+    const gemerkt = listScroll.get(this.scrollKey());
+    if (gemerkt && !this.plugin.flashPath && this.contentEl.scrollTop !== gemerkt) this.contentEl.scrollTop = gemerkt;
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –
