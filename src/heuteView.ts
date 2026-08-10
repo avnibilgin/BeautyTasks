@@ -1,13 +1,16 @@
-import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, Menu, TFile, ViewStateResult } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
 import { dragTask, dragFromCol, startTaskDrag, endTaskDrag, applyDropPage } from "./taskDrag";
+import { sectionSig, SigLookup } from "./rowSignature";
+import { rowPlan, NO_PROJECT } from "./rowPlan";
+import { takeFromBudget, repaintCount, rowsForScroll, columnFirstPaint, placeholderPx } from "./chunkPlan";
 import { Task, NavSection, Priority } from "./types";
-import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
+import { todayStr, combineDT, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
@@ -16,7 +19,6 @@ import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manag
 import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
-import { formatReminder } from "./reminders";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
@@ -36,7 +38,7 @@ const viewKey = (ctx: PageCtx, rest: string): string => ctx.id + "|" + rest;
 /** Alle Einträge eines Tabs verwerfen (beim Schließen bzw. beim Seitenwechsel des Tabs). */
 function dropViewKeys(id: string): void {
   const prefix = id + "|";
-  for (const map of [boardScroll, colScroll, subtaskToggle] as Map<string, unknown>[]) {
+  for (const map of [boardScroll, colScroll, listScroll, subtaskToggle] as Map<string, unknown>[]) {
     for (const k of [...map.keys()]) if (k.startsWith(prefix)) map.delete(k);
   }
   for (const k of [...gcalExpanded]) if (k.startsWith(prefix)) gcalExpanded.delete(k);
@@ -49,6 +51,13 @@ const boardScroll = new Map<string, number>();
 // zwangsläufig bei 0. In der Listenansicht stellt sich die Frage nicht: dort ist der Scroller
 // contentEl selbst, das Element überlebt und wird nur geleert und wieder gefüllt.
 const colScroll = new Map<string, number>();
+// Senkrechte Position der LISTE (Schlüssel: Tab). Der Scroller ist hier contentEl selbst, das
+// Element überlebt also – aber sein Inhalt nicht: Beim Neuaufbau ist die Seite kurzzeitig leer,
+// und sobald in diesem Moment irgendwo Layout gelesen wird, klemmt der Browser scrollTop auf 0.
+// Dann springt die Seite bei JEDER Änderung nach oben, und wer weiter unten mehrere Aufgaben
+// abhaken will, muss nach jeder einzelnen erneut hinunterscrollen – dieselbe Not wie bei den
+// Board-Spalten, nur eine Ebene höher.
+const listScroll = new Map<string, number>();
 // Klappzustand der verschachtelten Unteraufgaben je Hauptaufgabe: EXPLIZITE Nutzer-Klicks aufs
 // Badge. Der Default hängt am Anzeige-Modus – „Eingerückt" ist offen, sonst zu –, ein Klick
 // überschreibt ihn pro Aufgabe. Modul-Zustand wie gcalExpanded: überlebt renderMain(), ein
@@ -474,7 +483,8 @@ export function renderProjectBoardInto(c: HTMLElement, ctx: PageCtx, projectPath
     else emptyState(root, "folder", "empty_no_project_tasks");
     return;
   }
-  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? { project: null } : { project: name });
+  renderPageBody(root, ctx, source, ctx.opts, today, isInbox ? { project: null } : { project: name },
+    () => noteHeadSig(plugin, isInbox ? null : projectPath));
 }
 
 /** Label-Board: alle Aufgaben mit einem Label, nach Status/Datum gruppiert (wie Projekt-Board). */
@@ -500,7 +510,8 @@ export function renderLabelBoardInto(c: HTMLElement, ctx: PageCtx, label: string
     else emptyState(root, "hash", "empty_no_label_tasks");
     return;
   }
-  renderPageBody(root, ctx, source, ctx.opts, today, { label });
+  renderPageBody(root, ctx, source, ctx.opts, today, { label },
+    () => [label, plugin.getLabelColor(label) ?? "", plugin.isLabelVisible(label)].join("~"));
 }
 
 /** Reihenfolge der Label-Gruppen = die der Seitenleiste (Name · Anzahl · manuell), damit Liste
@@ -517,7 +528,7 @@ function labelOrderOf(plugin: BeautyTasksPlugin, tasks: Task[], group: FilterGro
  *  `source` liefert die Aufgaben der Seite – als Funktion, damit der Kalender sie beim
  *  inkrementellen Nachzeichnen frisch holen kann, ohne die Seiten-Logik zu kennen. */
 function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], opts: ViewOptions, today: string,
-  add: BoardAdd): void {
+  add: BoardAdd, headSig: () => string): void {
   const plugin = ctx.plugin;
   const tasks = source();
   const open = tasks.filter((t) => isOpen(t.status));
@@ -538,22 +549,67 @@ function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], o
     renderCalendar(root, ctx, calSource, today, opts, () => ctx.redraw(), add);
     return;
   }
-  const sorted = sortTasks(open, opts.sort, opts.sortDir, orderKey(plugin));
-  // JEDE Sektion bestimmt ihre Wirte aus IHRER eigenen Menge. Eine gemeinsame Menge liess beide
-  // Richtungen verschwinden: eine erledigte Unteraufgabe mit offenem Parent fiel aus „Erledigt"
-  // (der Parent galt als Wirt, stand aber in einer anderen Sektion), und umgekehrt rutschte eine
-  // offene Unteraufgabe mit erledigtem Parent in die eingeklappte Erledigt-Sektion hinein.
-  // Die Erledigt-ANSICHT macht es seit 1.20.3 schon so – hier war es uebersehen.
   const subs = effectiveSubtasks(opts);
-  const openHosts = nestingHosts(plugin, open, subs);
-  const doneHosts = nestingHosts(plugin, done, subs);
   // Bei Gruppierung „Datum"/„Deadline" gewinnt das eigene Datum der Unteraufgabe (agendaOwnRow) –
   // sie steht in IHRER Tages-Sektion, nicht nur verschachtelt beim Parent in dessen Sektion.
   const ownRow = agendaOwnRow(opts.group);
-  for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
-    if (visibleRows(g.tasks, openHosts, ownRow).length) section(root, ctx, g.title, g.tasks, today, false, false, openHosts, [], "", ownRow);
+  /**
+   * Welche Sektionen die Seite zeigt – reine Herleitung, zeichnet nichts. EINE Stelle, von der
+   * sowohl die erste Zeichnung als auch der Abgleich (tryPatchList) leben; zwei Herleitungen
+   * würden über kurz oder lang auseinanderlaufen und der Patch-Pfad zeigte etwas anderes als
+   * der Neuaufbau.
+   */
+  const plan = (): { title: string; tasks: Task[]; hosts: Set<string>; ownRow?: (t: Task) => boolean; collapsible: boolean }[] => {
+    const all = source();
+    const offen = all.filter((tk) => isOpen(tk.status));
+    const fertig = all.filter((tk) => isDone(tk.status)).sort((a, b) => (b.completed ?? "").localeCompare(a.completed ?? ""));
+    const sorted = sortTasks(offen, opts.sort, opts.sortDir, orderKey(plugin));
+    // JEDE Sektion bestimmt ihre Wirte aus IHRER eigenen Menge. Eine gemeinsame Menge liess beide
+    // Richtungen verschwinden: eine erledigte Unteraufgabe mit offenem Parent fiel aus „Erledigt"
+    // (der Parent galt als Wirt, stand aber in einer anderen Sektion), und umgekehrt rutschte eine
+    // offene Unteraufgabe mit erledigtem Parent in die eingeklappte Erledigt-Sektion hinein.
+    // Die Erledigt-ANSICHT macht es seit 1.20.3 schon so – hier war es uebersehen.
+    const openHosts = nestingHosts(plugin, offen, subs);
+    const doneHosts = nestingHosts(plugin, fertig, subs);
+    const out: { title: string; tasks: Task[]; hosts: Set<string>; ownRow?: (tk: Task) => boolean; collapsible: boolean }[] = [];
+    for (const g of groupTasks(sorted, opts.group, today, opts, labelOrderOf(plugin, sorted, opts.group))) {
+      if (visibleRows(g.tasks, openHosts, ownRow).length) out.push({ title: g.title, tasks: g.tasks, hosts: openHosts, ownRow, collapsible: false });
+    }
+    if (opts.showDone && visibleRows(fertig, doneHosts).length) out.push({ title: t("sec_done"), tasks: fertig, hosts: doneHosts, collapsible: true });
+    return out;
+  };
+
+  // Zeichnen und dabei aufzeichnen (s. `recording` bei tryPatchList).
+  const rec: SectionRec[] = [];
+  const outer = recording;
+  recording = rec;
+  try {
+    for (const s of plan()) section(root, ctx, s.title, s.tasks, today, s.collapsible, false, s.hosts, [], "", s.ownRow);
+  } finally {
+    recording = outer;
   }
-  if (opts.showDone && visibleRows(done, doneHosts).length) section(root, ctx, t("sec_done"), done, today, true, false, doneHosts);
+
+  /** Nachziehen statt neu bauen: gleiche Sektionen in gleicher Reihenfolge -> nur die füllen,
+   *  deren Signatur sich geändert hat. Jede strukturelle Abweichung -> false (voll neu bauen). */
+  let patches = 0;
+  const repaint = (): boolean => {
+    // Der Patch-Pfad kehrt VOR dem Wechsel der Render-Component zurück (s. MainView.draw), lässt
+    // also dieselbe stehen. Gerenderte Markdown-Titel hängen ihre Kindkomponenten dort ein und
+    // werden beim Entfernen der Zeile nicht abgemeldet – nach vielen Patches summiert sich das.
+    // Alle PATCH_LIMIT Durchgänge deshalb einmal regulär neu bauen; das räumt sie mit ab.
+    if (++patches > PATCH_LIMIT) return false;
+    const jetzt = plan();
+    const dran = planDiff(rec, jetzt.map((s) => ({ title: s.title, sig: sectionSig(s.tasks, sigLookup(ctx), { present: s.hosts, ownRow: s.ownRow }) })));
+    if (!dran) return false;
+    for (const i of dran) {
+      const s = jetzt[i];
+      rec[i].paintRows(visibleRows(s.tasks, s.hosts, s.ownRow));
+      rec[i].sig = sectionSig(s.tasks, sigLookup(ctx), { present: s.hosts, ownRow: s.ownRow });
+    }
+    return true;
+  };
+  const host = root.parentElement;
+  if (host) listMounts.set(host, { headSig, sig: frameSig(ctx, opts, headSig()), root, sections: rec, repaint });
 }
 
 /** Filter-Board: die Treffer eines gespeicherten Filters, sortiert/gruppiert nach seinen
@@ -583,7 +639,8 @@ export function renderFilterBoardInto(c: HTMLElement, ctx: PageCtx, filterPath: 
   // Kriterien filtern die Menge; renderPageBody übernimmt Layout/Sortieren/Gruppieren/Erledigte.
   const tasks = applyFilter(plugin.index, filter.criteria, opts, today);
   if (!tasks.length) { emptyState(root, filter.icon, "empty_no_filter_tasks"); return; }
-  renderPageBody(root, ctx, () => applyFilter(plugin.index, filter.criteria, opts, today), opts, today, {});
+  renderPageBody(root, ctx, () => applyFilter(plugin.index, filter.criteria, opts, today), opts, today, {},
+    () => JSON.stringify(readFilter(plugin.app, filterPath) ?? ""));
 }
 
 // ── Seiten-Kopf: Titel links, rechts eine Aktionsgruppe (Variante 02) ──
@@ -707,7 +764,6 @@ function labelColumns(plugin: BeautyTasksPlugin, tasks: Task[], add: BoardAdd): 
   return cols;
 }
 
-const NO_PROJECT = " noproject";   // Sentinel-ID der „Kein Projekt"-Spalte
 
 /** Prioritäts-Spalten (Gruppierung = Priorität): eine Spalte je Stufe (P1–P4); Ziehen setzt die
  *  Priorität. low/lowest fallen unter „normal" (P4). */
@@ -1075,11 +1131,60 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     // Datums-Spalten heißen „d:<ISO>" (s. dateColumns); „Überfällig"/„ohne Datum" tragen kein
     // einzelnes Datum und blenden deshalb nichts aus.
     const impliedDate = dateImplied && col.id.startsWith("d:") ? col.id.slice(2) : undefined;
-    for (const tk of colTasks) renderTask(listEl, ctx, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
+    // Karten stückweise, wie die Zeilen einer Sektion (s. section): Ein Board zeichnete bisher
+    // ALLE Karten ALLER Spalten auf einen Schlag – auch die der Spalten, die waagerecht weit
+    // rechts außerhalb des Bildes liegen. Die Spalten teilen sich dasselbe Seiten-Budget.
+    let gezeigt = 0;
+    let kartePx = 0;                       // an DIESER Spalte gemessene Kartenhöhe
+    let colSentinel: HTMLElement | null = null;
+    const zeichne = (bis: number): void => {
+      for (const tk of colTasks.slice(gezeigt, bis)) renderTask(listEl, ctx, tk, today, 0, false, { flat: true, colId: col.id, subs, impliedDate, deadlineImplied, hideProject });
+      gezeigt = bis;
+    };
+    /** Platzhalter für die noch fehlenden Karten – hält die Spaltenhöhe, damit die gemerkte
+     *  Scrollposition unten weiterhin trifft und nur nachlädt, was ins Bild kommt. */
+    const platzhalter = (): void => {
+      if (gezeigt >= colTasks.length) { colSentinel?.remove(); colSentinel = null; return; }
+      // Einmal messen, solange NUR Karten in der Liste stehen (der Wächter käme sonst mit hinein).
+      if (!kartePx && gezeigt > 0) kartePx = listEl.scrollHeight / gezeigt;
+      if (!colSentinel) colSentinel = listEl.createDiv({ cls: "bt-lazy-sentinel" });
+      else listEl.appendChild(colSentinel);
+      setLazyHeight(colSentinel, placeholderPx(colTasks.length, gezeigt, kartePx || CARD_PX));
+      observeSentinel(colSentinel, () => {
+        zeichne(Math.min(colTasks.length, gezeigt + CHUNK_ROWS));
+        platzhalter();
+        return gezeigt < colTasks.length;
+      });
+    };
+    // Erste Füllung: so viele Karten, wie in DIESE Spalte passen, plus etwas Reserve.
+    //
+    // Ein Anteil am Seiten-Budget taugt hier nicht – das war der Fehler: Das Budget wird von
+    // links nach rechts vergeben, die Spalten stehen aber NEBENeinander. Die vierte ist genauso
+    // sichtbar wie die erste, bekam aber nichts mehr ab, startete leer und füllte sich erst,
+    // wenn der Wächter zuschlug. Beim Abhaken in Spalte 1 blinzelten deshalb die Spalten
+    // daneben. Waagerecht weit rechts stehende Spalten bleiben trotzdem billig: Ihr Wächter
+    // schneidet nicht, weil der Beobachter die Beschneidung durch den Board-Scroller mitrechnet.
+    zeichne(Math.min(colTasks.length, MESS_KARTEN));       // erst wenige – nur, um messen zu können
+    if (gezeigt) kartePx = listEl.scrollHeight / gezeigt;  // noch ohne Wächter in der Liste
+    const sicht = listEl.clientHeight || 600;              // 0, falls das Board noch kein Layout hat
+    zeichne(Math.max(gezeigt, columnFirstPaint({ total: colTasks.length, viewportPx: sicht, itemPx: kartePx, fallbackPx: CARD_PX, reserve: 4 })));
+    // War die Spalte gescrollt, wird BIS DAHIN gezeichnet, bevor die Position gesetzt wird.
+    //
+    // Ein Platzhalter allein genügt hier nicht: Solange die Spalte keine einzige Karte gezeichnet
+    // hat (Budget aufgebraucht, etwa weil sie weit rechts steht), gibt es keine gemessene
+    // Kartenhöhe – der Platzhalter beruht dann auf CARD_PX. Ist die echte Karte höher, ist die
+    // Spalte zu kurz, der Browser klemmt die gemerkte Position auf sein Maximum, und man landet
+    // wieder oben. Genau das passierte beim Verschieben einer Spalte, in der man weit unten war.
+    //
+    // Teuer ist das nicht: gezeichnet wird nur, was der Nutzer ohnehin schon durchgescrollt hat.
+    const savedTop = colScroll.get(colKey);
+    if (savedTop) {
+      zeichne(Math.max(gezeigt, rowsForScroll({ savedTop, viewportPx: sicht, itemPx: kartePx || CARD_PX, chunk: CHUNK_ROWS, total: colTasks.length })));
+    }
+    platzhalter();
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
-    const savedTop = colScroll.get(colKey);
     if (savedTop) listEl.scrollTop = savedTop;
 
     if (col.onAdd) {
@@ -1210,7 +1315,7 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   const sec = parent.createDiv({ cls: "bt-section" });
   const head = sec.createEl("h6", { cls: "bt-section-title" });
   head.createSpan({ cls: "bt-section-lbl", text: title });
-  head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
+  const countEl = head.createSpan({ cls: "bt-section-count", text: String(top.length) });   // Anzahl direkt neben dem Titel
   const list = sec.createDiv({ cls: "bt-list" });
   // Termine des Tages (read-only) gebündelt in einer dezenten Box oben, vor den Aufgaben.
   if (events.length) renderEventBands(list.createDiv({ cls: "bt-gcal-daybox" }), ctx, events, eventKey);
@@ -1233,8 +1338,128 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   // Das Datum, das DIESE Sektion in ihrer Überschrift trägt (leer bei „Überfällig" – ein Sammel-
   // Bucket ohne einzelnes Datum – und bei nicht-datierten Gruppierungen).
   const impliedDate = dateImplied && eventKey ? eventKey : undefined;
-  for (const task of top) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
-  annotateSubtaskTree(list);
+  // Die Zeilen einer Sektion füllen – als Closure, damit der Abgleich (tryPatchList) sie später
+  // mit GENAU denselben Parametern neu zeichnen kann, ohne sie ein zweites Mal herzuleiten.
+  // Dasselbe Mittel wie `paint` bei tryPatchCalendar.
+  //
+  // Gezeichnet wird stückweise: erst ein Schub, der Rest sobald das Ende der Sektion in die Nähe
+  // des Sichtfelds kommt. Bei 1411 Zeilen entstehen so beim Öffnen ~60 statt 1411 – die Arbeit
+  // verschwindet nicht, sie verteilt sich auf das, was man wirklich ansieht. `shown` merkt sich,
+  // wie weit die Sektion schon aufgebaut ist; ein Abgleich (paintRows) baut genau so weit wieder
+  // auf, sonst schrumpfte die Liste unter einem weit heruntergescrollten Nutzer weg.
+  // Anteil dieser Sektion am Budget der Seite. Ist es aufgebraucht, startet sie leer und füllt
+  // sich erst, wenn man in ihre Nähe scrollt.
+  const startRows = takeFromBudget(pageBudget, top.length);
+  pageBudget -= startRows;
+  let first = true;
+  let shown = 0;
+  let rowsNow: Task[] = [];
+  let recycled = false;      // Zeilen ausgehängt, nur der Platzhalter steht (s. recycle)
+  let pxProRow = 0;          // an DIESER Sektion gemessene Zeilenhöhe (0 = noch nie gemessen)
+  const drawSlice = (von: number, bis: number): void => {
+    for (const task of rowsNow.slice(von, bis)) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
+    annotateSubtaskTree(list);
+  };
+  /** Nächsten Schub anhängen; gibt zurück, ob danach noch etwas fehlt. */
+  const grow = (): boolean => {
+    const bis = Math.min(rowsNow.length, shown + CHUNK_ROWS);
+    drawSlice(shown, bis);
+    shown = bis;
+    recycled = false;
+    return shown < rowsNow.length;
+  };
+  /** Rückruf des Wächters – EINE Fassung, die sowohl das Nachladen als auch das
+   *  Wieder-Auffüllen nach dem Aushängen bedient. */
+  const sentinelGrow = (): boolean => {
+    const rest = grow();
+    if (sentinel) list.appendChild(sentinel);   // Wächter bleibt das letzte Element
+    return rest;
+  };
+  const paintRows = (rows: Task[]): void => {
+    // Beim Nachfüllen fallen die Zeilen kurz weg. Wer tief gescrollt ist, dem klemmt der Browser
+    // die Scrollposition an die geschrumpfte Höhe – und nach dem Wiederaufbau stünde er woanders.
+    // Deshalb merken und zurücksetzen; die Höhe ist danach praktisch dieselbe.
+    const scroller = list.closest<HTMLElement>(".bt-view");
+    const oben = scroller?.scrollTop ?? 0;
+    // Nur die Zeilen, nicht den ganzen Container: davor kann die Termin-Box des Tages stehen
+    // (renderEventBands), und die gehört nicht zu den Aufgaben.
+    list.querySelectorAll(":scope > .bt-task").forEach((el) => el.remove());
+    rowsNow = rows;
+    const bisher = shown;
+    shown = 0;
+    // Erster Anstrich: der Anteil am Seiten-Budget (oft 0). Später (Abgleich): mindestens ein
+    // Schub, höchstens so weit wie vorher – nie über das Ende hinaus.
+    // Ausnahme: Steht ein Sprung aus der Suche an, wird die Sektion GANZ gezeichnet. Aufblitzen
+    // und Ins-Bild-Scrollen hängen daran, dass es die Zeile gibt – und sie kann überall stehen.
+    const mindest = first ? startRows : CHUNK_ROWS;
+    first = false;
+    // Ausgehängte Sektion (weit außerhalb des Sichtfelds) bleibt ausgehängt: nur Zahl und
+    // Platzhalter nachziehen. Sie zu zeichnen wäre Arbeit für etwas, das niemand ansieht.
+    const ziel = repaintCount({ total: rows.length, shown: bisher, minimum: mindest, recycled, flash: !!ctx.plugin.flashPath });
+    drawSlice(0, ziel);
+    shown = ziel;
+    countEl.setText(String(rows.length));   // die Überschrift zählt IMMER alle, nicht die gezeichneten
+    armSentinel();
+    if (scroller && oben && scroller.scrollTop !== oben) scroller.scrollTop = oben;
+  };
+  // Der Wächter am Ende der Sektion: kommt er ins Bild, kommt der nächste Schub.
+  let sentinel: HTMLElement | null = null;
+  const armSentinel = (): void => {
+    if (shown >= rowsNow.length) { sentinel?.remove(); sentinel = null; return; }
+    if (!sentinel) sentinel = list.createDiv({ cls: "bt-lazy-sentinel" });
+    else list.appendChild(sentinel);   // ans Ende nachziehen
+    // Platzhalter-Höhe für das, was noch fehlt. Ohne sie wären ALLE ungezeichneten Sektionen
+    // gleichzeitig im Sichtfeld (sie wären ja 0 hoch) und würden sich sofort alle füllen.
+    setLazyHeight(sentinel, placeholderPx(rowsNow.length, shown, pxProRow || rowPxEst));
+    observeSentinel(sentinel, sentinelGrow);
+  };
+  /**
+   * Die Zeilen einer weit abgescrollten Sektion wieder AUSHÄNGEN und ihre Höhe durch einen
+   * Platzhalter ersetzen. Damit wächst der Baum nicht mehr mit dem, was man schon gesehen hat:
+   * im DOM steht ungefähr das, was auf den Bildschirm passt, und nicht die ganze Liste.
+   *
+   * Die Höhe wird GEMESSEN, nicht geschätzt (Differenz vor/nach dem Aushängen). Ein geschätzter
+   * Platzhalter verschöbe alles darunter und risse dem Nutzer die Zeile unter dem Finger weg.
+   */
+  const recycle = (): void => {
+    if (shown === 0) return;
+    const vorher = list.getBoundingClientRect().height;
+    const raus = shown;
+    list.querySelectorAll(":scope > .bt-task").forEach((el) => el.remove());
+    shown = 0;
+    if (!sentinel) sentinel = list.createDiv({ cls: "bt-lazy-sentinel" });
+    else list.appendChild(sentinel);
+    setLazyHeight(sentinel, 0);
+    const nachher = list.getBoundingClientRect().height;
+    const hoehe = Math.max(0, vorher - nachher);
+    setLazyHeight(sentinel, hoehe);
+    recycled = true;
+    // Was wir dabei über die echte Zeilenhöhe gelernt haben, kommt allen zugute: Sektionen, die
+    // noch nie gezeichnet wurden, schätzen damit besser (und der Rollbalken springt weniger).
+    //
+    // NUR bei vollständig gezeichneten Sektionen: War noch ein Platzhalter für den Rest da,
+    // steckt DESSEN geschätzte Höhe mit in der Messung – daraus eine Zeilenhöhe zu rechnen hiesse,
+    // die eigene Schätzung für eine Messung zu halten. Für den Platzhalter oben ist `hoehe`
+    // trotzdem richtig: sie ist genau das, was die Sektion vorher eingenommen hat.
+    if (raus === rowsNow.length && hoehe > 0) { pxProRow = hoehe / raus; rowPxEst = rowPxEst * 0.7 + pxProRow * 0.3; }
+    observeSentinel(sentinel, sentinelGrow);
+  };
+  // Auslösen erst deutlich weiter draußen als das Nachladen (900 px) – sonst geriete eine Sektion
+  // am Rand in ein Füllen/Aushängen-Pendel.
+  const armRecycler = (): void => {
+    const win = sec.ownerDocument.defaultView;
+    if (!win) return;
+    const io = new win.IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) recycle();
+    }, { rootMargin: "1800px 0px" });
+    io.observe(sec);   // hält nur diese Sektion; fällt sie weg, fällt der Beobachter mit
+  };
+
+  paintRows(top);
+  // Termin-Bänder zeichnet paintRows nicht mit -> solche Sektionen nehmen am Abgleich nicht teil.
+  if (recording && !events.length) recording.push({ title, sig: sectionSig(tasks, sigLookup(ctx), { present, ownRow, trash }), paintRows });
+  // Das Aushängen dagegen betrifft nur die Zeilen; ein Termin-Band bleibt stehen und stört nicht.
+  if (budgeted) armRecycler();
 
   if (collapsible) {
     // Einklappbar (z. B. „Erledigt"): Chevron rechts in der Überschrift, Klick toggelt.
@@ -1281,6 +1506,164 @@ function annotateSubtaskTree(list: HTMLElement): void {
     if (row.hasClass("bt-subtask")) row.toggleClass("bt-last-sub", !nextIsSub);
     else row.toggleClass("bt-has-sub", nextIsSub);
   }
+}
+
+/* ══ Inkrementelles Nachzeichnen der Liste (tryPatchList) ═══════════════════════════════════
+ *
+ * Jede Index-Meldung liess die Seite bisher `c.empty()` machen und ALLE Zeilen neu bauen – bei
+ * 2000 Aufgaben rund 50.000 Elemente und ~4.000 SVG-Icons, und das schon beim Abhaken einer
+ * einzigen Aufgabe. Kalender und Seitenleiste haben dafür längst einen Weg (tryPatchCalendar,
+ * tryPatchNav); die Liste war die letzte Fläche ohne.
+ *
+ * Das Verfahren ist dasselbe: Beim Zeichnen merkt sich die Seite ihre Sektionen samt einer
+ * Signatur und einer `paintRows`-Closure. Meldet der Index etwas, werden die Daten mit GENAU
+ * demselben Code neu hergeleitet (die `repaint`-Closure ruft die Zeilen von oben nochmal auf,
+ * es gibt keine zweite Herleitung) und nur die Sektionen neu gefüllt, deren Signatur sich
+ * geändert hat. Der Rest des DOM bleibt unangetastet.
+ *
+ * Sicherheitsnetz, wie beim Kalender: Bei der KLEINSTEN strukturellen Abweichung – anderer
+ * Rahmen, andere Sektionen, andere Reihenfolge der Sektionen – liefert der Abgleich false und
+ * der Aufrufer baut vollständig neu. Die Signaturen dürfen dabei gern zu viel abdecken: ein
+ * überflüssiger Neuaufbau kostet Zeit, eine übersehene Änderung zeigt veraltete Daten.
+ */
+interface SectionRec {
+  title: string;
+  sig: string;
+  paintRows: (rows: Task[]) => void;   // füllt NUR die Zeilen dieser Sektion (s. section)
+}
+interface ListMount {
+  headSig: () => string;            // Kopf der Seite – frisch gelesen, s. frameSig
+  sig: string;                      // Rahmen-Signatur (s. frameSig)
+  root: HTMLElement;                // Wurzel der gezeichneten Liste (isConnected-Prüfung)
+  sections: SectionRec[];
+  repaint: () => boolean;           // false = Struktur geändert, bitte voll neu bauen
+}
+const listMounts = new WeakMap<HTMLElement, ListMount>();
+/** Läuft gerade eine aufzeichnende Zeichnung? Dann trägt sich jede Sektion hier ein. */
+let recording: SectionRec[] | null = null;
+/** Läuft gerade eine Seiten-Zeichnung mit Budget? Dann hängen Sektionen ausserhalb des
+ *  Sichtfelds ihre Zeilen wieder aus (s. recycle). */
+let budgeted = false;
+/** So viele Patches am Stück, dann einmal regulär neu bauen (s. repaint). */
+const PATCH_LIMIT = 200;
+/** Zeilen je Schub. Grob ein Bildschirm plus Reserve – klein genug, dass das Öffnen nicht mehr
+ *  wartet, groß genug, dass Scrollen nicht ständig nachladen muss. */
+const CHUNK_ROWS = 60;
+/**
+ * Zeilen, die eine SEITE beim Öffnen insgesamt zeichnet – über alle Sektionen zusammen.
+ *
+ * Das Budget muss der Seite gehören und nicht der Sektion: Eine nach Datum gruppierte Filterseite
+ * mit 1411 Aufgaben zerfällt in ~200 Tages-Sektionen, von denen fast jede unter einem Schub
+ * liegt. Je Sektion gedeckelt hätte also praktisch jede voll gezeichnet und in Summe wären
+ * dieselben ~800 Zeilen entstanden wie vorher – gemessen an einem echten Vault.
+ */
+const FIRST_PAINT_ROWS = 80;
+/** Geschätzte Zeilenhöhe für den Platzhalter ungezeichneter Zeilen. Betrifft NUR die Länge des
+ *  Rollbalkens, nie den Inhalt: zu klein geschätzt heisst, der Balken wächst beim Scrollen. */
+const ROW_PX = 34;
+/** Dasselbe für eine Board-KARTE (höher als eine Listenzeile). Nur Rückfall: sobald eine Spalte
+ *  Karten gezeichnet hat, misst sie ihre eigene Höhe. */
+const CARD_PX = 64;
+/** So viele Karten zeichnet eine Board-Spalte, bevor sie ihre echte Kartenhöhe misst. Klein
+ *  halten: Die Zahl fällt für JEDE Spalte an, auch für die waagerecht nicht sichtbaren. */
+const MESS_KARTEN = 6;
+/** Laufender Schätzwert der Zeilenhöhe, aus echten Messungen nachgeführt (s. recycle). */
+let rowPxEst = ROW_PX;
+
+/** Verbleibendes Zeichen-Budget der laufenden Seite (Infinity = keine Deckelung, z. B.
+ *  Heute/Demnächst – dort ist die Zeilenzahl klein). */
+let pageBudget = Number.POSITIVE_INFINITY;
+
+/** Höhe des Platzhalters. Über eine CSS-Variable statt `style.height`, wie `--bt-depth` an der
+ *  Aufgaben-Zeile – die Gestaltung bleibt damit in styles.css (s. obsidianmd-Lint-Regel). */
+function setLazyHeight(el: HTMLElement, px: number): void {
+  el.style.setProperty("--bt-lazy-h", Math.round(px) + "px");
+}
+
+const sentinelObservers = new WeakMap<Element, IntersectionObserver>();
+/**
+ * Den Wächter am Ende einer Sektion bewachen: kommt er ins Bild, zeichnet `grow` den nächsten
+ * Schub und meldet, ob danach noch etwas fehlt.
+ *
+ * Ein Beobachter je Wächter statt einem globalen: Wird die Sektion verworfen (voller Neuaufbau),
+ * hält niemand mehr den Beobachter, und er verschwindet mitsamt seinem Ziel. Ein gemeinsamer
+ * Beobachter müsste jeden abgehängten Wächter einzeln abmelden – und übersähe man einen, hielte
+ * er dessen ganzen Teilbaum am Leben.
+ *
+ * `el.ownerDocument.defaultView` statt `window`: In einem ausgeklappten Fenster gehört der
+ * Beobachter in JENES Fenster, sonst misst er gegen das falsche Sichtfeld.
+ */
+function observeSentinel(el: HTMLElement, grow: () => boolean): void {
+  if (sentinelObservers.has(el)) return;   // steht schon unter Beobachtung
+  const win = el.ownerDocument.defaultView;
+  if (!win) return;
+  const io = new win.IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    if (grow()) {
+      // IntersectionObserver meldet nur ÜBERGÄNGE. Steht der Wächter nach dem Schub weiter im
+      // Bild (hohes Fenster, kurzer Schub), käme nie wieder ein Rückruf – erneutes Anmelden
+      // stößt ihn mit dem AKTUELLEN Zustand neu an.
+      io.unobserve(el); io.observe(el);
+    } else {
+      io.disconnect();
+      sentinelObservers.delete(el);
+      el.remove();
+    }
+  }, { rootMargin: "200px 0px 900px 0px" });
+  sentinelObservers.set(el, io);
+  io.observe(el);
+}
+
+
+/** Der Zugang der Signatur zu Index und Klappzustand (s. rowSignature.ts). */
+function sigLookup(ctx: PageCtx): SigLookup {
+  const idx = ctx.plugin.index;
+  const subs = effectiveSubtasks(ctx.opts);
+  return {
+    title: (p) => idx.get(p)?.title,
+    comments: (p) => idx.commentsOf(p),
+    children: (p) => idx.children(p),
+    expanded: (p) => subsExpanded(ctx, p, subs),
+  };
+}
+
+/** Der Rahmen: alles, was NICHT die Zeilen selbst sind. Weicht davon etwas ab, ist der
+ *  Patch-Pfad ungültig – auch bei Dingen, die weit oben auf der Seite stehen (Kopf, Filter-
+ *  Kriterien), denn die zeichnet der Abgleich nicht mit. */
+function frameSig(ctx: PageCtx, opts: ViewOptions, headSig: string): string {
+  const o = opts;
+  return [
+    ctx.pageKey, headSig, o.layout, o.sort, o.sortDir, o.group, o.showDone, o.subtasks ?? "",
+    effectiveSubtasks(o), todayStr(), JSON.stringify(ctx.crit), ctx.doneCollapsed, menuHoldPath() ?? "",
+    // Aus der Suche angesprungen: das Hervorheben UND das Scrollen passieren beim Bauen der
+    // Zeile (applyFlash). Steht ein Sprung an, muss also gebaut werden, nicht gepatcht.
+    ctx.plugin.flashPath ?? "",
+    settingsSig(ctx.plugin),
+  ].join("|");
+}
+/** Kopf-Signatur einer Seite, die an einer NOTIZ hängt (Projekt/Bereich): alles, was der
+ *  Seitenkopf daraus zeigt. Frisch aus dem Metadaten-Cache gelesen – ein reiner Map-Zugriff,
+ *  kein Vault-Scan. `null` = Systemansicht ohne Notiz (Eingang). */
+function noteHeadSig(plugin: BeautyTasksPlugin, path: string | null): string {
+  if (!path) return "";
+  const f = plugin.app.vault.getAbstractFileByPath(path);
+  const fm = f instanceof TFile ? plugin.app.metadataCache.getFileCache(f)?.frontmatter : null;
+  return [path, fm?.description ?? "", fm?.color ?? "", fm?.status ?? "", fm?.nav_hidden ?? ""].join("~");
+}
+
+/** Einstellungen, die in JEDER Zeile stecken (und beim Patchen nicht neu gelesen würden). */
+function settingsSig(plugin: BeautyTasksPlugin): string {
+  const s = plugin.settings;
+  return [s.showDescriptionInList, s.metaTheme, s.chipsIconsOnly, s.locale].join(",");
+}
+
+/** Versucht, die bereits gezeichnete Liste in `c` nur nachzufüllen. true = erledigt,
+ *  der Aufrufer darf das Neuzeichnen überspringen. */
+export function tryPatchList(c: HTMLElement, ctx: PageCtx): boolean {
+  const m = listMounts.get(c);
+  if (!m || !m.root.isConnected) return false;
+  if (m.sig !== frameSig(ctx, ctx.opts, m.headSig())) return false;
+  return m.repaint();
 }
 
 // Marker, die einen Link andeuten – nur dann als Markdown rendern (Performance-Guard).
@@ -1355,12 +1738,22 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   // Unteraufgaben-Darstellung: vom Aufrufer (section) EINMAL pro Section gereicht statt hier pro
   // Zeile ctx.opts zu lesen (bei Projektseiten ein metadataCache-Zugriff je Aufgabe).
   const subs = opts.subs ?? "compact";   // Aufrufer reichen ihn immer durch; Rueckfall nur der Form halber
-  const row = list.createDiv({ cls: "bt-task" + (depth ? " bt-subtask" : "") });
+  // WAS die Zeile zeigt, entscheidet rowPlan – rein und geprüft (s. rowPlan.ts). Hier wird nur
+  // noch gezeichnet und verdrahtet.
+  const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
+  const plan = rowPlan({
+    task, today, depth, trash, flat: opts.flat,
+    onProjectPage: ctx.page.kind === "project",
+    showDescription: plugin.settings.showDescriptionInList,
+    impliedDate: opts.impliedDate, deadlineImplied: opts.deadlineImplied, hideProject: opts.hideProject,
+    parentTitle: task.parent ? plugin.index.get(task.parent)?.title : undefined,
+    comments: plugin.index.commentsOf(task.path),
+    kids, expanded: subsExpanded(ctx, task.path, subs),
+  });
+  const row = list.createDiv({ cls: plan.classes.join(" ") });
   if (depth) row.style.setProperty("--bt-depth", String(depth));
   row.dataset.path = task.path;
   if (task.path === menuHoldPath()) row.addClass("bt-menu-hold");   // offenes Kontextmenü hält das Hover
-  if (isDone(task.status)) row.addClass("is-done");
-  if (trash) row.addClass("is-cancelled");
   plugin.applyFlash(row, task.path);   // aus der Suche angesprungen? -> hervorheben + ins Bild scrollen
 
   // Griff zum Einsortieren – nur bei Sortierung „Manuell" und nur in der Liste (die Karte im Board
@@ -1408,12 +1801,7 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
 
   // Beschreibungs-Vorschau (einzeilig, gekürzt) – aus dem Frontmatter (`description`), optional
   // per Einstellung. Bild-/Embed-Syntax wird entfernt, damit die Zeile nie zu einem Block aufgeht.
-  if (plugin.settings.showDescriptionInList) {
-    const desc = task.description
-      .replace(/!\[\[[^\]]*\]\]/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "")   // Embeds/Bilder raus
-      .replace(/\s+/g, " ").trim();
-    if (desc) renderLinkedText(body.createDiv({ cls: "bt-desc" }), ctx, desc, task.path);
-  }
+  if (plan.description) renderLinkedText(body.createDiv({ cls: "bt-desc" }), ctx, plan.description, task.path);
 
   const meta = body.createDiv({ cls: "bt-meta" });
   // Hauptaufgaben-Link ganz vorn als normales Meta-Icon: an jeder Unteraufgabe, die hier auf
@@ -1421,8 +1809,8 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   // auf der KARTE (Board „Einblenden": ohne das Icon wäre einer Unterkarte nicht anzusehen,
   // dass sie eine ist). Grau, ohne Hover-Hintergrund, Tooltip = Titel, Klick öffnet die
   // Hauptaufgabe – konsistent zu den übrigen Meta-Icons.
-  if (depth === 0 && task.parent) {
-    const parent = plugin.index.get(task.parent);
+  if (plan.parentLink) {
+    const parent = plugin.index.get(task.parent!);
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",
         attr: { role: "button", tabindex: "0", "aria-label": t("menu_goto_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
@@ -1441,20 +1829,16 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // Verglichen wird das Datum, NICHT bloß „liegt in der Zukunft": In „Heute" stehen seit der
     // Deadline-Aufnahme auch Aufgaben, die erst später fällig sind. Deren Fälligkeit ist alles
     // andere als redundant – sie ist der Grund, warum ihre Zeile dort überhaupt erklärbar ist.
-    const compactHide = depth === 0 && !!opts.impliedDate && task.due === opts.impliedDate;
-    if (!(compactHide && !task.dueTime)) {
-      const text = compactHide ? (task.dueTime ?? "") : formatDateTime(combineDT(task.due, task.dueTime), today);
+    if (plan.due) {
       const chip = meta.createSpan({ cls: "bt-chip bt-due" });
-      chip.createSpan({ cls: "bt-meta-txt", text });   // Text im eigenen Span -> unabhängig vom Kalender-Icon justierbar
-      chip.dataset.when = dueWhen(task.due, today);
+      chip.createSpan({ cls: "bt-meta-txt", text: plan.due.text });   // eigener Span -> unabhängig vom Icon justierbar
+      chip.dataset.when = plan.due.when;
       // Datum nach Tages-Distanz einfärben (heute/morgen/übermorgen/bis Tag 7) – IMMER, wenn der
       // Chip überhaupt gezeichnet wird. Früher hing das an einer Bedingung, die „Datum sichtbar"
       // bloß annäherte (nicht datumsgruppiert ODER nur-Uhrzeit-Chip); seit in datierten Sektionen
       // auch abweichende Fälligkeiten stehen können, hätte deren Datum sonst keine Distanzfarbe.
-      // Überfällig (< heute) behält seine rote data-when-Farbe (dueDist liefert dort ""); ab Tag 8
-      // heller Grau.
-      const dist = dueDist(task.due, today);
-      if (dist) chip.dataset.dist = dist;
+      // Welche Distanzstufe gilt (und ob überhaupt eine), entscheidet rowPlan.
+      if (plan.due.dist) chip.dataset.dist = plan.due.dist;
       chip.onclick = (e) => {
         e.stopPropagation();
         openDatePicker(chip, combineDT(task.due!, task.dueTime), (v) => void plugin.setTaskDate(task, "due", v),
@@ -1475,52 +1859,47 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // (scheduled < heute) – und dort soll der Chip ja gerade stehen bleiben. Ein Datumsvergleich
     // wie bei impliedDate wäre möglich, verlangte aber, die Gruppen-Frist bis hierher zu reichen,
     // ohne dass sich etwas am Ergebnis änderte.
-    const schedHide = depth === 0 && !!opts.deadlineImplied && task.scheduled >= today;
-    if (!(schedHide && !task.scheduledTime)) {
+    if (plan.deadline) {
       const chip = meta.createSpan({ cls: "bt-chip bt-sched" });
       // Wie beim Datums-Chip: data-when trägt „verstrichen", data-dist die Nähe-Abstufung
       // (heute/morgen/übermorgen/Tag 3–7). Beide Angaben lesen sich damit gleich (s. styles.css).
-      chip.dataset.when = dueWhen(task.scheduled, today);
-      const sdist = dueDist(task.scheduled, today);
-      if (sdist) chip.dataset.dist = sdist;
-      chip.createSpan({ cls: "bt-meta-txt", text: schedHide ? (task.scheduledTime ?? "") : formatDeadline(combineDT(task.scheduled, task.scheduledTime), today) });
+      chip.dataset.when = plan.deadline.when;
+      if (plan.deadline.dist) chip.dataset.dist = plan.deadline.dist;
+      chip.createSpan({ cls: "bt-meta-txt", text: plan.deadline.text });
       chip.onclick = (e) => { e.stopPropagation(); openDatePicker(chip, combineDT(task.scheduled!, task.scheduledTime), (v) => void plugin.setTaskDate(task, "scheduled", v)); };
     }
   }
-  if (task.recurrence) meta.createSpan({ cls: "bt-chip bt-recur" });
+  if (plan.recur) meta.createSpan({ cls: "bt-chip bt-recur" });
   // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.
-  if (task.reminders.length) {
-    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": task.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
+  if (plan.reminders.length) {
+    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": plan.reminders.join(" · "), "data-tooltip-position": "top" } });
     setIcon(rem, "alarm-clock");
   }
   // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
   // ALLE Labels der Aufgabe werden gezeigt – auch auf einer #Label-Seite bzw. bei Gruppierung nach Label
   // das gleichnamige. Selektives Ausblenden verwirrt, sobald eine Aufgabe mehrere Labels hat (anders als
   // beim @Projekt-Backlink, wo eine Aufgabe genau ein Projekt hat).
-  for (const l of task.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
+  for (const l of plan.labels) meta.createSpan({ cls: "bt-chip bt-label" }).createSpan({ cls: "bt-meta-txt", text: l });
   // Kommentare/Anhänge: Büroklammer + dezente Anzahl. Klick öffnet die Aufgabe.
-  const comments = plugin.index.commentsOf(task.path);
-  if (comments > 0) {
+  if (plan.comments) {
     const chip = meta.createSpan({ cls: "bt-comments" });
     const ic = chip.createSpan({ cls: "bt-comments-ic" }); setIcon(ic, "paperclip");
-    chip.createSpan({ cls: "bt-comments-n", text: String(comments) });
+    chip.createSpan({ cls: "bt-comments-n", text: String(plan.comments) });
   }
   // Unteraufgaben-Badge: an JEDER Hauptaufgabe mit (nicht-abgebrochenen) Kindern, in ALLEN Modi
   // (list-checks + „erledigt/gesamt"). Klick klappt DIESE eine Aufgabe auf/zu – der Default kommt
   // vom Modus (subsExpanded): „Eingerückt" offen, „Kompakt" zu. Auf einer Karte (flat) ist es
   // reine ANZEIGE: aufklappen ginge nicht (eine Karte nimmt keine verschachtelten Zeilen auf),
   // daher ohne role/Klick.
-  if (!trash) {
-    const kids = plugin.index.children(task.path).filter((k) => !isTrashed(k.status));
-    if (kids.length) {
-      const done = kids.filter((k) => isDone(k.status)).length;
-      const open = !opts.flat && subsExpanded(ctx, task.path, subs);
-      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, kids.length) };
+  if (plan.subs) {
+    {
+      const { done, total, open } = plan.subs;
+      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, total) };
       if (opts.flat) attr["data-tooltip-position"] = "top";
       else { attr.role = "button"; attr.tabindex = "0"; }
       const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : "") + (opts.flat ? " is-static" : ""), attr });
       setIcon(badge.createSpan({ cls: "bt-subs-ic" }), "list-checks");
-      badge.createSpan({ cls: "bt-subs-n", text: done + "/" + kids.length });
+      badge.createSpan({ cls: "bt-subs-n", text: done + "/" + total });
       if (!opts.flat) {
         const toggle = (e: Event): void => {
           e.stopPropagation();   // nicht das Aufgaben-Modal öffnen
@@ -1539,24 +1918,13 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     iconBtn(acts, "archive-restore", t("btn_restore"), () => void plugin.restoreTask(task));
     iconBtn(acts, "trash-2", t("btn_delete_forever"),
       () => confirmInline(acts, t("confirm_delete_forever_q"), () => void plugin.deleteTaskForever(task.path), () => plugin.renderAll()));
-  } else if (depth === 0) {
-    // Rechte Zone: nur der @Projekt-Backlink (der Hauptaufgaben-Link sitzt jetzt links in der Meta-Zeile).
-    // @Projekt weglassen: wenn DIESER Tab schon auf einer Projekt-/Eingang-Seite steht ODER wenn die Gruppierung nach Projekt
-    // das Projekt schon in Spalte/Sektionsüberschrift zeigt (opts.hideProject; NO_PROJECT = Eingang);
-    // „nicht einsortiert" = @Eingang.
-    const inbox = isInboxLink(task.project);
-    const projName = inbox ? null : baseName(task.project!);
-    const backlink = ctx.page.kind !== "project" && (inbox ? opts.hideProject !== NO_PROJECT : projName !== opts.hideProject);
-    if (backlink) {
-      const extras = row.createDiv({ cls: "bt-extras" });
-      if (inbox) {
-        const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + t("nav_inbox") });
-        bl.onclick = (e) => { e.stopPropagation(); ctx.open({ kind: "project", key: INBOX_KEY }); };
-      } else {
-        const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + projectDisplayName(projName) });
-        bl.onclick = (e) => { e.stopPropagation(); ctx.open({ kind: "project", key: task.project! }); };   // zum Projekt-/Bereich-Board
-      }
-    }
+  } else if (plan.backlink) {
+    // Rechte Zone: nur der @Projekt-Verweis (der Hauptaufgaben-Link sitzt links in der Meta-Zeile).
+    // WANN er erscheint, entscheidet rowPlan; hier steht nur, wohin der Klick führt.
+    const extras = row.createDiv({ cls: "bt-extras" });
+    const bl = extras.createEl("a", { cls: "bt-backlink", text: "@" + (plan.backlink.inbox ? t("nav_inbox") : plan.backlink.text) });
+    const ziel: PageRef = plan.backlink.inbox ? { kind: "project", key: INBOX_KEY } : { kind: "project", key: task.project! };
+    bl.onclick = (e) => { e.stopPropagation(); ctx.open(ziel); };
   }
   // Klick auf die Zeile öffnet die Aufgabe (kein separater Stift – wäre redundant).
   // MIT Modifier stattdessen die NOTIZ – dieselbe Geste, die in der Seitenleiste (navItem) und
@@ -1594,7 +1962,7 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     // Unteraufgaben zeigen IMMER ihr eigenes Datum distanz-gefärbt (nie ausgeblendet): die Sektions-/
     // Spaltenüberschrift trägt das Datum der HAUPTaufgabe, nicht das der Unteraufgabe – ein weggelassenes
     // „Heute" an einer Unteraufgabe sähe sonst aus, als hätte sie gar kein Datum. impliedDate wird bewusst
-    // NICHT durchgereicht (zusätzlich schützt der depth-Guard in compactHide/schedHide).
+    // NICHT durchgereicht (zusätzlich schützt die Tiefen-Prüfung in rowPlan).
     renderTask(list, ctx, kid, today, depth + 1, false, { subs, manual: opts.manual, showDone: opts.showDone });
   }
 }
@@ -2315,6 +2683,10 @@ export class MainView extends ItemView {
     // Der Kontext wird als Funktion gereicht, nicht als Wert: die Delegation lebt so lange wie
     // der Tab, der Kontext dagegen wird je Zeichnung neu gebaut.
     installTaskMenuDelegation(this.contentEl, () => this.ctx());
+    // Scrollposition der Liste mitschreiben (s. listScroll). Wie bei den Board-Spalten schreibt
+    // das Ereignis auch einen vom Browser geklemmten Wert zurück – die Erinnerung korrigiert
+    // sich damit selbst, wenn die Seite kürzer geworden ist.
+    this.registerDomEvent(this.contentEl, "scroll", () => listScroll.set(this.scrollKey(), this.contentEl.scrollTop));
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
     this.draw();
   }
@@ -2322,6 +2694,9 @@ export class MainView extends ItemView {
     this.unsub?.(); this.unsub = null;
     dropViewKeys(this.id);   // sonst wüchsen die Modul-Maps mit jedem geschlossenen Tab weiter
   }
+  /** Schlüssel der gemerkten Scrollposition. Nur die Tab-Kennung: Beim Seitenwechsel wirft
+   *  dropViewKeys den Eintrag ohnehin weg, die neue Seite startet also oben. */
+  private scrollKey(): string { return this.id + "|scroll"; }
   /** Beim Sichtbarwerden nachziehen, falls in der Zwischenzeit vorgemerkt (s. draw). */
   drawIfDirty(): void { if (this.dirty) this.draw(); }
   onResize(): void { this.drawIfDirty(); }
@@ -2348,6 +2723,10 @@ export class MainView extends ItemView {
     // Neuaufbau unten kostete gemessen ~80 ms Style + Layout + Paint bei JEDER Änderung.
     // tryPatchCalendar lehnt bei der kleinsten Abweichung ab; dann läuft der normale Pfad.
     if (this.page.kind !== "manage" && tryPatchCalendar(this.contentEl, this.ctx())) return;
+    // Dasselbe für die LISTE: gleicher Rahmen -> nur die Sektionen nachfüllen, deren Inhalt sich
+    // geändert hat (s. tryPatchList). Der Kopf der Seite steckt über headSig in der Signatur,
+    // deshalb hängt der Versuch an derselben Herleitung wie die Zeichnung selbst.
+    if (this.page.kind !== "manage" && tryPatchList(this.contentEl, this.ctx())) return;
     // Frische Render-Component pro Zeichnung: Markdown-Titel (Links) sauber auf-/abbauen,
     // damit sich Hover-/Embed-Kindkomponenten nicht über Redraws hinweg ansammeln. Sie hängt an
     // DIESER View (früher an der Plugin-Instanz): bei zwei zeichnenden Tabs überschrieb der
@@ -2356,11 +2735,35 @@ export class MainView extends ItemView {
     this.renderComp = this.addChild(new Component());
     const ctx = this.ctx();
     this.contentEl.removeClass("bt-view-calendar");   // setzt renderCalendar bei Bedarf wieder
-    if (this.page.kind === "manage") renderManageInto(this.contentEl, ctx);
-    else if (this.page.kind === "filter") renderFilterBoardInto(this.contentEl, ctx, this.page.key);
-    else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
-    else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
-    else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
+    // Das Zeilen-Budget gilt für JEDE Seite, nicht nur für die vollen Seiten (s. section).
+    // „Demnächst" zeigt ALLE künftig datierten Aufgaben – gedeckelt ist dort nur, wie weit die
+    // Termine reichen (upcomingMonths), nicht die Aufgaben. Gemessen an einem echten Vault
+    // zeichnete es 589 Zeilen auf einen Schlag, während die dreimal so grosse Filterseite
+    // längst mit 80 startete.
+    pageBudget = FIRST_PAINT_ROWS;
+    budgeted = true;
+    try {
+      if (this.page.kind === "manage") renderManageInto(this.contentEl, ctx);
+      else if (this.page.kind === "filter") renderFilterBoardInto(this.contentEl, ctx, this.page.key);
+      else if (this.page.kind === "label") renderLabelBoardInto(this.contentEl, ctx, this.page.key);
+      else if (this.page.kind === "project") renderProjectBoardInto(this.contentEl, ctx, this.page.key);
+      else renderViewInto(this.contentEl, ctx, this.page.key as ViewId);
+    } finally {
+      budgeted = false;
+      pageBudget = Number.POSITIVE_INFINITY;
+    }
+    // Erst NACH dem Zeichnen: vorher hat die Seite keine Höhe und der Wert würde auf 0 geklemmt
+    // (dieselbe Reihenfolge wie bei den Board-Spalten). Die Platzhalter der noch ungezeichneten
+    // Sektionen liefern die Höhe bereits mit, die Position trifft also auch dann, wenn erst ein
+    // Bruchteil der Zeilen steht – nachgefüllt wird, was dadurch ins Bild kommt.
+    // Bei einem Sprung aus der Suche NICHT: dort scrollt applyFlash absichtlich woandershin.
+    // Genau EINMAL setzen, synchron. Ein zweiter Versuch im nächsten Bild ist verlockend (die
+    // Seite ist dann länger, weil sich Sektionen gefüllt haben) – aber genau der ist sichtbar:
+    // Die Zeilen springen kurz, weil zwischen beiden Setzungen ein Bild gezeichnet wird. Beim
+    // Abhaken, also ständig. Eine unsichtbar richtige Position ist mehr wert als eine sichtbar
+    // korrigierte; ein Restversatz bleibt notfalls stehen, statt zu ruckeln.
+    const gemerkt = listScroll.get(this.scrollKey());
+    if (gemerkt && !this.plugin.flashPath && this.contentEl.scrollTop !== gemerkt) this.contentEl.scrollTop = gemerkt;
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –

@@ -1050,6 +1050,10 @@ body {
   color: var(--text-accent-hover); background: var(--background-modifier-hover); outline: none;
 }
 .bt-list { border-top: 1px solid var(--bt-line); margin-top: 6px; padding-top: 0.9em; }
+/* Platzhalter für noch nicht gezeichnete Zeilen: hält die Höhe, damit der Rollbalken stimmt und
+   nur das nachlädt, was wirklich in die Nähe kommt (s. section/observeSentinel in heuteView).
+   Die Höhe kommt als Variable von dort – hier steht, WIE sie wirkt. */
+.bt-lazy-sentinel { height: var(--bt-lazy-h, 0px); pointer-events: none; }
 
 /* Aufgaben-Zeile */
 .bt-task {

@@ -47,6 +47,7 @@ export class TaskIndex extends Component {
   private projectCache: Map<string, Task[]> | null = null;   // Projekt-Basename -> offene Aufgaben
   private labelCache: Map<string, Task[]> | null = null;     // Label -> offene Aufgaben
   private orderKeyCache: Map<string, number[]> | null = null;   // Pfad -> Positionskette (s. orderKey)
+  private childCache: Map<string, Task[]> | null = null;     // Eltern-Pfad -> Unteraufgaben (s. byParentMap)
 
   /** Alle abgeleiteten Abfragen verwerfen. Aufrufen, wenn sich Aufgaben ODER Archiv-Status ändern. */
   private invalidate(): void {
@@ -54,6 +55,7 @@ export class TaskIndex extends Component {
     this.projectCache = null;
     this.labelCache = null;
     this.orderKeyCache = null;
+    this.childCache = null;
   }
 
   constructor(private app: App, private getSettings: () => BeautyTasksSettings) { super(); }
@@ -385,11 +387,53 @@ export class TaskIndex extends Component {
     return chain;
   }
 
-  children(parentPath: string): Task[] { return this.all().filter((t) => t.parent === parentPath); }
-  /** Alle Nachfahren (rekursiv, jeder Status) einer Aufgabe – z. B. für Kaskaden-Aktionen. */
+  /**
+   * Unteraufgaben je Eltern-Pfad – EINMAL gruppiert, wie byProjectMap/byLabelMap.
+   *
+   * Vorher war `children()` ein `all().filter(...)`: ein Vollscan über den ganzen Bestand PLUS
+   * eine frische Array-Kopie, und das je gezeichneter Zeile mehrfach (Unteraufgaben-Badge,
+   * Verschachtelung, nestingHosts – s. heuteView). Die Kosten wuchsen damit quadratisch zur
+   * Aufgabenzahl: bei zwei Aufrufen je Aufgabe gemessene 98 ms (2000 Aufgaben) bzw. 411 ms
+   * (5000) je Zeichenvorgang, gegenüber 0,8 bzw. 1,6 ms hier. Aufbau EIN Durchlauf, Zugriff O(1).
+   */
+  private byParentMap(): Map<string, Task[]> {
+    if (this.childCache) return this.childCache;
+    const m = new Map<string, Task[]>();
+    // Über byPath statt all(): identische Reihenfolge (Map hält die Einfügereihenfolge), aber
+    // ohne die Zwischen-Kopie des gesamten Bestands.
+    for (const t of this.byPath.values()) {
+      if (!t.parent) continue;
+      const arr = m.get(t.parent);
+      if (arr) arr.push(t); else m.set(t.parent, [t]);
+    }
+    this.childCache = m;
+    return m;
+  }
+
+  /** Die direkten Unteraufgaben (JEDER Status, in Index-Reihenfolge). Wie bei byProject/byLabel
+   *  gehört das Ergebnis dem Cache: nicht an Ort und Stelle sortieren oder umhängen, sondern
+   *  vorher kopieren (`sortSubtasks` und die `.filter()`-Aufrufer tun das bereits). */
+  children(parentPath: string): Task[] { return this.byParentMap().get(parentPath) ?? []; }
+  /**
+   * Alle Nachfahren (rekursiv, jeder Status) einer Aufgabe – z. B. für Kaskaden-Aktionen.
+   *
+   * Mit Schutz gegen Kreise: `parent` ist ein von Hand schreibbares Frontmatter-Feld, und eine
+   * Aufgabe, die sich selbst (oder über eine Kette) als Elternaufgabe führt, ließ die Rekursion
+   * bis zum Stapelüberlauf laufen. Das traf keine Anzeige, sondern die Kaskaden: Löschen mit
+   * Unteraufgaben, Papierkorb und Duplizieren. Gefunden von der Differenzprüfung in
+   * tests/taskIndexFuzz.test.ts; ein Kreis ist unsinnig, darf die App aber nicht anhalten.
+   */
   descendants(path: string): Task[] {
     const out: Task[] = [];
-    const walk = (p: string): void => { for (const kid of this.children(p)) { out.push(kid); walk(kid.path); } };
+    const gesehen = new Set<string>([path]);
+    const walk = (p: string): void => {
+      for (const kid of this.children(p)) {
+        if (gesehen.has(kid.path)) continue;
+        gesehen.add(kid.path);
+        out.push(kid);
+        walk(kid.path);
+      }
+    };
     walk(path);
     return out;
   }
