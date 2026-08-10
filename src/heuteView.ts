@@ -2,6 +2,8 @@ import { ItemView, WorkspaceLeaf, setIcon, MarkdownRenderer, Component, Keymap, 
 import type BeautyTasksPlugin from "./main";
 import { PageCtx, PageRef, pageInfo, samePage, manageTitleKey } from "./pageCtx";
 import { dragTask, dragFromCol, startTaskDrag, endTaskDrag, applyDropPage } from "./taskDrag";
+import { sectionSig, SigLookup } from "./rowSignature";
+import { takeFromBudget, repaintCount, rowsForScroll, columnFirstPaint, placeholderPx } from "./chunkPlan";
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
@@ -597,12 +599,12 @@ function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], o
     // Alle PATCH_LIMIT Durchgänge deshalb einmal regulär neu bauen; das räumt sie mit ab.
     if (++patches > PATCH_LIMIT) return false;
     const jetzt = plan();
-    const dran = planDiff(rec, jetzt.map((s) => ({ title: s.title, sig: sectionSig(ctx, s.tasks, s.hosts, s.ownRow, false) })));
+    const dran = planDiff(rec, jetzt.map((s) => ({ title: s.title, sig: sectionSig(s.tasks, sigLookup(ctx), { present: s.hosts, ownRow: s.ownRow }) })));
     if (!dran) return false;
     for (const i of dran) {
       const s = jetzt[i];
       rec[i].paintRows(visibleRows(s.tasks, s.hosts, s.ownRow));
-      rec[i].sig = sectionSig(ctx, s.tasks, s.hosts, s.ownRow, false);
+      rec[i].sig = sectionSig(s.tasks, sigLookup(ctx), { present: s.hosts, ownRow: s.ownRow });
     }
     return true;
   };
@@ -1148,7 +1150,7 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
       if (!kartePx && gezeigt > 0) kartePx = listEl.scrollHeight / gezeigt;
       if (!colSentinel) colSentinel = listEl.createDiv({ cls: "bt-lazy-sentinel" });
       else listEl.appendChild(colSentinel);
-      setLazyHeight(colSentinel, (colTasks.length - gezeigt) * (kartePx || CARD_PX));
+      setLazyHeight(colSentinel, placeholderPx(colTasks.length, gezeigt, kartePx || CARD_PX));
       observeSentinel(colSentinel, () => {
         zeichne(Math.min(colTasks.length, gezeigt + CHUNK_ROWS));
         platzhalter();
@@ -1166,7 +1168,7 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     zeichne(Math.min(colTasks.length, MESS_KARTEN));       // erst wenige – nur, um messen zu können
     if (gezeigt) kartePx = listEl.scrollHeight / gezeigt;  // noch ohne Wächter in der Liste
     const sicht = listEl.clientHeight || 600;              // 0, falls das Board noch kein Layout hat
-    zeichne(Math.min(colTasks.length, Math.max(gezeigt, Math.ceil(sicht / (kartePx || CARD_PX)) + 4)));
+    zeichne(Math.max(gezeigt, columnFirstPaint({ total: colTasks.length, viewportPx: sicht, itemPx: kartePx, fallbackPx: CARD_PX, reserve: 4 })));
     // War die Spalte gescrollt, wird BIS DAHIN gezeichnet, bevor die Position gesetzt wird.
     //
     // Ein Platzhalter allein genügt hier nicht: Solange die Spalte keine einzige Karte gezeichnet
@@ -1178,8 +1180,7 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     // Teuer ist das nicht: gezeichnet wird nur, was der Nutzer ohnehin schon durchgescrollt hat.
     const savedTop = colScroll.get(colKey);
     if (savedTop) {
-      const noetig = Math.ceil((savedTop + sicht) / (kartePx || CARD_PX)) + CHUNK_ROWS;
-      zeichne(Math.min(colTasks.length, Math.max(gezeigt, noetig)));
+      zeichne(Math.max(gezeigt, rowsForScroll({ savedTop, viewportPx: sicht, itemPx: kartePx || CARD_PX, chunk: CHUNK_ROWS, total: colTasks.length })));
     }
     platzhalter();
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
@@ -1349,7 +1350,7 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   // auf, sonst schrumpfte die Liste unter einem weit heruntergescrollten Nutzer weg.
   // Anteil dieser Sektion am Budget der Seite. Ist es aufgebraucht, startet sie leer und füllt
   // sich erst, wenn man in ihre Nähe scrollt.
-  const startRows = Math.max(0, Math.min(top.length, pageBudget));
+  const startRows = takeFromBudget(pageBudget, top.length);
   pageBudget -= startRows;
   let first = true;
   let shown = 0;
@@ -1395,9 +1396,7 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     first = false;
     // Ausgehängte Sektion (weit außerhalb des Sichtfelds) bleibt ausgehängt: nur Zahl und
     // Platzhalter nachziehen. Sie zu zeichnen wäre Arbeit für etwas, das niemand ansieht.
-    const ziel = recycled && !ctx.plugin.flashPath ? 0
-      : ctx.plugin.flashPath ? rows.length
-      : Math.min(rows.length, Math.max(mindest, bisher));
+    const ziel = repaintCount({ total: rows.length, shown: bisher, minimum: mindest, recycled, flash: !!ctx.plugin.flashPath });
     drawSlice(0, ziel);
     shown = ziel;
     countEl.setText(String(rows.length));   // die Überschrift zählt IMMER alle, nicht die gezeichneten
@@ -1412,7 +1411,7 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     else list.appendChild(sentinel);   // ans Ende nachziehen
     // Platzhalter-Höhe für das, was noch fehlt. Ohne sie wären ALLE ungezeichneten Sektionen
     // gleichzeitig im Sichtfeld (sie wären ja 0 hoch) und würden sich sofort alle füllen.
-    setLazyHeight(sentinel, (rowsNow.length - shown) * (pxProRow || rowPxEst));
+    setLazyHeight(sentinel, placeholderPx(rowsNow.length, shown, pxProRow || rowPxEst));
     observeSentinel(sentinel, sentinelGrow);
   };
   /**
@@ -1459,7 +1458,7 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
 
   paintRows(top);
   // Termin-Bänder zeichnet paintRows nicht mit -> solche Sektionen nehmen am Abgleich nicht teil.
-  if (recording && !events.length) recording.push({ title, sig: sectionSig(ctx, tasks, present, ownRow, trash), paintRows });
+  if (recording && !events.length) recording.push({ title, sig: sectionSig(tasks, sigLookup(ctx), { present, ownRow, trash }), paintRows });
   // Das Aushängen dagegen betrifft nur die Zeilen; ein Termin-Band bleibt stehen und stört nicht.
   if (budgeted) armRecycler();
 
@@ -1617,48 +1616,16 @@ function observeSentinel(el: HTMLElement, grow: () => boolean): void {
 }
 
 
-/** Alles, was das AUSSEHEN EINER ZEILE bestimmt – inklusive der Werte, die renderTask sich
- *  woanders holt (Kommentarzahl, Titel der Elternaufgabe). Ändert sich hier etwas, muss die
- *  Sektion neu gezeichnet werden. */
-function rowSig(plugin: BeautyTasksPlugin, t: Task): string {
-  return [
-    t.path, t.status, t.priority, t.title, t.description,
-    t.due ?? "", t.dueTime ?? "", t.duration ?? "", t.scheduled ?? "", t.scheduledTime ?? "", t.start ?? "",
-    t.recurrence ?? "", t.recurBasis, t.reminders.join(","), t.labels.join(","), t.sortOrder ?? "",
-    // Das Projekt gehört DAZU: Die Zeile zeigt es als @Backlink. Ohne dieses Feld galt eine in ein
-    // anderes Projekt gezogene Aufgabe als unverändert – auf einer Projektseite fiel sie wenigstens
-    // aus der Menge und die Sektion zeichnete neu, auf Filter- und Label-Seiten bleibt sie stehen
-    // und trug weiter das alte Projekt. Der Zug hatte funktioniert, nur die Zeile log.
-    t.project ?? "",
-    t.parent ?? "", t.parent ? (plugin.index.get(t.parent)?.title ?? "") : "",
-    // Zeitstempel der Übergänge: Sie ordnen die Erledigt-/Papierkorb-Sektionen und sind der
-    // einzige sichtbare Unterschied, wenn sich sonst nichts an der Aufgabe ändert.
-    t.completed ?? "", t.cancelled ?? "",
-    plugin.index.commentsOf(t.path),
-  ].join("");
-}
-
-/** Signatur einer Sektion: über ihre Anker UND deren Unterbaum – verschachtelte Zeilen gehören
- *  zur Sektion, auch wenn sie nicht in `tasks` stehen. Bewusst ohne Rücksicht auf den Auf-/
- *  Zugeklappt-Zustand: die Menge ist damit eher zu groß als zu klein (s. o.), und der Zustand
- *  selbst steckt in der Rahmen-Signatur. */
-function sectionSig(ctx: PageCtx, tasks: Task[], present: Set<string> | undefined, ownRow: ((t: Task) => boolean) | undefined, trash: boolean): string {
-  const plugin = ctx.plugin;
+/** Der Zugang der Signatur zu Index und Klappzustand (s. rowSignature.ts). */
+function sigLookup(ctx: PageCtx): SigLookup {
+  const idx = ctx.plugin.index;
   const subs = effectiveSubtasks(ctx.opts);
-  const top = trash ? tasks : visibleRows(tasks, present, ownRow);
-  const seen = new Set<string>();
-  const parts: string[] = [];
-  const walk = (tk: Task): void => {
-    if (seen.has(tk.path)) return;
-    seen.add(tk.path);
-    // Der Auf-/Zugeklappt-Zustand gehört dazu: das Unteraufgaben-Badge klappt per ctx.redraw()
-    // um, ohne dass sich an den Aufgaben selbst etwas ändert. Fehlte er hier, bliebe der Klick
-    // auf einer gepatchten Seite wirkungslos.
-    parts.push(rowSig(plugin, tk), subsExpanded(ctx, tk.path, subs) ? "+" : "-");
-    for (const kid of plugin.index.children(tk.path)) if (!isTrashed(kid.status)) walk(kid);
+  return {
+    title: (p) => idx.get(p)?.title,
+    comments: (p) => idx.commentsOf(p),
+    children: (p) => idx.children(p),
+    expanded: (p) => subsExpanded(ctx, p, subs),
   };
-  for (const tk of top) walk(tk);
-  return parts.join("");
 }
 
 /** Der Rahmen: alles, was NICHT die Zeilen selbst sind. Weicht davon etwas ab, ist der

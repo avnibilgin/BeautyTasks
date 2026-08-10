@@ -2340,8 +2340,12 @@ export default class BeautyTasksPlugin extends Plugin {
    * Geschwistergruppe; `sort_order` wird nur INNERHALB einer Gruppe verglichen. Es wird kein
    * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
    */
-  async duplicateSubtree(srcParentPath: string, newParentBase: string): Promise<void> {
-    const kids = subtasksToDuplicate(this.index.children(srcParentPath));
+  async duplicateSubtree(srcParentPath: string, newParentBase: string, gesehen = new Set<string>([srcParentPath])): Promise<void> {
+    // Kreis-Schutz wie bei TaskIndex.descendants: `parent` ist ein von Hand schreibbares Feld.
+    // Führt eine Aufgabe sich selbst (oder über eine Kette) als Elternaufgabe, lief diese
+    // Rekursion endlos – und legte dabei bei JEDEM Durchlauf Notizen an. Anders als ein
+    // Stapelüberlauf wäre das nicht nur ein Absturz, sondern ein zugemüllter Vault.
+    const kids = subtasksToDuplicate(this.index.children(srcParentPath)).filter((k) => !gesehen.has(k.path));
     let order = ORDER_GAP;
     for (const kid of kids) {
       const copy = await createTaskNote(this.app, this.settings, {
@@ -2361,7 +2365,8 @@ export default class BeautyTasksPlugin extends Plugin {
         sortOrder: order,
       });
       order += ORDER_GAP;
-      await this.duplicateSubtree(kid.path, copy.basename);   // Enkel & tiefer
+      gesehen.add(kid.path);
+      await this.duplicateSubtree(kid.path, copy.basename, gesehen);   // Enkel & tiefer
     }
   }
 

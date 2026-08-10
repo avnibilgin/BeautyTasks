@@ -414,10 +414,26 @@ export class TaskIndex extends Component {
    *  gehört das Ergebnis dem Cache: nicht an Ort und Stelle sortieren oder umhängen, sondern
    *  vorher kopieren (`sortSubtasks` und die `.filter()`-Aufrufer tun das bereits). */
   children(parentPath: string): Task[] { return this.byParentMap().get(parentPath) ?? []; }
-  /** Alle Nachfahren (rekursiv, jeder Status) einer Aufgabe – z. B. für Kaskaden-Aktionen. */
+  /**
+   * Alle Nachfahren (rekursiv, jeder Status) einer Aufgabe – z. B. für Kaskaden-Aktionen.
+   *
+   * Mit Schutz gegen Kreise: `parent` ist ein von Hand schreibbares Frontmatter-Feld, und eine
+   * Aufgabe, die sich selbst (oder über eine Kette) als Elternaufgabe führt, ließ die Rekursion
+   * bis zum Stapelüberlauf laufen. Das traf keine Anzeige, sondern die Kaskaden: Löschen mit
+   * Unteraufgaben, Papierkorb und Duplizieren. Gefunden von der Differenzprüfung in
+   * tests/taskIndexFuzz.test.ts; ein Kreis ist unsinnig, darf die App aber nicht anhalten.
+   */
   descendants(path: string): Task[] {
     const out: Task[] = [];
-    const walk = (p: string): void => { for (const kid of this.children(p)) { out.push(kid); walk(kid.path); } };
+    const gesehen = new Set<string>([path]);
+    const walk = (p: string): void => {
+      for (const kid of this.children(p)) {
+        if (gesehen.has(kid.path)) continue;
+        gesehen.add(kid.path);
+        out.push(kid);
+        walk(kid.path);
+      }
+    };
     walk(path);
     return out;
   }
