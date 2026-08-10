@@ -1284,13 +1284,54 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   // Die Zeilen einer Sektion füllen – als Closure, damit der Abgleich (tryPatchList) sie später
   // mit GENAU denselben Parametern neu zeichnen kann, ohne sie ein zweites Mal herzuleiten.
   // Dasselbe Mittel wie `paint` bei tryPatchCalendar.
+  //
+  // Gezeichnet wird stückweise: erst ein Schub, der Rest sobald das Ende der Sektion in die Nähe
+  // des Sichtfelds kommt. Bei 1411 Zeilen entstehen so beim Öffnen ~60 statt 1411 – die Arbeit
+  // verschwindet nicht, sie verteilt sich auf das, was man wirklich ansieht. `shown` merkt sich,
+  // wie weit die Sektion schon aufgebaut ist; ein Abgleich (paintRows) baut genau so weit wieder
+  // auf, sonst schrumpfte die Liste unter einem weit heruntergescrollten Nutzer weg.
+  let shown = 0;
+  let rowsNow: Task[] = [];
+  const drawSlice = (von: number, bis: number): void => {
+    for (const task of rowsNow.slice(von, bis)) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
+    annotateSubtaskTree(list);
+  };
+  /** Nächsten Schub anhängen; gibt zurück, ob danach noch etwas fehlt. */
+  const grow = (): boolean => {
+    const bis = Math.min(rowsNow.length, shown + CHUNK_ROWS);
+    drawSlice(shown, bis);
+    shown = bis;
+    return shown < rowsNow.length;
+  };
   const paintRows = (rows: Task[]): void => {
+    // Beim Nachfüllen fallen die Zeilen kurz weg. Wer tief gescrollt ist, dem klemmt der Browser
+    // die Scrollposition an die geschrumpfte Höhe – und nach dem Wiederaufbau stünde er woanders.
+    // Deshalb merken und zurücksetzen; die Höhe ist danach praktisch dieselbe.
+    const scroller = list.closest<HTMLElement>(".bt-view");
+    const oben = scroller?.scrollTop ?? 0;
     // Nur die Zeilen, nicht den ganzen Container: davor kann die Termin-Box des Tages stehen
     // (renderEventBands), und die gehört nicht zu den Aufgaben.
     list.querySelectorAll(":scope > .bt-task").forEach((el) => el.remove());
-    for (const task of rows) renderTask(list, ctx, task, today, 0, trash, { subs, manual, showDone: o.showDone, impliedDate, deadlineImplied, hideProject });
-    annotateSubtaskTree(list);
-    countEl.setText(String(rows.length));
+    rowsNow = rows;
+    const bisher = shown;
+    shown = 0;
+    // Mindestens ein Schub, höchstens so weit wie vorher – und nie über das Ende hinaus.
+    // Ausnahme: Steht ein Sprung aus der Suche an, wird die Sektion GANZ gezeichnet. Aufblitzen
+    // und Ins-Bild-Scrollen hängen daran, dass es die Zeile gibt – und sie kann überall stehen.
+    const ziel = ctx.plugin.flashPath ? rows.length : Math.min(rows.length, Math.max(CHUNK_ROWS, bisher));
+    drawSlice(0, ziel);
+    shown = ziel;
+    countEl.setText(String(rows.length));   // die Überschrift zählt IMMER alle, nicht die gezeichneten
+    armSentinel();
+    if (scroller && oben && scroller.scrollTop !== oben) scroller.scrollTop = oben;
+  };
+  // Der Wächter am Ende der Sektion: kommt er ins Bild, kommt der nächste Schub.
+  let sentinel: HTMLElement | null = null;
+  const armSentinel = (): void => {
+    if (shown >= rowsNow.length) { sentinel?.remove(); sentinel = null; return; }
+    if (!sentinel) sentinel = list.createDiv({ cls: "bt-lazy-sentinel" });
+    else list.appendChild(sentinel);   // ans Ende nachziehen
+    observeSentinel(sentinel, () => { const rest = grow(); if (sentinel) list.appendChild(sentinel); return rest; });
   };
   paintRows(top);
   // Termin-Bänder zeichnet der Abgleich nicht mit -> solche Sektionen nehmen am Patch nicht teil.
@@ -1378,6 +1419,43 @@ const listMounts = new WeakMap<HTMLElement, ListMount>();
 let recording: SectionRec[] | null = null;
 /** So viele Patches am Stück, dann einmal regulär neu bauen (s. repaint). */
 const PATCH_LIMIT = 200;
+/** Zeilen je Schub. Grob ein Bildschirm plus Reserve – klein genug, dass das Öffnen nicht mehr
+ *  wartet, groß genug, dass Scrollen nicht ständig nachladen muss. */
+const CHUNK_ROWS = 60;
+
+const sentinelObservers = new WeakMap<Element, IntersectionObserver>();
+/**
+ * Den Wächter am Ende einer Sektion bewachen: kommt er ins Bild, zeichnet `grow` den nächsten
+ * Schub und meldet, ob danach noch etwas fehlt.
+ *
+ * Ein Beobachter je Wächter statt einem globalen: Wird die Sektion verworfen (voller Neuaufbau),
+ * hält niemand mehr den Beobachter, und er verschwindet mitsamt seinem Ziel. Ein gemeinsamer
+ * Beobachter müsste jeden abgehängten Wächter einzeln abmelden – und übersähe man einen, hielte
+ * er dessen ganzen Teilbaum am Leben.
+ *
+ * `el.ownerDocument.defaultView` statt `window`: In einem ausgeklappten Fenster gehört der
+ * Beobachter in JENES Fenster, sonst misst er gegen das falsche Sichtfeld.
+ */
+function observeSentinel(el: HTMLElement, grow: () => boolean): void {
+  if (sentinelObservers.has(el)) return;   // steht schon unter Beobachtung
+  const win = el.ownerDocument.defaultView;
+  if (!win) return;
+  const io = new win.IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    if (grow()) {
+      // IntersectionObserver meldet nur ÜBERGÄNGE. Steht der Wächter nach dem Schub weiter im
+      // Bild (hohes Fenster, kurzer Schub), käme nie wieder ein Rückruf – erneutes Anmelden
+      // stößt ihn mit dem AKTUELLEN Zustand neu an.
+      io.unobserve(el); io.observe(el);
+    } else {
+      io.disconnect();
+      sentinelObservers.delete(el);
+      el.remove();
+    }
+  }, { rootMargin: "800px 0px" });
+  sentinelObservers.set(el, io);
+  io.observe(el);
+}
 
 
 /** Alles, was das AUSSEHEN EINER ZEILE bestimmt – inklusive der Werte, die renderTask sich
