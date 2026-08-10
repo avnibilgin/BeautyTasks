@@ -1157,11 +1157,28 @@ function renderKanbanBoard(root: HTMLElement, ctx: PageCtx, tasks: Task[], today
     };
     zeichne(Math.max(0, Math.min(colTasks.length, pageBudget)));
     pageBudget -= gezeigt;
+    // War die Spalte gescrollt, wird BIS DAHIN gezeichnet, bevor die Position gesetzt wird.
+    //
+    // Ein Platzhalter allein genügt hier nicht: Solange die Spalte keine einzige Karte gezeichnet
+    // hat (Budget aufgebraucht, etwa weil sie weit rechts steht), gibt es keine gemessene
+    // Kartenhöhe – der Platzhalter beruht dann auf CARD_PX. Ist die echte Karte höher, ist die
+    // Spalte zu kurz, der Browser klemmt die gemerkte Position auf sein Maximum, und man landet
+    // wieder oben. Genau das passierte beim Verschieben einer Spalte, in der man weit unten war.
+    //
+    // Teuer ist das nicht: gezeichnet wird nur, was der Nutzer ohnehin schon durchgescrollt hat.
+    const savedTop = colScroll.get(colKey);
+    if (savedTop) {
+      // Erst etwas zeichnen, um überhaupt messen zu können – noch ohne Wächter, sonst stünde
+      // dessen Höhe mit in der Messung.
+      if (!gezeigt) zeichne(Math.min(colTasks.length, CHUNK_ROWS));
+      if (gezeigt) kartePx = listEl.scrollHeight / gezeigt;
+      const noetig = Math.ceil((savedTop + listEl.clientHeight) / (kartePx || CARD_PX)) + CHUNK_ROWS;
+      zeichne(Math.min(colTasks.length, Math.max(gezeigt, noetig)));
+    }
     platzhalter();
     // Erst nach den Karten: vorher hat die Liste keine Höhe und scrollTop würde auf 0 geklemmt.
     // Ist die Spalte inzwischen kürzer (Karte ist rausgefallen), klemmt der Browser auf das neue
     // Maximum – das Scroll-Ereignis schreibt den geklemmten Wert dann selbst zurück.
-    const savedTop = colScroll.get(colKey);
     if (savedTop) listEl.scrollTop = savedTop;
 
     if (col.onAdd) {
@@ -2773,7 +2790,18 @@ export class MainView extends ItemView {
     // Bruchteil der Zeilen steht – nachgefüllt wird, was dadurch ins Bild kommt.
     // Bei einem Sprung aus der Suche NICHT: dort scrollt applyFlash absichtlich woandershin.
     const gemerkt = listScroll.get(this.scrollKey());
-    if (gemerkt && !this.plugin.flashPath && this.contentEl.scrollTop !== gemerkt) this.contentEl.scrollTop = gemerkt;
+    if (gemerkt && !this.plugin.flashPath && this.contentEl.scrollTop !== gemerkt) {
+      this.contentEl.scrollTop = gemerkt;
+      // Zweiter Versuch im nächsten Bild: Waren die Platzhalter der ungezeichneten Sektionen zu
+      // knapp geschätzt, war die Seite eben noch zu kurz und der Browser hat den Wert auf sein
+      // Maximum geklemmt. Der erste Versuch hat dann aber Sektionen ins Bild geholt, die sich
+      // daraufhin füllen – die Seite ist jetzt länger und die Position trifft. Genau EIN
+      // Nachschlag, keine Schleife: Bleibt es auch dann zu kurz, gibt es dort schlicht nicht
+      // mehr Inhalt.
+      window.requestAnimationFrame(() => {
+        if (this.contentEl.isConnected && !this.plugin.flashPath && this.contentEl.scrollTop < gemerkt) this.contentEl.scrollTop = gemerkt;
+      });
+    }
   }
 
   /** Tab UND Pane-Header (zwei getrennte Elemente) auf die aktuelle Seite bringen –
