@@ -573,11 +573,15 @@ function renderPageBody(root: HTMLElement, ctx: PageCtx, source: () => Task[], o
   // Zeichnen und dabei aufzeichnen (s. `recording` bei tryPatchList).
   const rec: SectionRec[] = [];
   const outer = recording;
+  const outerBudget = pageBudget;
   recording = rec;
+  // Budget für DIESE Seite: Was darüber hinausgeht, entsteht erst beim Hinscrollen (s. section).
+  pageBudget = FIRST_PAINT_ROWS;
   try {
     for (const s of plan()) section(root, ctx, s.title, s.tasks, today, s.collapsible, false, s.hosts, [], "", s.ownRow);
   } finally {
     recording = outer;
+    pageBudget = outerBudget;
   }
 
   /** Nachziehen statt neu bauen: gleiche Sektionen in gleicher Reihenfolge -> nur die füllen,
@@ -1290,6 +1294,11 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
   // verschwindet nicht, sie verteilt sich auf das, was man wirklich ansieht. `shown` merkt sich,
   // wie weit die Sektion schon aufgebaut ist; ein Abgleich (paintRows) baut genau so weit wieder
   // auf, sonst schrumpfte die Liste unter einem weit heruntergescrollten Nutzer weg.
+  // Anteil dieser Sektion am Budget der Seite. Ist es aufgebraucht, startet sie leer und füllt
+  // sich erst, wenn man in ihre Nähe scrollt.
+  const startRows = Math.max(0, Math.min(top.length, pageBudget));
+  pageBudget -= startRows;
+  let first = true;
   let shown = 0;
   let rowsNow: Task[] = [];
   const drawSlice = (von: number, bis: number): void => {
@@ -1315,10 +1324,13 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     rowsNow = rows;
     const bisher = shown;
     shown = 0;
-    // Mindestens ein Schub, höchstens so weit wie vorher – und nie über das Ende hinaus.
+    // Erster Anstrich: der Anteil am Seiten-Budget (oft 0). Später (Abgleich): mindestens ein
+    // Schub, höchstens so weit wie vorher – nie über das Ende hinaus.
     // Ausnahme: Steht ein Sprung aus der Suche an, wird die Sektion GANZ gezeichnet. Aufblitzen
     // und Ins-Bild-Scrollen hängen daran, dass es die Zeile gibt – und sie kann überall stehen.
-    const ziel = ctx.plugin.flashPath ? rows.length : Math.min(rows.length, Math.max(CHUNK_ROWS, bisher));
+    const mindest = first ? startRows : CHUNK_ROWS;
+    first = false;
+    const ziel = ctx.plugin.flashPath ? rows.length : Math.min(rows.length, Math.max(mindest, bisher));
     drawSlice(0, ziel);
     shown = ziel;
     countEl.setText(String(rows.length));   // die Überschrift zählt IMMER alle, nicht die gezeichneten
@@ -1331,6 +1343,9 @@ function section(parent: HTMLElement, ctx: PageCtx, title: string, tasks: Task[]
     if (shown >= rowsNow.length) { sentinel?.remove(); sentinel = null; return; }
     if (!sentinel) sentinel = list.createDiv({ cls: "bt-lazy-sentinel" });
     else list.appendChild(sentinel);   // ans Ende nachziehen
+    // Platzhalter-Höhe für das, was noch fehlt. Ohne sie wären ALLE ungezeichneten Sektionen
+    // gleichzeitig im Sichtfeld (sie wären ja 0 hoch) und würden sich sofort alle füllen.
+    sentinel.style.height = ((rowsNow.length - shown) * ROW_PX) + "px";
     observeSentinel(sentinel, () => { const rest = grow(); if (sentinel) list.appendChild(sentinel); return rest; });
   };
   paintRows(top);
@@ -1422,6 +1437,22 @@ const PATCH_LIMIT = 200;
 /** Zeilen je Schub. Grob ein Bildschirm plus Reserve – klein genug, dass das Öffnen nicht mehr
  *  wartet, groß genug, dass Scrollen nicht ständig nachladen muss. */
 const CHUNK_ROWS = 60;
+/**
+ * Zeilen, die eine SEITE beim Öffnen insgesamt zeichnet – über alle Sektionen zusammen.
+ *
+ * Das Budget muss der Seite gehören und nicht der Sektion: Eine nach Datum gruppierte Filterseite
+ * mit 1411 Aufgaben zerfällt in ~200 Tages-Sektionen, von denen fast jede unter einem Schub
+ * liegt. Je Sektion gedeckelt hätte also praktisch jede voll gezeichnet und in Summe wären
+ * dieselben ~800 Zeilen entstanden wie vorher – gemessen an einem echten Vault.
+ */
+const FIRST_PAINT_ROWS = 80;
+/** Geschätzte Zeilenhöhe für den Platzhalter ungezeichneter Zeilen. Betrifft NUR die Länge des
+ *  Rollbalkens, nie den Inhalt: zu klein geschätzt heisst, der Balken wächst beim Scrollen. */
+const ROW_PX = 34;
+
+/** Verbleibendes Zeichen-Budget der laufenden Seite (Infinity = keine Deckelung, z. B.
+ *  Heute/Demnächst – dort ist die Zeilenzahl klein). */
+let pageBudget = Number.POSITIVE_INFINITY;
 
 const sentinelObservers = new WeakMap<Element, IntersectionObserver>();
 /**
@@ -1452,7 +1483,7 @@ function observeSentinel(el: HTMLElement, grow: () => boolean): void {
       sentinelObservers.delete(el);
       el.remove();
     }
-  }, { rootMargin: "800px 0px" });
+  }, { rootMargin: "200px 0px 900px 0px" });
   sentinelObservers.set(el, io);
   io.observe(el);
 }
