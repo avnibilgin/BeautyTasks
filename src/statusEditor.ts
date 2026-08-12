@@ -8,6 +8,7 @@ import { openPopover } from "./popover";
 import { iconBtn, addRow, openColorPicker, confirmInline, attachRowDrag } from "./manageView";
 import { ConfirmModal } from "./confirmModal";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 /** Standard-Rollen (welcher Status wird wofür genommen) – für die Badges im Editor. */
 interface StatusRoles { newTask: string; done: string; trash?: string; }
@@ -37,7 +38,8 @@ export function renderStatusEditor(container: HTMLElement, plugin: BeautyTasksPl
   head.createEl("p", { cls: "bt-manage-hint", text: t("status_hint") });
   const resetWrap = head.createDiv({ cls: "bt-status-reset-wrap" });
   // Reset als Icon (rotate-ccw), einheitlich zu den anderen Reset-Buttons in den Einstellungen.
-  const resetBtn = resetWrap.createEl("button", { cls: "clickable-icon", attr: { "aria-label": t("status_reset_default"), "data-tooltip-position": "top" } });
+  const resetBtn = resetWrap.createEl("button", { cls: "clickable-icon" });
+  tip(resetBtn, t("status_reset_default"));
   setIcon(resetBtn, "rotate-ccw");
   resetBtn.onclick = () => confirmInline(resetWrap, t("confirm_reset_statuses_q"), () => then(plugin.resetStatuses(), redraw), redraw);
   const statuses = plugin.getStatuses();
@@ -72,7 +74,8 @@ function statusRow(list: HTMLElement, plugin: BeautyTasksPlugin, s: StoredStatus
 
   // Sortier-Griff: Drag&Drop (dasselbe System wie Chip-/Nav-Sortierung) + Pfeiltasten (a11y/mobil).
   // Ziehen ordnet innerhalb der Gruppe; persist() liest danach die volle Reihenfolge über alle Gruppen.
-  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0" } });
+  tip(grip, t("menu_reorder"));
   setIcon(grip, "grip-vertical");
   grip.onkeydown = (e) => {
     if (e.key === "ArrowUp") { e.preventDefault(); then(plugin.moveStatus(s.id, -1), redraw); }
@@ -176,7 +179,8 @@ function openIconPicker(anchor: HTMLElement, plugin: BeautyTasksPlugin, s: Store
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-icon-grid");
     for (const ic of ICON_PRESETS) {
-      const b = pop.createEl("button", { cls: "bt-icon-cell" + (s.icon === ic ? " is-active" : ""), attr: { "aria-label": ic } });
+      const b = pop.createEl("button", { cls: "bt-icon-cell" + (s.icon === ic ? " is-active" : "") });
+      tip(b, ic);
       setIcon(b, ic);
       b.onclick = () => { then(plugin.setStatusIcon(s.id, ic), redraw); close(); };
     }

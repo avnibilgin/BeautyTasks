@@ -11,6 +11,7 @@ import { isDone, isOpen } from "./statuses";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
 import { openPopover } from "./popover";
+import { tip, tipWhenClipped } from "./tooltip";
 import {
   CalMode, CAL_MODES, monthGrid, timeGridDays, timeGridStep, yearMonths, bucketByDate, layoutDayMixed, allDayOf,
   addDays, addMonths, addYears, sameMonth, parseISO, DEFAULT_BLOCK_MIN,
@@ -154,7 +155,8 @@ export function renderCalendar(root: HTMLElement, ctx: PageCtx, source: () => Ta
   const head = root.createDiv({ cls: "bt-calview-head" });
   const nav = head.createDiv({ cls: "bt-calview-nav" });
   const navBtn = (icon: string, label: string, onClick: () => void): void => {
-    const b = nav.createEl("button", { cls: "bt-calview-nav-btn", attr: { "aria-label": label, "data-tooltip-position": "top" } });
+    const b = nav.createEl("button", { cls: "bt-calview-nav-btn" });
+    tip(b, label);
     setIcon(b, icon);
     b.onclick = onClick;
   };
@@ -183,8 +185,8 @@ export function renderCalendar(root: HTMLElement, ctx: PageCtx, source: () => Ta
     // „Eingang" (ein Projekt) statt „ohne Datum" (ein Zustand) – das falsche Bild.
     const tgl = seg.createEl("button", {
       cls: "bt-tab bt-calview-panel-btn" + (opts.calPanel ? " is-active" : ""),
-      attr: { "aria-label": t("cal_unscheduled"), "data-tooltip-position": "top" },
     });
+    tip(tgl, t("cal_unscheduled"));
     setIcon(tgl.createSpan({ cls: "bt-calview-panel-ic" }), "calendar-off");
     const n = tgl.createSpan({ cls: "bt-calview-panel-n" });
     setPanelCount = (count: number) => n.setText(count ? String(count) : "");
@@ -288,12 +290,7 @@ function renderYear(root: HTMLElement, plugin: BeautyTasksPlugin,
     for (const { day, el } of cells) {
       const n = (buckets.get(day) ?? []).length;
       el.toggleClass("has-tasks", n > 0);
-      if (n) {
-        el.setAttribute("aria-label", t("cal_tasks", n));
-        el.setAttribute("data-tooltip-position", "top");
-      } else {
-        el.removeAttribute("aria-label");
-      }
+      tip(el, n ? t("cal_tasks", n) : "");
     }
   };
 }
@@ -537,8 +534,7 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
           const inner = el.createDiv({ cls: "bt-calview-ev-in" });
           inner.createDiv({ cls: "bt-calview-ev-title", text: b.event.title });
           if (!compact) inner.createDiv({ cls: "bt-calview-ev-time", text: span(b.startMin, b.endMin) });
-          el.setAttr("aria-label", eventTooltip({ event: b.event, startMin: b.startMin, endMin: b.endMin }));
-          el.setAttr("data-tooltip-position", "top");
+          tip(el, eventTooltip({ event: b.event, startMin: b.startMin, endMin: b.endMin }));
           activateEventOpen(el, b.event);
           continue;
         }
@@ -551,8 +547,11 @@ function renderTimeGrid(root: HTMLElement, plugin: BeautyTasksPlugin,
         decorate(el, plugin, b.task);
         renderCheck(el, plugin, b.task, { compact: true });
         const inner = el.createDiv({ cls: "bt-calview-block-in" });
-        inner.createDiv({ cls: "bt-calview-block-title", text: b.task.title });
+        const titleEl = inner.createDiv({ cls: "bt-calview-block-title", text: b.task.title });
         if (!compact) inner.createDiv({ cls: "bt-calview-block-time", text: span(b.startMin, b.endMin) });
+        // Gleiche Bauart wie beim Termin daneben (Zeitspanne · Titel) – nur eben erst, wenn der
+        // Titel im Block nicht mehr ganz hineinpasst.
+        tipWhenClipped(el, titleEl, span(b.startMin, b.endMin) + " · " + b.task.title);
         dragSource(el, b.task);
         // Griff am unteren Rand: zieht die Dauer auf (rundet auf 15 min, Minimum 15 min).
         const grip = el.createDiv({ cls: "bt-calview-resize" });
@@ -594,7 +593,8 @@ function renderUnscheduled(body: HTMLElement, plugin: BeautyTasksPlugin, add: Ca
       decorate(card, plugin, tk);
       renderCheck(card, plugin, tk, { compact: true });
       const inner = card.createDiv({ cls: "bt-calview-panel-card-in" });
-      inner.createSpan({ cls: "bt-calview-panel-card-title", text: tk.title });
+      const titleEl = inner.createSpan({ cls: "bt-calview-panel-card-title", text: tk.title });
+      tipWhenClipped(card, titleEl, tk.title);
       // „Nicht einsortiert" (kein Projekt oder Inbox-Verweis) -> @Eingang, sonst @Projekt.
       const proj = isInboxLink(tk.project) ? t("nav_inbox") : projectDisplayName(projectBase(tk.project!));
       inner.createSpan({ cls: "bt-calview-panel-card-proj", text: "@" + proj });
@@ -648,7 +648,10 @@ function renderChip(parent: HTMLElement, plugin: BeautyTasksPlugin, task: Task):
   decorate(chip, plugin, task);
   renderCheck(chip, plugin, task, { compact: true });   // Klick = erledigt, Rechtsklick = Status-Menü
   if (task.dueTime) chip.createSpan({ cls: "bt-calview-chip-time", text: task.dueTime });
-  chip.createSpan({ cls: "bt-calview-chip-title", text: task.title });
+  const titleEl = chip.createSpan({ cls: "bt-calview-chip-title", text: task.title });
+  // In eine Monatszelle passen selten mehr als ein paar Zeichen – ohne das hier war der Titel
+  // eines Chips nur zu lesen, indem man die Aufgabe öffnete. Aufbau wie beim Termin-Chip.
+  tipWhenClipped(chip, titleEl, (task.dueTime ? task.dueTime + " · " : "") + task.title);
   dragSource(chip, task);
 }
 
@@ -690,8 +693,9 @@ function renderEventChip(parent: HTMLElement, de: DayEvent): void {
   chip.createSpan({ cls: "bt-calview-evbar", attr: { "aria-hidden": "true" } });
   if (de.startMin !== null) chip.createSpan({ cls: "bt-calview-chip-time", text: hhmm(de.startMin) });
   chip.createSpan({ cls: "bt-calview-chip-title", text: ev.title });
-  chip.setAttr("aria-label", eventTooltip(de));
-  chip.setAttr("data-tooltip-position", "top");
+  // Termine behalten ihren dauerhaften Tooltip: er trägt zusätzlich den ORT, der nirgends
+  // auf dem Bildschirm steht – anders als bei Aufgaben fügt er also immer etwas hinzu.
+  tip(chip, eventTooltip(de));
   activateEventOpen(chip, ev);
 }
 

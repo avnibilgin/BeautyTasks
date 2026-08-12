@@ -31,6 +31,7 @@ import { readNoteViewOptions, setNoteViewOption, readViewOptions, readNoteCriter
 import { nextInstance, legacyToRRule } from "./recurrence";
 import { todayStr, localStamp, dateOf, timeOf, combineDT } from "./format";
 import { t, setLocale } from "./i18n";
+import { tip } from "./tooltip";
 import { BeautyTasksSettingTab } from "./settingsTab";
 import { TaskSearchModal } from "./searchModal";
 import { writeExportFile, parseExport, importData, JsonFilePickerModal, pickOsJsonFile } from "./importExport";
@@ -2710,7 +2711,7 @@ export default class BeautyTasksPlugin extends Plugin {
     const detail = i.status === "syncing" ? t("gcal_syncing")
       : i.status === "error" ? t("gcal_sync_error", i.lastError ?? "") + " — " + t("gcal_reconnect_hint")
       : t("gcal_last_synced", i.lastSyncedAt ? new Date(i.lastSyncedAt).toLocaleTimeString() : t("gcal_never"));
-    bar.setAttr("aria-label", t("set_gcal_heading") + " · " + detail);
+    tip(bar, t("set_gcal_heading") + " · " + detail);
   }
 
   /** Statusleiste neu zeichnen (nach Verbinden/Abmelden oder Toggle showStatusBar). */

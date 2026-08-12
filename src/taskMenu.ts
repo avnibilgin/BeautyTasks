@@ -16,12 +16,13 @@ import { ConfirmModal } from "./confirmModal";
 import { isTrashed } from "./statuses";
 import { combineDT } from "./format";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 
 /** Icon-Button einer Schnellzeile (Datum/Priorität). Liefert den Button für Sonderfälle. */
 function iconButton(row: HTMLElement, label: string, active: boolean, onClick: () => void): HTMLElement {
-  const b = row.createEl("button", { cls: "bt-icbtn" + (active ? " is-active" : ""),
-    attr: { "aria-label": label, "data-tooltip-position": "top" } });
+  const b = row.createEl("button", { cls: "bt-icbtn" + (active ? " is-active" : "") });
+  tip(b, label);
   b.onclick = (e) => { e.stopPropagation(); onClick(); };
   return b;
 }

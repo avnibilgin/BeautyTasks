@@ -2338,7 +2338,14 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-calview-dayhead.is-today { background: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
 .bt-calview-dayhead.is-today .bt-calview-dayhead-wd,
 .bt-calview-dayhead.is-today .bt-calview-dayhead-num { color: var(--text-accent, var(--interactive-accent)); }
-.bt-calview-allday { display: flex; border-bottom: 1px solid var(--background-modifier-border); min-height: 34px; }
+/* Die Zeile trägt ein aria-label („Ganztägig") NUR für Screenreader. Weil Obsidian aber jedem
+   Element mit aria-label automatisch einen Tooltip gibt, klappte über der ganzen Zeile ein
+   „Ganztägig" auf und verdeckte das Raster darunter. `--no-tooltip` ist Obsidians eigener
+   Schalter dagegen; fiele er weg, käme lediglich der Tooltip zurück. */
+.bt-calview-allday { display: flex; border-bottom: 1px solid var(--background-modifier-border); min-height: 34px; --no-tooltip: true; }
+/* ACHTUNG: Custom Properties VERERBEN. Ohne diese Rücknahme wären auch die Chips IN der Zeile
+   stumm – also genau die Aufgaben- und Termin-Tooltips, um die es hier geht. */
+.bt-calview-allday-cell { --no-tooltip: initial; }
 .bt-calview-allday .bt-calview-gutter { display: flex; align-items: center; justify-content: flex-end; }
 .bt-calview-allday-cell {
   flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px;

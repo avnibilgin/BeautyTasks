@@ -17,6 +17,7 @@ import { formatReminder } from "./reminders";
 import { isDone, isTrashed } from "./statuses";
 import { sortSubtasks } from "./filterEngine";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 /** Callbacks, die das Modal beisteuert. */
 export interface SubtaskHost {
@@ -124,7 +125,7 @@ export class SubtaskList {
       const head = wrap.createDiv({ cls: "bt-sec-head" });
       const toggleBtn = head.createEl("button", {
         cls: "bt-sec-toggle",
-        attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("subtasks") },
+        attr: { "aria-expanded": String(!this.collapsed) },
       });
       setIcon(toggleBtn.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
       toggleBtn.createSpan({ cls: "bt-sec-title", text: t("subtasks") });
@@ -191,7 +192,8 @@ export class SubtaskList {
     }
     if (kid.recurrence) meta().createSpan({ cls: "bt-st-chip bt-recur" });
     if (kid.reminders.length) {
-      const rem = meta().createSpan({ cls: "bt-remind", attr: { "aria-label": kid.reminders.map(formatReminder).join(" · "), "data-tooltip-position": "top" } });
+      const rem = meta().createSpan({ cls: "bt-remind" });
+      tip(rem, kid.reminders.map(formatReminder).join(" · "));
       setIcon(rem, "alarm-clock");
     }
     for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });
@@ -206,12 +208,14 @@ export class SubtaskList {
     const grand = this.plugin.index.children(kid.path).filter((g) => !isTrashed(g.status));
     if (grand.length) {
       const gDone = grand.filter((g) => isDone(g.status)).length;
-      const badge = meta().createSpan({ cls: "bt-st-kids", attr: { "aria-label": t("subtasks_progress", gDone, grand.length) } });
+      const badge = meta().createSpan({ cls: "bt-st-kids" });
+      tip(badge, t("subtasks_progress", gDone, grand.length));
       setIcon(badge.createSpan({ cls: "bt-st-kids-ic" }), "list-checks");
       badge.createSpan({ text: gDone + "/" + grand.length });
     }
 
-    const del = row.createEl("button", { cls: "bt-st-del", attr: { "aria-label": t("menu_cancel_task"), "data-tooltip-position": "top" } });
+    const del = row.createEl("button", { cls: "bt-st-del" });
+    tip(del, t("menu_cancel_task"));
     setIcon(del, "x");
     del.onclick = (e) => { e.stopPropagation(); void this.plugin.cancelTask(kid); };
   }
@@ -230,7 +234,8 @@ export class SubtaskList {
     // ⤢: Der getippte Text zieht in den vollen Editor um (dort gibt es alle Chips). Das Feld
     // wird dabei VORHER geleert – sonst legte flushDraft() beim Schliessen dieselbe Unteraufgabe
     // noch einmal an, und der volle Editor erzeugte gleich darauf die zweite.
-    const full = add.createEl("button", { cls: "bt-st-full", attr: { "aria-label": t("qa_open_full"), "data-tooltip-position": "top" } });
+    const full = add.createEl("button", { cls: "bt-st-full" });
+    tip(full, t("qa_open_full"));
     setIcon(full, "maximize-2");
     full.onclick = () => { const v = inp.value.trim(); inp.value = ""; this.host.openFullEditor(v); };
     if (focus) window.setTimeout(() => inp.focus(), 0);
