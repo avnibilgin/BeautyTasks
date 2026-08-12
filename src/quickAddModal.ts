@@ -10,6 +10,7 @@ import { Priority, TaskStatus } from "./types";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
 import { createTaskNote, listProjectsAndAreas, knownProjectNames, isInboxLink } from "./taskService";
 import { t, projectDisplayName } from "./i18n";
+import { tip } from "./tooltip";
 import { todayStr } from "./format";
 import { openPopover, popRow } from "./popover";
 import { CHIPS, ChipHost, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings } from "./chips";
@@ -70,10 +71,12 @@ export class QuickAddModal extends Modal {
     this.chipBar = row.createDiv({ cls: "bt-chips bt-qa-chips" });
 
     const right = row.createDiv({ cls: "bt-qa-foot-right" });
-    const full = right.createEl("button", { cls: "bt-qa-icon", attr: { "aria-label": t("qa_open_full"), "data-tooltip-position": "top" } });
+    const full = right.createEl("button", { cls: "bt-qa-icon" });
+    tip(full, t("qa_open_full"));
     setIcon(full, "maximize-2");
     full.onclick = () => this.openInFull();
-    const submit = right.createEl("button", { cls: "mod-cta bt-qa-submit", attr: { "aria-label": t("btn_add_task"), "data-tooltip-position": "top" } });
+    const submit = right.createEl("button", { cls: "mod-cta bt-qa-submit" });
+    tip(submit, t("btn_add_task"));
     setIcon(submit, "arrow-up");
     submit.onclick = () => void this.submit();
 
@@ -165,14 +168,16 @@ export class QuickAddModal extends Modal {
       else if (c.kind === "details") this.renderDetailsChip(bar);
       else renderValueChip(bar, host, c, set);
     }
-    const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : ""), attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
+    const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : "") });
+    tip(acts, t("task_actions"));
     setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
     acts.onclick = (e) => { e.stopPropagation(); this.openPlusMenu(acts); };
   }
 
   /** Details-Chip: öffnet den vollen Editor mit aufgeklapptem Detailbereich (kein Inline-Log). */
   private renderDetailsChip(bar: HTMLElement): void {
-    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details", attr: { "aria-label": t("details"), "data-tooltip-position": "top" } });
+    const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" });
+    tip(chip, t("details"));
     setIcon(chip.createSpan({ cls: "bt-chip-ic" }), "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
     chip.onclick = (e) => { e.stopPropagation(); this.openInFull(true); };

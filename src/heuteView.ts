@@ -26,6 +26,7 @@ import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
 import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
+import { tip, tipWhenClipped } from "./tooltip";
 
 /**
  * ── Transienter Anzeige-Zustand: IMMER mit dem Tab schlüsseln ─────────────────────────────────
@@ -309,7 +310,8 @@ export function renderViewInto(c: HTMLElement, ctx: PageCtx, view: ViewId): void
     // Papierkorb-Aktionen im Kebab (nur im Papierkorb-Tab und nur wenn etwas drin ist):
     // Alle wiederherstellen (reversibel) · Papierkorb leeren (destruktiv -> Bestätigung).
     if (ctx.doneTab === "trash" && idx.cancelled().length) {
-      const kebab = headActions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+      const kebab = headActions.createEl("button", { cls: "bt-manage-btn" });
+      tip(kebab, t("more_actions"));
       setIcon(kebab.createSpan(), "more-horizontal");
       kebab.onclick = (e) => {
         e.stopPropagation();
@@ -657,7 +659,8 @@ function pageHeader(root: HTMLElement, ctx: PageCtx, titleEl: HTMLElement, opts:
   const actions = head.createDiv({ cls: "bt-head-actions" });
   if (opts.menu) {
     const it = opts.menu;
-    const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+    const kebab = actions.createEl("button", { cls: "bt-manage-btn" });
+    tip(kebab, t("more_actions"));
     setIcon(kebab.createSpan(), "more-horizontal");
     kebab.onclick = (e) => { e.stopPropagation(); const m = new Menu(); buildItemMenu(m, plugin, it, "board"); m.showAtMouseEvent(e); };
   }
@@ -687,8 +690,7 @@ function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | u
   // Der Tooltip zeigt den VOLLEN Text – die Zeile ist auf eine Zeile begrenzt, Längeres wäre
   // sonst nur in der Notiz zu lesen. Beim Platzhalter gibt es nichts zu zeigen, dort nennt er
   // stattdessen das Ziel des Klicks.
-  el.setAttr("aria-label", t2 || t("menu_edit"));
-  el.setAttr("data-tooltip-position", "top");
+  tip(el, t2 || t("menu_edit"));
   el.onclick = () => openEdit(plugin, item);
   el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
 }
@@ -1292,8 +1294,7 @@ function renderEventBands(list: HTMLElement, ctx: PageCtx, events: DayEvent[], d
     }
     row.createSpan({ cls: "bt-gcal-band-title", text: ev.title });
     setIcon(row.createSpan({ cls: "bt-gcal-band-open", attr: { "aria-hidden": "true" } }), "external-link");
-    row.setAttr("aria-label", t("gcalfeed_open_in_google"));
-    row.setAttr("data-tooltip-position", "top");
+    tip(row, t("gcalfeed_open_in_google"));
     activateEventOpen(row, ev);
   }
   if (sorted.length > GCAL_BAND_LIMIT) {
@@ -1760,7 +1761,8 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   // wird per HTML5-Drag bewegt, der Papierkorb kennt keine Reihenfolge). Eigener Griff statt
   // Ganzzeilen-Drag, weil ein Klick auf die Zeile das Aufgaben-Modal öffnet.
   if (opts.manual && !opts.flat && !trash) {
-    const grip = row.createSpan({ cls: "bt-row-grip", attr: { "aria-label": t("sort_manual") } });
+    const grip = row.createSpan({ cls: "bt-row-grip" });
+    tip(grip, t("sort_manual"));
     setIcon(grip, "grip-vertical");
     attachTaskReorder(row, grip, list, task, plugin);
   }
@@ -1813,7 +1815,8 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
     const parent = plugin.index.get(task.parent!);
     if (parent) {
       const link = meta.createSpan({ cls: "bt-parent-link",
-        attr: { role: "button", tabindex: "0", "aria-label": t("menu_goto_parent") + ": " + parent.title, "data-tooltip-position": "top" } });
+        attr: { role: "button", tabindex: "0" } });
+      tip(link, t("menu_goto_parent") + ": " + parent.title);
       setIcon(link.createSpan({ cls: "bt-parent-link-ic" }), "corner-left-up");
       const openParent = (e: Event): void => { e.stopPropagation(); plugin.openEditTask(parent); };
       link.onclick = openParent;
@@ -1872,7 +1875,8 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   if (plan.recur) meta.createSpan({ cls: "bt-chip bt-recur" });
   // Erinnerungs-Indikator: nur Icon (alarm-clock, wie der Reminder-Chip im Editor), Details im Tooltip.
   if (plan.reminders.length) {
-    const rem = meta.createSpan({ cls: "bt-remind", attr: { "aria-label": plan.reminders.join(" · "), "data-tooltip-position": "top" } });
+    const rem = meta.createSpan({ cls: "bt-remind" });
+    tip(rem, plan.reminders.join(" · "));
     setIcon(rem, "alarm-clock");
   }
   // Text im eigenen Span (.bt-meta-txt), damit er sich unabhängig vom Icon vertikal feinjustieren lässt.
@@ -1894,10 +1898,14 @@ function renderTask(list: HTMLElement, ctx: PageCtx, task: Task, today: string, 
   if (plan.subs) {
     {
       const { done, total, open } = plan.subs;
-      const attr: Record<string, string> = { "aria-label": t("subtasks_progress", done, total) };
-      if (opts.flat) attr["data-tooltip-position"] = "top";
-      else { attr.role = "button"; attr.tabindex = "0"; }
+      // Rolle/Fokus nur, wo das Badge auch etwas tut. Die Tooltip-RICHTUNG hing hier früher am
+      // selben `if` und war deshalb je nach Modus verschieden: auf der Karte oben, in der Liste
+      // unten – direkt neben dem Eltern-Link, der immer oben aufklappte. Sie kommt jetzt aus
+      // tooltip.ts und ist überall gleich.
+      const attr: Record<string, string> = {};
+      if (!opts.flat) { attr.role = "button"; attr.tabindex = "0"; }
       const badge = meta.createSpan({ cls: "bt-subs" + (open ? " is-open" : "") + (opts.flat ? " is-static" : ""), attr });
+      tip(badge, t("subtasks_progress", done, total));
       setIcon(badge.createSpan({ cls: "bt-subs-ic" }), "list-checks");
       badge.createSpan({ cls: "bt-subs-n", text: done + "/" + total });
       if (!opts.flat) {
@@ -1987,7 +1995,12 @@ function activate(el: HTMLElement, handler: () => void): void {
 function navItem(c: HTMLElement, plugin: BeautyTasksPlugin, o: NavItemOpts): void {
   const item = c.createDiv({ cls: "bt-nav-item" + (o.active ? " is-active" : "") + (o.cls ? " " + o.cls : ""), attr: { role: "button", tabindex: "0" } });
   const ic = item.createSpan({ cls: "bt-nav-ic" }); setIcon(ic, o.icon); if (o.iconColor) ic.setCssStyles({ color: o.iconColor });
-  item.createSpan({ cls: "bt-nav-lbl", text: o.label });
+  const lbl = item.createSpan({ cls: "bt-nav-lbl", text: o.label });
+  // Langer Name in schmaler Leiste: Tooltip zeigt ihn ganz, statt den Nutzer die Leiste
+  // aufziehen zu lassen. Er hängt am Label, nicht an der Zeile – das Label ist das, was
+  // abgeschnitten wird, es füllt per flex:1 ohnehin die freie Breite, und ein aria-label an
+  // der Zeile würde für Screenreader den Zähler daneben verschlucken („Reisen" statt „Reisen 22").
+  tipWhenClipped(lbl, lbl, o.label);
   // Zähler-Span IMMER anlegen (auch bei 0 – dann leer): nur so kann ihn der Badge-Füller später
   // beschreiben, ohne die Seitenleiste neu zu bauen. o.countKey registriert ihn dafür.
   if (o.countKey || o.count) {
@@ -2066,7 +2079,7 @@ function navHintRow(c: HTMLElement, icon: string, label: string, onClick: () => 
 /** Ein-/ausklappbare Abschnittsüberschrift: Chevron-Toggle (Zustand persistent) + „+",
  *  das nur beim Hover/Fokus der Zeile erscheint. Gibt zurück, ob der Abschnitt eingeklappt ist. */
 function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: string,
-  tip: string, placeholder: string, redraw: () => void, submit: (v: string) => Promise<unknown>,
+  addTip: string, placeholder: string, redraw: () => void, submit: (v: string) => Promise<unknown>,
   onAddClick?: () => void): boolean {
   const collapsed = plugin.isNavCollapsed(id);
   const head = c.createDiv({ cls: "bt-nav-head" });
@@ -2079,7 +2092,8 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   activate(toggle, () => manageSec ? void plugin.activateManage(manageSec) : void plugin.toggleNavSection(id));
 
   // „+" (nur bei Hover/Fokus) direkt links vom Chevron.
-  const add = head.createDiv({ cls: "bt-nav-head-add", attr: { role: "button", tabindex: "0", "aria-label": tip, "data-tooltip-position": "top" } });
+  const add = head.createDiv({ cls: "bt-nav-head-add", attr: { role: "button", tabindex: "0" } });
+  tip(add, addTip);
   setIcon(add, "plus");
   activate(add, () => {
     if (onAddClick) { onAddClick(); return; }   // Sektionen mit eigenem Editor (z. B. Filter) öffnen ein Modal statt Inline-Eingabe
@@ -2104,7 +2118,8 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   });
 
   // Chevron rechts: vollwertiger, tastaturbedienbarer Klapp-Button (auf/zu) mit aria-expanded.
-  const chev = head.createDiv({ cls: "bt-nav-head-chevron", attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed), "aria-label": t("nav_toggle_section"), "data-tooltip-position": "top" } });
+  const chev = head.createDiv({ cls: "bt-nav-head-chevron", attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) } });
+  tip(chev, t("nav_toggle_section"));
   setIcon(chev, collapsed ? "chevron-right" : "chevron-down");
   activate(chev, () => void plugin.toggleNavSection(id));
 
@@ -2133,11 +2148,13 @@ function renderReorderList(c: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSe
   const list = c.createDiv({ cls: "bt-reorder-list" });
   for (const e of entries) {
     const row = list.createDiv({ cls: "bt-reorder-row", attr: { "data-key": e.key } });
-    const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+    const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0" } });
+    tip(grip, t("menu_reorder"));
     setIcon(grip, "grip-vertical");
     const ic = row.createSpan({ cls: "bt-nav-ic" }); setIcon(ic, e.icon);
     if (e.color) ic.setCssStyles({ color: e.color });
-    row.createSpan({ cls: "bt-nav-lbl", text: e.name });
+    const lbl = row.createSpan({ cls: "bt-nav-lbl", text: e.name });
+    tipWhenClipped(lbl, lbl, e.name);   // im Sortiermodus genauso lang wie sonst
     grip.onkeydown = (ev) => {
       if (ev.key === "ArrowUp") { ev.preventDefault(); void plugin.moveNavItemVisible(sec, e.key, -1); }
       else if (ev.key === "ArrowDown") { ev.preventDefault(); void plugin.moveNavItemVisible(sec, e.key, 1); }

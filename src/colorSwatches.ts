@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 /** Kuratierte Farbpalette (geteilt: Status-Picker, Neu-Modal, Filter-Editor). */
 export const COLOR_PRESETS = ["#e05c4a", "#f97316", "#f59e0b", "#4caf50", "#3b82f6", "#7c5cff", "#a855f7", "#ec4899"];
@@ -14,17 +15,20 @@ export function buildSwatchRow(row: HTMLElement, current: string | null, onPick:
   };
   const isPreset = !current || COLOR_PRESETS.includes(current);
 
-  const none = row.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current ? " is-active" : ""), attr: { "aria-label": t("status_color_none") } });
+  const none = row.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current ? " is-active" : "") });
+  tip(none, t("status_color_none"));
   setIcon(none, "ban");
   none.onclick = () => { onPick(null); mark(none); };
 
   for (const c of COLOR_PRESETS) {
-    const b = row.createEl("button", { cls: "bt-color-cell" + (current === c ? " is-active" : ""), attr: { "aria-label": c } });
+    const b = row.createEl("button", { cls: "bt-color-cell" + (current === c ? " is-active" : "") });
+    tip(b, c);
     b.style.setProperty("--bt-swatch", c);
     b.onclick = () => { onPick(c); mark(b); };
   }
 
-  const custom = row.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active"), attr: { "aria-label": t("color_custom") } });
+  const custom = row.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active") });
+  tip(custom, t("color_custom"));
   if (!isPreset && current) custom.style.setProperty("--bt-swatch", current);
   setIcon(custom, "pipette");
   const input = custom.createEl("input", { cls: "bt-color-input", attr: { type: "color" } });

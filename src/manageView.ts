@@ -10,6 +10,7 @@ import { NavSection, NavSortMode } from "./types";
 import { todayStr } from "./format";
 import { openPopover } from "./popover";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 /** Sortier-Umschalter „Manuell · Name · Anzahl" (leise, aktiv = Akzent) für eine Sektion. */
 function sortControl(parent: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection): void {
@@ -29,7 +30,8 @@ function sortControl(parent: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSec
  *  inkl. der in der Seitenleiste ausgeblendeten Einträge; ArrowUp/ArrowDown verschieben per Tastatur. */
 function reorderHandle(row: HTMLElement, list: HTMLElement, plugin: BeautyTasksPlugin, sec: NavSection, key: string): void {
   row.setAttr("data-key", key);
-  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0", "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+  const grip = row.createSpan({ cls: "bt-nav-grip", attr: { role: "button", tabindex: "0" } });
+  tip(grip, t("menu_reorder"));
   setIcon(grip, "grip-vertical");
   grip.onkeydown = (e) => {
     if (e.key === "ArrowUp") { e.preventDefault(); void plugin.moveNavItem(sec, key, -1); }
@@ -77,7 +79,8 @@ export function attachRowDrag(row: HTMLElement, grip: HTMLElement, list: HTMLEle
 // Archiv-Zeile: Name · Wiederherstellen · Endgültig löschen.
 
 export function iconBtn(parent: HTMLElement, icon: string, label: string, onClick: () => void): HTMLButtonElement {
-  const b = parent.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": label, "data-tooltip-position": "top" } });
+  const b = parent.createEl("button", { cls: "bt-manage-btn" });
+  tip(b, label);
   setIcon(b.createSpan(), icon);
   b.onclick = (e) => { e.stopPropagation(); onClick(); };
   return b;
@@ -186,7 +189,8 @@ export function addRow(parent: HTMLElement, label: string, placeholder: string, 
  *  Ohne eigene Farbe wird die Kategorie-Default-Farbe gezeigt (dieselbe wie in der Seitenleiste
  *  bei Anlegen ohne Farbwahl). previewKey = Nav-Schlüssel für die Live-Vorschau. */
 function colorDot(row: HTMLElement, plugin: BeautyTasksPlugin, current: string | null, previewKey: string, defaultColor: string, onPick: (c: string | null) => void): void {
-  const dot = row.createDiv({ cls: "bt-mrow-dot", attr: { "aria-label": t("status_pick_color"), "data-tooltip-position": "top" } });
+  const dot = row.createDiv({ cls: "bt-mrow-dot" });
+  tip(dot, t("status_pick_color"));
   dot.style.setProperty("--c", current ?? defaultColor);
   dot.onclick = (e) => { e.stopPropagation(); openColorPicker(dot, current, onPick, { onPreview: (c) => plugin.setColorPreview(previewKey, c), onClose: () => plugin.clearColorPreview() }); };
 }
@@ -198,12 +202,12 @@ function colorDot(row: HTMLElement, plugin: BeautyTasksPlugin, current: string |
 function syncSwitch(row: HTMLElement, plugin: BeautyTasksPlugin, path: string): void {
   if (!plugin.gcalSync.canSync()) return;   // nur wenn Sync wirklich aktiv (nicht bloß verbunden)
   let excluded = plugin.isListGcalExcluded(path);
-  const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", "data-tooltip-position": "top", tabindex: "0" } });
+  const btn = row.createDiv({ cls: "bt-mrow-sync", attr: { role: "switch", tabindex: "0" } });
   const paint = (): void => {
     setIcon(btn, excluded ? "calendar-off" : "calendar-sync");
     btn.toggleClass("is-off", excluded);
     btn.setAttr("aria-checked", String(!excluded));
-    btn.setAttr("aria-label", excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"));
+    tip(btn, excluded ? t("menu_gcal_include") : t("menu_gcal_exclude"));
   };
   paint();
   const toggle = (): void => { excluded = !excluded; paint(); void plugin.setListGcalExcluded(path, excluded); };
@@ -213,14 +217,16 @@ function syncSwitch(row: HTMLElement, plugin: BeautyTasksPlugin, path: string): 
 
 /** Sichtbarkeits-Schalter (immer sichtbar) – ersetzt das Auge-Icon. */
 function visSwitch(row: HTMLElement, on: boolean, onToggle: () => void): void {
-  const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), "aria-label": on ? t("tip_hide_sidebar") : t("tip_show_sidebar"), "data-tooltip-position": "top", tabindex: "0" } });
+  const sw = row.createDiv({ cls: "bt-mrow-switch" + (on ? " is-on" : ""), attr: { role: "switch", "aria-checked": String(on), tabindex: "0" } });
+  tip(sw, on ? t("tip_hide_sidebar") : t("tip_show_sidebar"));
   sw.onclick = (e) => { e.stopPropagation(); onToggle(); };
   sw.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } };
 }
 
 /** Überlauf-Kebab (Projekte/Bereiche): seltene Aktion „Umwandeln" (Projekt ↔ Bereich). */
 function rowMenu(actions: HTMLElement, plugin: BeautyTasksPlugin, it: ProjItem): void {
-  const kebab = actions.createEl("button", { cls: "bt-manage-btn", attr: { "aria-label": t("more_actions"), "data-tooltip-position": "top" } });
+  const kebab = actions.createEl("button", { cls: "bt-manage-btn" });
+  tip(kebab, t("more_actions"));
   setIcon(kebab.createSpan(), "more-horizontal");
   kebab.onclick = (e) => {
     e.stopPropagation();
@@ -370,18 +376,21 @@ export function openColorPicker(
 ): void {
   openPopover(anchor, (pop, close) => {
     pop.addClass("bt-color-grid");
-    const none = pop.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current ? " is-active" : ""), attr: { "aria-label": t("status_color_none") } });
+    const none = pop.createEl("button", { cls: "bt-color-cell bt-color-none" + (!current ? " is-active" : "") });
+    tip(none, t("status_color_none"));
     setIcon(none, "ban");
     none.onclick = () => { onPick(null); close(); };
     for (const c of COLOR_PRESETS) {
-      const b = pop.createEl("button", { cls: "bt-color-cell" + (current === c ? " is-active" : ""), attr: { "aria-label": c } });
+      const b = pop.createEl("button", { cls: "bt-color-cell" + (current === c ? " is-active" : "") });
+      tip(b, c);
       b.style.setProperty("--bt-swatch", c);
       b.onclick = () => { onPick(c); close(); };
     }
     // „Custom": der native Farbwähler liegt als transparenter Input ÜBER der Kachel, damit
     // sich das OS-Fenster genau hier öffnet (nicht in der Bildschirmecke).
     const isPreset = !current || COLOR_PRESETS.includes(current);
-    const custom = pop.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active"), attr: { "aria-label": t("color_custom") } });
+    const custom = pop.createEl("button", { cls: "bt-color-cell bt-color-custom" + (isPreset ? "" : " is-active") });
+    tip(custom, t("color_custom"));
     if (!isPreset && current) custom.style.setProperty("--bt-swatch", current);
     else setIcon(custom, "pipette");
     const input = custom.createEl("input", { type: "color", cls: "bt-color-input" });

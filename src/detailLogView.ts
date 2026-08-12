@@ -7,6 +7,7 @@ import type BeautyTasksPlugin from "./main";
 import { LogEntry, writeLog, nowLogTs, formatLogTime } from "./detailLog";
 import { ensureFolder } from "./taskService";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 /** Callbacks, die pro Modal unterschiedlich sind. */
 export interface DetailLogHost {
@@ -65,7 +66,7 @@ export class DetailLogView {
     const head = wrap.createDiv({ cls: "bt-sec-head" });
     const toggle = head.createEl("button", {
       cls: "bt-sec-toggle",
-      attr: { "aria-expanded": String(!this.collapsed), "aria-label": t("comments") },
+      attr: { "aria-expanded": String(!this.collapsed) },
     });
     setIcon(toggle.createSpan({ cls: "bt-sec-caret" }), this.collapsed ? "chevron-right" : "chevron-down");
     toggle.createSpan({ cls: "bt-sec-title", text: t("comments") });
@@ -114,10 +115,12 @@ export class DetailLogView {
       const content = row.createDiv({ cls: "bt-log-content" });
       this.renderEntry(content, entry, src);
       const acts = head.createDiv({ cls: "bt-log-actions" });
-      const ed = acts.createEl("button", { cls: "bt-log-act", attr: { "aria-label": t("log_edit") } });
+      const ed = acts.createEl("button", { cls: "bt-log-act" });
+      tip(ed, t("log_edit"));
       setIcon(ed.createSpan(), "pencil");
       ed.onclick = () => this.editEntry(idx, content);
-      const del = acts.createEl("button", { cls: "bt-log-act", attr: { "aria-label": t("btn_delete") } });
+      const del = acts.createEl("button", { cls: "bt-log-act" });
+      tip(del, t("btn_delete"));
       setIcon(del.createSpan(), "trash-2");
       del.onclick = () => { this.entries.splice(idx, 1); this.render(); void this.persistLog(); };
     });
@@ -138,13 +141,16 @@ export class DetailLogView {
     inp.ondragleave = () => inp.removeClass("bt-drop");
     inp.ondrop = (ev) => { const f = ev.dataTransfer?.files; if (f && f.length) { ev.preventDefault(); ev.stopPropagation(); inp.removeClass("bt-drop"); void this.handleFiles(f); } };
     const cActs = comp.createDiv({ cls: "bt-log-composer-actions" });
-    const attach = cActs.createEl("button", { cls: "bt-log-attach", attr: { "aria-label": t("log_attach") } });
+    const attach = cActs.createEl("button", { cls: "bt-log-attach" });
+    tip(attach, t("log_attach"));
     setIcon(attach.createSpan(), "paperclip");
     attach.onclick = () => this.pickAttachment();
-    const linkBtn = cActs.createEl("button", { cls: "bt-log-attach", attr: { "aria-label": t("log_link") } });
+    const linkBtn = cActs.createEl("button", { cls: "bt-log-attach" });
+    tip(linkBtn, t("log_link"));
     setIcon(linkBtn.createSpan(), "link");
     linkBtn.onclick = () => this.pickNote();
-    const add = cActs.createEl("button", { cls: "bt-log-add", attr: { "aria-label": t("log_add") } });
+    const add = cActs.createEl("button", { cls: "bt-log-add" });
+    tip(add, t("log_add"));
     setIcon(add.createSpan(), "send-horizontal");
     add.onclick = () => this.addEntry();
     window.setTimeout(() => { list.scrollTop = list.scrollHeight; }, 0);
@@ -202,17 +208,20 @@ export class DetailLogView {
 
     if (many) {
       const nav = (cls: string, icon: string, label: string, d: number) => {
-        const b = ov.createEl("button", { cls: "bt-lb-nav " + cls, attr: { "aria-label": label } });
+        const b = ov.createEl("button", { cls: "bt-lb-nav " + cls });
+        tip(b, label);
         setIcon(b, icon);
         b.onclick = (e) => { e.stopPropagation(); go(d); };
       };
       nav("bt-lb-prev", "chevron-left", t("lb_prev"), -1);
       nav("bt-lb-next", "chevron-right", t("lb_next"), 1);
     }
-    const copyBtn = ov.createEl("button", { cls: "bt-lb-copy", attr: { "aria-label": t("lb_copy") } });
+    const copyBtn = ov.createEl("button", { cls: "bt-lb-copy" });
+    tip(copyBtn, t("lb_copy"));
     setIcon(copyBtn, "copy");
     copyBtn.onclick = (e) => { e.stopPropagation(); void copyCurrent(); };
-    const closeBtn = ov.createEl("button", { cls: "bt-lb-close", attr: { "aria-label": t("btn_close") } });
+    const closeBtn = ov.createEl("button", { cls: "bt-lb-close" });
+    tip(closeBtn, t("btn_close"));
     setIcon(closeBtn, "x");
     closeBtn.onclick = (e) => { e.stopPropagation(); close(); };
 

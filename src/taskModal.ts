@@ -13,6 +13,7 @@ import { firstOpenStatus } from "./statuses";
 import { labelKey } from "./fieldNames";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
+import { tip } from "./tooltip";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
 // damit bestehende Importe (filterModal, quickAddModal) unverändert bleiben.
@@ -227,7 +228,8 @@ export class TaskModal extends Modal {
   private renderParentCrumb(contentEl: HTMLElement): void {
     const parent = this.existing ? this.parentTask() : null;
     if (!parent) return;
-    const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0", "aria-label": t("menu_goto_parent") } });
+    const crumb = contentEl.createDiv({ cls: "bt-parent-crumb", attr: { role: "button", tabindex: "0" } });
+    tip(crumb, t("menu_goto_parent") + ": " + parent.title);
     setIcon(crumb.createSpan({ cls: "bt-parent-ic" }), "corner-left-up");
     crumb.createSpan({ cls: "bt-parent-lbl", text: parent.title });
     const open = (): void => {
@@ -372,7 +374,8 @@ export class TaskModal extends Modal {
     }
     // „+"-Chip ganz rechts: „Weitere Aktionen" (ausgeblendete Chips) + (Edit) Aufgabenaktionen +
     // „Aufgabenaktionen bearbeiten". Immer sichtbar; has-set = Badge, wenn Ausgeblendete Werte tragen.
-    const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : ""), attr: { "aria-label": t("task_actions"), "data-tooltip-position": "top" } });
+    const acts = bar.createEl("button", { cls: "bt-chip bt-chip-actions" + (plusHasSetHidden(host) ? " has-set" : "") });
+    tip(acts, t("task_actions"));
     setIcon(acts.createSpan({ cls: "bt-chip-ic" }), "plus");
     acts.onclick = (e) => { e.stopPropagation(); this.openPlusMenu(acts); };
   }
@@ -381,7 +384,7 @@ export class TaskModal extends Modal {
   private renderDetailsChip(bar: HTMLElement): void {
     const open = !this.logWrap.hasClass("bt-hidden");
     const chip = bar.createEl("button", { cls: "bt-chip bt-chip-details" + (open ? " is-open" : "") });
-    if (chipsCompact(this.plugin.settings)) { chip.setAttribute("aria-label", t("details")); chip.setAttribute("data-tooltip-position", "top"); }
+    if (chipsCompact(this.plugin.settings)) tip(chip, t("details"));
     const dIc = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(dIc, "paperclip");
     chip.createSpan({ cls: "bt-chip-lbl", text: t("details") });
     // Bewusst KEIN Zähler am Chip: Der Detailbereich enthält nur noch Kommentare, und deren

@@ -14,6 +14,7 @@ import { openPopover, popRow } from "./popover";
 import { TaskPickerModal } from "./searchModal";
 import { slugify, todayIso, baseName } from "./taskService";
 import { t } from "./i18n";
+import { tip, tipWhenClipped, isClipped } from "./tooltip";
 import { firstOccurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
 import { parseQuickEntry } from "./quickEntry";
@@ -506,7 +507,7 @@ export function renderValueChip(bar: HTMLElement, host: ChipHost, c: ChipDef, se
     cls: "bt-chip" + (set ? " is-set" : "") + (truncate ? " bt-chip-truncate" : ""),
     attr: { "data-chip": c.id },
   });
-  if (iconsOnly && !set) { chip.setAttribute("aria-label", t(c.nameKey)); chip.setAttribute("data-tooltip-position", "top"); }
+  if (iconsOnly && !set) tip(chip, t(c.nameKey));
   const ic = chip.createSpan({ cls: "bt-chip-ic" }); setIcon(ic, c.icon);
   const lbl = chip.createSpan({ cls: "bt-chip-lbl" });
   const label = set ? c.valueLabel(host.f, host) : t(c.nameKey);
@@ -514,10 +515,13 @@ export function renderValueChip(bar: HTMLElement, host: ChipHost, c: ChipDef, se
   if (Array.isArray(label)) label.forEach((p, i) => { if (i) lbl.createSpan({ cls: "bt-chip-sep", text: " | " }); lbl.appendText(p); });
   else lbl.setText(label);
   // Langer Elternname per CSS mit „…" gekürzt; vollen Namen als Tooltip, wenn abgeschnitten.
-  if (truncate && lbl.scrollWidth > lbl.clientWidth) {
-    chip.addClass("is-faded");
-    chip.setAttribute("aria-label", Array.isArray(label) ? label.join(", ") : label);
-    chip.setAttribute("data-tooltip-position", "top");
+  // Die Verblassung MUSS beim Aufbau entschieden werden (sie ist eine Klasse), der Tooltip nicht:
+  // der urteilt beim Überfahren neu und stimmt deshalb auch, nachdem das Modal seine Breite
+  // geändert hat. isClipped bringt zusätzlich die 1-px-Toleranz mit (fraktionale Skalierung).
+  if (truncate) {
+    const full = Array.isArray(label) ? label.join(", ") : label;
+    if (isClipped(lbl)) chip.addClass("is-faded");
+    tipWhenClipped(chip, lbl, full);
   }
   chip.onclick = (e) => { e.stopPropagation(); c.open(host, chip); };
   if (set) { const x = chip.createSpan({ cls: "bt-chip-x" }); setIcon(x, "x"); x.onclick = (e) => { e.stopPropagation(); c.clear(host); host.rerender(); }; }

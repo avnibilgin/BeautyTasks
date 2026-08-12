@@ -8,6 +8,7 @@ import { DEFAULT_CALENDAR_NAME, CalendarInfo } from "./gcalSync";
 import { FieldId, FIELD_IDS, normalizeFieldName, allFieldNames } from "./fieldNames";
 import { PlanTabId, readPlanTabs, dailyNotesEnabled, forceListLeft } from "./planTabs";
 import { t } from "./i18n";
+import { tip } from "./tooltip";
 
 const CHIP_TIERS: ChipTier[] = ["shown", "onValue", "hidden"];
 
@@ -657,7 +658,8 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     const bar = containerEl.createDiv({ cls: "bt-chip-surface-bar" });
     const tabs = bar.createDiv({ cls: "bt-chip-surface-tabs" });
     // Reset als Icon (rotate-ccw), einheitlich zu den anderen Reset-Buttons.
-    const reset = bar.createEl("button", { cls: "bt-chip-reset clickable-icon", attr: { "aria-label": t("chip_reset_default"), "data-tooltip-position": "top" } });
+    const reset = bar.createEl("button", { cls: "bt-chip-reset clickable-icon" });
+    tip(reset, t("chip_reset_default"));
     setIcon(reset, "rotate-ccw");
     const zonesHost = containerEl.createDiv();
     const drawTabs = (): void => {
@@ -714,7 +716,8 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
       const c = CHIPS[id];
       const zone = zones[CHIP_TIERS.indexOf(chipTierOf(p.settings, surface, id))];
       const row = zone.createDiv({ cls: "bt-chip-row", attr: { "data-id": id } });
-      const grip = row.createSpan({ cls: "bt-chip-grip", attr: { "aria-label": t("menu_reorder"), "data-tooltip-position": "top" } });
+      const grip = row.createSpan({ cls: "bt-chip-grip" });
+      tip(grip, t("menu_reorder"));
       setIcon(grip, "grip-vertical");
       setIcon(row.createSpan({ cls: "bt-chip-row-ic" }), c.icon);
       row.createSpan({ cls: "bt-chip-row-lbl", text: t(c.nameKey) });
