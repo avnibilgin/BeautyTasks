@@ -15,15 +15,14 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Performance-Eintrag
-    // ist deshalb raus: Wer jetzt 1.44 sieht, hatte den Dialog beim Sprung auf 1.43.0 bereits.
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Tooltip-Eintrag ist
+    // deshalb raus: Wer jetzt 1.45 sieht, hatte den Dialog beim Sprung auf 1.44.0 bereits.
     //
-    // EIN Eintrag, und er beschreibt, was man MERKT (lange Namen sind lesbar, ohne die Leiste
-    // aufzuziehen) – nicht, dass die Tooltips dahinter jetzt aus einer Stelle kommen. Der Zusatz
-    // „nur wo etwas abgeschnitten ist" steht bewusst dabei, damit niemand über einen kurzen Namen
-    // fährt und den Tooltip für kaputt hält – dieselbe Rolle wie die Größenangabe in 1.43.0.
+    // EIN Eintrag, und er beschreibt, was man MERKT (tippen, auswählen, fertig) – nicht, warum
+    // dafür eine eigene Vorschlagsliste nötig war. Dass der Link anklickbar BLEIBT, steht dabei,
+    // weil genau das die Frage ist, die ein Wikilink in einem Eingabefeld sonst aufwirft.
     const items: Highlight[] = [
-      { icon: "mouse-pointer", title: t("wn_tooltip_t"), desc: t("wn_tooltip_d") },
+      { icon: "link", title: t("wn_link_t"), desc: t("wn_link_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {

@@ -14,6 +14,7 @@ import { labelKey } from "./fieldNames";
 import { CHIPS, ChipHost, ChipFields, chipsCompact, resolveChipOrder, isInline, plusHasSetHidden, renderPlusChips, renderStatusChip, renderValueChip, openChipSettings, PRIOS, PRIO_KEY } from "./chips";
 import { t, projectDisplayName } from "./i18n";
 import { tip } from "./tooltip";
+import { attachLinkSuggest } from "./linkSuggest";
 
 // PRIOS/PRIO_KEY leben jetzt in chips.ts (gemeinsam mit der Schnelleingabe); hier re-exportiert,
 // damit bestehende Importe (filterModal, quickAddModal) unverändert bleiben.
@@ -117,6 +118,9 @@ export class TaskModal extends Modal {
     const desc = contentEl.createEl("textarea", { cls: "bt-beschr", attr: { placeholder: t("placeholder_description"), rows: "1" } });
     desc.value = this.f.description ?? "";
     desc.oninput = () => { this.f.description = desc.value; this.growDesc(); };
+    // „[[" schlaegt Notizen vor. Der Quellpfad kommt aus derselben Quelle wie beim Kommentar-Log:
+    // eine neue Aufgabe hat noch keine Notiz, logSrc() liefert dann einen Platzhalter.
+    attachLinkSuggest(desc, this.plugin, () => this.logSrc());
     this.descInput = desc;
     window.setTimeout(() => this.growDesc(), 0);
 

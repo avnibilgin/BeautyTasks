@@ -8,6 +8,7 @@ import { LogEntry, writeLog, nowLogTs, formatLogTime } from "./detailLog";
 import { ensureFolder } from "./taskService";
 import { t } from "./i18n";
 import { tip } from "./tooltip";
+import { attachLinkSuggest } from "./linkSuggest";
 
 /** Callbacks, die pro Modal unterschiedlich sind. */
 export interface DetailLogHost {
@@ -129,6 +130,7 @@ export class DetailLogView {
     // [Icon] [Feld] [Aktion] und beginnen auf derselben Textkante.
     setIcon(comp.createSpan({ cls: "bt-log-composer-ic" }), "plus");
     const inp = comp.createEl("textarea", { cls: "bt-log-input", attr: { placeholder: t("log_placeholder"), rows: "1" } });
+    attachLinkSuggest(inp, this.plugin, () => this.host.srcPath());
     this.input = inp;
     const grow = () => { inp.setCssStyles({ height: "auto" }); inp.setCssStyles({ height: Math.min(inp.scrollHeight, 220) + "px" }); };
     // Ruhezustand ist leise (transparent). Gefuellt wird das Feld – und der Senden-Button
@@ -245,6 +247,7 @@ export class DetailLogView {
     const entry = this.entries[idx];
     contentEl.empty();
     const ta = contentEl.createEl("textarea", { cls: "bt-log-edit" });
+    attachLinkSuggest(ta, this.plugin, () => this.host.srcPath());
     ta.value = entry.body || "";
     window.setTimeout(() => { ta.setCssStyles({ height: "auto" }); ta.setCssStyles({ height: (ta.scrollHeight + 2) + "px" }); ta.focus(); }, 0);
     const acts = contentEl.createDiv({ cls: "bt-log-edit-acts" });
