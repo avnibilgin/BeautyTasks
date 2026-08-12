@@ -15,15 +15,15 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Handy-Eintrag ist
-    // deshalb raus: Wer jetzt 1.43 sieht, hatte den Dialog beim Sprung auf 1.42.0 bereits.
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Performance-Eintrag
+    // ist deshalb raus: Wer jetzt 1.44 sieht, hatte den Dialog beim Sprung auf 1.43.0 bereits.
     //
-    // EIN Eintrag, und er beschreibt, was man MERKT (Listen öffnen schneller, die Seite bleibt
-    // beim Abhaken stabil) – nicht, was dahinter umgebaut wurde. Die Größenangabe steht dabei,
-    // damit niemand vergeblich nach einem Unterschied sucht: In einem kleinen Vault gab es
-    // nichts zu beschleunigen.
+    // EIN Eintrag, und er beschreibt, was man MERKT (lange Namen sind lesbar, ohne die Leiste
+    // aufzuziehen) – nicht, dass die Tooltips dahinter jetzt aus einer Stelle kommen. Der Zusatz
+    // „nur wo etwas abgeschnitten ist" steht bewusst dabei, damit niemand über einen kurzen Namen
+    // fährt und den Tooltip für kaputt hält – dieselbe Rolle wie die Größenangabe in 1.43.0.
     const items: Highlight[] = [
-      { icon: "gauge", title: t("wn_perf_t"), desc: t("wn_perf_d") },
+      { icon: "mouse-pointer", title: t("wn_tooltip_t"), desc: t("wn_tooltip_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {
