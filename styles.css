@@ -819,6 +819,16 @@ body {
 /* ── Datums-Picker (Eingabe + Schnellzeilen + Monatskalender) ── */
 /* Feste Breite: verhindert, dass die (breite) Dauer-Zeile das Popover verbreitert und
    damit die aspect-ratio-Kalenderzellen aufbläht. */
+/* Vorschlagsliste fuer „[[…]]" in den mehrzeiligen Feldern (Beschreibung, Kommentare).
+   Sitzt unter dem Feld, so wie Obsidian es bei seinen eigenen Eingabefeldern macht. Die
+   Treffer-Hervorhebung darin kommt von renderMatches und traegt Obsidians eigene Klasse. */
+.bt-pop.bt-linksuggest { min-width: 260px; max-width: 420px; overflow-y: auto; }
+.bt-pop.bt-linksuggest .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-pop.bt-linksuggest .bt-suggest-dir {
+  margin-left: auto; padding-left: 10px; flex-shrink: 0; max-width: 45%;
+  color: var(--text-faint); font-size: 0.85em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .bt-pop.bt-date { width: 268px; max-height: min(560px, calc(100vh - 16px)); overflow-y: auto; }
 .bt-pop .bt-date-input, .bt-pop .bt-pop-input {
   width: 100%; box-sizing: border-box; margin: 1px 0 6px; padding: 6px 8px; font-size: 0.88em;
