@@ -1,0 +1,160 @@
+import { Modal, Notice, setIcon } from "obsidian";
+import type BeautyTasksPlugin from "./main";
+import { isInboxLink, listProjectsAndAreas } from "./taskService";
+import { openPopover, popRow } from "./popover";
+import { openDatePicker } from "./datePicker";
+import { dateOf, formatDate, todayStr } from "./format";
+import { AnchorMode } from "./templatePlan";
+import { applyTemplate, listTemplates, TemplateInfo } from "./templateService";
+import { t, projectDisplayName } from "./i18n";
+
+/**
+ * Die zwei Dialoge der Vorlagen: eine auswählen und eine anwenden.
+ *
+ * Der Anwenden-Dialog fragt bewusst nur nach ZWEI Dingen – wohin und ab wann. Alles andere steht
+ * bereits in der Vorlage. Die Anker-Frage hat zwei Richtungen („Start am" / „Fertig bis"), weil
+ * etwa die Hälfte aller Vorlagen von einem Endtermin her gedacht ist: Wer den Abflugtag kennt,
+ * soll nicht selbst zurückrechnen müssen.
+ */
+
+/** Vorlagen-Auswahl (Kommandopalette). Leitet auf den Anwenden-Dialog weiter. */
+export class PickTemplateModal extends Modal {
+  constructor(private plugin: BeautyTasksPlugin, private defaultProject: string | null = null) { super(plugin.app); }
+
+  onOpen(): void {
+    const { contentEl, modalEl } = this;
+    modalEl.addClass("bt-new-modal");
+    contentEl.createEl("h3", { text: t("tpl_pick_title") });
+
+    const list = listTemplates(this.plugin);
+    if (!list.length) {
+      contentEl.createEl("p", { cls: "bt-empty", text: t("tpl_none") });
+      return;
+    }
+    const box = contentEl.createDiv({ cls: "bt-tpl-list" });
+    for (const tpl of list) {
+      const row = popRow(box, tpl.kind === "project" ? "folder-plus" : "clipboard-list", tpl.name, () => {
+        this.close();
+        new ApplyTemplateModal(this.plugin, tpl, this.defaultProject).open();
+      });
+      row.createSpan({ cls: "bt-nav-count", text: String(tpl.size) });
+    }
+  }
+
+  onClose(): void { this.contentEl.empty(); }
+}
+
+/** Anwenden-Dialog: Zielprojekt + Anker (Richtung und Datum). */
+export class ApplyTemplateModal extends Modal {
+  private project: string | null;
+  private mode: AnchorMode = "start";
+  private anchor: string | null = todayStr();
+  private projektBtn!: HTMLButtonElement;
+  private dateBtn!: HTMLButtonElement;
+  private startBtn!: HTMLButtonElement;
+  private endBtn!: HTMLButtonElement;
+
+  constructor(private plugin: BeautyTasksPlugin, private tpl: TemplateInfo, defaultProject: string | null = null) {
+    super(plugin.app);
+    this.project = defaultProject;
+  }
+
+  onOpen(): void {
+    const { contentEl, modalEl } = this;
+    modalEl.addClass("bt-new-modal");
+    contentEl.createEl("h3", { text: t("tpl_apply_title") });
+
+    // Welche Vorlage – der Dialog wird auch aus der Kommandopalette erreicht, wo der Name sonst
+    // nirgends mehr stünde.
+    const head = contentEl.createDiv({ cls: "bt-new-preview" });
+    setIcon(head.createSpan({ cls: "bt-new-preview-ic" }), this.tpl.kind === "project" ? "folder-plus" : "clipboard-list");
+    head.createSpan({ cls: "bt-new-preview-nm", text: this.tpl.name });
+    head.createSpan({ cls: "bt-new-preview-hint", text: String(this.tpl.size) });
+
+    // Zielprojekt
+    const projField = contentEl.createDiv({ cls: "bt-new-field" });
+    projField.createEl("label", { text: t("group_project") });
+    this.projektBtn = projField.createEl("button", { cls: "bt-projekt" });
+    this.projektBtn.onclick = (e) => this.openProject(e.currentTarget as HTMLElement);
+    this.renderProjekt();
+
+    // Anker: Richtung + Datum. Die Richtung sind zwei Knöpfe statt eines Umschalters – beide
+    // Beschriftungen bleiben lesbar, und man sieht ohne Klick, dass es die zweite Möglichkeit gibt.
+    const ankField = contentEl.createDiv({ cls: "bt-new-field" });
+    const row = ankField.createDiv({ cls: "bt-new-row" });
+    const dir = row.createDiv({ cls: "bt-tpl-anchor" });
+    this.startBtn = dir.createEl("button", { text: t("tpl_anchor_start") });
+    this.endBtn = dir.createEl("button", { text: t("tpl_anchor_end") });
+    this.startBtn.onclick = () => this.setMode("start");
+    this.endBtn.onclick = () => this.setMode("end");
+    this.dateBtn = row.createEl("button", { cls: "bt-projekt" });
+    this.dateBtn.onclick = (e) => openDatePicker(e.currentTarget as HTMLElement, this.anchor ?? "", (iso) => {
+      this.anchor = iso ? dateOf(iso) : null;
+      this.renderDate();
+    });
+    this.renderMode();
+    this.renderDate();
+
+    ankField.createEl("p", { cls: "bt-new-preview-hint", text: t("tpl_keeps_gaps") });
+
+    const foot = contentEl.createDiv({ cls: "bt-foot" });
+    foot.createDiv();   // Platzhalter links, damit die Knöpfe rechts stehen
+    const actions = foot.createDiv({ cls: "bt-actions" });
+    actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
+    actions.createEl("button", { cls: "mod-cta", text: t("btn_create") }).onclick = () => void this.submit();
+  }
+
+  onClose(): void { this.contentEl.empty(); }
+
+  private setMode(m: AnchorMode): void { this.mode = m; this.renderMode(); }
+
+  private renderMode(): void {
+    this.startBtn.toggleClass("mod-cta", this.mode === "start");
+    this.endBtn.toggleClass("mod-cta", this.mode === "end");
+  }
+
+  private renderDate(): void {
+    this.dateBtn.empty();
+    setIcon(this.dateBtn.createSpan({ cls: "bt-projekt-ic" }), "calendar");
+    this.dateBtn.createSpan({ text: this.anchor ? formatDate(this.anchor) : t("chip_date") });
+  }
+
+  private renderProjekt(): void {
+    this.projektBtn.empty();
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    const inbox = isInboxLink(this.project);
+    const sel = inbox ? null : [...bereiche, ...projekte].find((p) => p.name === this.project);
+    const ic = this.projektBtn.createSpan({ cls: "bt-projekt-ic" });
+    setIcon(ic, inbox ? "inbox" : (sel?.icon ?? "folder"));
+    if (sel?.color) ic.setCssStyles({ color: sel.color });
+    this.projektBtn.createSpan({ text: inbox ? t("nav_inbox") : projectDisplayName(this.project) });
+    const car = this.projektBtn.createSpan({ cls: "bt-projekt-car" });
+    setIcon(car, "chevron-down");
+  }
+
+  private openProject(anchor: HTMLElement): void {
+    openPopover(anchor, (pop, close) => {
+      pop.addClass("bt-picker");
+      const { bereiche, projekte } = listProjectsAndAreas(this.app);
+      const pick = (name: string | null): void => { this.project = name; this.renderProjekt(); close(); };
+      popRow(pop, "inbox", t("nav_inbox"), () => pick(null), isInboxLink(this.project));
+      const group = (title: string, items: { name: string; icon: string; color: string | null }[]): void => {
+        if (!items.length) return;
+        pop.createDiv({ cls: "bt-pop-head", text: title });
+        for (const it of items) popRow(pop, it.icon, it.name, () => pick(it.name), this.project === it.name, it.color ?? undefined);
+      };
+      group(t("group_area"), bereiche);
+      group(t("group_project"), projekte);
+    });
+  }
+
+  private async submit(): Promise<void> {
+    const n = await applyTemplate(this.plugin, this.tpl.root.path, {
+      project: this.project,
+      anchor: this.anchor,
+      mode: this.mode,
+    });
+    this.close();
+    new Notice(t("msg_template_applied", n));
+  }
+}

@@ -2776,3 +2776,21 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Regel für .workspace-tab-header-inner-icon. */
 .workspace-tab-header.bt-plan-tab[data-type="markdown"] .workspace-tab-header-inner-icon,
 .mod-root .workspace-tab-header.bt-plan-tab[data-type="markdown"] .workspace-tab-header-inner-icon { display: flex; }
+
+/* ── Vorlagen ──────────────────────────────────────────────────────────────
+   Die Vorlagen-Auswahl zeigt dieselben Zeilen wie ein Popover, steht aber IM
+   Modal. Sämtliche `.bt-row`-Regeln oben hängen an `.bt-pop`, und `.bt-pop`
+   ist `position: fixed` — im Modal wäre das falsch. Deshalb hier die paar
+   Zeilen noch einmal, auf die Liste bezogen. */
+.bt-tpl-list { display: flex; flex-direction: column; gap: 1px; margin-bottom: 14px; max-height: 320px; overflow-y: auto; }
+.bt-tpl-list .bt-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 5px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
+.bt-tpl-list .bt-row:hover { background: var(--background-modifier-hover); }
+.bt-tpl-list .bt-row-ic { display: inline-flex; }
+.bt-tpl-list .bt-row-ic svg { width: 15px; height: 15px; }
+.bt-tpl-list .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Anker-Zeile: die beiden Richtungen als Paar links, das Datum rechts.
+   Die umgebende `.bt-new-row` verteilt mit `space-between` — ohne diese
+   Gruppierung stünden alle drei Knöpfe gleich weit auseinander und man
+   sähe nicht mehr, dass „Start am" und „Fertig bis" eine Wahl sind. */
+.bt-tpl-anchor { display: flex; align-items: center; gap: 6px; }

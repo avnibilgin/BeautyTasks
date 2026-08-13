@@ -1,5 +1,6 @@
 import { App, Notice, TFile, normalizePath, stringifyYaml } from "obsidian";
-import { BeautyTasksSettings, Priority, TaskStatus } from "./types";
+import { BeautyTasksSettings, Priority, Task, TaskStatus } from "./types";
+import type { ShiftedDates } from "./templatePlan";
 import { combineDT, localStamp } from "./format";
 import { firstOpenStatus, isDone, isTrashed } from "./statuses";
 import { titleKey, fmTitle, findH1Line, replaceHeadingLine, renameHeadingLine, newTaskBody } from "./taskTitle";
@@ -135,21 +136,54 @@ export function transitionStamps(from: TaskStatus, to: TaskStatus, now: string):
   return patch;
 }
 
+/**
+ * Wohin eine neue Notiz geschrieben wird und unter welchem `type` sie steht.
+ *
+ * Vorgabe ist die Aufgabe des Vaults (`itemsFolder` + `type: task`). Vorlagen geben hier ihren
+ * eigenen Ordner und Typwert mit – dadurch legt DIESELBE Funktion Aufgaben wie Vorlagen an, und
+ * es gibt keinen zweiten Schreibweg, der irgendwann auseinanderläuft (s. templateService.ts).
+ */
+export interface NoteTarget { folder: string; type: string; }
+
+/** Nur der Teil eines Index, den der Kopierer braucht. Strukturell statt `TaskIndex` importiert,
+ *  damit taskService keine Abhängigkeit auf den Index bekommt – und damit derselbe Kopierer aus
+ *  dem Aufgaben- wie aus dem Vorlagen-Index lesen kann. */
+export interface ChildSource { children(path: string): Task[]; }
+
+/**
+ * Was ein Kopiervorgang (`duplicateSubtree`) über das blosse Duplizieren hinaus tun soll.
+ * Alles optional – ohne Angabe verhält er sich wie bisher: gleicher Ordner, gleicher Typ,
+ * gleiche Daten, gleiches Projekt.
+ */
+export interface DuplicateOpts {
+  /** Zielordner + Typwert. Gesetzt beim Speichern ALS Vorlage. */
+  target?: NoteTarget;
+  /** Verschobene Daten je Quellpfad. Gesetzt beim ANWENDEN einer Vorlage (s. templatePlan.ts). */
+  dates?: Map<string, ShiftedDates>;
+  /** Zielprojekt für ALLE Kopien. `undefined` = das des Originals behalten, `null` = Eingang. */
+  project?: string | null;
+  /** Woraus gelesen wird. Vorgabe ist der Aufgaben-Index; Vorlagen liegen im zweiten. */
+  from?: ChildSource;
+  /** Intern: bereits besuchte Pfade (Kreis-Schutz). Nicht von aussen setzen. */
+  seen?: Set<string>;
+}
+
 /** Neue Aufgaben-Notiz anlegen (kollisionssicherer Dateiname). */
-export async function createTaskNote(app: App, settings: BeautyTasksSettings, f: TaskFields): Promise<TFile> {
-  await ensureFolder(app, settings.itemsFolder);
+export async function createTaskNote(app: App, settings: BeautyTasksSettings, f: TaskFields, target?: NoteTarget): Promise<TFile> {
+  const folder = target?.folder ?? settings.itemsFolder;
+  await ensureFolder(app, folder);
   const slug = slugify(f.title);
-  let dest = normalizePath(settings.itemsFolder + "/" + slug + ".md");
+  let dest = normalizePath(folder + "/" + slug + ".md");
   let n = 2;
   while (app.vault.getAbstractFileByPath(dest)) {
-    dest = normalizePath(settings.itemsFolder + "/" + slug + " " + n + ".md"); n++;
+    dest = normalizePath(folder + "/" + slug + " " + n + ".md"); n++;
     if (n > 200) break;
   }
   const status = f.status ?? firstOpenStatus();
   const jetzt = localStamp();
   const stamps = creationStamps(status, jetzt);
   const fm = buildFrontmatter({
-    [fieldKey("type")]: "task",
+    [fieldKey("type")]: target?.type ?? "task",
     id: newId("t"),
     // Regelfall: der Titel steht hier. Nur wenn er ausdrücklich in den Text soll, bleibt das
     // Feld leer (null wird von buildFrontmatter verworfen) und newTaskBody schreibt die H1.

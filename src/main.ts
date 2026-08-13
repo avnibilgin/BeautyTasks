@@ -6,6 +6,8 @@ import { applyDefaults, toDelta } from "./settingsDelta";
 import { forcedStartPage, newTabPage, fromLegacyStartView } from "./startPage";
 import { resolveReminders } from "./reminders";
 import { TaskIndex, TASK_SCOPE, TEMPLATE_SCOPE } from "./taskIndex";
+import { saveAsTemplate } from "./templateService";
+import { PickTemplateModal } from "./templateModal";
 import { runMigration } from "./migrate";
 import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
@@ -14,7 +16,7 @@ import { PageRef, pageInfo, samePage } from "./pageCtx";
 import { activePlanTabs, pageNoteFile, openDailyNote, forceListLeft, NOTE_ICON, DAILY_ICON } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
+import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName, DuplicateOpts } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget, labelKey } from "./fieldNames";
@@ -236,6 +238,9 @@ export default class BeautyTasksPlugin extends Plugin {
       if (!checking) void this.openPlanSplit();
       return true;
     } });
+    // Vorlagen: anwenden über die Auswahl (das Zielprojekt wird mit der Seite vorbelegt, auf der
+    // man steht – wie beim Anlegen einer Aufgabe).
+    this.addCommand({ id: "new-from-template", name: t("cmd_new_from_template"), callback: () => new PickTemplateModal(this, this.addContext().project ?? null).open() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -2338,6 +2343,13 @@ export default class BeautyTasksPlugin extends Plugin {
     new Notice(t("msg_duplicated"));
   }
 
+  /** Aufgabe samt Unterbaum als Vorlage ablegen (Kontextmenü). Die Daten wandern unverändert
+   *  mit – sie sind der Rhythmus, den sich die Vorlage merkt; gerechnet wird erst beim Anwenden. */
+  async saveTaskAsTemplate(task: Task): Promise<void> {
+    await saveAsTemplate(this, task);
+    new Notice(t("msg_template_saved"));
+  }
+
   /**
    * Die SICHTBAREN Unteraufgaben unter `srcParentPath` (nicht die im Papierkorb, s.
    * subtasksToDuplicate) als Kopien unter `newParentBase` neu anlegen, rekursiv über die ganze
@@ -2348,33 +2360,41 @@ export default class BeautyTasksPlugin extends Plugin {
    * Geschwistergruppe; `sort_order` wird nur INNERHALB einer Gruppe verglichen. Es wird kein
    * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
    */
-  async duplicateSubtree(srcParentPath: string, newParentBase: string, gesehen = new Set<string>([srcParentPath])): Promise<void> {
+  async duplicateSubtree(srcParentPath: string, newParentBase: string, opts: DuplicateOpts = {}): Promise<void> {
     // Kreis-Schutz wie bei TaskIndex.descendants: `parent` ist ein von Hand schreibbares Feld.
     // Führt eine Aufgabe sich selbst (oder über eine Kette) als Elternaufgabe, lief diese
     // Rekursion endlos – und legte dabei bei JEDEM Durchlauf Notizen an. Anders als ein
     // Stapelüberlauf wäre das nicht nur ein Absturz, sondern ein zugemüllter Vault.
-    const kids = subtasksToDuplicate(this.index.children(srcParentPath)).filter((k) => !gesehen.has(k.path));
+    const gesehen = opts.seen ?? new Set<string>([srcParentPath]);
+    const from = opts.from ?? this.index;
+    const kids = subtasksToDuplicate(from.children(srcParentPath)).filter((k) => !gesehen.has(k.path));
     let order = ORDER_GAP;
     for (const kid of kids) {
+      // Verschobene Daten der Vorlage, falls vorhanden – sonst die des Originals (Duplizieren
+      // bleibt bewusst datumsgetreu, s. beautytasks-templates-plan „Kontext").
+      const d = opts.dates?.get(kid.path);
       const copy = await createTaskNote(this.app, this.settings, {
         title: kid.title,
         titleInFrontmatter: kid.titleInFm,
         description: kid.description,
         status: firstOpenStatus(),
-        due: kid.due, dueTime: kid.dueTime,
-        scheduled: kid.scheduled, scheduledTime: kid.scheduledTime,
+        due: d ? d.due : kid.due, dueTime: kid.dueTime,
+        scheduled: d ? d.scheduled : kid.scheduled, scheduledTime: kid.scheduledTime,
         duration: kid.duration,
         priority: kid.priority,
-        project: kid.project ? baseName(kid.project) : null,
+        // `undefined` heisst „Projekt des Originals behalten", ein ausdrückliches `null` heisst
+        // Eingang. Beim Anwenden einer Vorlage gewinnt immer das Ziel des Dialogs: Der
+        // Projektverweis IN der Vorlage zeigt auf nichts, was die neue Aufgabe angeht.
+        project: opts.project !== undefined ? opts.project : (kid.project ? baseName(kid.project) : null),
         labels: [...kid.labels],
         recurrence: kid.recurrence, recurBasis: kid.recurBasis,
-        reminders: [...(kid.reminders ?? [])],
+        reminders: d ? [...d.reminders] : [...(kid.reminders ?? [])],
         parent: newParentBase,
         sortOrder: order,
-      });
+      }, opts.target);
       order += ORDER_GAP;
       gesehen.add(kid.path);
-      await this.duplicateSubtree(kid.path, copy.basename, gesehen);   // Enkel & tiefer
+      await this.duplicateSubtree(kid.path, copy.basename, { ...opts, seen: gesehen });   // Enkel & tiefer
     }
   }
 
