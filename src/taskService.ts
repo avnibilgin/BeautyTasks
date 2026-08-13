@@ -150,6 +150,29 @@ export interface NoteTarget { folder: string; type: string; }
  *  dem Aufgaben- wie aus dem Vorlagen-Index lesen kann. */
 export interface ChildSource { children(path: string): Task[]; }
 
+/** Was der Editor von einem Index braucht (Unteraufgaben-Sektion: zeichnen und nachziehen). */
+export interface TaskSource extends ChildSource {
+  subscribe(cb: () => void): () => void;
+  commentsOf(path: string): number;
+  descendants(path: string): Task[];
+  all(): Task[];
+}
+
+/**
+ * In welchem Bestand arbeitet der Editor gerade – in den Aufgaben des Vaults oder in einer
+ * Vorlage? Genau zwei Dinge unterscheiden die beiden Fälle:
+ *
+ *   `index`   – woraus die Unteraufgaben gelesen werden
+ *   `target`  – wohin neue Notizen geschrieben werden und unter welchem `type`
+ *
+ * Alles Übrige (Chips, Titel-Kaskade, Kommentar-Log, Speichern) ist identisch: Eine Vorlage IST
+ * ein Aufgabenbaum. Diese zwei Angaben durchzureichen genügt deshalb, um denselben Editor auf
+ * Vorlagen laufen zu lassen – es braucht keine zweite Maske.
+ *
+ * Fehlt `target`, wird in die Aufgaben geschrieben (`itemsFolder` + `type: task`).
+ */
+export interface EditScope { index: TaskSource; target?: NoteTarget; }
+
 /**
  * Was ein Kopiervorgang (`duplicateSubtree`) über das blosse Duplizieren hinaus tun soll.
  * Alles optional – ohne Angabe verhält er sich wie bisher: gleicher Ordner, gleicher Typ,

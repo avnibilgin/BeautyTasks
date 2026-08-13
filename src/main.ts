@@ -16,7 +16,7 @@ import { PageRef, pageInfo, samePage } from "./pageCtx";
 import { activePlanTabs, pageNoteFile, openDailyNote, forceListLeft, NOTE_ICON, DAILY_ICON } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName, DuplicateOpts } from "./taskService";
+import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName, DuplicateOpts, ChildSource } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget, labelKey } from "./fieldNames";
@@ -2402,8 +2402,8 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Aufgabe in den Papierkorb: status "cancelled" – INKLUSIVE aller Unteraufgaben
    *  (Kaskade). Sonst blieben Kinder ohne sichtbaren Parent zurück und wären nur noch
    *  über die Suche, nicht mehr in den Boards erreichbar. */
-  async cancelTask(task: Task): Promise<void> {
-    await this.trashTasks([task]);
+  async cancelTask(task: Task, from: ChildSource & { descendants(p: string): Task[] } = this.index): Promise<void> {
+    await this.trashTasks([task], from);
   }
 
   /** Aufgaben in den Papierkorb – jede inkl. ihres Unteraufgaben-Baums (collectTrashTargets: Dedup
@@ -2411,10 +2411,12 @@ export default class BeautyTasksPlugin extends Plugin {
    *  Uhrzeit/Sekunden, NICHT nur Datum: sonst hätten alle am selben Tag gelöschten denselben
    *  Sortierwert und der Papierkorb fiele bei Gleichstand auf die Datei-Reihenfolge zurück). Das
    *  `project`-Feld bleibt unberührt (wie beim Einzel-Abbrechen). */
-  private async trashTasks(roots: Task[]): Promise<void> {
+  private async trashTasks(roots: Task[], from: { descendants(p: string): Task[] } = this.index): Promise<void> {
     const stamp = localStamp();
     const cancelId = firstCancelledStatus();   // definierter Abgebrochen-Status oder Sentinel "cancelled"
-    const targets = collectTrashTargets(roots, (p) => this.index.descendants(p));
+    // Die Kaskade muss aus DEMSELBEN Bestand lesen wie die Zeile, die gelöscht wird: Beim
+    // Löschen in einer Vorlage kennt der Aufgaben-Index deren Kinder nicht und liesse sie stehen.
+    const targets = collectTrashTargets(roots, (p) => from.descendants(p));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = cancelId; fm.cancelled = stamp; });

@@ -1,7 +1,7 @@
 import { Modal, TFile, Notice, setIcon, Platform, HoverPopover } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task, TaskStatus } from "./types";
-import { createTaskNote, listProjectsAndAreas, knownProjectNames, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, setTaskTitle, TaskFields, baseName } from "./taskService";
+import { createTaskNote, listProjectsAndAreas, knownProjectNames, createProjectNote, todayIso, ensureCanonicalFm, isInboxLink, copyTaskLink, setTaskTitle, TaskFields, baseName, EditScope } from "./taskService";
 import { formatDateTime, combineDT } from "./format";
 import { openPopover, popRow } from "./popover";
 import { applyQuickEntry, emptyQuickEntryState, escapeTriggers, QuickEntryState } from "./quickEntry";
@@ -44,13 +44,17 @@ export class TaskModal extends Modal {
   private duePinned = false;          // true sobald Datum manuell gesetzt -> NL überschreibt nicht mehr
   private cleanTitle = "";            // Titel ohne erkannte Datum-/Label-Token
   private nl: QuickEntryState = emptyQuickEntryState();  // aus dem Titel Erkanntes (trennt es von Manuellem)
+  /** Aufgaben des Vaults oder eine Vorlage (s. EditScope). Wird an JEDES Kindmodal und an die
+   *  Unteraufgaben-Sektion weitergereicht – wer eine Vorlage bearbeitet, bleibt beim Aufklappen
+   *  einer Unteraufgabe in der Vorlage. */
+  private get editScope(): EditScope { return this.opts.scope ?? { index: this.plugin.index }; }
   private discarding = false;          // true = bewusst verwerfen („Cancel") -> kein Auto-Speichern
   private persisted = false;           // true sobald geschrieben -> kein Doppel-Speichern
 
   /** opts.hideProjekt blendet das Projekt-Chip aus (Unteraufgaben-Modus – die
    *  Unteraufgabe erbt Projekt der Hauptaufgabe). opts.parent = Eltern-Basename. */
   constructor(private plugin: BeautyTasksPlugin, private existing?: Task, private defaultProject?: string,
-              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean; stacked?: boolean } = {}) {
+              private opts: { hideProjekt?: boolean; parent?: string; defaultLabel?: string; defaultToday?: boolean; defaultTitle?: string; defaultStatus?: TaskStatus; seed?: Partial<ChipFields> & { description?: string }; openDetails?: boolean; duePinned?: boolean; stacked?: boolean; scope?: EditScope } = {}) {
     super(plugin.app);
     const seed = opts.seed;
     this.f = existing
@@ -153,8 +157,9 @@ export class TaskModal extends Modal {
       // Elternmodal bleibt bewusst OFFEN: Das Kind legt sich darüber, und wer es schließt
       // (Speichern, Abbrechen, Esc), landet wieder hier statt in der Liste. Die Sektion hängt
       // am Index und zeigt die Änderung sofort.
-      openTask: (task) => new TaskModal(this.plugin, task, undefined, { stacked: true }).open(),
+      openTask: (task) => new TaskModal(this.plugin, task, undefined, { stacked: true, scope: this.opts.scope }).open(),
       openFullEditor: (title) => this.openSubtaskEditor(title),
+      scope: () => this.editScope,
     });
 
     this.applyParse();
@@ -415,7 +420,9 @@ export class TaskModal extends Modal {
         // Weg zu genau dieser Zeile – zwei getrennte Strings würden über zehn Sprachen hinweg
         // frueher oder spaeter auseinanderlaufen.
         row("corner-down-right", t("sub_add"), () => this.addSubtask());
-        if (this.parentTask()) row("corner-left-up", t("menu_goto_parent"), () => this.showParent());
+        // „Zur Elternaufgabe" springt in die LISTE und hebt die Zeile hervor. Vorlagen stehen in
+      // keiner Liste – der Sprung liefe ins Leere, deshalb gibt es den Eintrag dort nicht.
+      if (!this.opts.scope && this.parentTask()) row("corner-left-up", t("menu_goto_parent"), () => this.showParent());
         row("copy", t("menu_duplicate"), () => void this.duplicate());
         pop.createDiv({ cls: "bt-plus-sep" });
         row("link", t("menu_copy_link"), () => this.copyLink());
@@ -441,11 +448,11 @@ export class TaskModal extends Modal {
       ...this.f, title: title + " " + t("copy_suffix"), status: firstOpenStatus(),
       titleInFrontmatter: this.existing?.titleInFm,   // Kopie hält es wie das Original
       parent: this.f.parent ?? this.opts.parent ?? null,
-    });
+    }, this.editScope.target);
     await this.log.flush(file);
     // Unteraufgaben (rekursiv) mitkopieren, verankert an der neuen Hauptkopie –
     // die Rekursion lebt in main.ts (gemeinsam mit dem Zeilen-Kontextmenü).
-    if (this.existing) await this.plugin.duplicateSubtree(this.existing.path, file.basename);
+    if (this.existing) await this.plugin.duplicateSubtree(this.existing.path, file.basename, { target: this.editScope.target, from: this.editScope.index });
     new Notice(t("msg_duplicated"));
     this.close();
   }
@@ -530,10 +537,12 @@ export class TaskModal extends Modal {
     this.detailsWrap.toggleClass("bt-hidden", !logOpen);
   }
 
-  /** Die aktuell gewählte Elternaufgabe aus dem Index (oder null, wenn keine/nicht gefunden). */
+  /** Die aktuell gewählte Elternaufgabe aus dem Index (oder null, wenn keine/nicht gefunden).
+   *  Gesucht wird im Bestand DIESES Editors: Die Elternaufgabe einer Vorlagen-Unteraufgabe steht
+   *  im Vorlagen-Index, und im Aufgaben-Index fände man sie nie – die Brotkrume fehlte dann. */
   private parentTask(): Task | null {
     if (!this.f.parent) return null;
-    return this.plugin.index.all().find((tk) => baseName(tk.path) === this.f.parent) ?? null;
+    return this.editScope.index.all().find((tk) => baseName(tk.path) === this.f.parent) ?? null;
   }
 
   /** Elternaufgabe in ihrer Liste anzeigen (wie die Lupe in der Suche: hinspringen + kurz
@@ -621,7 +630,7 @@ export class TaskModal extends Modal {
     const parentBase = baseName(parent.path);
     // Elternmodal bleibt offen (stacked): nach dem Anlegen steht man wieder in der Hauptaufgabe,
     // und deren Liste zeigt die neue Unteraufgabe sofort.
-    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase, defaultTitle: title, stacked: true }).open();
+    new TaskModal(this.plugin, undefined, parentProject, { hideProjekt: true, parent: parentBase, defaultTitle: title, stacked: true, scope: this.opts.scope }).open();
   }
 
   // ── Details: Kommentar-Log (gemeinsame Komponente DetailLogView) ──
@@ -683,7 +692,7 @@ export class TaskModal extends Modal {
         if (title !== this.existing.title) await setTaskTitle(this.app, file, title);
       }
     } else {
-      const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null });
+      const file = await createTaskNote(this.app, this.plugin.settings, { ...this.f, title, parent: this.f.parent ?? this.opts.parent ?? null }, this.editScope.target);
       await this.log.flush(file);
     }
   }

@@ -16,7 +16,7 @@ import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
-import { listTemplates, createEmptyTemplate, renameTemplate, deleteTemplate, TemplateInfo } from "./templateService";
+import { listTemplates, createEmptyTemplate, renameTemplate, deleteTemplate, templateEditScope, TemplateInfo } from "./templateService";
 import { ApplyTemplateModal } from "./templateModal";
 import { ConfirmModal, PromptModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
@@ -25,7 +25,7 @@ import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen,
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
-import { PRIOS } from "./taskModal";
+import { PRIOS, TaskModal } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 import { tip, tipWhenClipped } from "./tooltip";
@@ -2107,6 +2107,12 @@ function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
   const m = new Menu();
   m.addItem((i) => i.setTitle(t("menu_apply_template")).setIcon("wand-sparkles")
     .onClick(() => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open()));
+  // Bearbeiten öffnet den NORMALEN Aufgaben-Editor, nur auf den Vorlagen-Bestand gestellt
+  // (s. templateEditScope). Unteraufgaben, die man darin anlegt, landen im Vorlagen-Ordner.
+  m.addItem((i) => i.setTitle(t("edit_task")).setIcon("pencil")
+    // Ohne Projekt-Chip: Eine Vorlage gehört keinem Projekt – wohin sie geht, entscheidet der
+    // Anwenden-Dialog. Ein Projekt hier zu setzen sähe nach einer Wirkung aus, die es nicht hat.
+    .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open()));
   m.addItem((i) => i.setTitle(t("menu_open_task_note")).setIcon("file-text")
     .onClick(() => openTaskNote(plugin.app, tpl.root.path)));
   m.addSeparator();

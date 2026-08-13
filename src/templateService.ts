@@ -2,8 +2,8 @@ import { App, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { AnchorMode, planTemplateDates } from "./templatePlan";
-import { baseName, createTaskNote, ensureFolder, NoteTarget, setTaskTitle, slugify } from "./taskService";
-import { firstOpenStatus } from "./statuses";
+import { baseName, createTaskNote, EditScope, ensureFolder, NoteTarget, setTaskTitle, slugify } from "./taskService";
+import { firstOpenStatus, isTrashed } from "./statuses";
 
 /**
  * Vorlagen: speichern und anwenden.
@@ -50,8 +50,10 @@ function freeFolder(app: App, base: string): string {
   return dest;
 }
 
-/** Ist diese Notiz die WURZEL einer Vorlage? Wurzeln haben keinen `parent` innerhalb der Vorlage. */
-const isRoot = (t: Task): boolean => !t.parent;
+/** Ist diese Notiz die WURZEL einer Vorlage? Wurzeln haben keinen `parent` innerhalb der Vorlage.
+ *  Gelöschte bleiben aussen vor – Löschen setzt wie überall den Papierkorb-Status, statt die Notiz
+ *  wegzuwerfen, und eine gelöschte Vorlage soll nicht weiter in der Seitenleiste stehen. */
+const isRoot = (t: Task): boolean => !t.parent && !isTrashed(t.status);
 
 /**
  * Alle Vorlagen mit ihrer Grösse, alphabetisch. Liest ausschliesslich aus dem Vorlagen-Index –
@@ -109,6 +111,21 @@ export async function saveAsTemplate(plugin: BeautyTasksPlugin, task: Task, kind
   await plugin.app.fileManager.processFrontMatter(root, (fm: Record<string, unknown>) => { fm[TEMPLATE_OF] = kind; });
   await plugin.duplicateSubtree(task.path, root.basename, { target, project: null });
   return root.path;
+}
+
+/**
+ * Der Bearbeitungs-Bereich einer Vorlage: gelesen wird aus dem Vorlagen-Index, geschrieben in
+ * ihren EIGENEN Ordner. Damit läuft der normale Aufgaben-Editor unverändert auf einer Vorlage –
+ * inklusive Unteraufgaben-Sektion, Chips und Kommentaren.
+ *
+ * Der Ordner kommt aus dem Pfad der Wurzel und nicht aus dem Namen: Bei einer Namenskollision
+ * heisst der Ordner „Urlaub 2", und eine neue Unteraufgabe muss dort landen, nicht in „Urlaub".
+ */
+export function templateEditScope(plugin: BeautyTasksPlugin, rootPath: string): EditScope {
+  return {
+    index: plugin.templates,
+    target: { folder: rootPath.split("/").slice(0, -1).join("/"), type: TEMPLATE_TYPE },
+  };
 }
 
 export interface ApplyOptions {
