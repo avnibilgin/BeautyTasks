@@ -16,7 +16,9 @@ import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
-import { ConfirmModal } from "./confirmModal";
+import { listTemplates, createEmptyTemplate, renameTemplate, deleteTemplate, TemplateInfo } from "./templateService";
+import { ApplyTemplateModal } from "./templateModal";
+import { ConfirmModal, PromptModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
@@ -2076,6 +2078,50 @@ function navHintRow(c: HTMLElement, icon: string, label: string, onClick: () => 
   activate(row, onClick);
 }
 
+/**
+ * Nach jeder Vorlagen-Operation den Vorlagen-Index neu aufbauen – und NICHT auf die Datei-Events
+ * vertrauen.
+ *
+ * Umbenennen und Löschen einer Vorlage fassen einen ORDNER an. Obsidian meldet dafür kein
+ * verlässliches `delete`/`rename` je enthaltener Datei, der Index behielte also Einträge unter
+ * Pfaden, die es nicht mehr gibt – die gelöschte Vorlage stünde weiter in der Seitenleiste.
+ * Ein Neuaufbau ist hier billig: Der Vorlagen-Index ist auf seinen Ordner beschränkt.
+ *
+ * Der kurze Verzug wartet auf den Metadaten-Cache; `build()` meldet anschliessend von selbst,
+ * und die NavView zeichnet über ihr Abo neu.
+ */
+function refreshTemplates(plugin: BeautyTasksPlugin): void {
+  window.setTimeout(() => plugin.templates.build(), 150);
+}
+
+/** „+ Vorlage erstellen": Name abfragen, leere Vorlage anlegen, Seitenleiste nachziehen. */
+function promptNewTemplate(plugin: BeautyTasksPlugin): void {
+  new PromptModal(plugin.app, { title: t("create_template"), placeholder: t("placeholder_taskname") }, (name) => {
+    void createEmptyTemplate(plugin, name).then(() => refreshTemplates(plugin));
+  }).open();
+}
+
+/** Rechtsklick auf eine Vorlage. Anwenden steht zusätzlich hier, obwohl der Klick es schon tut –
+ *  wer das Menü öffnet, soll nicht raten müssen, welche Handlung die Zeile ausführt. */
+function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
+  const m = new Menu();
+  m.addItem((i) => i.setTitle(t("menu_apply_template")).setIcon("wand-sparkles")
+    .onClick(() => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open()));
+  m.addItem((i) => i.setTitle(t("menu_open_task_note")).setIcon("file-text")
+    .onClick(() => openTaskNote(plugin.app, tpl.root.path)));
+  m.addSeparator();
+  m.addItem((i) => i.setTitle(t("btn_rename")).setIcon("text-cursor-input")
+    .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: tpl.name }, (name) => {
+      void renameTemplate(plugin, tpl.root.path, name).then(() => refreshTemplates(plugin));
+    }).open()));
+  m.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true)
+    .onClick(() => new ConfirmModal(plugin.app, {
+      title: t("confirm_delete_title", tpl.name),
+      message: t("confirm_delete_body"),
+    }, () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin))).open()));
+  return m;
+}
+
 /** Ein-/ausklappbare Abschnittsüberschrift: Chevron-Toggle (Zustand persistent) + „+",
  *  das nur beim Hover/Fokus der Zeile erscheint. Gibt zurück, ob der Abschnitt eingeklappt ist. */
 function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: string,
@@ -2197,6 +2243,9 @@ function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   const today = todayStr();
   for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, filterBadgeCount(plugin, fl, today));
   for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
+  // Ohne diese Zeile stünde für jede Vorlage KEIN Eintrag in der Karte, und tryPatchNav setzte
+  // ihren Zähler beim nächsten Nachziehen auf leer (`counts.get(key) ?? 0`).
+  for (const tpl of listTemplates(plugin)) m.set("t:" + tpl.root.path, tpl.size);
   return m;
 }
 
@@ -2216,8 +2265,14 @@ function navSignature(plugin: BeautyTasksPlugin): string {
     // Filtern steuert – deren Listen sind oben schon in der Signatur.
     ready: plugin.index.ready,
     labelHint: plugin.index.ready && !plugin.getLabels().length,
+    // Vorlagen: Pfad und Name je Wurzel, aber bewusst OHNE ihre Grösse. Die Grösse ist der
+    // Zähler-Badge und wird von tryPatchNav nachgezogen – stünde sie hier, erzwänge jede neue
+    // Unteraufgabe einer Vorlage einen vollständigen Neuaufbau der Seitenleiste. Sie kostet
+    // ausserdem einen Baum-Durchlauf, und diese Signatur läuft bei JEDEM Nachziehen.
+    templates: plugin.templates.all().filter((x) => !x.parent).map((x) => x.path + "~" + x.title).sort(),
+    tplReady: plugin.templates.ready,
     active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
-    collapsed: ["filters", "labels", "areas", "projects"].map((id) => plugin.isNavCollapsed(id)),
+    collapsed: ["filters", "labels", "areas", "projects", "templates"].map((id) => plugin.isNavCollapsed(id)),
     reorder: plugin.reorderSec,
     preview: plugin.colorPreview,
     locale: getLocale(),
@@ -2370,6 +2425,30 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), "", redraw,
     async () => undefined, () => new NewItemModal(plugin, "project").open());
   if (!projCollapsed || plugin.reorderSec === "projects") projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
+
+  // Vorlagen ganz unten: „+" legt eine leere an. Ein KLICK wendet an – nicht „öffnet", wie bei den
+  // Abschnitten darüber. Das ist Absicht: Anwenden ist die Handlung, die man vielfach häufiger
+  // ausführt als Bearbeiten, und eine Vorlagen-SEITE gibt es (noch) nicht. Bearbeiten liegt
+  // deshalb im Rechtsklick-Menü.
+  //
+  // Der Abschnitt hängt am ZWEITEN Index (plugin.templates) – der Aufgaben-Index kennt Vorlagen
+  // nicht und soll sie auch nie kennen (s. IndexScope in taskIndex.ts).
+  const tplCollapsed = navHead(c, plugin, "templates", t("nav_templates"), t("create_template"), "", redraw,
+    async () => undefined, () => promptNewTemplate(plugin));
+  if (!tplCollapsed) {
+    const tpls = listTemplates(plugin);
+    for (const tpl of tpls) {
+      navItem(c, plugin, {
+        cls: "bt-nav-template", icon: tpl.kind === "project" ? "folder-plus" : "clipboard-list", label: tpl.name,
+        count: tpl.size, countKey: "t:" + tpl.root.path,
+        onClick: () => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open(),
+        onContext: (e) => { buildTemplateMenu(plugin, tpl).showAtMouseEvent(e); },
+      });
+    }
+    // Wie bei Labels/Filtern: der Hinweis erscheint erst, wenn der Index EINMAL stand – sonst böte
+    // er beim Start das Anlegen an, obwohl längst Vorlagen da sind (s. TaskIndex.ready).
+    if (plugin.templates.ready && !tpls.length) navHintRow(c, "plus", t("create_template"), () => promptNewTemplate(plugin));
+  }
 
   navBadges = null;
   navMounts.set(c, { sig: navSignature(plugin), badges });
@@ -2797,15 +2876,20 @@ export class MainView extends ItemView {
 
 export class NavView extends ItemView {
   private unsub: (() => void) | null = null;
+  private unsubTpl: (() => void) | null = null;
   constructor(leaf: WorkspaceLeaf, private plugin: BeautyTasksPlugin) { super(leaf); }
   getViewType(): string { return VIEW_NAV; }
   getDisplayText(): string { return "BeautyTasks"; }
   getIcon(): string { return "check-circle"; }
   async onOpen(): Promise<void> {
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
+    // ZWEITES Abo auf den Vorlagen-Index: Die Vorlagen-Sektion liest aus ihm, und er meldet
+    // getrennt. Ohne das bliebe die Sektion stehen, bis zufällig eine AUFGABE sich ändert –
+    // eine gerade gespeicherte Vorlage erschiene also erst irgendwann später.
+    if (!this.unsubTpl) this.unsubTpl = this.plugin.templates.subscribe(() => this.draw());
     this.draw();
   }
-  async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; }
+  async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; this.unsubTpl?.(); this.unsubTpl = null; }
   draw(): void {
     if (!this.contentEl) return;
     // Nur die Zahlen haben sich geändert? Dann bleibt die Seitenleiste stehen (s. tryPatchNav).

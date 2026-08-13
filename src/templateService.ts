@@ -2,7 +2,7 @@ import { App, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { AnchorMode, planTemplateDates } from "./templatePlan";
-import { baseName, createTaskNote, ensureFolder, NoteTarget, slugify } from "./taskService";
+import { baseName, createTaskNote, ensureFolder, NoteTarget, setTaskTitle, slugify } from "./taskService";
 import { firstOpenStatus } from "./statuses";
 
 /**
@@ -154,6 +154,41 @@ export async function applyTemplate(plugin: BeautyTasksPlugin, rootPath: string,
     project: opts.project,
   });
   return items.length;
+}
+
+/**
+ * Eine leere Vorlage anlegen. Gibt den Pfad der Wurzel zurück.
+ *
+ * Der übliche Weg zu einer Vorlage ist „Aufgabe als Vorlage speichern" – man hat die Sache ja
+ * schon einmal gemacht. Von Null anzufangen bleibt trotzdem nötig, sonst müsste man erst eine
+ * Wegwerf-Aufgabe bauen, um sie sofort wieder zu löschen.
+ */
+export async function createEmptyTemplate(plugin: BeautyTasksPlugin, name: string, kind: TemplateKind = "task"): Promise<string> {
+  const folder = freeFolder(plugin.app, templateFolder(plugin, name));
+  await ensureFolder(plugin.app, folder);
+  const root = await createTaskNote(plugin.app, plugin.settings, {
+    title: name, status: firstOpenStatus(), project: null,
+  }, { folder, type: TEMPLATE_TYPE });
+  await plugin.app.fileManager.processFrontMatter(root, (fm: Record<string, unknown>) => { fm[TEMPLATE_OF] = kind; });
+  return root.path;
+}
+
+/**
+ * Eine Vorlage umbenennen.
+ *
+ * Geändert werden der angezeigte Name (Frontmatter-`title` der Wurzel) und der Ordnername. Die
+ * DATEI der Wurzel behält ihren Namen: Die Kinder verweisen mit `parent: [[Basename]]` auf sie,
+ * und ein Umbenennen zöge das Umschreiben jedes Kindes nach sich – für etwas, das niemand sieht.
+ * Dieselbe Trennung wie bei Projekten (Name = Referenz, Anzeige = Wert).
+ */
+export async function renameTemplate(plugin: BeautyTasksPlugin, rootPath: string, newName: string): Promise<void> {
+  const file = plugin.app.vault.getAbstractFileByPath(rootPath);
+  if (!(file instanceof TFile)) return;
+  await setTaskTitle(plugin.app, file, newName);
+  const folder = file.parent;
+  if (!folder || folder.path === plugin.settings.templatesFolder) return;   // Wurzel liegt (noch) ohne eigenen Ordner
+  const dest = freeFolder(plugin.app, templateFolder(plugin, newName));
+  if (dest !== folder.path) await plugin.app.fileManager.renameFile(folder, dest);
 }
 
 /** Eine Vorlage samt ihres Ordners in den Obsidian-Papierkorb (reversibel, wie bei Projekten). */
