@@ -170,6 +170,13 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
     .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: item.name },
       (v) => renameItem(plugin, item, v)).open()));
 
+  // — Als Vorlage speichern — (nur Projekte/Bereiche; Labels und Filter haben keine Aufgaben,
+  // die man mitnehmen könnte). Nimmt das Projekt samt aller Aufgabenbäume auf.
+  if (isProjLike) {
+    menu.addItem((m) => m.setSection("bt-edit").setTitle(t("menu_save_project_as_template")).setIcon("bookmark-plus")
+      .onClick(() => void plugin.saveProjectAsTemplate(item.key, item.name)));
+  }
+
   if (isProjLike) {
     const toArea = item.type !== "area";
     menu.addItem((m) => m.setSection("bt-edit")

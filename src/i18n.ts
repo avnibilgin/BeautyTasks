@@ -58,6 +58,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Inbox", group_area: "Areas", group_project: "Projects",
     // ── Vorlagen ──
     nav_templates: "Templates",
+    tpl_new_project: "New project",
+    tpl_existing_project: "Existing project",
     create_template: "Create template",
     menu_save_as_template: "Save as template",
     menu_save_project_as_template: "Save project as template",
@@ -383,6 +385,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Eingang", group_area: "Bereiche", group_project: "Projekte",
     // ── Vorlagen ──
     nav_templates: "Vorlagen",
+    tpl_new_project: "Neues Projekt",
+    tpl_existing_project: "Bestehendes Projekt",
     create_template: "Vorlage erstellen",
     menu_save_as_template: "Als Vorlage speichern",
     menu_save_project_as_template: "Projekt als Vorlage speichern",
@@ -708,6 +712,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Bandeja de entrada", group_area: "Áreas", group_project: "Proyectos",
     // ── Vorlagen ──
     nav_templates: "Plantillas",
+    tpl_new_project: "Proyecto nuevo",
+    tpl_existing_project: "Proyecto existente",
     create_template: "Crear plantilla",
     menu_save_as_template: "Guardar como plantilla",
     menu_save_project_as_template: "Guardar proyecto como plantilla",
@@ -1033,6 +1039,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Entrada", group_area: "Áreas", group_project: "Projetos",
     // ── Vorlagen ──
     nav_templates: "Modelos",
+    tpl_new_project: "Novo projeto",
+    tpl_existing_project: "Projeto existente",
     create_template: "Criar modelo",
     menu_save_as_template: "Salvar como modelo",
     menu_save_project_as_template: "Salvar projeto como modelo",
@@ -1358,6 +1366,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Boîte de réception", group_area: "Domaines", group_project: "Projets",
     // ── Vorlagen ──
     nav_templates: "Modèles",
+    tpl_new_project: "Nouveau projet",
+    tpl_existing_project: "Projet existant",
     create_template: "Créer un modèle",
     menu_save_as_template: "Enregistrer comme modèle",
     menu_save_project_as_template: "Enregistrer le projet comme modèle",
@@ -1683,6 +1693,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Gelen kutusu", group_area: "Alanlar", group_project: "Projeler",
     // ── Vorlagen ──
     nav_templates: "Şablonlar",
+    tpl_new_project: "Yeni proje",
+    tpl_existing_project: "Mevcut proje",
     create_template: "Şablon oluştur",
     menu_save_as_template: "Şablon olarak kaydet",
     menu_save_project_as_template: "Projeyi şablon olarak kaydet",
@@ -2008,6 +2020,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "收件箱", group_area: "领域", group_project: "项目",
     // ── Vorlagen ──
     nav_templates: "模板",
+    tpl_new_project: "新建项目",
+    tpl_existing_project: "现有项目",
     create_template: "创建模板",
     menu_save_as_template: "保存为模板",
     menu_save_project_as_template: "将项目保存为模板",
@@ -2333,6 +2347,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Входящие", group_area: "Области", group_project: "Проекты",
     // ── Vorlagen ──
     nav_templates: "Шаблоны",
+    tpl_new_project: "Новый проект",
+    tpl_existing_project: "Существующий проект",
     create_template: "Создать шаблон",
     menu_save_as_template: "Сохранить как шаблон",
     menu_save_project_as_template: "Сохранить проект как шаблон",
@@ -2658,6 +2674,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "インボックス", group_area: "エリア", group_project: "プロジェクト",
     // ── Vorlagen ──
     nav_templates: "テンプレート",
+    tpl_new_project: "新しいプロジェクト",
+    tpl_existing_project: "既存のプロジェクト",
     create_template: "テンプレートを作成",
     menu_save_as_template: "テンプレートとして保存",
     menu_save_project_as_template: "プロジェクトをテンプレートとして保存",
@@ -2983,6 +3001,8 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Posta in arrivo", group_area: "Aree", group_project: "Progetti",
     // ── Vorlagen ──
     nav_templates: "Modelli",
+    tpl_new_project: "Nuovo progetto",
+    tpl_existing_project: "Progetto esistente",
     create_template: "Crea modello",
     menu_save_as_template: "Salva come modello",
     menu_save_project_as_template: "Salva progetto come modello",

@@ -6,7 +6,7 @@ import { applyDefaults, toDelta } from "./settingsDelta";
 import { forcedStartPage, newTabPage, fromLegacyStartView } from "./startPage";
 import { resolveReminders } from "./reminders";
 import { TaskIndex, TASK_SCOPE, TEMPLATE_SCOPE } from "./taskIndex";
-import { saveAsTemplate } from "./templateService";
+import { saveAsTemplate, saveProjectAsTemplate } from "./templateService";
 import { PickTemplateModal } from "./templateModal";
 import { runMigration } from "./migrate";
 import {
@@ -2350,6 +2350,16 @@ export default class BeautyTasksPlugin extends Plugin {
     new Notice(t("msg_template_saved"));
   }
 
+  /** Ein ganzes Projekt (Notiz + alle Aufgabenbäume darin) als Vorlage ablegen – aus dem
+   *  Kontextmenü der Seitenleiste. Die Beschreibung der Projektnotiz wandert mit und wird beim
+   *  Anwenden wieder zur Beschreibung des neuen Projekts. */
+  async saveProjectAsTemplate(path: string, name: string): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    const desc: unknown = f instanceof TFile ? this.app.metadataCache.getFileCache(f)?.frontmatter?.description : "";
+    await saveProjectAsTemplate(this, path, name, typeof desc === "string" ? desc : "");
+    new Notice(t("msg_template_saved"));
+  }
+
   /**
    * Die SICHTBAREN Unteraufgaben unter `srcParentPath` (nicht die im Papierkorb, s.
    * subtasksToDuplicate) als Kopien unter `newParentBase` neu anlegen, rekursiv über die ganze
@@ -2367,7 +2377,11 @@ export default class BeautyTasksPlugin extends Plugin {
     // Stapelüberlauf wäre das nicht nur ein Absturz, sondern ein zugemüllter Vault.
     const gesehen = opts.seen ?? new Set<string>([srcParentPath]);
     const from = opts.from ?? this.index;
-    const kids = subtasksToDuplicate(from.children(srcParentPath)).filter((k) => !gesehen.has(k.path));
+    // `roots` ersetzt die erste Ebene (Projektvorlagen: die Aufgaben eines Projekts sind keine
+    // Kinder der Projektnotiz). Ab der zweiten Ebene gilt wieder die normale Kind-Beziehung –
+    // deshalb wird es unten aus den Optionen der Rekursion herausgenommen.
+    const quelle = opts.roots ?? from.children(srcParentPath);
+    const kids = subtasksToDuplicate(quelle).filter((k) => !gesehen.has(k.path));
     let order = ORDER_GAP;
     for (const kid of kids) {
       // Verschobene Daten der Vorlage, falls vorhanden – sonst die des Originals (Duplizieren
@@ -2389,12 +2403,16 @@ export default class BeautyTasksPlugin extends Plugin {
         labels: [...kid.labels],
         recurrence: kid.recurrence, recurBasis: kid.recurBasis,
         reminders: d ? [...d.reminders] : [...(kid.reminders ?? [])],
-        parent: newParentBase,
+        // detachTop: Beim Anwenden einer Projektvorlage werden die direkten Kinder der Wurzel
+        // wieder zu eigenständigen Aufgaben des Zielprojekts – die Vorlagen-Wurzel wird ja zum
+        // PROJEKT und nicht zu einer Aufgabe, die sie tragen könnte.
+        parent: opts.detachTop ? null : newParentBase,
         sortOrder: order,
       }, opts.target);
       order += ORDER_GAP;
       gesehen.add(kid.path);
-      await this.duplicateSubtree(kid.path, copy.basename, { ...opts, seen: gesehen });   // Enkel & tiefer
+      // Ohne `roots` und `detachTop`: beide gelten ausdrücklich nur für die erste Ebene.
+      await this.duplicateSubtree(kid.path, copy.basename, { ...opts, roots: undefined, detachTop: false, seen: gesehen });
     }
   }
 

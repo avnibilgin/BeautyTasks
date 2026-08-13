@@ -2,7 +2,7 @@ import { App, TFile, normalizePath } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
 import { AnchorMode, planTemplateDates } from "./templatePlan";
-import { baseName, createTaskNote, EditScope, ensureFolder, NoteTarget, setTaskTitle, slugify } from "./taskService";
+import { baseName, createProjectNote, createTaskNote, EditScope, ensureFolder, NoteTarget, setTaskTitle, slugify } from "./taskService";
 import { firstOpenStatus, isTrashed } from "./statuses";
 
 /**
@@ -62,12 +62,13 @@ const isRoot = (t: Task): boolean => !t.parent && !isTrashed(t.status);
 export function listTemplates(plugin: BeautyTasksPlugin): TemplateInfo[] {
   return plugin.templates.all()
     .filter(isRoot)
-    .map((root) => ({
-      root,
-      name: root.title,
-      kind: templateKind(plugin.app, root.path),
-      size: 1 + plugin.templates.descendants(root.path).length,
-    }))
+    .map((root) => {
+      const kind = templateKind(plugin.app, root.path);
+      // Zahl = wie viele AUFGABEN entstehen. Bei einer Projektvorlage wird die Wurzel zum
+      // Projekt und zählt deshalb nicht mit.
+      const size = plugin.templates.descendants(root.path).length + (kind === "project" ? 0 : 1);
+      return { root, name: root.title, kind, size };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
@@ -114,6 +115,37 @@ export async function saveAsTemplate(plugin: BeautyTasksPlugin, task: Task, kind
 }
 
 /**
+ * Ein ganzes Projekt als Vorlage ablegen. Gibt den Pfad der Vorlagen-Wurzel zurück.
+ *
+ * Die Wurzel ist eine Vorlagen-Notiz mit `template_of: project`; darunter hängen die Aufgaben des
+ * Projekts mit ihren eigenen Unterbäumen.
+ *
+ * ── Warum die Projektaufgaben `parent` bekommen ──────────────────────────────
+ * Im Vault gehört eine Aufgabe über `project: [[Name]]` zu ihrem Projekt, nicht über `parent`.
+ * In der Vorlage wäre das eine Sackgasse: `descendants()` läuft über `parent`, und ohne diese
+ * Kette fände weder die Grössenangabe noch das Anwenden auch nur eine einzige Aufgabe. Innerhalb
+ * der Vorlage bilden sie deshalb einen Baum unter der Wurzel – und beim Anwenden löst
+ * `detachTop` sie wieder von ihr (s. applyTemplate).
+ */
+export async function saveProjectAsTemplate(plugin: BeautyTasksPlugin, projectPath: string, name: string, description = ""): Promise<string> {
+  const folder = freeFolder(plugin.app, templateFolder(plugin, name));
+  await ensureFolder(plugin.app, folder);
+  const target: NoteTarget = { folder, type: TEMPLATE_TYPE };
+
+  const root = await createTaskNote(plugin.app, plugin.settings, {
+    title: name, description, status: firstOpenStatus(), project: null,
+  }, target);
+  await plugin.app.fileManager.processFrontMatter(root, (fm: Record<string, unknown>) => { fm[TEMPLATE_OF] = "project"; });
+
+  // Die Aufgaben DES Projekts, die keine Unteraufgabe sind – alles Tiefere holt die Rekursion.
+  // Papierkorb bleibt aussen vor (subtasksToDuplicate filtert ihn ohnehin, aber schon hier
+  // gefiltert bleibt die Absicht sichtbar).
+  const roots = plugin.index.all().filter((t) => t.project === projectPath && !t.parent && !isTrashed(t.status));
+  await plugin.duplicateSubtree(projectPath, root.basename, { target, project: null, roots });
+  return root.path;
+}
+
+/**
  * Der Bearbeitungs-Bereich einer Vorlage: gelesen wird aus dem Vorlagen-Index, geschrieben in
  * ihren EIGENEN Ordner. Damit läuft der normale Aufgaben-Editor unverändert auf einer Vorlage –
  * inklusive Unteraufgaben-Sektion, Chips und Kommentaren.
@@ -129,8 +161,11 @@ export function templateEditScope(plugin: BeautyTasksPlugin, rootPath: string): 
 }
 
 export interface ApplyOptions {
-  /** Zielprojekt (Basename) oder `null` für den Eingang. */
+  /** Zielprojekt (Basename) oder `null` für den Eingang. Bei einer Projektvorlage: das
+   *  BESTEHENDE Projekt, in das gegossen wird – ohne Wirkung, wenn `newProject` gesetzt ist. */
   project: string | null;
+  /** Nur Projektvorlagen: Name eines NEU anzulegenden Projekts. Gesetzt = neues Projekt. */
+  newProject?: string | null;
   /** Ankerdatum „YYYY-MM-DD"; `null` = ohne Datum anwenden (die Vorlage behält ihre eigenen). */
   anchor: string | null;
   mode: AnchorMode;
@@ -142,6 +177,10 @@ export interface ApplyOptions {
  * Der Datums-Plan wird über den GANZEN Baum gerechnet, bevor die erste Notiz entsteht: Die
  * Verschiebung ergibt sich aus der Spanne aller Aufgaben, nicht aus der zuerst angefassten.
  * Stückweise gerechnet bekäme jede Aufgabe ihren eigenen Anker und die Abstände wären dahin.
+ *
+ * Zwei Ausgänge, ein Rechenweg: Eine Aufgabenvorlage wird zu EINER Aufgabe samt Unterbaum, eine
+ * Projektvorlage zu einem Projekt mit seinen Aufgaben. Der Unterschied steckt allein darin, was
+ * aus der WURZEL wird – der Datums-Plan und die Rekursion sind für beide dieselben.
  */
 export async function applyTemplate(plugin: BeautyTasksPlugin, rootPath: string, opts: ApplyOptions): Promise<number> {
   const root = plugin.templates.get(rootPath);
@@ -149,6 +188,18 @@ export async function applyTemplate(plugin: BeautyTasksPlugin, rootPath: string,
   const items = [root, ...plugin.templates.descendants(rootPath)];
   const dates = planTemplateDates(items, opts.anchor, opts.mode);
   const d = dates.get(rootPath);
+
+  if (templateKind(plugin.app, rootPath) === "project") {
+    // Die Wurzel wird zum Projekt (oder es gibt schon eines) – nicht zu einer Aufgabe. Ihre
+    // direkten Kinder lösen sich deshalb von ihr und werden Aufgaben des Projekts (detachTop).
+    const target = opts.newProject
+      ? await createProjectNote(plugin.app, plugin.settings, opts.newProject, false, null, false, root.description)
+      : opts.project;
+    await plugin.duplicateSubtree(rootPath, "", {
+      from: plugin.templates, dates, project: target, detachTop: true,
+    });
+    return items.length - 1;   // die Wurzel wurde ein Projekt, keine Aufgabe
+  }
 
   const created = await createTaskNote(plugin.app, plugin.settings, {
     title: root.title,

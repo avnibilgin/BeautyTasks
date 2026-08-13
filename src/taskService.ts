@@ -187,6 +187,22 @@ export interface DuplicateOpts {
   project?: string | null;
   /** Woraus gelesen wird. Vorgabe ist der Aufgaben-Index; Vorlagen liegen im zweiten. */
   from?: ChildSource;
+  /**
+   * Womit die ERSTE Ebene gefüllt wird, statt mit den Kindern von `srcParentPath`.
+   *
+   * Für Projektvorlagen: Die Aufgaben eines Projekts sind keine Kinder der Projektnotiz – sie
+   * verweisen mit `project` auf sie. Ohne diese Angabe fände der Kopierer nichts.
+   */
+  roots?: Task[];
+  /**
+   * Für Projektvorlagen beim ANWENDEN: Die direkten Kinder der Wurzel bekommen KEINEN `parent`,
+   * sondern werden Aufgaben des Zielprojekts. Tiefere Ebenen bleiben Unteraufgaben.
+   *
+   * Das ist die Umkehrung von `roots`: Beim Speichern hängen wir die Projektaufgaben unter die
+   * Vorlagen-Wurzel (nur so bilden sie einen Baum, den `descendants` findet), beim Anwenden
+   * lösen wir sie wieder von ihr.
+   */
+  detachTop?: boolean;
   /** Intern: bereits besuchte Pfade (Kreis-Schutz). Nicht von aussen setzen. */
   seen?: Set<string>;
 }

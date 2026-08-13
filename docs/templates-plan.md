@@ -110,9 +110,24 @@ im eigenen Ordner auf — der Unterordner beseitigt die Zweideutigkeit, statt si
 - `TaskModal` / `SubtaskList`: Index als Konstruktor-Argument (Vorgabe `plugin.index`)
 - Kontextmenü, Befehle, i18n (10 Sprachen, `i18nCoverage.test.ts` erzwingt Vollständigkeit)
 
-### Stufe 2 — Projektvorlagen
-Dieselbe Maschinerie eine Ebene höher: Projektnotiz + ihre Wurzelaufgaben. Zusätzlich die Wahl
-„neues Projekt" / „bestehendes Projekt" im Dialog.
+### Stufe 2 — Projektvorlagen ✅
+Dieselbe Maschinerie eine Ebene höher, plus die Wahl „neues Projekt" / „bestehendes Projekt".
+
+**Der eine Kniff:** Im Vault gehört eine Aufgabe über `project: [[Name]]` zu ihrem Projekt, nicht
+über `parent`. In der Vorlage wäre das eine Sackgasse — `descendants()` läuft über `parent`, ohne
+diese Kette fände weder die Grössenangabe noch das Anwenden eine einzige Aufgabe. Deshalb:
+
+- **Beim Speichern** hängen die Projektaufgaben unter die Vorlagen-Wurzel (`roots` in
+  `DuplicateOpts` ersetzt die erste Ebene, weil die Projektnotiz keine „Kinder" hat).
+- **Beim Anwenden** löst `detachTop` die direkte Ebene wieder von der Wurzel: Sie wird zum
+  PROJEKT, nicht zu einer Aufgabe, die die anderen tragen könnte. Tiefere Ebenen bleiben
+  Unteraufgaben.
+
+Beides gilt ausdrücklich nur für die erste Ebene und wird aus den Optionen der Rekursion
+herausgenommen.
+
+Die Zahl an der Vorlage zählt bei einer Projektvorlage die Wurzel NICHT mit — sie wird ja ein
+Projekt und keine Aufgabe.
 
 ## Bewusst NICHT
 

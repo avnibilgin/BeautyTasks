@@ -49,6 +49,12 @@ export class ApplyTemplateModal extends Modal {
   private project: string | null;
   private mode: AnchorMode = "start";
   private anchor: string | null = todayStr();
+  /** Nur Projektvorlagen: true = neues Projekt anlegen, false = in ein bestehendes giessen. */
+  private makeNew = true;
+  private newProject: string | null = null;
+  private newBtn?: HTMLButtonElement;
+  private oldBtn?: HTMLButtonElement;
+  private nameInput?: HTMLInputElement;
   private projektBtn!: HTMLButtonElement;
   private dateBtn!: HTMLButtonElement;
   private startBtn!: HTMLButtonElement;
@@ -71,12 +77,26 @@ export class ApplyTemplateModal extends Modal {
     head.createSpan({ cls: "bt-new-preview-nm", text: this.tpl.name });
     head.createSpan({ cls: "bt-new-preview-hint", text: String(this.tpl.size) });
 
-    // Zielprojekt
+    // Ziel. Eine Aufgabenvorlage braucht ein Projekt, in das die Aufgabe geht. Eine
+    // Projektvorlage hat die Wahl: ein NEUES Projekt anlegen oder in ein bestehendes giessen –
+    // Letzteres ist der Fall „ich will nur die Aufgaben hier drin haben, ohne neues Dach".
     const projField = contentEl.createDiv({ cls: "bt-new-field" });
     projField.createEl("label", { text: t("group_project") });
+    if (this.tpl.kind === "project") {
+      const pick = projField.createDiv({ cls: "bt-tpl-anchor" });
+      this.newBtn = pick.createEl("button", { text: t("tpl_new_project") });
+      this.oldBtn = pick.createEl("button", { text: t("tpl_existing_project") });
+      this.newBtn.onclick = () => this.setTargetMode(true);
+      this.oldBtn.onclick = () => this.setTargetMode(false);
+      this.nameInput = projField.createEl("input", { cls: "bt-new-input", attr: { type: "text", placeholder: t("placeholder_project_name") } });
+      this.nameInput.value = this.tpl.name;   // Vorbelegung: der Name der Vorlage
+      this.nameInput.oninput = () => { this.newProject = this.nameInput!.value; };
+      this.newProject = this.tpl.name;
+    }
     this.projektBtn = projField.createEl("button", { cls: "bt-projekt" });
     this.projektBtn.onclick = (e) => this.openProject(e.currentTarget as HTMLElement);
     this.renderProjekt();
+    if (this.tpl.kind === "project") this.renderTargetMode();
 
     // Anker: Richtung + Datum. Die Richtung sind zwei Knöpfe statt eines Umschalters – beide
     // Beschriftungen bleiben lesbar, und man sieht ohne Klick, dass es die zweite Möglichkeit gibt.
@@ -107,6 +127,17 @@ export class ApplyTemplateModal extends Modal {
   onClose(): void { this.contentEl.empty(); }
 
   private setMode(m: AnchorMode): void { this.mode = m; this.renderMode(); }
+
+  private setTargetMode(makeNew: boolean): void { this.makeNew = makeNew; this.renderTargetMode(); }
+
+  /** Entweder das Namensfeld ODER die Projektauswahl – nie beides. Zwei sichtbare Ziele, von
+   *  denen nur eines zählt, wären eine Einladung, das falsche auszufüllen. */
+  private renderTargetMode(): void {
+    this.newBtn?.toggleClass("mod-cta", this.makeNew);
+    this.oldBtn?.toggleClass("mod-cta", !this.makeNew);
+    this.nameInput?.toggleClass("bt-hidden", !this.makeNew);
+    this.projektBtn.toggleClass("bt-hidden", this.makeNew);
+  }
 
   private renderMode(): void {
     this.startBtn.toggleClass("mod-cta", this.mode === "start");
@@ -149,8 +180,13 @@ export class ApplyTemplateModal extends Modal {
   }
 
   private async submit(): Promise<void> {
+    // Ein neues Projekt braucht einen Namen. Ohne ihn bliebe der Dialog wortlos wirkungslos –
+    // die Aufgaben landeten im Eingang, und niemand wüsste, warum.
+    const neu = this.tpl.kind === "project" && this.makeNew ? (this.newProject ?? "").trim() : null;
+    if (this.tpl.kind === "project" && this.makeNew && !neu) { new Notice(t("new_need_name")); return; }
     const n = await applyTemplate(this.plugin, this.tpl.root.path, {
       project: this.project,
+      newProject: neu,
       anchor: this.anchor,
       mode: this.mode,
     });
