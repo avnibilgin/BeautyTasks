@@ -5,7 +5,7 @@ import { schemaVersionOf, pendingSteps, nextSchemaVersion } from "./schema";
 import { applyDefaults, toDelta } from "./settingsDelta";
 import { forcedStartPage, newTabPage, fromLegacyStartView } from "./startPage";
 import { resolveReminders } from "./reminders";
-import { TaskIndex } from "./taskIndex";
+import { TaskIndex, TASK_SCOPE, TEMPLATE_SCOPE } from "./taskIndex";
 import { runMigration } from "./migrate";
 import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
@@ -67,6 +67,10 @@ const DEVICE_STATE_KEY = "beautytasks-device";          // Geräte-Zustand (s. D
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
   index!: TaskIndex;
+  /** Zweiter Index derselben Klasse über den Vorlagen-Ordner (s. IndexScope in taskIndex.ts).
+   *  Getrennt zu halten ist der ganze Trick: Vorlagen sind für Ansichten, Zähler, Google-Sync
+   *  und Erinnerungen dadurch nicht vorhanden, ohne dass dort irgendwo ausgeschlossen wird. */
+  templates!: TaskIndex;
   gcalAuth!: GCalAuth;
   gcalSync!: GCalSync;
   gcalFeed!: GCalFeed;
@@ -107,8 +111,10 @@ export default class BeautyTasksPlugin extends Plugin {
       document.body.removeClasses(["bt-meta-minimalisdo", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
     });
 
-    this.index = new TaskIndex(this.app, () => this.settings);
+    this.index = new TaskIndex(this.app, () => this.settings, TASK_SCOPE);
     this.addChild(this.index);
+    this.templates = new TaskIndex(this.app, () => this.settings, TEMPLATE_SCOPE);
+    this.addChild(this.templates);
     // KEIN globales Abo hier: MainView und NavView abonnieren den Index selbst (onOpen) und
     // zeichnen sich bei jeder Meldung neu. Ein zusätzliches renderAll() hier hieße, dass jede
     // Änderung BEIDE Views doppelt zeichnet – im Profil ~110 ms je Zeichnung, also glatt
@@ -132,6 +138,7 @@ export default class BeautyTasksPlugin extends Plugin {
         await this.saveSettings();
       }
       this.index.build();
+      this.templates.build();   // eigener, ordner-gebundener Durchgang – siehe TEMPLATE_SCOPE
       this.renderAll();
       this.applyStartPage();   // wiederhergestellten Tab auf die eingestellte Startseite schicken
       await this.runPendingMigrations();   // Einmal-Migrationen beim ersten Start nach dem Update

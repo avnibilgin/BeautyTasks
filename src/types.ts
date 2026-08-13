@@ -137,6 +137,9 @@ export interface BeautyTasksSettings {
   itemsFolder: string;
   projectsFolder: string;   // Projekte UND Bereiche liegen hier (Bereich = type:area)
   filtersFolder: string;    // gespeicherte Filter (type: filter) liegen hier
+  templatesFolder: string;  // Vorlagen (type: template) liegen hier – je Vorlage EIN Unterordner,
+                            // damit gleichnamige Schritte zweier Vorlagen („Prüfen", „Abnahme")
+                            // sich nicht über den Basenamen verwechseln (s. templates-plan.md)
   attachmentsFolder: string;
   knownLabels: string[];   // Register: auch Labels ohne Aufgabe (im Manager angelegt)
   visibleLabels: string[]; // in der Seitenleiste sichtbar geschaltete Labels (Default leer)
@@ -204,6 +207,7 @@ export const DEFAULT_SETTINGS: BeautyTasksSettings = {
   itemsFolder: "BeautyTasks/Items",
   projectsFolder: "BeautyTasks/Projects",
   filtersFolder: "BeautyTasks/Filters",
+  templatesFolder: "BeautyTasks/Templates",
   attachmentsFolder: "BeautyTasks/Attachments",
   knownLabels: [],
   visibleLabels: [],

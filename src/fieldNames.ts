@@ -86,14 +86,14 @@ export function allFieldNames(): Record<FieldId, string> { return { ...CURRENT }
 
 /** Frontmatter-Werte, an denen BeautyTasks seine eigenen Notizen erkennt. Die EINE Liste – sie
  *  entscheidet auch, welche Notizen ein Feldnamen-Wechsel umschreibt. */
-export const ENTITY_VALUES = ["task", "project", "area", "filter"] as const;
+export const ENTITY_VALUES = ["task", "project", "area", "filter", "template"] as const;
 export type EntityValue = (typeof ENTITY_VALUES)[number];
 
 export const isEntityValue = (v: unknown): v is EntityValue =>
   typeof v === "string" && (ENTITY_VALUES as readonly string[]).includes(v);
 
 /** Ist diese Notiz von einem Wechsel des `type`-Feldes betroffen? Nur Notizen mit einem UNSERER
- *  vier Werte im alten Schlüssel – fremde Taxonomien (`type: meeting`) bleiben unangetastet. Führt
+ *  fünf Werte im alten Schlüssel – fremde Taxonomien (`type: meeting`) bleiben unangetastet. Führt
  *  die Notiz den neuen Schlüssel schon, ist nichts zu tun; das macht den Lauf wiederholbar. Rein,
  *  damit die Auswahlregel testbar ist, ohne einen Vault zu bauen. */
 export function isTypeRenameTarget(fm: Record<string, unknown> | undefined, prev: string, next: string): boolean {
