@@ -1487,9 +1487,13 @@ export default class BeautyTasksPlugin extends Plugin {
     return this.orderNav("templates", items, (x) => x.root.path, (x) => x.name);
   }
 
-  /** Vorlage in der Seitenleiste ein-/ausblenden. Das Schreiben ins Frontmatter meldet über den
-   *  Vorlagen-Index von selbst; ein eigenes renderAll() wäre eine zweite Zeichnung. */
+  /** Vorlage in der Seitenleiste ein-/ausblenden – wie bei Projekten und Filtern.
+   *
+   *  `refreshOnChange` MUSS vor dem Schreiben stehen: `nav_hidden` liest die Übersichtsseite aus
+   *  dem metadataCache, und der zieht nach processFrontMatter erst kurz später nach. Ohne den
+   *  Listener zeichnete die Seite mit dem alten Wert neu – der Schalter sprang zurück. */
   async setTemplateVisible(path: string, visible: boolean): Promise<void> {
+    this.refreshOnChange(path);
     await setTemplateHidden(this.app, path, !visible);
   }
   /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */

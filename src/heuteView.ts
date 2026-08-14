@@ -2485,6 +2485,7 @@ function readPlanMates(v: unknown): Partial<Record<"note" | "daily", string>> | 
  */
 export class MainView extends ItemView {
   private unsub: (() => void) | null = null;
+  private unsubTpl: (() => void) | null = null;
   private renderComp: Component | null = null;
   /** Zeichnung steht aus, weil der Tab gerade verdeckt ist (s. draw/drawIfDirty). */
   private dirty = false;
@@ -2776,10 +2777,15 @@ export class MainView extends ItemView {
     // sich damit selbst, wenn die Seite kürzer geworden ist.
     this.registerDomEvent(this.contentEl, "scroll", () => listScroll.set(this.scrollKey(), this.contentEl.scrollTop));
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
+    // Zweites Abo auf den Vorlagen-Index: Die Vorlagen-Übersicht liest aus ihm, und er meldet
+    // getrennt. Ohne das bliebe die Seite nach Umbenennen, Löschen oder einer im Editor
+    // hinzugefügten Unteraufgabe auf dem alten Stand, bis sich zufällig eine Aufgabe ändert.
+    if (!this.unsubTpl) this.unsubTpl = this.plugin.templates.subscribe(() => this.draw());
     this.draw();
   }
   async onClose(): Promise<void> {
     this.unsub?.(); this.unsub = null;
+    this.unsubTpl?.(); this.unsubTpl = null;
     dropViewKeys(this.id);   // sonst wüchsen die Modul-Maps mit jedem geschlossenen Tab weiter
   }
   /** Schlüssel der gemerkten Scrollposition. Nur die Tab-Kennung: Beim Seitenwechsel wirft
