@@ -693,8 +693,10 @@ function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | u
   // sonst nur in der Notiz zu lesen. Beim Platzhalter gibt es nichts zu zeigen, dort nennt er
   // stattdessen das Ziel des Klicks.
   tip(el, t2 || t("menu_edit"));
-  el.onclick = () => openEdit(plugin, item);
-  el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
+  // „description": Wer die Beschreibung anklickt, will sie ändern – der Cursor gehört dorthin
+  // und nicht in den Namen (s. NewItemModal.focusField).
+  el.onclick = () => openEdit(plugin, item, "description");
+  el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item, "description"); } };
 }
 
 /** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter

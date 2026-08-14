@@ -5,7 +5,7 @@ import { Menu, TFile, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageRef, pageInfo } from "./pageCtx";
 import { NavSection } from "./types";
-import { NewItemModal } from "./newItemModal";
+import { EditFocus, NewItemModal } from "./newItemModal";
 import { FilterModal } from "./filterModal";
 import { ConfirmModal, PromptModal } from "./confirmModal";
 import { listManaged } from "./taskService";
@@ -91,11 +91,11 @@ export function addGcalSyncItem(menu: Menu, plugin: BeautyTasksPlugin, path: str
 
 /** Bearbeiten-Dialog des Eintrags – Filter bekommen ihren eigenen. Exportiert, weil auch der
  *  Beschreibungs-Platzhalter auf der Seite dorthin führt (das Feld liegt in diesem Dialog). */
-export function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
-  if (item.sec === "filters") { new FilterModal(plugin, item.key).open(); return; }
+export function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem, focus: EditFocus = "name"): void {
+  if (item.sec === "filters") { new FilterModal(plugin, item.key, undefined, focus).open(); return; }
   const kind = item.sec === "labels" ? "label" : (item.type ?? "project");
   const desc = listManaged(plugin.app).active.concat(listManaged(plugin.app).archived).find((p) => p.path === item.key)?.description ?? "";
-  new NewItemModal(plugin, kind, { key: item.key, name: item.name, color: item.color ?? null, visible: !item.hidden, description: desc }).open();
+  new NewItemModal(plugin, kind, { key: item.key, name: item.name, color: item.color ?? null, visible: !item.hidden, description: desc }, focus).open();
 }
 
 function setVisible(plugin: BeautyTasksPlugin, sec: NavSection, key: string, visible: boolean): Promise<void> {

@@ -5,6 +5,7 @@
 import { Modal, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { todayStr } from "./format";
+import { EditFocus } from "./newItemModal";
 import { t } from "./i18n";
 import {
   FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS, ALL_FACETS, applyFilter, activeFacetCount,
@@ -32,7 +33,7 @@ export class FilterModal extends Modal {
   /** `preset` = Vorbelegung für einen NEUEN Filter: „Als Filter speichern" im Anzeige-Panel
    *  reicht damit den Ansichtsfilter der Seite herein (s. viewPanel.presetFor). Beim Bearbeiten
    *  gewinnt die Notiz – dort ist nichts vorzubelegen. */
-  constructor(private plugin: BeautyTasksPlugin, editPath?: string, preset?: FilterCriteria) {
+  constructor(private plugin: BeautyTasksPlugin, editPath?: string, preset?: FilterCriteria, private focusField: EditFocus = "name") {
     super(plugin.app);
     this.editPath = editPath ?? null;
     const existing = editPath ? readFilter(plugin.app, editPath) : null;
@@ -63,6 +64,11 @@ export class FilterModal extends Modal {
 
     // Beschreibung: kurzer Text im Frontmatter der Filternotiz, erscheint über der Aufgabenliste.
     const descIn = filterRow(contentEl, t("new_description")).createEl("textarea", { cls: "bt-filter-input bt-new-desc", attr: { rows: "2" } });
+    // Aus der Beschreibungszeile der Seite: Cursor direkt hierher, ans Ende des Textes. Dieser
+    // Dialog fokussiert sonst gar nichts – ohne das müsste man erst hineinklicken.
+    if (this.focusField === "description") {
+      window.setTimeout(() => { descIn.focus(); descIn.setSelectionRange(descIn.value.length, descIn.value.length); }, 0);
+    }
     descIn.placeholder = t("new_description_ph");
     descIn.value = this.description;
     descIn.oninput = () => { this.description = descIn.value; };
