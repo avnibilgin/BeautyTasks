@@ -8,7 +8,7 @@ import { todayStr } from "./format";
 import { EditFocus } from "./newItemModal";
 import { t } from "./i18n";
 import {
-  FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS, ALL_FACETS, applyFilter, activeFacetCount,
+  FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS, ALL_FACETS, countFilter, activeFacetCount,
 } from "./filterEngine";
 import { MODAL_STYLE, buildFacets, renderFacet, fieldRow } from "./facets";
 import { readFilter } from "./filterService";
@@ -127,7 +127,7 @@ export class FilterModal extends Modal {
   onClose(): void { this.contentEl.empty(); }
 
   private refresh(): void {
-    const n = applyFilter(this.plugin.index, this.c, this.o, todayStr()).length;
+    const n = countFilter(this.plugin.index, this.c, this.o, todayStr());
     const facets = activeFacetCount(this.c);
     this.countEl.setText(t(n === 1 ? "count_task" : "count_tasks", n)
       + (facets ? " · " + t("filter_facets_active", facets) : ""));

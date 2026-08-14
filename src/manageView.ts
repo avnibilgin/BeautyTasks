@@ -3,7 +3,7 @@ import type BeautyTasksPlugin from "./main";
 import { PageCtx, manageTitleKey } from "./pageCtx";
 import { listManaged, ProjItem } from "./taskService";
 import { listFilters, FilterItem } from "./filterService";
-import { applyFilter } from "./filterEngine";
+import { countFilter } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { ApplyTemplateModal } from "./templateModal";
 import { deleteTemplate, listTemplates, refreshTemplates, templateEditScope, TemplateInfo } from "./templateService";
@@ -332,7 +332,7 @@ function filterRow(list: HTMLElement, ctx: PageCtx, fl: FilterItem, redraw: () =
   iconBtn(actions, "sliders-horizontal", t("filter_edit"), () => new FilterModal(plugin, fl.path).open());   // Kriterien-Editor
   iconBtn(actions, "pencil", t("btn_rename"), () => startFilterRename(row, plugin, fl, redraw));
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void plugin.deleteFilter(fl.path), redraw));
-  row.createSpan({ cls: "bt-manage-count", text: String(applyFilter(plugin.index, fl.criteria, fl.options, todayStr()).length) });
+  row.createSpan({ cls: "bt-manage-count", text: String(countFilter(plugin.index, fl.criteria, fl.options, todayStr())) });
   visSwitch(row, !fl.hidden, () => void plugin.setFilterVisible(fl.path, fl.hidden));
 }
 

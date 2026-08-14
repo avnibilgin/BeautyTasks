@@ -10,7 +10,7 @@ import { todayStr, combineDT, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
 import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY, ProjLists } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
-import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
+import { applyFilter, countFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, buildCreateSubmenu, buildTemplateMenu, NavMenuItem } from "./navMenu";
@@ -2186,7 +2186,7 @@ let navBadges: Map<string, HTMLElement> | null = null;   // aktive Sammlung wäh
  *  ausdrücklichem Status-Kriterium zählen weiter ihre Treffer (applyFilter -> byStatus ignoriert
  *  showDone ohnehin, s. filterEngine). */
 function filterBadgeCount(plugin: BeautyTasksPlugin, fl: FilterItem, today: string): number {
-  return applyFilter(plugin.index, fl.criteria, { ...fl.options, showDone: false }, today).length;
+  return countFilter(plugin.index, fl.criteria, { ...fl.options, showDone: false }, today);
 }
 
 function navCounts(plugin: BeautyTasksPlugin, tpls: TemplateInfo[], pa: ProjLists, flts: FilterItem[]): Map<string, number> {

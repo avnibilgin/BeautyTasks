@@ -28,7 +28,7 @@ const CONFIRM_KEY: Record<FieldId, string> = {
   type: "set_field_confirm_type", title: "set_field_confirm_title", labels: "set_field_confirm_labels",
 };
 import { createFilterNote, updateFilterNote, deleteFilterNote, setFilterNavHidden, setFilterColor, renameFilterNote, listFilters, readFilter, FilterItem } from "./filterService";
-import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, DEFAULT_CRITERIA, applyFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
+import { FilterCriteria, ViewOptions, DEFAULT_OPTIONS, DEFAULT_CRITERIA, countFilter, sortTasks, planReorder, collectTrashTargets, subtasksToDuplicate, ORDER_GAP } from "./filterEngine";
 import { ConfirmModal } from "./confirmModal";
 import { readNoteViewOptions, setNoteViewOption, readViewOptions, readNoteCriteria, setNoteCriteria, readCriteria, writeCriteria } from "./pageOptions";
 import { nextInstance, legacyToRRule } from "./recurrence";
@@ -1477,7 +1477,7 @@ export default class BeautyTasksPlugin extends Plugin {
   }
   private navCount(sec: NavSection, key: string): number {
     if (sec === "labels") return this.index.byLabel(key).length;
-    if (sec === "filters") { const fl = readFilter(this.app, key); return fl ? applyFilter(this.index, fl.criteria, fl.options, todayStr()).length : 0; }
+    if (sec === "filters") { const fl = readFilter(this.app, key); return fl ? countFilter(this.index, fl.criteria, fl.options, todayStr()) : 0; }
     return this.index.byProject(key).length;
   }
   /** Liste nach dem aktiven Modus sortieren: Name (alphabetisch) · Anzahl (viele zuerst) · Manuell. */
@@ -1485,7 +1485,14 @@ export default class BeautyTasksPlugin extends Plugin {
     const mode = this.navSortMode(sec);
     const arr = [...items];
     const byName = (a: T, b: T) => nameOf(a).localeCompare(nameOf(b), "de");
-    if (mode === "count") return arr.sort((a, b) => this.navCount(sec, keyOf(b)) - this.navCount(sec, keyOf(a)) || byName(a, b));
+    if (mode === "count") {
+      // Den Zähler EINMAL je Eintrag holen, nicht im Vergleicher. Ein Sortierlauf ruft den
+      // Vergleicher rund n·log n mal und damit zweimal so oft den Zähler – bei 10 Filtern also
+      // 32-mal statt 10-mal. Für Labels und Projekte wäre das egal (Karten-Zugriff im Index),
+      // für Filter kostet jeder Aufruf einen Durchlauf über alle Aufgaben.
+      const n = new Map(arr.map((x) => [keyOf(x), this.navCount(sec, keyOf(x))] as const));
+      return arr.sort((a, b) => (n.get(keyOf(b)) ?? 0) - (n.get(keyOf(a)) ?? 0) || byName(a, b));
+    }
     if (mode === "manual") {
       const order = this.settings.navOrder?.[sec] ?? [];
       const idx = new Map(order.map((k, i) => [k, i] as const));
