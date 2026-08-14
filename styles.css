@@ -2789,6 +2789,26 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-tpl-list .bt-row-ic svg { width: 15px; height: 15px; }
 .bt-tpl-list .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Kopf des Anwenden-Dialogs: WAS wird angewendet. Zweizeilig, damit die Zahl eine Einheit
+   bekommt und die Art der Vorlage nicht nur am Icon hängt. Der Abstand nach unten trennt ihn
+   vom ersten Eingabefeld – vorher lag hier `.bt-new-preview`, das im Bestand ganz UNTEN sitzt
+   und deshalb keinen braucht. */
+.bt-tpl-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 22px; }
+.bt-tpl-head-ic { display: inline-flex; flex: 0 0 auto; color: var(--text-muted); }
+.bt-tpl-head-ic svg { width: 20px; height: 20px; }
+.bt-tpl-head-txt { min-width: 0; }
+.bt-tpl-head-nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-tpl-head-sub { color: var(--text-muted); font-size: 0.85em; }
+
+/* Zeitplan-Zeile: Richtungspaar links, Datum rechts (das `space-between` von .bt-new-row bleibt).
+   Nur der Aussenabstand fällt weg – die Zeile hat jetzt ein Label über sich und soll daran
+   anschliessen statt 20 px darunter zu schweben. */
+.bt-new-row.bt-tpl-when { margin: 0; }
+
+/* Der Hinweis erklärt die Zeitplan-Zeile und steht deshalb linksbündig direkt darunter –
+   nicht rechts unter dem Datum, wo er wie eine Fussnote des Knopfes aussah. */
+.bt-tpl-note { margin: 8px 0 0; color: var(--text-muted); font-size: 0.85em; }
+
 /* Anker-Zeile: die beiden Richtungen als Paar links, das Datum rechts.
    Die umgebende `.bt-new-row` verteilt mit `space-between` — ohne diese
    Gruppierung stünden alle drei Knöpfe gleich weit auseinander und man

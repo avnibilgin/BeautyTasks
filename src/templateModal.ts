@@ -71,18 +71,21 @@ export class ApplyTemplateModal extends Modal {
     modalEl.addClass("bt-new-modal");
     contentEl.createEl("h3", { text: t("tpl_apply_title") });
 
-    // Welche Vorlage – der Dialog wird auch aus der Kommandopalette erreicht, wo der Name sonst
-    // nirgends mehr stünde.
-    const head = contentEl.createDiv({ cls: "bt-new-preview" });
-    setIcon(head.createSpan({ cls: "bt-new-preview-ic" }), this.tpl.kind === "project" ? "folder-plus" : "clipboard-list");
-    head.createSpan({ cls: "bt-new-preview-nm", text: this.tpl.name });
-    head.createSpan({ cls: "bt-new-preview-hint", text: String(this.tpl.size) });
+    // Kopf: WAS wird hier angewendet. Zweizeilig – Name gross, darunter Art und Umfang. Der
+    // Dialog wird auch aus der Kommandopalette erreicht, wo der Name sonst nirgends mehr stünde,
+    // und ohne die zweite Zeile bliebe „10" eine Zahl ohne Einheit.
+    const head = contentEl.createDiv({ cls: "bt-tpl-head" });
+    setIcon(head.createSpan({ cls: "bt-tpl-head-ic" }), this.tpl.kind === "project" ? "folder-plus" : "clipboard-list");
+    const headText = head.createDiv({ cls: "bt-tpl-head-txt" });
+    headText.createDiv({ cls: "bt-tpl-head-nm", text: this.tpl.name });
+    headText.createDiv({ cls: "bt-tpl-head-sub",
+      text: t(this.tpl.kind === "project" ? "tpl_kind_project" : "tpl_kind_task") + " · " + t("cal_tasks", this.tpl.size) });
 
     // Ziel. Eine Aufgabenvorlage braucht ein Projekt, in das die Aufgabe geht. Eine
     // Projektvorlage hat die Wahl: ein NEUES Projekt anlegen oder in ein bestehendes giessen –
     // Letzteres ist der Fall „ich will nur die Aufgaben hier drin haben, ohne neues Dach".
     const projField = contentEl.createDiv({ cls: "bt-new-field" });
-    projField.createEl("label", { text: t("group_project") });
+    projField.createEl("label", { text: t("tpl_target") });
     if (this.tpl.kind === "project") {
       const pick = projField.createDiv({ cls: "bt-tpl-anchor" });
       this.newBtn = pick.createEl("button", { text: t("tpl_new_project") });
@@ -102,7 +105,8 @@ export class ApplyTemplateModal extends Modal {
     // Anker: Richtung + Datum. Die Richtung sind zwei Knöpfe statt eines Umschalters – beide
     // Beschriftungen bleiben lesbar, und man sieht ohne Klick, dass es die zweite Möglichkeit gibt.
     const ankField = contentEl.createDiv({ cls: "bt-new-field" });
-    const row = ankField.createDiv({ cls: "bt-new-row" });
+    ankField.createEl("label", { text: t("tpl_schedule") });
+    const row = ankField.createDiv({ cls: "bt-new-row bt-tpl-when" });
     const dir = row.createDiv({ cls: "bt-tpl-anchor" });
     this.startBtn = dir.createEl("button", { text: t("tpl_anchor_start") });
     this.endBtn = dir.createEl("button", { text: t("tpl_anchor_end") });
@@ -116,13 +120,13 @@ export class ApplyTemplateModal extends Modal {
     this.renderMode();
     this.renderDate();
 
-    ankField.createEl("p", { cls: "bt-new-preview-hint", text: t("tpl_keeps_gaps") });
+    ankField.createEl("p", { cls: "bt-tpl-note", text: t("tpl_keeps_gaps") });
 
     const foot = contentEl.createDiv({ cls: "bt-foot" });
     foot.createDiv();   // Platzhalter links, damit die Knöpfe rechts stehen
     const actions = foot.createDiv({ cls: "bt-actions" });
     actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
-    actions.createEl("button", { cls: "mod-cta", text: t("btn_create") }).onclick = () => void this.submit();
+    actions.createEl("button", { cls: "mod-cta", text: t("menu_apply_template") }).onclick = () => void this.submit();
   }
 
   onClose(): void { this.contentEl.empty(); }
