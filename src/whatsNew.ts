@@ -15,14 +15,17 @@ export class WhatsNewModal extends Modal {
     contentEl.createDiv({ cls: "bt-wn-eyebrow", text: "BeautyTasks " + this.plugin.manifest.version });
     contentEl.createEl("h2", { cls: "bt-wn-title", text: t("whatsnew_title") });
 
-    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Der Tooltip-Eintrag ist
-    // deshalb raus: Wer jetzt 1.45 sieht, hatte den Dialog beim Sprung auf 1.44.0 bereits.
+    // Gezeigt wird, was seit dem LETZTEN Modal sichtbar dazugekommen ist. Die Link-
+    // Vervollständigung ist deshalb raus: Wer jetzt 1.46 sieht, hatte den Dialog bei 1.45.0.
     //
-    // EIN Eintrag, und er beschreibt, was man MERKT (tippen, auswählen, fertig) – nicht, warum
-    // dafür eine eigene Vorschlagsliste nötig war. Dass der Link anklickbar BLEIBT, steht dabei,
-    // weil genau das die Frage ist, die ein Wikilink in einem Eingabefeld sonst aufwirft.
+    // Der ZWEITE Eintrag ist der wichtigste, obwohl der erste die Überschrift trägt: Ohne ihn
+    // liest sich „Vorlagen" wie Duplizieren mit Zusatzschritten. Dass die Zeitabstände erhalten
+    // bleiben, ist der ganze Unterschied – und „merkt sich den Rhythmus, nicht den Kalender"
+    // sagt ihn in einem Satz.
     const items: Highlight[] = [
-      { icon: "link", title: t("wn_link_t"), desc: t("wn_link_d") },
+      { icon: "clipboard-list", title: t("wn_tpl_t"), desc: t("wn_tpl_d") },
+      { icon: "calendar-days", title: t("wn_tplwhen_t"), desc: t("wn_tplwhen_d") },
+      { icon: "list-plus", title: t("wn_navtidy_t"), desc: t("wn_navtidy_d") },
     ];
     const list = contentEl.createDiv({ cls: "bt-wn-list" });
     for (const it of items) {

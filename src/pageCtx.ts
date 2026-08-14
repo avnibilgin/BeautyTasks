@@ -44,7 +44,8 @@ export type StartPage = "last" | PageRef;
 export function manageTitleKey(section: string): string {
   return section === "filters" ? "nav_filters"
     : section === "labels" ? "tab_labels"
-      : section === "areas" ? "group_area" : "group_project";
+      : section === "templates" ? "nav_templates"
+        : section === "areas" ? "group_area" : "group_project";
 }
 
 /** Speicher-Schlüssel und „Fernbedienungs-Größe" einer Seite – wo ihre Anzeige-Optionen liegen

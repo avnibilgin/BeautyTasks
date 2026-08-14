@@ -5,7 +5,9 @@ import { schemaVersionOf, pendingSteps, nextSchemaVersion } from "./schema";
 import { applyDefaults, toDelta } from "./settingsDelta";
 import { forcedStartPage, newTabPage, fromLegacyStartView } from "./startPage";
 import { resolveReminders } from "./reminders";
-import { TaskIndex } from "./taskIndex";
+import { TaskIndex, TASK_SCOPE, TEMPLATE_SCOPE } from "./taskIndex";
+import { listTemplates, saveAsTemplate, saveProjectAsTemplate, setTemplateHidden, TemplateInfo } from "./templateService";
+import { PickTemplateModal } from "./templateModal";
 import { runMigration } from "./migrate";
 import {
   MainView, NavView, VIEW_MAIN, VIEW_NAV, VIEW_IDS, viewTitle, ViewId, OLD_VIEW_TYPES,
@@ -14,7 +16,7 @@ import { PageRef, pageInfo, samePage } from "./pageCtx";
 import { activePlanTabs, pageNoteFile, openDailyNote, forceListLeft, NOTE_ICON, DAILY_ICON } from "./planTabs";
 import { TaskModal } from "./taskModal";
 import { QuickAddModal } from "./quickAddModal";
-import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName } from "./taskService";
+import { createTaskNote, transitionStamps, createProjectNote, setProjectType, setProjectArchived, setNavHidden, setProjectColor, setProjectDescription, renameProjectNote, deleteProjectNote, normalizeLabel, listManaged, listProjectsAndAreas, ensureCanonicalFm, isUnderFolder, INBOX_KEY, inboxNotePath, isInboxName, ProjItem, baseName, DuplicateOpts, ChildSource } from "./taskService";
 import { splitContent, isDocumentBody, hasOwnContent, ensureNoteLinkLog, writeDescription, writeLog, parseDetailLog, nowLogTs, LOG_HEADING } from "./detailLog";
 import { titleKey, fmTitle, firstH1, findH1Line, findH1LineInBody, titleToStore, dropHeadingLine } from "./taskTitle";
 import { FieldId, fieldKey, initFieldNames, allFieldNames, isTypeRenameTarget, labelKey } from "./fieldNames";
@@ -67,6 +69,10 @@ const DEVICE_STATE_KEY = "beautytasks-device";          // Geräte-Zustand (s. D
 export default class BeautyTasksPlugin extends Plugin {
   settings!: BeautyTasksSettings;
   index!: TaskIndex;
+  /** Zweiter Index derselben Klasse über den Vorlagen-Ordner (s. IndexScope in taskIndex.ts).
+   *  Getrennt zu halten ist der ganze Trick: Vorlagen sind für Ansichten, Zähler, Google-Sync
+   *  und Erinnerungen dadurch nicht vorhanden, ohne dass dort irgendwo ausgeschlossen wird. */
+  templates!: TaskIndex;
   gcalAuth!: GCalAuth;
   gcalSync!: GCalSync;
   gcalFeed!: GCalFeed;
@@ -107,8 +113,10 @@ export default class BeautyTasksPlugin extends Plugin {
       document.body.removeClasses(["bt-meta-minimalisdo", "bt-meta-colorado"]);   // Meta-Theme-Klassen (s. renderMain) entfernen
     });
 
-    this.index = new TaskIndex(this.app, () => this.settings);
+    this.index = new TaskIndex(this.app, () => this.settings, TASK_SCOPE);
     this.addChild(this.index);
+    this.templates = new TaskIndex(this.app, () => this.settings, TEMPLATE_SCOPE);
+    this.addChild(this.templates);
     // KEIN globales Abo hier: MainView und NavView abonnieren den Index selbst (onOpen) und
     // zeichnen sich bei jeder Meldung neu. Ein zusätzliches renderAll() hier hieße, dass jede
     // Änderung BEIDE Views doppelt zeichnet – im Profil ~110 ms je Zeichnung, also glatt
@@ -132,6 +140,7 @@ export default class BeautyTasksPlugin extends Plugin {
         await this.saveSettings();
       }
       this.index.build();
+      this.templates.build();   // eigener, ordner-gebundener Durchgang – siehe TEMPLATE_SCOPE
       this.renderAll();
       this.applyStartPage();   // wiederhergestellten Tab auf die eingestellte Startseite schicken
       await this.runPendingMigrations();   // Einmal-Migrationen beim ersten Start nach dem Update
@@ -229,6 +238,9 @@ export default class BeautyTasksPlugin extends Plugin {
       if (!checking) void this.openPlanSplit();
       return true;
     } });
+    // Vorlagen: anwenden über die Auswahl (das Zielprojekt wird mit der Seite vorbelegt, auf der
+    // man steht – wie beim Anlegen einer Aufgabe).
+    this.addCommand({ id: "new-from-template", name: t("cmd_new_from_template"), callback: () => new PickTemplateModal(this, this.addContext().project ?? null).open() });
     this.addCommand({ id: "search", name: t("cmd_search"), callback: () => this.openSearch() });
     this.addCommand({ id: "whats-new", name: t("cmd_whatsnew"), callback: () => new WhatsNewModal(this).open() });
     this.addCommand({ id: "gcal-sync-now", name: t("cmd_gcal_sync_now"), callback: () => void this.gcalSync.syncNow() });
@@ -912,7 +924,7 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateProject(path: string): Promise<void> { await this.openPage({ kind: "project", key: path }); }
   async activateLabel(label: string): Promise<void> { await this.openPage({ kind: "label", key: label }); }
   async activateFilter(path: string): Promise<void> { await this.openPage({ kind: "filter", key: path }); }
-  async activateManage(section: "projects" | "areas" | "labels" | "filters" = "projects", tab: "active" | "archive" = "active"): Promise<void> {
+  async activateManage(section: NavSection = "projects", tab: "active" | "archive" = "active"): Promise<void> {
     await this.openPage({ kind: "manage", key: section });
     // Default „Aktiv": Der Aktiv/Archiv-Umschalter ist eine Sicht INNERHALB der Übersicht, kein Zustand
     // der Anwendung – wer sie neu aufruft, will die aktiven Projekte sehen. Ausnahme: von der Seite
@@ -1435,7 +1447,7 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Seitenleisten-Sortierung (Projekte/Bereiche/Labels) ──
   navSortMode(sec: NavSection): NavSortMode { return this.settings.navSort?.[sec] ?? "name"; }
   async setNavSort(sec: NavSection, mode: NavSortMode): Promise<void> {
-    const cur = this.settings.navSort ?? { projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode, filters: "name" as NavSortMode };
+    const cur = this.settings.navSort ?? { templates: "name" as NavSortMode, projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode, filters: "name" as NavSortMode };
     cur[sec] = mode;
     this.settings.navSort = cur;
     await this.saveSettings();
@@ -1471,6 +1483,19 @@ export default class BeautyTasksPlugin extends Plugin {
   sortFilters(items: FilterItem[]): FilterItem[] {
     return this.orderNav("filters", items, (f) => f.path, (f) => f.name);
   }
+  sortTemplates(items: TemplateInfo[]): TemplateInfo[] {
+    return this.orderNav("templates", items, (x) => x.root.path, (x) => x.name);
+  }
+
+  /** Vorlage in der Seitenleiste ein-/ausblenden – wie bei Projekten und Filtern.
+   *
+   *  `refreshOnChange` MUSS vor dem Schreiben stehen: `nav_hidden` liest die Übersichtsseite aus
+   *  dem metadataCache, und der zieht nach processFrontMatter erst kurz später nach. Ohne den
+   *  Listener zeichnete die Seite mit dem alten Wert neu – der Schalter sprang zurück. */
+  async setTemplateVisible(path: string, visible: boolean): Promise<void> {
+    this.refreshOnChange(path);
+    await setTemplateHidden(this.app, path, !visible);
+  }
   /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
   private currentNavKeys(sec: NavSection): string[] {
     if (sec === "labels") {
@@ -1478,6 +1503,7 @@ export default class BeautyTasksPlugin extends Plugin {
       return this.orderNav("labels", items, (x) => x.name, (x) => x.name).map((x) => x.name);
     }
     if (sec === "filters") return this.sortFilters(listFilters(this.app)).map((f) => f.path);
+    if (sec === "templates") return this.sortTemplates(listTemplates(this)).map((x) => x.root.path);
     const wantType = sec === "areas" ? "area" : "project";
     const items = listManaged(this.app).active.filter((p) => p.type === wantType);
     return this.sortProjItems(sec, items).map((p) => p.path);
@@ -1485,7 +1511,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Manuelle Reihenfolge einer Sektion setzen (materialisiert navOrder). Gemeinsame Persistenz
    *  für ↑/↓-Verschieben UND Drag-Sortiermodus – schreibt genau ein Feld: navOrder[sec]. */
   async setNavOrder(sec: NavSection, keys: string[]): Promise<void> {
-    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [] };
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [], templates: [] };
     order[sec] = keys;
     this.settings.navOrder = order;
     await this.saveSettings();
@@ -1506,6 +1532,7 @@ export default class BeautyTasksPlugin extends Plugin {
   private visibleNavKeys(sec: NavSection): string[] {
     if (sec === "labels") return this.getVisibleLabels();
     if (sec === "filters") return this.sortFilters(listFilters(this.app)).filter((f) => !f.hidden).map((f) => f.path);
+    if (sec === "templates") return this.sortTemplates(listTemplates(this)).filter((x) => !x.hidden).map((x) => x.root.path);
     const want = sec === "areas" ? "area" : "project";
     const items = listManaged(this.app).active.filter((p) => p.type === want && !p.hidden);
     return this.sortProjItems(sec, items).map((p) => p.path);
@@ -2331,6 +2358,23 @@ export default class BeautyTasksPlugin extends Plugin {
     new Notice(t("msg_duplicated"));
   }
 
+  /** Aufgabe samt Unterbaum als Vorlage ablegen (Kontextmenü). Die Daten wandern unverändert
+   *  mit – sie sind der Rhythmus, den sich die Vorlage merkt; gerechnet wird erst beim Anwenden. */
+  async saveTaskAsTemplate(task: Task): Promise<void> {
+    await saveAsTemplate(this, task);
+    new Notice(t("msg_template_saved"));
+  }
+
+  /** Ein ganzes Projekt (Notiz + alle Aufgabenbäume darin) als Vorlage ablegen – aus dem
+   *  Kontextmenü der Seitenleiste. Die Beschreibung der Projektnotiz wandert mit und wird beim
+   *  Anwenden wieder zur Beschreibung des neuen Projekts. */
+  async saveProjectAsTemplate(path: string, name: string): Promise<void> {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    const desc: unknown = f instanceof TFile ? this.app.metadataCache.getFileCache(f)?.frontmatter?.description : "";
+    await saveProjectAsTemplate(this, path, name, typeof desc === "string" ? desc : "");
+    new Notice(t("msg_template_saved"));
+  }
+
   /**
    * Die SICHTBAREN Unteraufgaben unter `srcParentPath` (nicht die im Papierkorb, s.
    * subtasksToDuplicate) als Kopien unter `newParentBase` neu anlegen, rekursiv über die ganze
@@ -2341,33 +2385,49 @@ export default class BeautyTasksPlugin extends Plugin {
    * Geschwistergruppe; `sort_order` wird nur INNERHALB einer Gruppe verglichen. Es wird kein
    * bestehender Datensatz angefasst, also kann sich keine vorhandene Board-Position verschieben.
    */
-  async duplicateSubtree(srcParentPath: string, newParentBase: string, gesehen = new Set<string>([srcParentPath])): Promise<void> {
+  async duplicateSubtree(srcParentPath: string, newParentBase: string, opts: DuplicateOpts = {}): Promise<void> {
     // Kreis-Schutz wie bei TaskIndex.descendants: `parent` ist ein von Hand schreibbares Feld.
     // Führt eine Aufgabe sich selbst (oder über eine Kette) als Elternaufgabe, lief diese
     // Rekursion endlos – und legte dabei bei JEDEM Durchlauf Notizen an. Anders als ein
     // Stapelüberlauf wäre das nicht nur ein Absturz, sondern ein zugemüllter Vault.
-    const kids = subtasksToDuplicate(this.index.children(srcParentPath)).filter((k) => !gesehen.has(k.path));
+    const gesehen = opts.seen ?? new Set<string>([srcParentPath]);
+    const from = opts.from ?? this.index;
+    // `roots` ersetzt die erste Ebene (Projektvorlagen: die Aufgaben eines Projekts sind keine
+    // Kinder der Projektnotiz). Ab der zweiten Ebene gilt wieder die normale Kind-Beziehung –
+    // deshalb wird es unten aus den Optionen der Rekursion herausgenommen.
+    const quelle = opts.roots ?? from.children(srcParentPath);
+    const kids = subtasksToDuplicate(quelle).filter((k) => !gesehen.has(k.path));
     let order = ORDER_GAP;
     for (const kid of kids) {
+      // Verschobene Daten der Vorlage, falls vorhanden – sonst die des Originals (Duplizieren
+      // bleibt bewusst datumsgetreu, s. beautytasks-templates-plan „Kontext").
+      const d = opts.dates?.get(kid.path);
       const copy = await createTaskNote(this.app, this.settings, {
         title: kid.title,
         titleInFrontmatter: kid.titleInFm,
         description: kid.description,
         status: firstOpenStatus(),
-        due: kid.due, dueTime: kid.dueTime,
-        scheduled: kid.scheduled, scheduledTime: kid.scheduledTime,
+        due: d ? d.due : kid.due, dueTime: kid.dueTime,
+        scheduled: d ? d.scheduled : kid.scheduled, scheduledTime: kid.scheduledTime,
         duration: kid.duration,
         priority: kid.priority,
-        project: kid.project ? baseName(kid.project) : null,
+        // `undefined` heisst „Projekt des Originals behalten", ein ausdrückliches `null` heisst
+        // Eingang. Beim Anwenden einer Vorlage gewinnt immer das Ziel des Dialogs: Der
+        // Projektverweis IN der Vorlage zeigt auf nichts, was die neue Aufgabe angeht.
+        project: opts.project !== undefined ? opts.project : (kid.project ? baseName(kid.project) : null),
         labels: [...kid.labels],
         recurrence: kid.recurrence, recurBasis: kid.recurBasis,
-        reminders: [...(kid.reminders ?? [])],
-        parent: newParentBase,
+        reminders: d ? [...d.reminders] : [...(kid.reminders ?? [])],
+        // detachTop: Beim Anwenden einer Projektvorlage werden die direkten Kinder der Wurzel
+        // wieder zu eigenständigen Aufgaben des Zielprojekts – die Vorlagen-Wurzel wird ja zum
+        // PROJEKT und nicht zu einer Aufgabe, die sie tragen könnte.
+        parent: opts.detachTop ? null : newParentBase,
         sortOrder: order,
-      });
+      }, opts.target);
       order += ORDER_GAP;
       gesehen.add(kid.path);
-      await this.duplicateSubtree(kid.path, copy.basename, gesehen);   // Enkel & tiefer
+      // Ohne `roots` und `detachTop`: beide gelten ausdrücklich nur für die erste Ebene.
+      await this.duplicateSubtree(kid.path, copy.basename, { ...opts, roots: undefined, detachTop: false, seen: gesehen });
     }
   }
 
@@ -2375,8 +2435,8 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Aufgabe in den Papierkorb: status "cancelled" – INKLUSIVE aller Unteraufgaben
    *  (Kaskade). Sonst blieben Kinder ohne sichtbaren Parent zurück und wären nur noch
    *  über die Suche, nicht mehr in den Boards erreichbar. */
-  async cancelTask(task: Task): Promise<void> {
-    await this.trashTasks([task]);
+  async cancelTask(task: Task, from: ChildSource & { descendants(p: string): Task[] } = this.index): Promise<void> {
+    await this.trashTasks([task], from);
   }
 
   /** Aufgaben in den Papierkorb – jede inkl. ihres Unteraufgaben-Baums (collectTrashTargets: Dedup
@@ -2384,10 +2444,12 @@ export default class BeautyTasksPlugin extends Plugin {
    *  Uhrzeit/Sekunden, NICHT nur Datum: sonst hätten alle am selben Tag gelöschten denselben
    *  Sortierwert und der Papierkorb fiele bei Gleichstand auf die Datei-Reihenfolge zurück). Das
    *  `project`-Feld bleibt unberührt (wie beim Einzel-Abbrechen). */
-  private async trashTasks(roots: Task[]): Promise<void> {
+  private async trashTasks(roots: Task[], from: { descendants(p: string): Task[] } = this.index): Promise<void> {
     const stamp = localStamp();
     const cancelId = firstCancelledStatus();   // definierter Abgebrochen-Status oder Sentinel "cancelled"
-    const targets = collectTrashTargets(roots, (p) => this.index.descendants(p));
+    // Die Kaskade muss aus DEMSELBEN Bestand lesen wie die Zeile, die gelöscht wird: Beim
+    // Löschen in einer Vorlage kennt der Aufgaben-Index deren Kinder nicht und liesse sie stehen.
+    const targets = collectTrashTargets(roots, (p) => from.descendants(p));
     for (const tk of targets) {
       const f = this.app.vault.getAbstractFileByPath(tk.path);
       if (f instanceof TFile) await this.app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => { this.ensureCanonical(fm); fm.status = cancelId; fm.cancelled = stamp; });

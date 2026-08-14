@@ -5,6 +5,7 @@
 import { Modal, Notice } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { todayStr } from "./format";
+import { EditFocus } from "./newItemModal";
 import { t } from "./i18n";
 import {
   FilterCriteria, ViewOptions, DEFAULT_CRITERIA, DEFAULT_OPTIONS, ALL_FACETS, applyFilter, activeFacetCount,
@@ -32,7 +33,7 @@ export class FilterModal extends Modal {
   /** `preset` = Vorbelegung für einen NEUEN Filter: „Als Filter speichern" im Anzeige-Panel
    *  reicht damit den Ansichtsfilter der Seite herein (s. viewPanel.presetFor). Beim Bearbeiten
    *  gewinnt die Notiz – dort ist nichts vorzubelegen. */
-  constructor(private plugin: BeautyTasksPlugin, editPath?: string, preset?: FilterCriteria) {
+  constructor(private plugin: BeautyTasksPlugin, editPath?: string, preset?: FilterCriteria, private focusField: EditFocus = "name") {
     super(plugin.app);
     this.editPath = editPath ?? null;
     const existing = editPath ? readFilter(plugin.app, editPath) : null;
@@ -63,6 +64,11 @@ export class FilterModal extends Modal {
 
     // Beschreibung: kurzer Text im Frontmatter der Filternotiz, erscheint über der Aufgabenliste.
     const descIn = filterRow(contentEl, t("new_description")).createEl("textarea", { cls: "bt-filter-input bt-new-desc", attr: { rows: "2" } });
+    // Aus der Beschreibungszeile der Seite: Cursor direkt hierher, ans Ende des Textes. Dieser
+    // Dialog fokussiert sonst gar nichts – ohne das müsste man erst hineinklicken.
+    if (this.focusField === "description") {
+      window.setTimeout(() => { descIn.focus(); descIn.setSelectionRange(descIn.value.length, descIn.value.length); }, 0);
+    }
     descIn.placeholder = t("new_description_ph");
     descIn.value = this.description;
     descIn.oninput = () => { this.description = descIn.value; };
@@ -88,7 +94,13 @@ export class FilterModal extends Modal {
     // dieselben, die der Filter-Abschnitt des Anzeige-Panels zeichnet. Der Editor zeigt ALLE
     // Facetten und die volle Status-Liste (statusScope „all"): „zeig mir alles Abgebrochene" ist
     // hier eine sinnvolle Frage, im Panel dagegen kollidierte sie mit „Erledigte anzeigen".
-    contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
+    // Zwei Klassen mit Absicht: `bt-modal-h` ist die gemeinsame Gestalt (auch der Anwenden-Dialog
+    // der Vorlagen benutzt sie), `bt-filter-h` ist der ALTE Name. Er steckt in jeder
+    // veroeffentlichten Fassung seit 1.40.0, und CSS-Klassen eines Plugins sind eine Flaeche,
+    // an der fremde Snippets und Themes haengen koennen. Ihn wegzunehmen braeche sie lautlos –
+    // fuer nichts als einen schoeneren Namen. Er bleibt deshalb stehen, obwohl unser Stylesheet
+    // ihn nicht mehr anspricht.
+    contentEl.createEl("h4", { cls: "bt-modal-h bt-filter-h", text: t("filter_facets") });
     for (const f of buildFacets(this.plugin, ALL_FACETS, () => this.c, (patch) => { this.c = { ...this.c, ...patch }; })) {
       renderFacet(contentEl, f, MODAL_STYLE, () => this.refresh());
     }

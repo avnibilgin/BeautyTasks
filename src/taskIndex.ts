@@ -15,6 +15,29 @@ const asTime = (v: unknown): string | null => {
 };
 const asNum = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
 
+/**
+ * Woraus dieser Index seine Einträge zieht. Es gibt zwei Ausprägungen und sonst keine:
+ *
+ *   TASK_SCOPE      – die Aufgaben des Vaults (`type: task`), überall ausser in den
+ *                     Ausschluss-Ordnern und im Vorlagen-Ordner.
+ *   TEMPLATE_SCOPE  – die Vorlagen (`type: template`), NUR im Vorlagen-Ordner.
+ *
+ * Warum ein zweiter Index derselben Klasse statt einer Sonderbehandlung IM Index: Vorlagen sind
+ * Aufgabenbäume mit exakt derselben Struktur, nur an einem anderen Ort und mit einem anderen
+ * Typwert. Als eigener Index sind sie für jede Ansicht, jeden Zähler, den Google-Sync und den
+ * Erinnerungs-Scan schlicht nicht vorhanden – ohne dass an einer dieser Stellen eine Zeile
+ * Ausschluss stünde. Genau diese Ausschluss-Zeilen sind die Fehlerquelle, die wir vermeiden.
+ */
+export interface IndexScope {
+  /** Frontmatter-`type`-Wert, an dem dieser Index seine Notizen erkennt. */
+  typeValue: string;
+  /** Ordner, auf den sich dieser Index beschränkt. Fehlt er, gilt der ganze Vault. */
+  restrictTo?: (s: BeautyTasksSettings) => string;
+}
+
+export const TASK_SCOPE: IndexScope = { typeValue: "task" };
+export const TEMPLATE_SCOPE: IndexScope = { typeValue: "template", restrictTo: (s) => s.templatesFolder };
+
 /** Dünne, reaktive Schicht über metadataCache. Liest Aufgaben aus dem geparsten
  *  Frontmatter (kein eigenes Datei-Lesen/Parsen). Inkrementell über Events. */
 export class TaskIndex extends Component {
@@ -58,12 +81,31 @@ export class TaskIndex extends Component {
     this.childCache = null;
   }
 
-  constructor(private app: App, private getSettings: () => BeautyTasksSettings) { super(); }
+  constructor(private app: App, private getSettings: () => BeautyTasksSettings,
+              private scope: IndexScope = TASK_SCOPE) { super(); }
 
-  /** Liegt der Pfad in einem der Ausschluss-Ordner? Dann gilt die Notiz NIE als Aufgabe –
-   *  Schutz vor fremden `type: task`-Notizen (z. B. anderer Plugins) im Vault-weiten Scan. */
-  private isExcluded(path: string): boolean {
-    return this.getSettings().excludeFolders.some((dir) => isUnderFolder(path, dir));
+  /**
+   * Gehört diese Notiz in DIESEN Index? Zwei Ausprägungen, eine Frage (s. IndexScope).
+   *
+   * Ordner-gebunden (Vorlagen): nur innerhalb des eigenen Ordners. Steht dort nichts (der Nutzer
+   * hat das Feld geleert), indiziert dieser Index NICHTS – ein leerer Ordnername darf nie zu
+   * „ganzer Vault" werden, sonst zöge der Vorlagen-Index plötzlich fremde `type: template`-Notizen
+   * ein (Templater-Nutzer markieren so gern ihre Bausteine).
+   *
+   * Vault-weit (Aufgaben): überall ausser in den Ausschluss-Ordnern des Nutzers – Schutz vor
+   * fremden `type: task`-Notizen anderer Plugins – UND ausser im Vorlagen-Ordner. Letzteres ist
+   * Gürtel zum Hosenträger: Vorlagen tragen `type: template` und fielen schon am Typ-Tor durch.
+   * Schreibt aber jemand von Hand `type: task` in eine Vorlagen-Notiz, stünde sie sonst als echte
+   * Aufgabe in Heute, im Kalender, im Google-Sync und im Erinnerungs-Scan.
+   */
+  private inScope(path: string): boolean {
+    const s = this.getSettings();
+    if (this.scope.restrictTo) {
+      const only = this.scope.restrictTo(s);
+      return !!only && isUnderFolder(path, only);
+    }
+    if (s.templatesFolder && isUnderFolder(path, s.templatesFolder)) return false;
+    return !s.excludeFolders.some((dir) => isUnderFolder(path, dir));
   }
 
   /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
@@ -162,6 +204,10 @@ export class TaskIndex extends Component {
   // ── Mutation (inkrementell, nie Vollscan im Betrieb) ──
   private upsert(f: TFile, notify = true, skipBody = false): void {
     if (f.extension !== "md") return;
+    // Ordner-gebundener Index (Vorlagen): alles ausserhalb geht ihn nichts an – auch nicht der
+    // Projekt-Zweig unten, der sonst bei JEDER fremden Dateiänderung im Vault eine Meldung
+    // auslöste und damit die Vorlagen-Ansicht grundlos neu zeichnen liesse.
+    if (this.scope.restrictTo && !this.inScope(f.path)) { this.remove(f.path, notify); return; }
     const t = this.parse(f);
     if (!t) {
       // Keine Aufgabe – aber PROJEKT-/BEREICHS-Notizen beeinflussen den Index trotzdem: ihr
@@ -218,10 +264,10 @@ export class TaskIndex extends Component {
 
   /** Frontmatter -> Task (Defaults + Enum-Schutz). null = keine Aufgabe. */
   private parse(f: TFile): Task | null {
-    if (this.isExcluded(f.path)) return null;   // Notizen in Ausschluss-Ordnern sind keine Aufgaben
+    if (!this.inScope(f.path)) return null;     // ausserhalb des Geltungsbereichs (s. inScope)
     const cache = this.app.metadataCache.getFileCache(f);
     const fm = cache?.frontmatter;
-    if (!fm || fm[fieldKey("type")] !== "task") return null;
+    if (!fm || fm[fieldKey("type")] !== this.scope.typeValue) return null;
     const link = (v: unknown): string | null => {
       const m = typeof v === "string" ? v.match(/\[\[([^\]|#]+)/) : null;
       const dest = m ? this.app.metadataCache.getFirstLinkpathDest(m[1].trim(), f.path) : null;

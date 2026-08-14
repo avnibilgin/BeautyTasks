@@ -146,6 +146,7 @@ export function showTaskMenu(ctx: PageCtx, task: Task, x: number, y: number, doc
 
     const mvRow = popRow(pop, "corner-up-right", t("menu_move_project"), () => openMovePicker(plugin, task, mvRow, close));
     row("copy", t("menu_duplicate"), () => void plugin.duplicateTask(task));
+    row("bookmark-plus", t("menu_save_as_template"), () => void plugin.saveTaskAsTemplate(task));
     row("link", t("menu_copy_link"), () => copyTaskLink(plugin.app, task.path));
     row("file-text", t("menu_open_task_note"), () => openTaskNote(plugin.app, task.path));
     pop.createDiv({ cls: "bt-plus-sep" });

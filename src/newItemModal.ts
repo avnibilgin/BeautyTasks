@@ -9,6 +9,9 @@ import { ConfirmModal } from "./confirmModal";
 import { t } from "./i18n";
 
 export type NewItemKind = "project" | "area" | "label";
+/** Welches Feld beim Öffnen den Cursor bekommt. „description" kommt von der Beschreibungszeile
+ *  der Seite: Wer sie anklickt, will die Beschreibung ändern – nicht den Namen. */
+export type EditFocus = "name" | "description";
 /** Referenz auf einen bestehenden Eintrag (Bearbeiten). key = Notiz-Pfad (Projekt/Bereich) bzw. Label-Name. */
 export interface EditRef { key: string; name: string; color: string | null; visible: boolean; description?: string; }
 
@@ -26,8 +29,10 @@ export class NewItemModal extends Modal {
   private syncExcludedInit: boolean | null = null;   // Ausgangswert; null = Toggle nicht gezeigt
   private previewIc!: HTMLElement;
   private previewNm!: HTMLElement;
+  private descInput: HTMLTextAreaElement | null = null;
 
-  constructor(private plugin: BeautyTasksPlugin, private kind: NewItemKind, private edit?: EditRef) {
+  constructor(private plugin: BeautyTasksPlugin, private kind: NewItemKind, private edit?: EditRef,
+              private focusField: EditFocus = "name") {
     super(plugin.app);
     this.name = edit?.name ?? "";
     this.description = edit?.description ?? "";
@@ -61,6 +66,7 @@ export class NewItemModal extends Modal {
       const desc = descField.createEl("textarea", { cls: "bt-new-input bt-new-desc", attr: { rows: "2", placeholder: t("new_description_ph") } });
       desc.value = this.description;
       desc.oninput = () => { this.description = desc.value; };
+      this.descInput = desc;
     }
 
     // Sichtbarkeit in der Seitenleiste (Schalter)
@@ -108,7 +114,16 @@ export class NewItemModal extends Modal {
     actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
     actions.createEl("button", { cls: "mod-cta", text: t(this.edit ? "btn_save" : "btn_create") }).onclick = () => void this.submit();
 
-    window.setTimeout(() => { input.focus(); input.select(); }, 0);
+    // Der Cursor landet dort, wo der Weg hierher hinzeigt. Aus der Beschreibungszeile der Seite
+    // kommt man MIT dem Wunsch, die Beschreibung zu ändern – dann gehört er ins Textfeld und ans
+    // ENDE des Textes (kein select(): der nächste Tastendruck würde ihn sonst löschen). Beim
+    // Namen bleibt es beim Markieren, dort ist Überschreiben der Normalfall.
+    // Labels haben kein Beschreibungsfeld; dort fällt es auf den Namen zurück.
+    window.setTimeout(() => {
+      const d = this.focusField === "description" ? this.descInput : null;
+      if (d) { d.focus(); d.setSelectionRange(d.value.length, d.value.length); return; }
+      input.focus(); input.select();
+    }, 0);
   }
 
   onClose(): void { this.contentEl.empty(); }

@@ -13,9 +13,11 @@ import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, buildCreateSubmenu, buildTemplateMenu, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
+import { listTemplates } from "./templateService";
+import { ApplyTemplateModal, promptNewTemplate } from "./templateModal";
 import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
@@ -691,8 +693,10 @@ function pageDesc(root: HTMLElement, plugin: BeautyTasksPlugin, text: string | u
   // sonst nur in der Notiz zu lesen. Beim Platzhalter gibt es nichts zu zeigen, dort nennt er
   // stattdessen das Ziel des Klicks.
   tip(el, t2 || t("menu_edit"));
-  el.onclick = () => openEdit(plugin, item);
-  el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item); } };
+  // „description": Wer die Beschreibung anklickt, will sie ändern – der Cursor gehört dorthin
+  // und nicht in den Namen (s. NewItemModal.focusField).
+  el.onclick = () => openEdit(plugin, item, "description");
+  el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(plugin, item, "description"); } };
 }
 
 /** Positionsketten-Schlüssel für die Sortierung „Manuell". Liegt im Index, weil er den Elter
@@ -2068,14 +2072,6 @@ function attachTaskDrop(el: HTMLElement, plugin: BeautyTasksPlugin, onDrop: (tas
   });
 }
 
-/** Dezente Empty-State-Zeile unter einem Sektionskopf („+ … erstellen"). */
-function navHintRow(c: HTMLElement, icon: string, label: string, onClick: () => void): void {
-  const row = c.createDiv({ cls: "bt-nav-hint", attr: { role: "button", tabindex: "0" } });
-  setIcon(row.createSpan({ cls: "bt-nav-hint-ic" }), icon);
-  row.createSpan({ cls: "bt-nav-hint-lbl", text: label });
-  activate(row, onClick);
-}
-
 /** Ein-/ausklappbare Abschnittsüberschrift: Chevron-Toggle (Zustand persistent) + „+",
  *  das nur beim Hover/Fokus der Zeile erscheint. Gibt zurück, ob der Abschnitt eingeklappt ist. */
 function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: string,
@@ -2086,7 +2082,7 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
 
   // Label links (füllt die Zeile): Klick/Enter führt in die jeweilige ListManager-Übersicht.
   // (Das Auf-/Zuklappen liegt jetzt beim Chevron rechts.)
-  const manageSec = (id === "projects" || id === "areas" || id === "labels" || id === "filters") ? id : null;
+  const manageSec = (id === "projects" || id === "areas" || id === "labels" || id === "filters" || id === "templates") ? id : null;
   const toggle = head.createDiv({ cls: "bt-nav-head-toggle", attr: { role: "button", tabindex: "0" } });
   toggle.createSpan({ cls: "bt-nav-head-lbl", text: title });
   activate(toggle, () => manageSec ? void plugin.activateManage(manageSec) : void plugin.toggleNavSection(id));
@@ -2123,13 +2119,18 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   setIcon(chev, collapsed ? "chevron-right" : "chevron-down");
   activate(chev, () => void plugin.toggleNavSection(id));
 
-  // Rechtsklick auf den Sektionskopf: „Ausgeblendete einblenden ▸" (nur wenn es welche gibt).
-  if (id === "projects" || id === "areas" || id === "labels" || id === "filters") {
-    head.oncontextmenu = (e) => {
-      const menu = new Menu();
-      if (showHiddenSubmenu(menu, plugin, id)) { e.preventDefault(); menu.showAtMouseEvent(e); }
-    };
-  }
+  // Rechtsklick auf den Sektionskopf: „Ausgeblendete einblenden ▸" (nur wenn es welche gibt)
+  // und „Neu erstellen ▸". Letzteres steht IMMER da – sonst hinge das Verhalten des Rechtsklicks
+  // davon ab, ob gerade etwas ausgeblendet ist, und derselbe Griff täte mal etwas und mal nichts.
+  head.oncontextmenu = (e) => {
+    const menu = new Menu();
+    if (id === "projects" || id === "areas" || id === "labels" || id === "filters" || id === "templates") {
+      showHiddenSubmenu(menu, plugin, id);
+    }
+    buildCreateSubmenu(menu, plugin);
+    e.preventDefault();
+    menu.showAtMouseEvent(e);
+  };
 
   return collapsed;
 }
@@ -2197,6 +2198,9 @@ function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   const today = todayStr();
   for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, filterBadgeCount(plugin, fl, today));
   for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
+  // Ohne diese Zeile stünde für jede Vorlage KEIN Eintrag in der Karte, und tryPatchNav setzte
+  // ihren Zähler beim nächsten Nachziehen auf leer (`counts.get(key) ?? 0`).
+  for (const tpl of listTemplates(plugin)) m.set("t:" + tpl.root.path, tpl.size);
   return m;
 }
 
@@ -2215,9 +2219,21 @@ function navSignature(plugin: BeautyTasksPlugin): string {
     // nichts änderte. `ready` steht daneben, weil es auch die Zeilen bei Projekten/Bereichen/
     // Filtern steuert – deren Listen sind oben schon in der Signatur.
     ready: plugin.index.ready,
-    labelHint: plugin.index.ready && !plugin.getLabels().length,
+    // OB es überhaupt Labels gibt – nicht nur die angehefteten. Der Abschnitt erscheint, sobald
+    // irgendeines existiert (auch ein ausgeblendetes), `labels` oben führt aber nur die
+    // sichtbaren. Ohne diese Zeile änderte ein neu getipptes, noch nicht eingeblendetes Label
+    // die Signatur nicht – der Abschnitt bliebe weg, bis zufällig etwas anderes einen Neuaufbau
+    // auslöst. Die übrigen Abschnitte brauchen das nicht: Ihre Listen oben enthalten die
+    // ausgeblendeten Einträge bereits.
+    hasLabels: plugin.getLabels().length > 0,
+    // Vorlagen: Pfad und Name je Wurzel, aber bewusst OHNE ihre Grösse. Die Grösse ist der
+    // Zähler-Badge und wird von tryPatchNav nachgezogen – stünde sie hier, erzwänge jede neue
+    // Unteraufgabe einer Vorlage einen vollständigen Neuaufbau der Seitenleiste. Sie kostet
+    // ausserdem einen Baum-Durchlauf, und diese Signatur läuft bei JEDEM Nachziehen.
+    templates: listTemplates(plugin).map((x) => [x.root.path, x.name, x.kind, x.hidden].join("~")).sort(),
+    tplReady: plugin.templates.ready,
     active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
-    collapsed: ["filters", "labels", "areas", "projects"].map((id) => plugin.isNavCollapsed(id)),
+    collapsed: ["filters", "labels", "areas", "projects", "templates"].map((id) => plugin.isNavCollapsed(id)),
     reorder: plugin.reorderSec,
     preview: plugin.colorPreview,
     locale: getLocale(),
@@ -2240,18 +2256,23 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   c.empty();
   c.addClass("bt-nav");
   const redraw = () => renderNavInto(c, plugin);
+  // Rechtsklick auf den leeren Bereich der Seitenleiste. `defaultPrevented` ist die Weiche: Zeilen
+  // und Sektionsköpfe rufen in ihrem eigenen Handler preventDefault(), und der läuft beim
+  // Hochblubbern VOR diesem. So braucht es keine Prüfung auf Klassennamen, die beim nächsten
+  // Umbau still falsch würde.
+  c.oncontextmenu = (e) => {
+    if (e.defaultPrevented) return;
+    const m = new Menu();
+    buildCreateSubmenu(m, plugin);
+    e.preventDefault();
+    m.showAtMouseEvent(e);
+  };
   // Die Markierung folgt dem AKTIVEN Dashboard-Tab. Seit es mehrere geben kann, gibt es keine
   // „offene Seite" mehr, die das Plugin für sich kennen könnte – nur die des Tabs im Vordergrund.
   const act = plugin.activePage();
   const isActive = (kind: PageRef["kind"], key: string): boolean => !!act && act.kind === kind && act.key === key;
   const badges = new Map<string, HTMLElement>();
   navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
-  // „Dieser Vault hat kein einziges Projekt/Filter/Label" ist eine Aussage über den GANZEN Vault –
-  // und die kann niemand treffen, bevor der Index einmal stand. Bis 1.39.0 fragten die
-  // „+ …erstellen"-Zeilen ungeprüft den leeren Anfangszustand ab und boten beim Start das Anlegen
-  // an, obwohl alles längst da war (s. TaskIndex.ready).
-  const indexReady = plugin.index.ready;
-
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
   const navColor = (path: string, stored: string | null): string | null =>
@@ -2277,6 +2298,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       const m = new Menu();
       addOpenItems(m, plugin, { kind: "project", key: INBOX_KEY });
       addGcalSyncItem(m, plugin, INBOX_KEY);
+      buildCreateSubmenu(m, plugin);
       m.showAtMouseEvent(e);
     },
     // Hierher gezogen = aus dem Projekt herausnehmen; „kein Projekt" IST der Eingang.
@@ -2292,7 +2314,10 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       active, page, onClick: () => void plugin.activateView(id),
       // Die eingebauten Ansichten haben nichts zu bearbeiten – ihr Menü besteht genau aus den
       // Öffnen-Einträgen. Ohne sie käme man an „Heute in einem zweiten Tab" nur per Modifier-Klick.
-      onContext: (e) => { const m = new Menu(); addOpenItems(m, plugin, page); m.showAtMouseEvent(e); },
+      // Eingang und die vier Ansichten verschwinden NIE. Sie tragen „Neu erstellen" deshalb
+      // mit – auf einem Vault ohne Projekte, Labels, Filter und Vorlagen sind sie die einzigen
+      // Zeilen, an denen ein Rechtsklick überhaupt etwas findet.
+      onContext: (e) => { const m = new Menu(); addOpenItems(m, plugin, page); buildCreateSubmenu(m, plugin); m.showAtMouseEvent(e); },
     });
   }
 
@@ -2316,60 +2341,108 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
         onDropTask: (task) => { if (task.project !== p.path) void plugin.setTaskProject(task, p.name); },
       });
     }
-    // Leer (frisches Setup): dezenter „+ …erstellen"-Hinweis wie bei Labels/Filtern.
-    if (indexReady && !items.length) navHintRow(c, "plus", t(kind === "area" ? "create_area" : "create_project"), () => new NewItemModal(plugin, kind).open());
   };
+
+  // ── Ab hier: Abschnitte, die es nur gibt, wenn es ihre Einträge gibt ──────────────────────
+  //
+  // Gefragt wird nach der EXISTENZ, nicht nach der Sichtbarkeit. Ein Abschnitt, dessen Einträge
+  // alle ausgeblendet sind, behält seine Kopfzeile: Sie trägt den Rechtsklick „Ausgeblendete
+  // einblenden" UND den Weg zur Übersichtsseite. Verschwände sie, käme man an beides nicht mehr
+  // heran – die Einträge wären aus der Oberfläche heraus nicht mehr erreichbar.
+  //
+  // Umgekehrt braucht ein Abschnitt ohne einen einzigen Eintrag auch keine Übersichtsseite: Dort
+  // gäbe es nichts zu verwalten. Angelegt wird über „Neu erstellen" im Kontextmenü – und Projekt,
+  // Bereich und Label entstehen ohnehin beim Anlegen einer Aufgabe.
 
   // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor. Rechtsklick = bearbeiten.
   const today = todayStr();
   const filters = plugin.sortFilters(listFilters(plugin.app));
-  const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
-    async () => undefined, () => new FilterModal(plugin).open());
-  if (plugin.reorderSec === "filters") {
-    renderReorderList(c, plugin, "filters", filters.filter((f) => !f.hidden).map((f) => ({ key: f.path, name: f.name, icon: f.icon, color: f.color })));
-  } else if (!filtersCollapsed) {
-    for (const fl of filters) {
-      if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
-      navItem(c, plugin, {
-        cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
-        count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
-        active: isActive("filter", fl.path), page: { kind: "filter", key: fl.path }, onClick: () => void plugin.activateFilter(fl.path),
-        onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
-      });
+  if (filters.length) {
+    const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
+      async () => undefined, () => new FilterModal(plugin).open());
+    if (plugin.reorderSec === "filters") {
+      renderReorderList(c, plugin, "filters", filters.filter((f) => !f.hidden).map((f) => ({ key: f.path, name: f.name, icon: f.icon, color: f.color })));
+    } else if (!filtersCollapsed) {
+      for (const fl of filters) {
+        if (fl.hidden) continue;   // im ListManager ausgeblendete Filter nicht in der Nav zeigen
+        navItem(c, plugin, {
+          cls: "bt-nav-filter", icon: fl.icon, iconColor: navColor(fl.path, fl.color), label: fl.name,
+          count: filterBadgeCount(plugin, fl, today), countKey: "f:" + fl.path,
+          active: isActive("filter", fl.path), page: { kind: "filter", key: fl.path }, onClick: () => void plugin.activateFilter(fl.path),
+          onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "filters", key: fl.path, name: fl.name, hidden: fl.hidden, color: fl.color }); m.showAtMouseEvent(e); },
+        });
+      }
     }
-    if (indexReady && !filters.length) navHintRow(c, "plus", t("create_filter"), () => new FilterModal(plugin).open());
   }
 
-  // Labels-Sektion: „+" öffnet das Neu-Modal. Rechtsklick = bearbeiten; leer = „+ Label erstellen".
-  const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), "", redraw,
-    async () => undefined, () => new NewItemModal(plugin, "label").open());
-  if (plugin.reorderSec === "labels") {
-    renderReorderList(c, plugin, "labels", plugin.getVisibleLabels().map((n) => ({ key: n, name: n, icon: "hash", color: plugin.getLabelColor(n) })));
-  } else if (!labelsCollapsed) {
-    for (const name of plugin.getVisibleLabels()) {
-      const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
-      navItem(c, plugin, {
-        cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
-        active: isActive("label", name), page: { kind: "label", key: name }, onClick: () => void plugin.activateLabel(name),
-        onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
-        // Anders als bei Projekt/Bereich/Eingang wird hier nichts VERSCHOBEN, sondern ERGÄNZT:
-        // Die Aufgabe bleibt, wo sie ist, und bekommt das Label dazu. Sichtbar wird das sofort am
-        // neuen Chip in ihrer Meta-Zeile. Trägt sie es schon, bleibt der Zug folgenlos.
-        onDropTask: (task) => { if (!task.labels.includes(name)) void plugin.swapTaskLabel(task, null, name); },
-      });
+  // Labels-Sektion: „+" öffnet das Neu-Modal. Rechtsklick = bearbeiten.
+  //
+  // `getLabels()` zählt die Labels der AUFGABEN mit, hängt also am Index – beim Start ist der noch
+  // leer. Das ist hier trotzdem der richtige Test, denn getLabels() nimmt `knownLabels` und
+  // `visibleLabels` IMMER mit auf (beide aus den Einstellungen, sofort da). Wer Labels angeheftet
+  // oder im Register hat, sieht den Abschnitt also ohne Verzögerung; nur ein Vault, dessen Labels
+  // ausschliesslich auf Aufgaben leben, bekommt ihn eine Wimper später. Die andere Richtung –
+  // erst zeigen, dann verschwinden – kann so nicht auftreten, und genau die war 1.39.1.
+  if (plugin.getLabels().length) {
+    const labelsCollapsed = navHead(c, plugin, "labels", t("tab_labels"), t("add_label"), "", redraw,
+      async () => undefined, () => new NewItemModal(plugin, "label").open());
+    if (plugin.reorderSec === "labels") {
+      renderReorderList(c, plugin, "labels", plugin.getVisibleLabels().map((n) => ({ key: n, name: n, icon: "hash", color: plugin.getLabelColor(n) })));
+    } else if (!labelsCollapsed) {
+      for (const name of plugin.getVisibleLabels()) {
+        const count = plugin.index.byLabel(name).length;   // byLabel nutzt open() → ohne archivierte Projekte
+        navItem(c, plugin, {
+          cls: "bt-nav-label", icon: "hash", iconColor: navColor(name, plugin.getLabelColor(name)), label: name, count, countKey: "l:" + name,
+          active: isActive("label", name), page: { kind: "label", key: name }, onClick: () => void plugin.activateLabel(name),
+          onContext: (e) => { const m = new Menu(); buildItemMenu(m, plugin, { sec: "labels", key: name, name, hidden: !plugin.isLabelVisible(name), color: plugin.getLabelColor(name) }); m.showAtMouseEvent(e); },
+          // Anders als bei Projekt/Bereich/Eingang wird hier nichts VERSCHOBEN, sondern ERGÄNZT:
+          // Die Aufgabe bleibt, wo sie ist, und bekommt das Label dazu. Sichtbar wird das sofort am
+          // neuen Chip in ihrer Meta-Zeile. Trägt sie es schon, bleibt der Zug folgenlos.
+          onDropTask: (task) => { if (!task.labels.includes(name)) void plugin.swapTaskLabel(task, null, name); },
+        });
+      }
     }
-    if (indexReady && !plugin.getLabels().length) navHintRow(c, "plus", t("create_label"), () => new NewItemModal(plugin, "label").open());
   }
 
   // Bereiche: „+" öffnet das Neu-Modal (Name + Farbe), legt als type:area an.
-  const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), "", redraw,
-    async () => undefined, () => new NewItemModal(plugin, "area").open());
-  if (!areasCollapsed || plugin.reorderSec === "areas") projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area", "area");
+  if (bereiche.length) {
+    const areasCollapsed = navHead(c, plugin, "areas", t("group_area"), t("pick_new_area"), "", redraw,
+      async () => undefined, () => new NewItemModal(plugin, "area").open());
+    if (!areasCollapsed || plugin.reorderSec === "areas") projItems(plugin.sortProjItems("areas", bereiche), "bt-nav-area", "area");
+  }
 
   // Projekte: „+" öffnet das Neu-Modal (Name + Farbe).
-  const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), "", redraw,
-    async () => undefined, () => new NewItemModal(plugin, "project").open());
-  if (!projCollapsed || plugin.reorderSec === "projects") projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
+  if (projekte.length) {
+    const projCollapsed = navHead(c, plugin, "projects", t("group_project"), t("pick_new_project"), "", redraw,
+      async () => undefined, () => new NewItemModal(plugin, "project").open());
+    if (!projCollapsed || plugin.reorderSec === "projects") projItems(plugin.sortProjItems("projects", projekte), "bt-nav-project", "project");
+  }
+
+  // Vorlagen ganz unten: „+" legt eine leere an. Ein KLICK wendet an – nicht „öffnet", wie bei den
+  // Abschnitten darüber. Das ist Absicht: Anwenden ist die Handlung, die man vielfach häufiger
+  // ausführt als Bearbeiten, und eine Vorlagen-SEITE gibt es (noch) nicht. Bearbeiten liegt
+  // deshalb im Rechtsklick-Menü.
+  //
+  // Der Abschnitt hängt am ZWEITEN Index (plugin.templates) – der Aufgaben-Index kennt Vorlagen
+  // nicht und soll sie auch nie kennen (s. IndexScope in taskIndex.ts).
+  const tpls = plugin.sortTemplates(listTemplates(plugin));
+  if (tpls.length) {
+    const tplCollapsed = navHead(c, plugin, "templates", t("nav_templates"), t("create_template"), "", redraw,
+      async () => undefined, () => promptNewTemplate(plugin));
+    if (plugin.reorderSec === "templates") {
+      renderReorderList(c, plugin, "templates", tpls.filter((x) => !x.hidden).map((x) => ({ key: x.root.path, name: x.name, icon: x.kind === "project" ? "folder-plus" : "clipboard-list", color: null })));
+    } else if (!tplCollapsed) {
+      for (const tpl of tpls) {
+        if (tpl.hidden) continue;   // in der Übersicht ausgeblendete Vorlagen nicht in der Nav zeigen
+        navItem(c, plugin, {
+          cls: "bt-nav-template", icon: tpl.kind === "project" ? "folder-plus" : "clipboard-list", label: tpl.name,
+          count: tpl.size, countKey: "t:" + tpl.root.path,
+          onClick: () => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open(),
+          onContext: (e) => { buildTemplateMenu(plugin, tpl).showAtMouseEvent(e); },
+        });
+      }
+    }
+  }
 
   navBadges = null;
   navMounts.set(c, { sig: navSignature(plugin), badges });
@@ -2414,6 +2487,7 @@ function readPlanMates(v: unknown): Partial<Record<"note" | "daily", string>> | 
  */
 export class MainView extends ItemView {
   private unsub: (() => void) | null = null;
+  private unsubTpl: (() => void) | null = null;
   private renderComp: Component | null = null;
   /** Zeichnung steht aus, weil der Tab gerade verdeckt ist (s. draw/drawIfDirty). */
   private dirty = false;
@@ -2705,10 +2779,15 @@ export class MainView extends ItemView {
     // sich damit selbst, wenn die Seite kürzer geworden ist.
     this.registerDomEvent(this.contentEl, "scroll", () => listScroll.set(this.scrollKey(), this.contentEl.scrollTop));
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
+    // Zweites Abo auf den Vorlagen-Index: Die Vorlagen-Übersicht liest aus ihm, und er meldet
+    // getrennt. Ohne das bliebe die Seite nach Umbenennen, Löschen oder einer im Editor
+    // hinzugefügten Unteraufgabe auf dem alten Stand, bis sich zufällig eine Aufgabe ändert.
+    if (!this.unsubTpl) this.unsubTpl = this.plugin.templates.subscribe(() => this.draw());
     this.draw();
   }
   async onClose(): Promise<void> {
     this.unsub?.(); this.unsub = null;
+    this.unsubTpl?.(); this.unsubTpl = null;
     dropViewKeys(this.id);   // sonst wüchsen die Modul-Maps mit jedem geschlossenen Tab weiter
   }
   /** Schlüssel der gemerkten Scrollposition. Nur die Tab-Kennung: Beim Seitenwechsel wirft
@@ -2797,15 +2876,20 @@ export class MainView extends ItemView {
 
 export class NavView extends ItemView {
   private unsub: (() => void) | null = null;
+  private unsubTpl: (() => void) | null = null;
   constructor(leaf: WorkspaceLeaf, private plugin: BeautyTasksPlugin) { super(leaf); }
   getViewType(): string { return VIEW_NAV; }
   getDisplayText(): string { return "BeautyTasks"; }
   getIcon(): string { return "check-circle"; }
   async onOpen(): Promise<void> {
     if (!this.unsub) this.unsub = this.plugin.index.subscribe(() => this.draw());
+    // ZWEITES Abo auf den Vorlagen-Index: Die Vorlagen-Sektion liest aus ihm, und er meldet
+    // getrennt. Ohne das bliebe die Sektion stehen, bis zufällig eine AUFGABE sich ändert –
+    // eine gerade gespeicherte Vorlage erschiene also erst irgendwann später.
+    if (!this.unsubTpl) this.unsubTpl = this.plugin.templates.subscribe(() => this.draw());
     this.draw();
   }
-  async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; }
+  async onClose(): Promise<void> { this.unsub?.(); this.unsub = null; this.unsubTpl?.(); this.unsubTpl = null; }
   draw(): void {
     if (!this.contentEl) return;
     // Nur die Zahlen haben sich geändert? Dann bleibt die Seitenleiste stehen (s. tryPatchNav).

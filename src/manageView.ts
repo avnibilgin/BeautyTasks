@@ -5,6 +5,9 @@ import { listManaged, ProjItem } from "./taskService";
 import { listFilters, FilterItem } from "./filterService";
 import { applyFilter } from "./filterEngine";
 import { FilterModal } from "./filterModal";
+import { ApplyTemplateModal } from "./templateModal";
+import { deleteTemplate, listTemplates, refreshTemplates, templateEditScope, TemplateInfo } from "./templateService";
+import { TaskModal } from "./taskModal";
 import { buildItemMenu } from "./navMenu";
 import { NavSection, NavSortMode } from "./types";
 import { todayStr } from "./format";
@@ -124,6 +127,19 @@ export function renderManageInto(c: HTMLElement, ctx: PageCtx): void {
     const manual = plugin.navSortMode("filters") === "manual";
     const list = root.createDiv({ cls: "bt-manage-list" });
     filters.forEach((fl) => filterRow(list, ctx, fl, redraw, manual ? "filters" : undefined));
+    return;
+  }
+
+  if (section === "templates") {
+    // Kein Anlege-Feld wie bei Labels: Eine Vorlage entsteht aus einer Aufgabe („Als Vorlage
+    // speichern") oder über „Neu erstellen" – ein blosser Name ergäbe eine leere Hülle. Und kein
+    // Leerzustand: Der Abschnitt in der Seitenleiste erscheint erst mit der ersten Vorlage, diese
+    // Seite ist ohne Vorlagen also gar nicht erreichbar.
+    sortControl(root, plugin, "templates");
+    const tpls = plugin.sortTemplates(listTemplates(plugin));
+    const manual = plugin.navSortMode("templates") === "manual";
+    const list = root.createDiv({ cls: "bt-manage-list" });
+    tpls.forEach((tpl) => templateRow(list, ctx, tpl, redraw, manual ? "templates" : undefined));
     return;
   }
 
@@ -284,6 +300,27 @@ function labelRow(list: HTMLElement, ctx: PageCtx, l: { name: string; count: num
 
 /** Filter-Zeile im ListManager: Name (Klick öffnet das Board) · Anzahl · Sichtbarkeit ·
  *  Bearbeiten (öffnet den Filter-Editor) · Löschen. Sichtbarkeit wie bei Projekten (nav_hidden). */
+/** Eine Vorlage in der Übersicht – gebaut wie filterRow: Name, Aktionen beim Überfahren, Zahl,
+ *  Sichtbarkeits-Schalter. Die Zahl ist dieselbe wie in der Seitenleiste: wie viele Aufgaben beim
+ *  Anwenden entstehen. Kein Farbpunkt – das Icon sagt bereits, ob Aufgaben- oder Projektvorlage. */
+function templateRow(list: HTMLElement, ctx: PageCtx, tpl: TemplateInfo, redraw: () => void, reorderSec?: NavSection): void {
+  const plugin = ctx.plugin;
+  const row = list.createDiv({ cls: "bt-manage-row" });
+  if (reorderSec) reorderHandle(row, list, plugin, reorderSec, tpl.root.path);
+  const ic = row.createSpan({ cls: "bt-mrow-ic" });
+  setIcon(ic, tpl.kind === "project" ? "folder-plus" : "clipboard-list");
+  const name = row.createSpan({ cls: "bt-manage-name", text: tpl.name });
+  // Klick auf den Namen BEARBEITET – anders als bei Projekten, die eine eigene Seite haben.
+  // Eine Vorlage hat keine; ihr Inhalt lebt im Aufgaben-Editor (s. templateEditScope).
+  name.onclick = () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: tpl.kind === "project", scope: templateEditScope(plugin, tpl.root.path) }).open();
+  const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
+  iconBtn(actions, "wand-sparkles", t("tpl_apply_title"), () => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open());
+  iconBtn(actions, "pencil", t("tpl_edit"), () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: tpl.kind === "project", scope: templateEditScope(plugin, tpl.root.path) }).open());
+  iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin)), redraw));
+  row.createSpan({ cls: "bt-manage-count", text: String(tpl.size) });
+  visSwitch(row, !tpl.hidden, () => void plugin.setTemplateVisible(tpl.root.path, tpl.hidden));
+}
+
 function filterRow(list: HTMLElement, ctx: PageCtx, fl: FilterItem, redraw: () => void, reorderSec?: NavSection): void {
   const plugin = ctx.plugin;
   const row = list.createDiv({ cls: "bt-manage-row" });

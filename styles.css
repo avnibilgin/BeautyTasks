@@ -761,16 +761,29 @@ body {
   left: calc(-1 * var(--size-4-4) - 4px); right: calc(-1 * var(--size-4-4) - 4px);
   border-top: 1px solid var(--bt-line);
 }
-.bt-task-modal .bt-projekt {
+.bt-task-modal .bt-projekt,
+.bt-tpl-modal .bt-projekt {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
   border: 1px solid var(--background-modifier-border); border-radius: 6px;
   background: transparent; color: var(--text-normal); font-size: 0.88em; font-weight: 600; cursor: pointer; box-shadow: none;
 }
-.bt-task-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
-.bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car { display: inline-flex; }
-.bt-task-modal .bt-projekt-ic svg { width: 15px; height: 15px; }
-.bt-task-modal .bt-projekt-car { opacity: 0.6; }
-.bt-task-modal .bt-projekt-car svg { width: 14px; height: 14px; }
+/* `.bt-hidden` (0-1-0) verliert gegen die Knopf-Regel darueber (0-2-0) und ihr
+   `display: inline-flex` – der ausgeblendete Knopf blieb dadurch stehen. Diese Zeile stellt das
+   Ausblenden wieder her (0-3-0). Betrifft im Anwenden-Dialog den Projekt-Waehler: Bei „Neues
+   Projekt" gibt es nichts auszuwaehlen, dort zaehlt allein das Namensfeld. */
+.bt-task-modal .bt-projekt.bt-hidden,
+.bt-tpl-modal .bt-projekt.bt-hidden { display: none; }
+
+.bt-task-modal .bt-projekt:hover,
+.bt-tpl-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
+.bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car,
+.bt-tpl-modal .bt-projekt-ic, .bt-tpl-modal .bt-projekt-car { display: inline-flex; }
+.bt-task-modal .bt-projekt-ic svg,
+.bt-tpl-modal .bt-projekt-ic svg { width: 15px; height: 15px; }
+.bt-task-modal .bt-projekt-car,
+.bt-tpl-modal .bt-projekt-car { opacity: 0.6; }
+.bt-task-modal .bt-projekt-car svg,
+.bt-tpl-modal .bt-projekt-car svg { width: 14px; height: 14px; }
 .bt-task-modal .bt-actions { display: inline-flex; gap: 8px; }
 .bt-task-modal .bt-actions button { font-weight: 600; }   /* Abbrechen / Speichern fett */
 
@@ -1808,10 +1821,35 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Linie – genau so viel, wie unten zwischen der letzten Zeile und der Linie über dem Zähler
    steht (dort 14px margin-top + 3px padding-bottom). Die Facetten sitzen damit symmetrisch
    zwischen ihren beiden Trennlinien. */
-.bt-filter-modal .bt-filter-h {
-  margin: 6px 0 14px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
-  border-bottom: 1px solid var(--background-modifier-border);
+/* Abschnittsüberschrift IN einem Modal: gedämpft, fett, in normaler Schreibweise.
+
+   KEINE Versalien, kein `letter-spacing`, keine Trennlinie – dieselbe Entscheidung, die
+   2d48ffd (2026-07-27) schon für die Popover-Überschriften getroffen hat, mit exakt diesen
+   Werten. Diese Regel war der letzte Rest davon; die Schriftgrösse folgt jetzt ebenfalls
+   `.bt-pop-head` (0.84em), damit die beiden Überschriften-Arten nicht unterschiedlich gross
+   sind.
+   Hiess bis 2026-08-14 `bt-filter-h` und hing am Filter-Dialog – der Anwenden-Dialog der
+   Vorlagen braucht dieselbe Gestalt, und zwei Regeln mit demselben Aussehen liefen frueher
+   oder spaeter auseinander. Bewusst ohne Modal-Praefix im Selektor: der Klassenname ist
+   eindeutig genug, und so gilt er in jedem Dialog, der ihn benutzt.
+
+   Das Element im Filter-Dialog traegt den alten Namen ZUSAETZLICH weiter (s. filterModal.ts):
+   `bt-filter-h` ist seit 1.40.0 veroeffentlicht, und fremde Snippets koennen daran haengen. */
+.bt-modal-h {
+  margin: 6px 0 10px; font-size: 0.84em; font-weight: 700; color: var(--text-muted);
+}
+
+/* Nur im Filter-Editor: Versalien und Trennlinie bleiben, wie sie seit 1.40.0 aussehen.
+   Ausdrücklich so entschieden – dort steht die Überschrift über einer langen Reihe
+   gleichförmiger Kriterien-Zeilen und trennt sie vom Namens-/Farbteil darüber. Im
+   Anwenden-Dialog gliedern drei kurze Blöcke sich auch ohne.
+
+   `letter-spacing` und die kleinere Schriftgrösse gehören zu den Versalien: Grossbuchstaben
+   ohne Sperrung wirken gedrängt, und 0.84em war für die gemischte Schreibweise gewählt. Beide
+   Werte sind deshalb dieselben wie vor der Umstellung. */
+.bt-filter-modal .bt-modal-h {
+  font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.06em;
+  padding-bottom: 3px; border-bottom: 1px solid var(--background-modifier-border);
 }
 /* Fußzeile & Buttons wie im TaskModal (schlicht + mod-cta primär). */
 .bt-filter-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
@@ -2776,3 +2814,68 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Regel für .workspace-tab-header-inner-icon. */
 .workspace-tab-header.bt-plan-tab[data-type="markdown"] .workspace-tab-header-inner-icon,
 .mod-root .workspace-tab-header.bt-plan-tab[data-type="markdown"] .workspace-tab-header-inner-icon { display: flex; }
+
+/* ── Vorlagen ──────────────────────────────────────────────────────────────
+   Die Vorlagen-Auswahl zeigt dieselben Zeilen wie ein Popover, steht aber IM
+   Modal. Sämtliche `.bt-row`-Regeln oben hängen an `.bt-pop`, und `.bt-pop`
+   ist `position: fixed` — im Modal wäre das falsch. Deshalb hier die paar
+   Zeilen noch einmal, auf die Liste bezogen. */
+.bt-tpl-list { display: flex; flex-direction: column; gap: 1px; margin-bottom: 14px; max-height: 320px; overflow-y: auto; }
+.bt-tpl-list .bt-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 5px; cursor: pointer; font-size: 0.9em; color: var(--text-normal); }
+.bt-tpl-list .bt-row:hover { background: var(--background-modifier-hover); }
+.bt-tpl-list .bt-row-ic { display: inline-flex; }
+.bt-tpl-list .bt-row-ic svg { width: 15px; height: 15px; }
+.bt-tpl-list .bt-row-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Kopf des Anwenden-Dialogs: WAS wird angewendet. Zweizeilig, damit die Zahl eine Einheit
+   bekommt und die Art der Vorlage nicht nur am Icon hängt. Der Abstand nach unten trennt ihn
+   vom ersten Eingabefeld – vorher lag hier `.bt-new-preview`, das im Bestand ganz UNTEN sitzt
+   und deshalb keinen braucht. */
+/* Der Name-Block ist gerahmt wie die Farbbox im Neu-Modal (.bt-color-box): gleicher Rahmen,
+   gleicher Radius, gleicher gedämpfter Untergrund. Er zeigt etwas AN, statt etwas entgegen-
+   zunehmen – die Umrandung macht denselben Unterschied sichtbar wie dort. Die Werte stehen
+   hier noch einmal und nicht als gemeinsame Klasse: `.bt-color-box` beschreibt eine Reihe
+   Farbfelder und richtet sie mittig aus; das gilt hier gerade nicht. */
+.bt-tpl-head {
+  margin: 0; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--background-modifier-border); border-radius: 10px;
+  background: var(--background-secondary);
+}
+
+/* Anwenden-Dialog: Die drei Blöcke – Vorlagenname · Ziel · Zeitplan – sind gleich gebaut
+   (Überschrift mit Trennlinie, darunter der Inhalt) und stehen deshalb im GLEICHEN Abstand
+   zueinander. Der Wert sitzt am Block und nicht an der Überschrift: `.bt-modal-h` teilt sich
+   dieser Dialog mit dem Filter-Editor, und dort würde ein anderer Abstand alles verschieben. */
+.bt-tpl-modal .bt-tpl-head,
+.bt-tpl-modal .bt-new-field { margin-bottom: 24px; }
+.bt-tpl-head-nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-tpl-head-sub { color: var(--text-muted); font-size: 0.85em; }
+
+/* Zeitplan-Zeile: Richtungspaar links, Datum rechts (das `space-between` von .bt-new-row bleibt).
+   Nur der Aussenabstand fällt weg – die Zeile hat jetzt ein Label über sich und soll daran
+   anschliessen statt 20 px darunter zu schweben. */
+.bt-new-row.bt-tpl-when { margin: 0; }
+
+/* Der Hinweis erklärt die Zeitplan-Zeile und steht deshalb linksbündig direkt darunter –
+   nicht rechts unter dem Datum, wo er wie eine Fussnote des Knopfes aussah. */
+.bt-tpl-note { margin: 8px 0 0; color: var(--text-muted); font-size: 0.85em; }
+
+/* Anker-Zeile: die beiden Richtungen als Paar links, das Datum rechts.
+   Die umgebende `.bt-new-row` verteilt mit `space-between` — ohne diese
+   Gruppierung stünden alle drei Knöpfe gleich weit auseinander und man
+   sähe nicht mehr, dass „Start am" und „Fertig bis" eine Wahl sind. */
+.bt-tpl-anchor { display: flex; align-items: center; gap: 6px; }
+
+/* Vorlagen-Zeile in der Übersicht: an der Stelle des Farbpunkts steht das Typ-Icon
+   (Aufgaben- oder Projektvorlage). Eine Vorlage hat keine eigene Farbe – das Icon
+   sagt schon alles, was die Zeile auf einen Blick verraten muss. */
+.bt-view .bt-mrow-ic { display: inline-flex; flex: 0 0 auto; color: var(--text-muted); }
+.bt-view .bt-mrow-ic svg { width: 14px; height: 14px; }
+
+/* Warnung unter dem Namensfeld des Anwenden-Dialogs. Wie .bt-tpl-note aufgebaut, nur in der
+   Fehlerfarbe – sie erklärt nicht, sie hält auf: Solange sie steht, ist „Anwenden" gesperrt. */
+.bt-tpl-warn { margin: 6px 0 0; color: var(--text-error, var(--text-normal)); font-size: 0.85em; }
+
+/* Gesperrter Haupt-Knopf: Obsidian gibt `.mod-cta` seine Akzentfarbe ohne Rücksicht auf
+   `disabled` – ohne diese Zeile sähe der gesperrte Knopf aus wie ein bereiter. */
+.bt-tpl-modal button:disabled { opacity: 0.45; cursor: not-allowed; }

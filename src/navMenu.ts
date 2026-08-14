@@ -5,11 +5,15 @@ import { Menu, TFile, Platform } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { PageRef, pageInfo } from "./pageCtx";
 import { NavSection } from "./types";
-import { NewItemModal } from "./newItemModal";
+import { EditFocus, NewItemModal } from "./newItemModal";
 import { FilterModal } from "./filterModal";
 import { ConfirmModal, PromptModal } from "./confirmModal";
 import { listManaged } from "./taskService";
 import { listFilters } from "./filterService";
+import { ApplyTemplateModal, promptNewTemplate } from "./templateModal";
+import { TaskModal } from "./taskModal";
+import { openTaskNote } from "./taskService";
+import { deleteTemplate, listTemplates, refreshTemplates, renameTemplate, templateEditScope, TemplateInfo } from "./templateService";
 import { t } from "./i18n";
 
 // setSubmenu() ist seit App 1.7 verfügbar, fehlt aber in den mitgelieferten Typings (1.13.1).
@@ -87,22 +91,24 @@ export function addGcalSyncItem(menu: Menu, plugin: BeautyTasksPlugin, path: str
 
 /** Bearbeiten-Dialog des Eintrags – Filter bekommen ihren eigenen. Exportiert, weil auch der
  *  Beschreibungs-Platzhalter auf der Seite dorthin führt (das Feld liegt in diesem Dialog). */
-export function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
-  if (item.sec === "filters") { new FilterModal(plugin, item.key).open(); return; }
+export function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem, focus: EditFocus = "name"): void {
+  if (item.sec === "filters") { new FilterModal(plugin, item.key, undefined, focus).open(); return; }
   const kind = item.sec === "labels" ? "label" : (item.type ?? "project");
   const desc = listManaged(plugin.app).active.concat(listManaged(plugin.app).archived).find((p) => p.path === item.key)?.description ?? "";
-  new NewItemModal(plugin, kind, { key: item.key, name: item.name, color: item.color ?? null, visible: !item.hidden, description: desc }).open();
+  new NewItemModal(plugin, kind, { key: item.key, name: item.name, color: item.color ?? null, visible: !item.hidden, description: desc }, focus).open();
 }
 
 function setVisible(plugin: BeautyTasksPlugin, sec: NavSection, key: string, visible: boolean): Promise<void> {
   if (sec === "filters") return plugin.setFilterVisible(key, visible);
   if (sec === "labels") return plugin.setLabelVisible(key, visible);
+  if (sec === "templates") return plugin.setTemplateVisible(key, visible);
   return plugin.setProjectVisible(key, visible);
 }
 
 function deleteItem(plugin: BeautyTasksPlugin, item: NavMenuItem): Promise<void> {
   if (item.sec === "filters") return plugin.deleteFilter(item.key);
   if (item.sec === "labels") return plugin.deleteLabel(item.key);
+  if (item.sec === "templates") return deleteTemplate(plugin, item.key);
   return plugin.deleteProject(item.key);
 }
 
@@ -110,11 +116,15 @@ function deleteItem(plugin: BeautyTasksPlugin, item: NavMenuItem): Promise<void>
 function renameItem(plugin: BeautyTasksPlugin, item: NavMenuItem, v: string): void {
   if (item.sec === "filters") { void plugin.renameFilter(item.key, v); return; }
   if (item.sec === "labels") { void plugin.renameLabel(item.key, v); return; }
+  if (item.sec === "templates") { void renameTemplate(plugin, item.key, v); return; }
   void plugin.renameProject(item.key, v);   // projects + areas (Pfad)
 }
 
-/** Übersetzungs-Schlüssel für „Zur …übersicht" je Sektion (Board-Kebab). */
-const GOTO_KEY: Record<NavSection, string> = {
+/** Übersetzungs-Schlüssel für „Zur …übersicht" je Sektion (Board-Kebab).
+ *  Vorlagen fehlen bewusst: Der Eintrag erscheint nur auf einer Einzel-SEITE (`onBoard`), und eine
+ *  Vorlage hat keine – sie wird angewendet oder im Editor bearbeitet. Deshalb Partial mit Guard
+ *  statt eines Textes, den nie jemand zu sehen bekäme. */
+const GOTO_KEY: Partial<Record<NavSection, string>> = {
   projects: "menu_goto_projects", areas: "menu_goto_areas", labels: "menu_goto_labels", filters: "menu_goto_filters",
 };
 
@@ -156,8 +166,9 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
   }
 
   // — Zur Übersicht — (nur auf der Einzelseite; ersetzt den früheren „list-plus"-Kopf-Button)
-  if (onBoard) {
-    menu.addItem((m) => m.setSection("bt-goto").setTitle(t(GOTO_KEY[item.sec])).setIcon("list-plus")
+  const gotoKey = GOTO_KEY[item.sec];
+  if (onBoard && gotoKey) {
+    menu.addItem((m) => m.setSection("bt-goto").setTitle(t(gotoKey)).setIcon("list-plus")
       .onClick(() => void plugin.activateManage(item.sec)));
   }
 
@@ -169,6 +180,13 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
   menu.addItem((m) => m.setSection("bt-edit").setTitle(t("btn_rename")).setIcon("text-cursor-input")
     .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: item.name },
       (v) => renameItem(plugin, item, v)).open()));
+
+  // — Als Vorlage speichern — (nur Projekte/Bereiche; Labels und Filter haben keine Aufgaben,
+  // die man mitnehmen könnte). Nimmt das Projekt samt aller Aufgabenbäume auf.
+  if (isProjLike) {
+    menu.addItem((m) => m.setSection("bt-edit").setTitle(t("menu_save_project_as_template")).setIcon("bookmark-plus")
+      .onClick(() => void plugin.saveProjectAsTemplate(item.key, item.name)));
+  }
 
   if (isProjLike) {
     const toArea = item.type !== "area";
@@ -197,6 +215,9 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
       .onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
 
+  // — Neu erstellen — (global, nicht auf diesen Eintrag bezogen; deshalb weit unten)
+  buildCreateSubmenu(menu, plugin, "bt-new");
+
   // — Kalender-Sync (nur Projekt/Bereich; Helfer prüft die Verbindung selbst) —
   if (isProjLike) addGcalSyncItem(menu, plugin, item.key);
 
@@ -219,6 +240,7 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
 /** Ausgeblendete Einträge einer Sektion (Schlüssel + Anzeigename). */
 function hiddenOf(plugin: BeautyTasksPlugin, sec: NavSection): { key: string; name: string }[] {
   if (sec === "filters") return listFilters(plugin.app).filter((f) => f.hidden).map((f) => ({ key: f.path, name: f.name }));
+  if (sec === "templates") return listTemplates(plugin).filter((x) => x.hidden).map((x) => ({ key: x.root.path, name: x.name }));
   if (sec === "labels") return plugin.getLabels().filter((l) => !plugin.isLabelVisible(l.name)).map((l) => ({ key: l.name, name: l.name }));
   const want = sec === "areas" ? "area" : "project";
   return listManaged(plugin.app).active.filter((p) => p.type === want && p.hidden).map((p) => ({ key: p.path, name: p.name }));
@@ -226,6 +248,37 @@ function hiddenOf(plugin: BeautyTasksPlugin, sec: NavSection): { key: string; na
 
 /** Hängt „Ausgeblendete einblenden ▸" (Untermenü, ein Klick = einblenden) an, falls es welche gibt.
  *  Gibt zurück, ob etwas hinzugefügt wurde – der Aufrufer zeigt das Menü nur dann. */
+/**
+ * „Neu erstellen ▸" – der EINE Weg, ein Projekt, einen Bereich, ein Label, einen Filter oder eine
+ * Vorlage anzulegen, ohne dass der zugehörige Abschnitt schon existiert.
+ *
+ * Seit die Abschnitte erst mit ihrem ersten Eintrag erscheinen, gibt es die „+ … erstellen"-
+ * Hinweiszeilen nicht mehr. Für vier der fünf Typen ist das folgenlos – Projekt, Bereich und Label
+ * entstehen ohnehin beim Anlegen einer Aufgabe (Projekt-Picker bzw. Label-Chip), eine Vorlage über
+ * „Als Vorlage speichern" an der Aufgabenzeile. Der FILTER ist der Sonderfall: Für ihn gibt es
+ * keinen zweiten Weg, sein einziger Einstieg sass im Filter-Abschnitt. Dieses Menü ist der Ersatz.
+ *
+ * Deshalb hängt es auch an den Zeilen, die NIE verschwinden (Eingang und die vier Ansichten) und
+ * am leeren Bereich der Seitenleiste – ein Menü, das nur an Einträgen hinge, wäre auf einem
+ * frischen Vault nicht erreichbar.
+ */
+export function buildCreateSubmenu(menu: Menu, plugin: BeautyTasksPlugin, section?: string): void {
+  menu.addItem((parent) => {
+    if (section) parent.setSection(section);
+    parent.setTitle(t("menu_create_new")).setIcon("plus");
+    const sub = parent.setSubmenu();
+    const row = (key: string, icon: string, open: () => void): void => {
+      sub.addItem((m) => m.setTitle(t(key)).setIcon(icon).onClick(open));
+    };
+    // Icons wie in der Seitenleiste: Projekt = folder, Bereich = circle, Label = hash.
+    row("create_project", "folder", () => new NewItemModal(plugin, "project").open());
+    row("create_area", "circle", () => new NewItemModal(plugin, "area").open());
+    row("create_label", "hash", () => new NewItemModal(plugin, "label").open());
+    row("create_filter", "filter", () => new FilterModal(plugin).open());
+    row("create_template", "clipboard-list", () => promptNewTemplate(plugin));
+  });
+}
+
 export function showHiddenSubmenu(menu: Menu, plugin: BeautyTasksPlugin, sec: NavSection): boolean {
   const hidden = hiddenOf(plugin, sec);
   if (!hidden.length) return false;
@@ -239,3 +292,36 @@ export function showHiddenSubmenu(menu: Menu, plugin: BeautyTasksPlugin, sec: Na
   });
   return true;
 }
+
+/** Rechtsklick auf eine Vorlage. Anwenden steht zusätzlich hier, obwohl der Klick es schon tut –
+ *  wer das Menü öffnet, soll nicht raten müssen, welche Handlung die Zeile ausführt. */
+export function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
+  const m = new Menu();
+  m.addItem((i) => i.setTitle(t("tpl_apply_title")).setIcon("wand-sparkles")
+    .onClick(() => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open()));
+  // Bearbeiten öffnet den NORMALEN Aufgaben-Editor, nur auf den Vorlagen-Bestand gestellt
+  // (s. templateEditScope). Unteraufgaben, die man darin anlegt, landen im Vorlagen-Ordner.
+  m.addItem((i) => i.setTitle(t("tpl_edit")).setIcon("pencil")
+    // Der Projekt-Chip zeigt (und ändert) das Ziel, das sich die Vorlage merkt und das der
+    // Anwenden-Dialog vorschlägt. Bei einer PROJEKTvorlage bleibt er weg: Die wird selbst zum
+    // Projekt, ein eigenes Projektfeld hätte dort keine Wirkung.
+    .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: tpl.kind === "project", scope: templateEditScope(plugin, tpl.root.path) }).open()));
+  m.addItem((i) => i.setTitle(t("menu_open_task_note")).setIcon("file-text")
+    .onClick(() => openTaskNote(plugin.app, tpl.root.path)));
+  m.addSeparator();
+  m.addItem((i) => i.setTitle(tpl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar")).setIcon(tpl.hidden ? "eye" : "eye-off")
+    .onClick(() => void plugin.setTemplateVisible(tpl.root.path, tpl.hidden)));
+  m.addItem((i) => i.setTitle(t("btn_rename")).setIcon("text-cursor-input")
+    .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: tpl.name }, (name) => {
+      void renameTemplate(plugin, tpl.root.path, name).then(() => refreshTemplates(plugin));
+    }).open()));
+  buildCreateSubmenu(m, plugin);
+  m.addSeparator();
+  m.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true)
+    .onClick(() => new ConfirmModal(plugin.app, {
+      title: t("confirm_delete_title", tpl.name),
+      message: t("confirm_delete_body"),
+    }, () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin))).open()));
+  return m;
+}
+

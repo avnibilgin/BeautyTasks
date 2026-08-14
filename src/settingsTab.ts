@@ -385,6 +385,7 @@ export class BeautyTasksSettingTab extends PluginSettingTab {
     };
     folderRow(t("set_folder_items"), t("set_folder_items_desc"), () => p.settings.itemsFolder, (v) => (p.settings.itemsFolder = v));
     folderRow(t("set_folder_projects"), t("set_folder_projects_desc"), () => p.settings.projectsFolder, (v) => (p.settings.projectsFolder = v));
+    folderRow(t("set_folder_templates"), t("set_folder_templates_desc"), () => p.settings.templatesFolder, (v) => (p.settings.templatesFolder = v));
     folderRow(t("set_folder_attachments"), t("set_folder_attachments_desc"), () => p.settings.attachmentsFolder, (v) => (p.settings.attachmentsFolder = v));
 
     // Ausschluss-Ordner: Notizen darin gelten NIE als Aufgabe (Schutz vor fremden type:task-Notizen).

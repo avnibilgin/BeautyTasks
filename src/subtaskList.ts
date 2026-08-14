@@ -9,7 +9,7 @@
 import { Notice, setIcon } from "obsidian";
 import type BeautyTasksPlugin from "./main";
 import { Task } from "./types";
-import { createTaskNote, todayIso } from "./taskService";
+import { createTaskNote, EditScope, todayIso } from "./taskService";
 import { formatDateTime, formatDeadline, combineDT, dueWhen, dueDist, todayStr } from "./format";
 import { applyQuickEntry, emptyQuickEntryState } from "./quickEntry";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
@@ -29,6 +29,10 @@ export interface SubtaskHost {
   openTask(task: Task): void;
   /** Getippten Titel im vollen Editor weiterbearbeiten (⤢). */
   openFullEditor(title: string): void;
+  /** In welchem Bestand gearbeitet wird – Aufgaben des Vaults oder eine Vorlage (s. EditScope).
+   *  Die Sektion liest ihre Kinder aus `index` und legt neue in `target` an; ohne das entstünden
+   *  beim Bearbeiten einer Vorlage echte Aufgaben in `Items/`, die auf sie als Eltern zeigen. */
+  scope(): EditScope;
 }
 
 export class SubtaskList {
@@ -51,7 +55,7 @@ export class SubtaskList {
     installCheckDelegation(wrap, this.plugin);
     // Der Index meldet jede Änderung (auch die aus Listen/Kalender). Ohne das bliebe die
     // Sektion nach dem Abhaken auf dem alten Stand, bis das Modal neu geöffnet wird.
-    this.unsubscribe = this.plugin.index.subscribe(() => this.refresh());
+    this.unsubscribe = this.host.scope().index.subscribe(() => this.refresh());
     this.render();
   }
 
@@ -84,7 +88,7 @@ export class SubtaskList {
   private children(): Task[] {
     const parent = this.host.parent();
     if (!parent) return [];
-    return sortSubtasks(this.plugin.index.children(parent.path).filter((k) => !isTrashed(k.status)));
+    return sortSubtasks(this.host.scope().index.children(parent.path).filter((k) => !isTrashed(k.status)));
   }
 
   /** Nur neu zeichnen, wenn sich an den Kindern wirklich etwas geändert hat: Der Index meldet
@@ -197,7 +201,7 @@ export class SubtaskList {
       setIcon(rem, "alarm-clock");
     }
     for (const l of kid.labels) meta().createSpan({ cls: "bt-st-chip bt-label", text: l });
-    const comments = this.plugin.index.commentsOf(kid.path);
+    const comments = this.host.scope().index.commentsOf(kid.path);
     if (comments > 0) {
       const chip = meta().createSpan({ cls: "bt-comments" });
       setIcon(chip.createSpan({ cls: "bt-comments-ic" }), "paperclip");
@@ -205,7 +209,7 @@ export class SubtaskList {
     }
     // Enkel nur als Zahl: Im Modal wird bewusst NUR eine Ebene gelistet – tiefer geht es
     // über das Modal der Unteraufgabe selbst.
-    const grand = this.plugin.index.children(kid.path).filter((g) => !isTrashed(g.status));
+    const grand = this.host.scope().index.children(kid.path).filter((g) => !isTrashed(g.status));
     if (grand.length) {
       const gDone = grand.filter((g) => isDone(g.status)).length;
       const badge = meta().createSpan({ cls: "bt-st-kids" });
@@ -217,7 +221,7 @@ export class SubtaskList {
     const del = row.createEl("button", { cls: "bt-st-del" });
     tip(del, t("menu_cancel_task"));
     setIcon(del, "x");
-    del.onclick = (e) => { e.stopPropagation(); void this.plugin.cancelTask(kid); };
+    del.onclick = (e) => { e.stopPropagation(); void this.plugin.cancelTask(kid, this.host.scope().index); };
   }
 
   /** Inline-Erfassung: Enter legt an und lässt das Feld für die nächste offen. */
@@ -260,7 +264,7 @@ export class SubtaskList {
         ...r.fields, title,
         project: this.host.projectBase(),
         parent: parent.path.split("/").pop()!.replace(/\.md$/, ""),
-      });
+      }, this.host.scope().target);
     } catch (err) {
       console.error("BeautyTasks: create subtask failed", err);
       new Notice(t("err_subtask_create"));

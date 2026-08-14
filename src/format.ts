@@ -46,6 +46,23 @@ export function dayOffset(iso: string, today = todayStr()): number {
   return Math.round((d.getTime() - tn.getTime()) / 86400000);
 }
 
+/** Gegenstück zu `dayOffset`: ein ISO-Datum um N ganze Tage verschieben (N darf negativ sein).
+ *  Über die lokalen Datumsanteile (`setDate`) statt über Millisekunden – ein Sommerzeitwechsel im
+ *  verschobenen Zeitraum verschöbe sonst um einen Tag, und dieser Fehler tritt nur zweimal im Jahr
+ *  auf. Eine vorhandene Uhrzeit bleibt erhalten (nötig für absolute Erinnerungen).
+ *
+ *  Ein unlesbares Datum kommt UNVERÄNDERT zurück. Die Form „vier Ziffern, zwei, zwei" ist nicht
+ *  dasselbe wie ein gültiger Tag: `2026-13-99` besteht jede Regex im Haus, ergibt aber ein
+ *  ungültiges Date – und ohne diese Schranke schriebe der Aufrufer „NaN-NaN-NaN" ins Frontmatter.
+ *  Was wir nicht verstehen, verändern wir nicht. */
+export function addDays(iso: string, days: number): string {
+  const d = new Date(dateOf(iso) + "T00:00");
+  if (isNaN(d.getTime())) return iso;
+  d.setDate(d.getDate() + days);
+  const z = (n: number): string => String(n).padStart(2, "0");
+  return combineDT(`${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`, timeOf(iso));
+}
+
 /** ISO-Datum -> "Today" | "Yesterday" | "Tomorrow" | "24 Jun" | "1 Dec 2025" (locale).
  *  Eine evtl. Uhrzeit im ISO-String wird ignoriert (nur der Datums-Teil zählt). */
 export function formatDate(iso: string, today = todayStr()): string {
