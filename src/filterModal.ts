@@ -88,7 +88,13 @@ export class FilterModal extends Modal {
     // dieselben, die der Filter-Abschnitt des Anzeige-Panels zeichnet. Der Editor zeigt ALLE
     // Facetten und die volle Status-Liste (statusScope „all"): „zeig mir alles Abgebrochene" ist
     // hier eine sinnvolle Frage, im Panel dagegen kollidierte sie mit „Erledigte anzeigen".
-    contentEl.createEl("h4", { cls: "bt-modal-h", text: t("filter_facets") });
+    // Zwei Klassen mit Absicht: `bt-modal-h` ist die gemeinsame Gestalt (auch der Anwenden-Dialog
+    // der Vorlagen benutzt sie), `bt-filter-h` ist der ALTE Name. Er steckt in jeder
+    // veroeffentlichten Fassung seit 1.40.0, und CSS-Klassen eines Plugins sind eine Flaeche,
+    // an der fremde Snippets und Themes haengen koennen. Ihn wegzunehmen braeche sie lautlos –
+    // fuer nichts als einen schoeneren Namen. Er bleibt deshalb stehen, obwohl unser Stylesheet
+    // ihn nicht mehr anspricht.
+    contentEl.createEl("h4", { cls: "bt-modal-h bt-filter-h", text: t("filter_facets") });
     for (const f of buildFacets(this.plugin, ALL_FACETS, () => this.c, (patch) => { this.c = { ...this.c, ...patch }; })) {
       renderFacet(contentEl, f, MODAL_STYLE, () => this.refresh());
     }

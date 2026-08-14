@@ -1812,7 +1812,10 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Hiess bis 2026-08-14 `bt-filter-h` und hing am Filter-Dialog – der Anwenden-Dialog der
    Vorlagen braucht dieselbe Gestalt, und zwei Regeln mit demselben Aussehen liefen frueher
    oder spaeter auseinander. Bewusst ohne Modal-Praefix im Selektor: der Klassenname ist
-   eindeutig genug, und so gilt er in jedem Dialog, der ihn benutzt. */
+   eindeutig genug, und so gilt er in jedem Dialog, der ihn benutzt.
+
+   Das Element im Filter-Dialog traegt den alten Namen ZUSAETZLICH weiter (s. filterModal.ts):
+   `bt-filter-h` ist seit 1.40.0 veroeffentlicht, und fremde Snippets koennen daran haengen. */
 .bt-modal-h {
   margin: 6px 0 14px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
