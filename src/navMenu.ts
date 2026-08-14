@@ -10,6 +10,7 @@ import { FilterModal } from "./filterModal";
 import { ConfirmModal, PromptModal } from "./confirmModal";
 import { listManaged } from "./taskService";
 import { listFilters } from "./filterService";
+import { promptNewTemplate } from "./templateModal";
 import { t } from "./i18n";
 
 // setSubmenu() ist seit App 1.7 verfügbar, fehlt aber in den mitgelieferten Typings (1.13.1).
@@ -204,6 +205,9 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
       .onClick(() => void (fromSidebar ? plugin.moveNavItemVisible(item.sec, item.key, 1) : plugin.moveNavItem(item.sec, item.key, 1))));
   }
 
+  // — Neu erstellen — (global, nicht auf diesen Eintrag bezogen; deshalb weit unten)
+  buildCreateSubmenu(menu, plugin, "bt-new");
+
   // — Kalender-Sync (nur Projekt/Bereich; Helfer prüft die Verbindung selbst) —
   if (isProjLike) addGcalSyncItem(menu, plugin, item.key);
 
@@ -233,6 +237,37 @@ function hiddenOf(plugin: BeautyTasksPlugin, sec: NavSection): { key: string; na
 
 /** Hängt „Ausgeblendete einblenden ▸" (Untermenü, ein Klick = einblenden) an, falls es welche gibt.
  *  Gibt zurück, ob etwas hinzugefügt wurde – der Aufrufer zeigt das Menü nur dann. */
+/**
+ * „Neu erstellen ▸" – der EINE Weg, ein Projekt, einen Bereich, ein Label, einen Filter oder eine
+ * Vorlage anzulegen, ohne dass der zugehörige Abschnitt schon existiert.
+ *
+ * Seit die Abschnitte erst mit ihrem ersten Eintrag erscheinen, gibt es die „+ … erstellen"-
+ * Hinweiszeilen nicht mehr. Für vier der fünf Typen ist das folgenlos – Projekt, Bereich und Label
+ * entstehen ohnehin beim Anlegen einer Aufgabe (Projekt-Picker bzw. Label-Chip), eine Vorlage über
+ * „Als Vorlage speichern" an der Aufgabenzeile. Der FILTER ist der Sonderfall: Für ihn gibt es
+ * keinen zweiten Weg, sein einziger Einstieg sass im Filter-Abschnitt. Dieses Menü ist der Ersatz.
+ *
+ * Deshalb hängt es auch an den Zeilen, die NIE verschwinden (Eingang und die vier Ansichten) und
+ * am leeren Bereich der Seitenleiste – ein Menü, das nur an Einträgen hinge, wäre auf einem
+ * frischen Vault nicht erreichbar.
+ */
+export function buildCreateSubmenu(menu: Menu, plugin: BeautyTasksPlugin, section?: string): void {
+  menu.addItem((parent) => {
+    if (section) parent.setSection(section);
+    parent.setTitle(t("menu_create_new")).setIcon("plus");
+    const sub = parent.setSubmenu();
+    const row = (key: string, icon: string, open: () => void): void => {
+      sub.addItem((m) => m.setTitle(t(key)).setIcon(icon).onClick(open));
+    };
+    // Icons wie in der Seitenleiste: Projekt = folder, Bereich = circle, Label = hash.
+    row("create_project", "folder", () => new NewItemModal(plugin, "project").open());
+    row("create_area", "circle", () => new NewItemModal(plugin, "area").open());
+    row("create_label", "hash", () => new NewItemModal(plugin, "label").open());
+    row("create_filter", "filter", () => new FilterModal(plugin).open());
+    row("create_template", "clipboard-list", () => promptNewTemplate(plugin));
+  });
+}
+
 export function showHiddenSubmenu(menu: Menu, plugin: BeautyTasksPlugin, sec: NavSection): boolean {
   const hidden = hiddenOf(plugin, sec);
   if (!hidden.length) return false;

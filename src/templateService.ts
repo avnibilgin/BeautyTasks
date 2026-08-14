@@ -271,3 +271,20 @@ export async function deleteTemplate(plugin: BeautyTasksPlugin, rootPath: string
 
 /** Für Anzeigezwecke: der Name der Vorlage, zu der eine Notiz gehört (= ihr Ordnername). */
 export const templateNameOf = (path: string): string => baseName(path.split("/").slice(0, -1).join("/"));
+
+/**
+ * Nach jeder Vorlagen-Operation den Vorlagen-Index neu aufbauen – und NICHT auf die Datei-Events
+ * vertrauen.
+ *
+ * Umbenennen und Löschen einer Vorlage fassen einen ORDNER an. Obsidian meldet dafür kein
+ * verlässliches `delete`/`rename` je enthaltener Datei, der Index behielte also Einträge unter
+ * Pfaden, die es nicht mehr gibt – die gelöschte Vorlage stünde weiter in der Seitenleiste.
+ * Ein Neuaufbau ist hier billig: Der Vorlagen-Index ist auf seinen Ordner beschränkt.
+ *
+ * Der kurze Verzug wartet auf den Metadaten-Cache; `build()` meldet anschliessend von selbst,
+ * und die NavView zeichnet über ihr Abo neu.
+ */
+export function refreshTemplates(plugin: BeautyTasksPlugin): void {
+  window.setTimeout(() => plugin.templates.build(), 150);
+}
+

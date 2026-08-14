@@ -58,6 +58,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Inbox", group_area: "Areas", group_project: "Projects",
     // ── Vorlagen ──
     nav_templates: "Templates",
+    menu_create_new: "Create new",
     tpl_new_project: "New project",
     tpl_existing_project: "Existing project",
     create_template: "Create template",
@@ -385,6 +386,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Eingang", group_area: "Bereiche", group_project: "Projekte",
     // ── Vorlagen ──
     nav_templates: "Vorlagen",
+    menu_create_new: "Neu erstellen",
     tpl_new_project: "Neues Projekt",
     tpl_existing_project: "Bestehendes Projekt",
     create_template: "Vorlage erstellen",
@@ -712,6 +714,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Bandeja de entrada", group_area: "Áreas", group_project: "Proyectos",
     // ── Vorlagen ──
     nav_templates: "Plantillas",
+    menu_create_new: "Crear nuevo",
     tpl_new_project: "Proyecto nuevo",
     tpl_existing_project: "Proyecto existente",
     create_template: "Crear plantilla",
@@ -1039,6 +1042,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Entrada", group_area: "Áreas", group_project: "Projetos",
     // ── Vorlagen ──
     nav_templates: "Modelos",
+    menu_create_new: "Criar novo",
     tpl_new_project: "Novo projeto",
     tpl_existing_project: "Projeto existente",
     create_template: "Criar modelo",
@@ -1366,6 +1370,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Boîte de réception", group_area: "Domaines", group_project: "Projets",
     // ── Vorlagen ──
     nav_templates: "Modèles",
+    menu_create_new: "Créer",
     tpl_new_project: "Nouveau projet",
     tpl_existing_project: "Projet existant",
     create_template: "Créer un modèle",
@@ -1693,6 +1698,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Gelen kutusu", group_area: "Alanlar", group_project: "Projeler",
     // ── Vorlagen ──
     nav_templates: "Şablonlar",
+    menu_create_new: "Yeni oluştur",
     tpl_new_project: "Yeni proje",
     tpl_existing_project: "Mevcut proje",
     create_template: "Şablon oluştur",
@@ -2020,6 +2026,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "收件箱", group_area: "领域", group_project: "项目",
     // ── Vorlagen ──
     nav_templates: "模板",
+    menu_create_new: "新建",
     tpl_new_project: "新建项目",
     tpl_existing_project: "现有项目",
     create_template: "创建模板",
@@ -2347,6 +2354,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Входящие", group_area: "Области", group_project: "Проекты",
     // ── Vorlagen ──
     nav_templates: "Шаблоны",
+    menu_create_new: "Создать",
     tpl_new_project: "Новый проект",
     tpl_existing_project: "Существующий проект",
     create_template: "Создать шаблон",
@@ -2674,6 +2682,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "インボックス", group_area: "エリア", group_project: "プロジェクト",
     // ── Vorlagen ──
     nav_templates: "テンプレート",
+    menu_create_new: "新規作成",
     tpl_new_project: "新しいプロジェクト",
     tpl_existing_project: "既存のプロジェクト",
     create_template: "テンプレートを作成",
@@ -3001,6 +3010,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Posta in arrivo", group_area: "Aree", group_project: "Progetti",
     // ── Vorlagen ──
     nav_templates: "Modelli",
+    menu_create_new: "Crea nuovo",
     tpl_new_project: "Nuovo progetto",
     tpl_existing_project: "Progetto esistente",
     create_template: "Crea modello",

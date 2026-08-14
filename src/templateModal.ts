@@ -1,11 +1,12 @@
 import { Modal, Notice, setIcon } from "obsidian";
+import { PromptModal } from "./confirmModal";
 import type BeautyTasksPlugin from "./main";
 import { isInboxLink, listProjectsAndAreas } from "./taskService";
 import { openPopover, popRow } from "./popover";
 import { openDatePicker } from "./datePicker";
 import { dateOf, formatDate, todayStr } from "./format";
 import { AnchorMode } from "./templatePlan";
-import { applyTemplate, listTemplates, TemplateInfo } from "./templateService";
+import { applyTemplate, createEmptyTemplate, listTemplates, refreshTemplates, TemplateInfo } from "./templateService";
 import { t, projectDisplayName } from "./i18n";
 
 /**
@@ -194,3 +195,11 @@ export class ApplyTemplateModal extends Modal {
     new Notice(t("msg_template_applied", n));
   }
 }
+
+/** „+ Vorlage erstellen": Name abfragen, leere Vorlage anlegen, Seitenleiste nachziehen. */
+export function promptNewTemplate(plugin: BeautyTasksPlugin): void {
+  new PromptModal(plugin.app, { title: t("create_template"), placeholder: t("placeholder_taskname") }, (name) => {
+    void createEmptyTemplate(plugin, name).then(() => refreshTemplates(plugin));
+  }).open();
+}
+

@@ -13,11 +13,11 @@ import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, NavMenuItem } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, buildCreateSubmenu, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
-import { listTemplates, createEmptyTemplate, renameTemplate, deleteTemplate, templateEditScope, TemplateInfo } from "./templateService";
-import { ApplyTemplateModal } from "./templateModal";
+import { listTemplates, renameTemplate, deleteTemplate, refreshTemplates, templateEditScope, TemplateInfo } from "./templateService";
+import { ApplyTemplateModal, promptNewTemplate } from "./templateModal";
 import { ConfirmModal, PromptModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
@@ -2070,29 +2070,6 @@ function attachTaskDrop(el: HTMLElement, plugin: BeautyTasksPlugin, onDrop: (tas
   });
 }
 
-/**
- * Nach jeder Vorlagen-Operation den Vorlagen-Index neu aufbauen – und NICHT auf die Datei-Events
- * vertrauen.
- *
- * Umbenennen und Löschen einer Vorlage fassen einen ORDNER an. Obsidian meldet dafür kein
- * verlässliches `delete`/`rename` je enthaltener Datei, der Index behielte also Einträge unter
- * Pfaden, die es nicht mehr gibt – die gelöschte Vorlage stünde weiter in der Seitenleiste.
- * Ein Neuaufbau ist hier billig: Der Vorlagen-Index ist auf seinen Ordner beschränkt.
- *
- * Der kurze Verzug wartet auf den Metadaten-Cache; `build()` meldet anschliessend von selbst,
- * und die NavView zeichnet über ihr Abo neu.
- */
-function refreshTemplates(plugin: BeautyTasksPlugin): void {
-  window.setTimeout(() => plugin.templates.build(), 150);
-}
-
-/** „+ Vorlage erstellen": Name abfragen, leere Vorlage anlegen, Seitenleiste nachziehen. */
-function promptNewTemplate(plugin: BeautyTasksPlugin): void {
-  new PromptModal(plugin.app, { title: t("create_template"), placeholder: t("placeholder_taskname") }, (name) => {
-    void createEmptyTemplate(plugin, name).then(() => refreshTemplates(plugin));
-  }).open();
-}
-
 /** Rechtsklick auf eine Vorlage. Anwenden steht zusätzlich hier, obwohl der Klick es schon tut –
  *  wer das Menü öffnet, soll nicht raten müssen, welche Handlung die Zeile ausführt. */
 function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
@@ -2112,6 +2089,8 @@ function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
     .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: tpl.name }, (name) => {
       void renameTemplate(plugin, tpl.root.path, name).then(() => refreshTemplates(plugin));
     }).open()));
+  buildCreateSubmenu(m, plugin);
+  m.addSeparator();
   m.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true)
     .onClick(() => new ConfirmModal(plugin.app, {
       title: t("confirm_delete_title", tpl.name),
@@ -2167,13 +2146,18 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   setIcon(chev, collapsed ? "chevron-right" : "chevron-down");
   activate(chev, () => void plugin.toggleNavSection(id));
 
-  // Rechtsklick auf den Sektionskopf: „Ausgeblendete einblenden ▸" (nur wenn es welche gibt).
-  if (id === "projects" || id === "areas" || id === "labels" || id === "filters") {
-    head.oncontextmenu = (e) => {
-      const menu = new Menu();
-      if (showHiddenSubmenu(menu, plugin, id)) { e.preventDefault(); menu.showAtMouseEvent(e); }
-    };
-  }
+  // Rechtsklick auf den Sektionskopf: „Ausgeblendete einblenden ▸" (nur wenn es welche gibt)
+  // und „Neu erstellen ▸". Letzteres steht IMMER da – sonst hinge das Verhalten des Rechtsklicks
+  // davon ab, ob gerade etwas ausgeblendet ist, und derselbe Griff täte mal etwas und mal nichts.
+  head.oncontextmenu = (e) => {
+    const menu = new Menu();
+    if (id === "projects" || id === "areas" || id === "labels" || id === "filters" || id === "templates") {
+      showHiddenSubmenu(menu, plugin, id as NavSection);
+    }
+    buildCreateSubmenu(menu, plugin);
+    e.preventDefault();
+    menu.showAtMouseEvent(e);
+  };
 
   return collapsed;
 }
@@ -2299,6 +2283,17 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   c.empty();
   c.addClass("bt-nav");
   const redraw = () => renderNavInto(c, plugin);
+  // Rechtsklick auf den leeren Bereich der Seitenleiste. `defaultPrevented` ist die Weiche: Zeilen
+  // und Sektionsköpfe rufen in ihrem eigenen Handler preventDefault(), und der läuft beim
+  // Hochblubbern VOR diesem. So braucht es keine Prüfung auf Klassennamen, die beim nächsten
+  // Umbau still falsch würde.
+  c.oncontextmenu = (e) => {
+    if (e.defaultPrevented) return;
+    const m = new Menu();
+    buildCreateSubmenu(m, plugin);
+    e.preventDefault();
+    m.showAtMouseEvent(e);
+  };
   // Die Markierung folgt dem AKTIVEN Dashboard-Tab. Seit es mehrere geben kann, gibt es keine
   // „offene Seite" mehr, die das Plugin für sich kennen könnte – nur die des Tabs im Vordergrund.
   const act = plugin.activePage();
@@ -2330,6 +2325,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       const m = new Menu();
       addOpenItems(m, plugin, { kind: "project", key: INBOX_KEY });
       addGcalSyncItem(m, plugin, INBOX_KEY);
+      buildCreateSubmenu(m, plugin);
       m.showAtMouseEvent(e);
     },
     // Hierher gezogen = aus dem Projekt herausnehmen; „kein Projekt" IST der Eingang.
@@ -2345,7 +2341,10 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
       active, page, onClick: () => void plugin.activateView(id),
       // Die eingebauten Ansichten haben nichts zu bearbeiten – ihr Menü besteht genau aus den
       // Öffnen-Einträgen. Ohne sie käme man an „Heute in einem zweiten Tab" nur per Modifier-Klick.
-      onContext: (e) => { const m = new Menu(); addOpenItems(m, plugin, page); m.showAtMouseEvent(e); },
+      // Eingang und die vier Ansichten verschwinden NIE. Sie tragen „Neu erstellen" deshalb
+      // mit – auf einem Vault ohne Projekte, Labels, Filter und Vorlagen sind sie die einzigen
+      // Zeilen, an denen ein Rechtsklick überhaupt etwas findet.
+      onContext: (e) => { const m = new Menu(); addOpenItems(m, plugin, page); buildCreateSubmenu(m, plugin); m.showAtMouseEvent(e); },
     });
   }
 
