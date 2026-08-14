@@ -767,6 +767,13 @@ body {
   border: 1px solid var(--background-modifier-border); border-radius: 6px;
   background: transparent; color: var(--text-normal); font-size: 0.88em; font-weight: 600; cursor: pointer; box-shadow: none;
 }
+/* `.bt-hidden` (0-1-0) verliert gegen die Knopf-Regel darueber (0-2-0) und ihr
+   `display: inline-flex` – der ausgeblendete Knopf blieb dadurch stehen. Diese Zeile stellt das
+   Ausblenden wieder her (0-3-0). Betrifft im Anwenden-Dialog den Projekt-Waehler: Bei „Neues
+   Projekt" gibt es nichts auszuwaehlen, dort zaehlt allein das Namensfeld. */
+.bt-task-modal .bt-projekt.bt-hidden,
+.bt-tpl-modal .bt-projekt.bt-hidden { display: none; }
+
 .bt-task-modal .bt-projekt:hover,
 .bt-tpl-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
 .bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car,
