@@ -4,6 +4,7 @@ import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, b
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { titleKey, fmTitle, firstH1, resolveTitle } from "./taskTitle";
 import { fieldKey, labelKey } from "./fieldNames";
+import { clearScanCaches } from "./scanCache";
 import { orderChain, severReferences, agendaDate, isOverdueTask, isTodayTask, isUpcomingTask } from "./filterEngine";   // umgekehrt nur `import type` – kein Laufzeit-Zyklus
 
 const PRIO = new Set<string>(["highest", "high", "medium", "normal", "low", "lowest"]);
@@ -178,6 +179,10 @@ export class TaskIndex extends Component {
     // Notizen, der Vault Zehntausende. Ohne den Filter liefe für jede fremde Datei ein `upsert`,
     // das nur wieder aussteigt. Der Aufgaben-Index filtert NICHT vor – dort hat `upsert` auch für
     // Nicht-Aufgaben etwas zu tun (Projekt-/Bereichs-Notizen halten die Auflösungskarte frisch).
+    // build() ist im Plugin das Signal „von vorn": Feldnamen-Wechsel, Migration, Import, kalter
+    // Metadaten-Cache. Dann darf auch kein gemerkter Vault-Durchlauf stehenbleiben – nach einem
+    // Feldnamen-Wechsel sucht er sonst weiter unter dem alten Schlüssel (s. scanCache).
+    clearScanCaches();
     const alle = this.app.vault.getMarkdownFiles();
     const files = this.scope.restrictTo ? alle.filter((f) => this.inScope(f.path)) : alle;
     for (const f of files) this.upsert(f, false, true);   // Frontmatter sofort, Body separat (s. u.)
