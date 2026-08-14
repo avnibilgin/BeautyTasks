@@ -2814,7 +2814,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    bekommt und die Art der Vorlage nicht nur am Icon hängt. Der Abstand nach unten trennt ihn
    vom ersten Eingabefeld – vorher lag hier `.bt-new-preview`, das im Bestand ganz UNTEN sitzt
    und deshalb keinen braucht. */
-.bt-tpl-head { display: flex; align-items: center; gap: 8px; margin: 0; }
+.bt-tpl-head { margin: 0; min-width: 0; }
 
 /* Anwenden-Dialog: Die drei Blöcke – Vorlagenname · Ziel · Zeitplan – sind gleich gebaut
    (Überschrift mit Trennlinie, darunter der Inhalt) und stehen deshalb im GLEICHEN Abstand
@@ -2822,11 +2822,6 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    dieser Dialog mit dem Filter-Editor, und dort würde ein anderer Abstand alles verschieben. */
 .bt-tpl-modal .bt-tpl-head,
 .bt-tpl-modal .bt-new-field { margin-bottom: 24px; }
-.bt-tpl-head-ic { display: inline-flex; flex: 0 0 auto; color: var(--text-muted); }
-/* Dasselbe Mass wie die Icons in den Knöpfen darunter (.bt-projekt-ic) – im selben
-   Dialog soll kein Icon aus der Reihe fallen. */
-.bt-tpl-head-ic svg { width: 15px; height: 15px; }
-.bt-tpl-head-txt { min-width: 0; }
 .bt-tpl-head-nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bt-tpl-head-sub { color: var(--text-muted); font-size: 0.85em; }
 

@@ -76,12 +76,14 @@ export class ApplyTemplateModal extends Modal {
     // Kopf: WAS wird hier angewendet. Zweizeilig – Name gross, darunter Art und Umfang. Der
     // Dialog wird auch aus der Kommandopalette erreicht, wo der Name sonst nirgends mehr stünde,
     // und ohne die zweite Zeile bliebe „10" eine Zahl ohne Einheit.
+    //
+    // OHNE Icon: Die zweite Zeile sagt bereits im Klartext, ob es eine Aufgaben- oder eine
+    // Projektvorlage ist. Ein Symbol daneben wiederholte nur dieselbe Aussage in undeutlicher.
+    // (In der Vorlagen-AUSWAHL bleibt es – dort gibt es keine zweite Zeile, die es sagen könnte.)
     contentEl.createEl("h4", { cls: "bt-modal-h", text: t("filter_name") });
     const head = contentEl.createDiv({ cls: "bt-tpl-head" });
-    setIcon(head.createSpan({ cls: "bt-tpl-head-ic" }), this.tpl.kind === "project" ? "folder-plus" : "clipboard-list");
-    const headText = head.createDiv({ cls: "bt-tpl-head-txt" });
-    headText.createDiv({ cls: "bt-tpl-head-nm", text: this.tpl.name });
-    headText.createDiv({ cls: "bt-tpl-head-sub",
+    head.createDiv({ cls: "bt-tpl-head-nm", text: this.tpl.name });
+    head.createDiv({ cls: "bt-tpl-head-sub",
       text: t(this.tpl.kind === "project" ? "tpl_kind_project" : "tpl_kind_task") + " · " + t("cal_tasks", this.tpl.size) });
 
     // Ziel. Eine Aufgabenvorlage braucht ein Projekt, in das die Aufgabe geht. Eine
