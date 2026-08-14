@@ -1821,7 +1821,13 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Linie – genau so viel, wie unten zwischen der letzten Zeile und der Linie über dem Zähler
    steht (dort 14px margin-top + 3px padding-bottom). Die Facetten sitzen damit symmetrisch
    zwischen ihren beiden Trennlinien. */
-/* Abschnittsüberschrift IN einem Modal: gedämpfte Versalien mit Trennlinie darunter.
+/* Abschnittsüberschrift IN einem Modal: gedämpft, fett, in normaler Schreibweise.
+
+   KEINE Versalien, kein `letter-spacing`, keine Trennlinie – dieselbe Entscheidung, die
+   2d48ffd (2026-07-27) schon für die Popover-Überschriften getroffen hat, mit exakt diesen
+   Werten. Diese Regel war der letzte Rest davon; die Schriftgrösse folgt jetzt ebenfalls
+   `.bt-pop-head` (0.84em), damit die beiden Überschriften-Arten nicht unterschiedlich gross
+   sind.
    Hiess bis 2026-08-14 `bt-filter-h` und hing am Filter-Dialog – der Anwenden-Dialog der
    Vorlagen braucht dieselbe Gestalt, und zwei Regeln mit demselben Aussehen liefen frueher
    oder spaeter auseinander. Bewusst ohne Modal-Praefix im Selektor: der Klassenname ist
@@ -1830,9 +1836,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Das Element im Filter-Dialog traegt den alten Namen ZUSAETZLICH weiter (s. filterModal.ts):
    `bt-filter-h` ist seit 1.40.0 veroeffentlicht, und fremde Snippets koennen daran haengen. */
 .bt-modal-h {
-  margin: 6px 0 14px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
-  border-bottom: 1px solid var(--background-modifier-border);
+  margin: 6px 0 10px; font-size: 0.84em; font-weight: 700; color: var(--text-muted);
 }
 /* Fußzeile & Buttons wie im TaskModal (schlicht + mod-cta primär). */
 .bt-filter-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
