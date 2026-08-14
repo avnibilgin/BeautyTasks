@@ -65,11 +65,11 @@ export function listTemplates(plugin: BeautyTasksPlugin): TemplateInfo[] {
   return plugin.templates.all()
     .filter(isRoot)
     .map((root) => {
-      const kind = templateKind(plugin.app, root.path);
+      const { kind, hidden } = rootMeta(plugin.app, root.path);
       // Zahl = wie viele AUFGABEN entstehen. Bei einer Projektvorlage wird die Wurzel zum
       // Projekt und zählt deshalb nicht mit.
       const size = plugin.templates.descendants(root.path).length + (kind === "project" ? 0 : 1);
-      return { root, name: root.title, kind, size, hidden: templateHidden(plugin.app, root.path) };
+      return { root, name: root.title, kind, size, hidden };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
@@ -77,18 +77,23 @@ export function listTemplates(plugin: BeautyTasksPlugin): TemplateInfo[] {
 /** `template_of` der Wurzel lesen. Fehlt es (von Hand angelegte Notiz), gilt „Aufgabe" – das ist
  *  die harmlosere Annahme: Sie legt EINE Aufgabe an, statt ungefragt ein Projekt zu erzeugen. */
 export function templateKind(app: App, path: string): TemplateKind {
-  const f = app.vault.getAbstractFileByPath(path);
-  if (!(f instanceof TFile)) return "task";
-  return app.metadataCache.getFileCache(f)?.frontmatter?.[TEMPLATE_OF] === "project" ? "project" : "task";
+  return rootMeta(app, path).kind;
 }
 
 /** In der Seitenleiste ausgeblendet? Liegt als `nav_hidden` an der Wurzel – derselbe Schlüssel wie
  *  bei Projekten und Bereichen (s. setNavHidden in taskService), damit „ausgeblendet" im ganzen
  *  Vault dasselbe Feld bedeutet. Kein Teil von `Task`, deshalb direkt aus dem Frontmatter. */
 export function templateHidden(app: App, path: string): boolean {
+  return rootMeta(app, path).hidden;
+}
+
+/** Art und Sichtbarkeit einer Wurzel in EINEM Zugriff. `templateKind` und `templateHidden` lasen
+ *  beide dieselbe Datei; in `listTemplates` lief das je Wurzel zweimal – und listTemplates hängt
+ *  am Zeichnen der Seitenleiste. */
+function rootMeta(app: App, path: string): { kind: TemplateKind; hidden: boolean } {
   const f = app.vault.getAbstractFileByPath(path);
-  if (!(f instanceof TFile)) return false;
-  return !!app.metadataCache.getFileCache(f)?.frontmatter?.nav_hidden;
+  const fm = f instanceof TFile ? app.metadataCache.getFileCache(f)?.frontmatter : undefined;
+  return { kind: fm?.[TEMPLATE_OF] === "project" ? "project" : "task", hidden: !!fm?.nav_hidden };
 }
 
 /** Vorlage in der Seitenleiste ein-/ausblenden. */

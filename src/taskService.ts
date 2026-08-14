@@ -52,10 +52,27 @@ export function buildFrontmatter(obj: Record<string, unknown>): string {
  *  Quelle für Ordner-Zugehörigkeit: genutzt von den Ausschluss-Ordnern (taskIndex) und von der
  *  Herkunftsfrage der Titel-Migration (main). Rein – ohne App, damit testbar. */
 export function isUnderFolder(path: string, folder: string): boolean {
-  const dir = normalizePath(folder ?? "").replace(/\/+$/, "").trim();
-  if (!dir || dir === ".") return false;
-  return path === dir || path.startsWith(dir + "/");
+  return isUnderPrefix(path, folderPrefix(folder));
 }
+
+/**
+ * Eine Ordnerangabe auf ihre Vergleichsform bringen: normalisiert, ohne Schlusstrich. `""` heisst
+ * „keine brauchbare Angabe" und vergleicht sich später mit nichts.
+ *
+ * Getrennt vom Vergleich, weil beide Hälften unterschiedlich oft laufen: Der ORDNER ändert sich
+ * fast nie, der PFAD bei jeder Notiz. Wer über zehntausend Dateien vergleicht, bereitet den Ordner
+ * einmal auf und ruft danach nur noch `isUnderPrefix` – `normalizePath` samt Regex und `trim` je
+ * Notiz wäre in `TaskIndex.parse`, der heissesten Schleife des Plugins, reine Verschwendung.
+ */
+export function folderPrefix(folder: string | null | undefined): string {
+  const dir = normalizePath(folder ?? "").replace(/\/+$/, "").trim();
+  return !dir || dir === "." ? "" : dir;
+}
+
+/** Liegt `path` unter einem BEREITS aufbereiteten Ordner (s. folderPrefix)? Zwei
+ *  String-Vergleiche, keine Allokation – für die heissen Pfade. */
+export const isUnderPrefix = (path: string, prefix: string): boolean =>
+  !!prefix && (path === prefix || path.startsWith(prefix + "/"));
 
 export async function ensureFolder(app: App, path: string): Promise<void> {
   const p = normalizePath(path);

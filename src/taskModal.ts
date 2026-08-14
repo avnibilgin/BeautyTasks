@@ -47,7 +47,11 @@ export class TaskModal extends Modal {
   /** Aufgaben des Vaults oder eine Vorlage (s. EditScope). Wird an JEDES Kindmodal und an die
    *  Unteraufgaben-Sektion weitergereicht – wer eine Vorlage bearbeitet, bleibt beim Aufklappen
    *  einer Unteraufgabe in der Vorlage. */
-  private get editScope(): EditScope { return this.opts.scope ?? { index: this.plugin.index }; }
+  private editScopeCache?: EditScope;
+  /** Der Geltungsbereich ist über die Lebensdauer des Modals konstant. Als reiner Getter legte er
+   *  bei JEDEM Zugriff ein neues Objekt an – die Unteraufgaben-Sektion fragt ihn sechsmal, davon
+   *  einmal in `signature()`, das bei jeder Index-Meldung läuft. */
+  private get editScope(): EditScope { return (this.editScopeCache ??= this.opts.scope ?? { index: this.plugin.index }); }
   private discarding = false;          // true = bewusst verwerfen („Cancel") -> kein Auto-Speichern
   private persisted = false;           // true sobald geschrieben -> kein Doppel-Speichern
 

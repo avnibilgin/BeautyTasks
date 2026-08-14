@@ -1,6 +1,6 @@
 import { App, Component, TFile } from "obsidian";
 import { Task, Priority, BeautyTasksSettings } from "./types";
-import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName, isUnderFolder } from "./taskService";
+import { archivedProjectNames, isInboxName, isProjectType, resolveProjectPath, baseName, isUnderFolder, folderPrefix, isUnderPrefix } from "./taskService";
 import { isKnownStatus, isOpen, isDone, isTrashed, firstOpenStatus } from "./statuses";
 import { titleKey, fmTitle, firstH1, resolveTitle } from "./taskTitle";
 import { fieldKey, labelKey } from "./fieldNames";
@@ -54,6 +54,11 @@ export class TaskIndex extends Component {
   private projPathSet = new Map<string, string>(); // lowercase Basename -> Pfad der Projekt-/Bereichs-Notiz
   /** Wurde der Index MINDESTENS EINMAL aufgebaut? Vorher ist er nicht leer, sondern UNBEKANNT –
    *  wer daraus „dieser Vault hat nichts davon" schließt, irrt (s. ready). */
+  // Aufbereitete Ordner-Präfixe samt ihrer Rohwerte (s. syncPrefixes).
+  private ownRaw = "\u0000";
+  private ownPrefix = "";
+  private tplRaw = "\u0000";
+  private tplPrefix = "";
   private built = false;
   /** Sind die Abos schon verdrahtet? build() wird mehrfach gerufen (Migrationen, Importe, s.
    *  main.ts) und registrierte bis hierher JEDES MAL neue Handler auf metadataCache/vault. Nach
@@ -100,12 +105,32 @@ export class TaskIndex extends Component {
    */
   private inScope(path: string): boolean {
     const s = this.getSettings();
-    if (this.scope.restrictTo) {
-      const only = this.scope.restrictTo(s);
-      return !!only && isUnderFolder(path, only);
-    }
-    if (s.templatesFolder && isUnderFolder(path, s.templatesFolder)) return false;
-    return !s.excludeFolders.some((dir) => isUnderFolder(path, dir));
+    this.syncPrefixes(s);
+    if (this.scope.restrictTo) return isUnderPrefix(path, this.ownPrefix);
+    if (isUnderPrefix(path, this.tplPrefix)) return false;
+    // `.some` legt für jeden Aufruf eine Closure an. Die Ausschluss-Liste ist bei fast jedem
+    // Nutzer leer – dann kostet die Abkürzung nichts und spart die Allokation je Notiz.
+    const ex = s.excludeFolders;
+    return ex.length === 0 || !ex.some((dir) => isUnderFolder(path, dir));
+  }
+
+  /**
+   * Die beiden Ordner-Präfixe auf dem Stand der Einstellungen halten.
+   *
+   * `inScope` läuft für JEDE Notiz des Vaults – beim Aufbau und bei jeder Änderung. Den Ordner
+   * dort jedes Mal durch `normalizePath` samt Regex und `trim` zu schicken, wäre Arbeit für einen
+   * Wert, der sich fast nie ändert. Verglichen werden deshalb die ROHWERTE (zwei
+   * String-Vergleiche, keine Allokation); aufbereitet wird nur, wenn sich wirklich etwas geändert
+   * hat. Das ist nötig, weil ein Wechsel des Ordners in den Einstellungen KEINEN Neuaufbau
+   * auslöst (s. folderRow in settingsTab.ts) – ein einmalig gemerkter Wert würde also veralten.
+   *
+   * Der Sentinel `\u0000` kann als Ordnername nicht vorkommen und erzwingt den ersten Lauf.
+   */
+  private syncPrefixes(s: BeautyTasksSettings): void {
+    const own = this.scope.restrictTo ? this.scope.restrictTo(s) : "";
+    if (own !== this.ownRaw) { this.ownRaw = own; this.ownPrefix = folderPrefix(own); }
+    const tpl = s.templatesFolder ?? "";
+    if (tpl !== this.tplRaw) { this.tplRaw = tpl; this.tplPrefix = folderPrefix(tpl); }
   }
 
   /** Basenamen archivierter Projekte, gecacht bis zur nächsten Änderung (notify setzt dirty). */
@@ -149,7 +174,12 @@ export class TaskIndex extends Component {
     this.byPath.clear();
     this.byId.clear();
     this.invalidate();
-    const files = this.app.vault.getMarkdownFiles();
+    // Ein ordner-gebundener Index (Vorlagen) filtert VORHER: Sein Ordner hält eine Handvoll
+    // Notizen, der Vault Zehntausende. Ohne den Filter liefe für jede fremde Datei ein `upsert`,
+    // das nur wieder aussteigt. Der Aufgaben-Index filtert NICHT vor – dort hat `upsert` auch für
+    // Nicht-Aufgaben etwas zu tun (Projekt-/Bereichs-Notizen halten die Auflösungskarte frisch).
+    const alle = this.app.vault.getMarkdownFiles();
+    const files = this.scope.restrictTo ? alle.filter((f) => this.inScope(f.path)) : alle;
     for (const f of files) this.upsert(f, false, true);   // Frontmatter sofort, Body separat (s. u.)
     // Body-Metadaten (Beschreibung + Kommentarzahl) asynchron nachladen – und GENAU EINMAL melden.
     // Würde jede Datei einzeln melden (readBodyMeta ruft sonst notify), lösen die Promises über
@@ -178,7 +208,12 @@ export class TaskIndex extends Component {
     // Neu angelegte Dateien: beim "create" ist das Frontmatter noch nicht geparst ->
     // kurz später erneut versuchen (sonst erscheinen neue Aufgaben erst nach Reload).
     this.registerEvent(vault.on("create", (f) => {
-      if (f instanceof TFile && f.extension === "md") window.setTimeout(() => this.upsert(f), 80);
+      if (!(f instanceof TFile) || f.extension !== "md") return;
+      // Ordner-gebundener Index: für fremde Dateien gar nicht erst einen Timer stellen. Bei einem
+      // Massen-Import (Stresstest, Sync-Erstabgleich) wären das sonst zehntausend Timer, die
+      // ausschliesslich dazu dienen, sich selbst für unzuständig zu erklären.
+      if (this.scope.restrictTo && !this.inScope(f.path)) return;
+      window.setTimeout(() => this.upsert(f), 80);
     }));
     this.registerEvent(vault.on("delete", (f) => {
       if (!(f instanceof TFile) || f.extension !== "md") return;

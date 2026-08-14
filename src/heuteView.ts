@@ -16,7 +16,7 @@ import { NewItemModal } from "./newItemModal";
 import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, buildCreateSubmenu, buildTemplateMenu, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
-import { listTemplates } from "./templateService";
+import { listTemplates, TemplateInfo } from "./templateService";
 import { ApplyTemplateModal, promptNewTemplate } from "./templateModal";
 import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
@@ -2189,7 +2189,7 @@ function filterBadgeCount(plugin: BeautyTasksPlugin, fl: FilterItem, today: stri
   return applyFilter(plugin.index, fl.criteria, { ...fl.options, showDone: false }, today).length;
 }
 
-function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
+function navCounts(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): Map<string, number> {
   const m = new Map<string, number>();
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   m.set("p:" + INBOX_KEY, plugin.index.inboxOpen().length);   // eingebauter Eingang
@@ -2200,12 +2200,12 @@ function navCounts(plugin: BeautyTasksPlugin): Map<string, number> {
   for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
   // Ohne diese Zeile stünde für jede Vorlage KEIN Eintrag in der Karte, und tryPatchNav setzte
   // ihren Zähler beim nächsten Nachziehen auf leer (`counts.get(key) ?? 0`).
-  for (const tpl of listTemplates(plugin)) m.set("t:" + tpl.root.path, tpl.size);
+  for (const tpl of tpls) m.set("t:" + tpl.root.path, tpl.size);
   return m;
 }
 
 /** Struktur-Signatur OHNE Zahlen: gleich = dieselben Einträge in derselben Form. */
-function navSignature(plugin: BeautyTasksPlugin): string {
+function navSignature(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): string {
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
   const proj = (p: { path: string; name: string; icon: string; color: string | null; hidden: boolean }): string =>
     [p.path, p.name, p.icon, p.color, p.hidden].join("~");
@@ -2226,11 +2226,14 @@ function navSignature(plugin: BeautyTasksPlugin): string {
     // auslöst. Die übrigen Abschnitte brauchen das nicht: Ihre Listen oben enthalten die
     // ausgeblendeten Einträge bereits.
     hasLabels: plugin.getLabels().length > 0,
-    // Vorlagen: Pfad und Name je Wurzel, aber bewusst OHNE ihre Grösse. Die Grösse ist der
-    // Zähler-Badge und wird von tryPatchNav nachgezogen – stünde sie hier, erzwänge jede neue
-    // Unteraufgabe einer Vorlage einen vollständigen Neuaufbau der Seitenleiste. Sie kostet
-    // ausserdem einen Baum-Durchlauf, und diese Signatur läuft bei JEDEM Nachziehen.
-    templates: listTemplates(plugin).map((x) => [x.root.path, x.name, x.kind, x.hidden].join("~")).sort(),
+    // Vorlagen: Pfad, Name, Art und Sichtbarkeit je Wurzel – bewusst OHNE ihre Grösse. Die Grösse
+    // ist der Zähler-Badge und wird von tryPatchNav nachgezogen; stünde sie hier, erzwänge jede
+    // neue Unteraufgabe einer Vorlage einen vollständigen Neuaufbau der Seitenleiste.
+    //
+    // Die Liste kommt von aussen und wird NICHT hier berechnet: Signatur und Zähler laufen beide
+    // bei jedem Nachziehen, und `listTemplates` kostet je Wurzel einen Cache-Zugriff, einen
+    // Baum-Durchlauf und am Ende ein `localeCompare`-Sortieren. Einmal je Zeichnung genügt.
+    templates: tpls.map((x) => [x.root.path, x.name, x.kind, x.hidden].join("~")),
     tplReady: plugin.templates.ready,
     active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
     collapsed: ["filters", "labels", "areas", "projects", "templates"].map((id) => plugin.isNavCollapsed(id)),
@@ -2243,8 +2246,10 @@ function navSignature(plugin: BeautyTasksPlugin): string {
 /** Versucht, nur die Zähler der Seitenleiste nachzuziehen. true = erledigt (kein Neuaufbau nötig). */
 export function tryPatchNav(c: HTMLElement, plugin: BeautyTasksPlugin): boolean {
   const m = navMounts.get(c);
-  if (!m || m.sig !== navSignature(plugin)) return false;
-  const counts = navCounts(plugin);
+  if (!m) return false;   // nichts montiert -> gar nicht erst rechnen
+  const tpls = plugin.sortTemplates(listTemplates(plugin));
+  if (m.sig !== navSignature(plugin, tpls)) return false;
+  const counts = navCounts(plugin, tpls);
   for (const [key, el] of m.badges) {
     const n = counts.get(key) ?? 0;
     el.setText(n ? String(n) : "");
@@ -2274,6 +2279,10 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const badges = new Map<string, HTMLElement>();
   navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
   const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  // EINMAL je Zeichnung berechnet: unten für die Zeilen der Vorlagen-Sektion, ganz zum Schluss
+  // für die Signatur. `listTemplates` kostet je Wurzel einen Cache-Zugriff, einen Baum-Durchlauf
+  // und am Ende ein `localeCompare`-Sortieren – das gehört nicht mehrfach in eine Zeichnung.
+  const tpls = plugin.sortTemplates(listTemplates(plugin));
   // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
   const navColor = (path: string, stored: string | null): string | null =>
     plugin.colorPreview?.key === path ? plugin.colorPreview.color : stored;
@@ -2425,7 +2434,6 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   //
   // Der Abschnitt hängt am ZWEITEN Index (plugin.templates) – der Aufgaben-Index kennt Vorlagen
   // nicht und soll sie auch nie kennen (s. IndexScope in taskIndex.ts).
-  const tpls = plugin.sortTemplates(listTemplates(plugin));
   if (tpls.length) {
     const tplCollapsed = navHead(c, plugin, "templates", t("nav_templates"), t("create_template"), "", redraw,
       async () => undefined, () => promptNewTemplate(plugin));
@@ -2445,7 +2453,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   }
 
   navBadges = null;
-  navMounts.set(c, { sig: navSignature(plugin), badges });
+  navMounts.set(c, { sig: navSignature(plugin, tpls), badges });
 }
 
 function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {
