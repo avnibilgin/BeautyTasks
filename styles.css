@@ -1838,6 +1838,13 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-modal-h {
   margin: 6px 0 10px; font-size: 0.84em; font-weight: 700; color: var(--text-muted);
 }
+
+/* Nur im Filter-Editor: die Trennlinie bleibt. Ausdrücklich so entschieden – dort steht die
+   Überschrift über einer langen Reihe gleichförmiger Kriterien-Zeilen und trennt sie vom
+   Namens-/Farbteil darüber. Im Anwenden-Dialog gliedern drei kurze Blöcke sich auch ohne. */
+.bt-filter-modal .bt-modal-h {
+  padding-bottom: 3px; border-bottom: 1px solid var(--background-modifier-border);
+}
 /* Fußzeile & Buttons wie im TaskModal (schlicht + mod-cta primär). */
 .bt-filter-modal .bt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 .bt-filter-modal .bt-actions { display: inline-flex; gap: 8px; }
