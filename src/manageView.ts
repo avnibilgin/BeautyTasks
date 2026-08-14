@@ -312,10 +312,10 @@ function templateRow(list: HTMLElement, ctx: PageCtx, tpl: TemplateInfo, redraw:
   const name = row.createSpan({ cls: "bt-manage-name", text: tpl.name });
   // Klick auf den Namen BEARBEITET – anders als bei Projekten, die eine eigene Seite haben.
   // Eine Vorlage hat keine; ihr Inhalt lebt im Aufgaben-Editor (s. templateEditScope).
-  name.onclick = () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open();
+  name.onclick = () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: tpl.kind === "project", scope: templateEditScope(plugin, tpl.root.path) }).open();
   const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
   iconBtn(actions, "wand-sparkles", t("tpl_apply_title"), () => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open());
-  iconBtn(actions, "pencil", t("tpl_edit"), () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open());
+  iconBtn(actions, "pencil", t("tpl_edit"), () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: tpl.kind === "project", scope: templateEditScope(plugin, tpl.root.path) }).open());
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin)), redraw));
   row.createSpan({ cls: "bt-manage-count", text: String(tpl.size) });
   visSwitch(row, !tpl.hidden, () => void plugin.setTemplateVisible(tpl.root.path, tpl.hidden));

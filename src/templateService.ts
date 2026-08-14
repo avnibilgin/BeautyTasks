@@ -120,10 +120,15 @@ export async function saveAsTemplate(plugin: BeautyTasksPlugin, task: Task, kind
     scheduled: task.scheduled, scheduledTime: task.scheduledTime,
     duration: task.duration,
     priority: task.priority,
-    // Der Projektverweis der Quelle gehört NICHT in die Vorlage: Wohin sie angewendet wird,
-    // entscheidet der Anwenden-Dialog. Ein mitkopierter Verweis wäre eine stille Vorbelegung,
-    // die man nicht sieht und die beim Umbenennen des Projekts ins Leere zeigte.
-    project: null,
+    // Das Projekt der Quelle wandert MIT – als Vorschlag, nicht als Bindung. Eine Vorlage wie
+    // „Wäsche machen" gehört immer in dasselbe Projekt; sie jedes Mal neu suchen zu lassen ist
+    // die Arbeit, die eine Vorlage gerade abnehmen soll. Der Anwenden-Dialog zeigt den Vorschlag
+    // sichtbar im Feld „Ziel" und lässt ihn mit einem Klick ändern.
+    //
+    // Zeigt der Verweis später ins Leere (Projekt umbenannt oder gelöscht), löst ihn schon der
+    // Index nicht mehr auf (resolveProjectPath) – der Dialog fällt dann auf die Seite zurück, von
+    // der aus er geöffnet wurde. Ein toter Verweis kann hier also nichts anrichten.
+    project: task.project ? baseName(task.project) : null,
     labels: [...task.labels],
     recurrence: task.recurrence, recurBasis: task.recurBasis,
     reminders: [...task.reminders],

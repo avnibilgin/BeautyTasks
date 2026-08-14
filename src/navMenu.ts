@@ -302,9 +302,10 @@ export function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo):
   // Bearbeiten öffnet den NORMALEN Aufgaben-Editor, nur auf den Vorlagen-Bestand gestellt
   // (s. templateEditScope). Unteraufgaben, die man darin anlegt, landen im Vorlagen-Ordner.
   m.addItem((i) => i.setTitle(t("tpl_edit")).setIcon("pencil")
-    // Ohne Projekt-Chip: Eine Vorlage gehört keinem Projekt – wohin sie geht, entscheidet der
-    // Anwenden-Dialog. Ein Projekt hier zu setzen sähe nach einer Wirkung aus, die es nicht hat.
-    .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open()));
+    // Der Projekt-Chip zeigt (und ändert) das Ziel, das sich die Vorlage merkt und das der
+    // Anwenden-Dialog vorschlägt. Bei einer PROJEKTvorlage bleibt er weg: Die wird selbst zum
+    // Projekt, ein eigenes Projektfeld hätte dort keine Wirkung.
+    .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: tpl.kind === "project", scope: templateEditScope(plugin, tpl.root.path) }).open()));
   m.addItem((i) => i.setTitle(t("menu_open_task_note")).setIcon("file-text")
     .onClick(() => openTaskNote(plugin.app, tpl.root.path)));
   m.addSeparator();

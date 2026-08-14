@@ -1,7 +1,7 @@
 import { Modal, Notice, setIcon } from "obsidian";
 import { PromptModal } from "./confirmModal";
 import type BeautyTasksPlugin from "./main";
-import { isInboxLink, listProjectsAndAreas } from "./taskService";
+import { baseName, isInboxLink, listProjectsAndAreas } from "./taskService";
 import { openPopover, popRow } from "./popover";
 import { openDatePicker } from "./datePicker";
 import { dateOf, formatDate, todayStr } from "./format";
@@ -63,7 +63,15 @@ export class ApplyTemplateModal extends Modal {
 
   constructor(private plugin: BeautyTasksPlugin, private tpl: TemplateInfo, defaultProject: string | null = null) {
     super(plugin.app);
-    this.project = defaultProject;
+    // Vorbelegung, in dieser Reihenfolge: das Projekt, das sich die Vorlage gemerkt hat – sonst
+    // die Seite, von der aus der Dialog geöffnet wurde – sonst der Eingang.
+    //
+    // Die Erinnerung der Vorlage steht VORN: Wer eine Vorlage anwendet, meint fast immer dasselbe
+    // Ziel wie beim letzten Mal; wo man gerade steht, ist demgegenüber Zufall. `tpl.root.project`
+    // ist bereits ein aufgelöster Pfad – gibt es das Projekt nicht mehr, steht dort null und die
+    // nächste Stufe greift.
+    const gemerkt = tpl.root.project ? baseName(tpl.root.project) : null;
+    this.project = gemerkt ?? defaultProject;
   }
 
   onOpen(): void {
