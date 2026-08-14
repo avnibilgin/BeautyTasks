@@ -72,6 +72,19 @@ export class ApplyTemplateModal extends Modal {
     // nächste Stufe greift.
     const gemerkt = tpl.root.project ? baseName(tpl.root.project) : null;
     this.project = gemerkt ?? defaultProject;
+
+    // Projektvorlage, und es gibt bereits ein Projekt ODER einen Bereich mit ihrem Namen? Dann
+    // ist fast immer DAS gemeint. Der Dialog startet deshalb auf „Bestehendes Projekt" mit genau
+    // diesem Ziel – „Neues Projekt" bliebe zwar einen Klick entfernt, legte aber stillschweigend
+    // ein zweites „Wunschliste 2" an (createProjectNote weicht bei Namensgleichheit aus).
+    //
+    // Verglichen wird ohne Rücksicht auf Gross-/Kleinschreibung, wie überall bei Projektnamen
+    // (s. resolveProjectPath).
+    if (tpl.kind === "project") {
+      const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+      const treffer = [...bereiche, ...projekte].find((p) => p.name.toLowerCase() === tpl.name.toLowerCase());
+      if (treffer) { this.makeNew = false; this.project = treffer.name; }
+    }
   }
 
   onOpen(): void {
