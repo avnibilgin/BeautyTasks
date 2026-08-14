@@ -58,6 +58,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Inbox", group_area: "Areas", group_project: "Projects",
     // ── Vorlagen ──
     nav_templates: "Templates",
+    tpl_name_taken: "A project with this name already exists. Choose another name or “Existing project”.",
     tpl_edit: "Edit template",
     tpl_target: "Target",
     tpl_schedule: "Schedule",
@@ -391,6 +392,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Eingang", group_area: "Bereiche", group_project: "Projekte",
     // ── Vorlagen ──
     nav_templates: "Vorlagen",
+    tpl_name_taken: "Ein Projekt mit diesem Namen gibt es bereits. Wähle einen anderen Namen oder „Bestehendes Projekt“.",
     tpl_edit: "Vorlage bearbeiten",
     tpl_target: "Ziel",
     tpl_schedule: "Zeitplan",
@@ -724,6 +726,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Bandeja de entrada", group_area: "Áreas", group_project: "Proyectos",
     // ── Vorlagen ──
     nav_templates: "Plantillas",
+    tpl_name_taken: "Ya existe un proyecto con este nombre. Elige otro nombre o «Proyecto existente».",
     tpl_edit: "Editar plantilla",
     tpl_target: "Destino",
     tpl_schedule: "Planificación",
@@ -1057,6 +1060,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Entrada", group_area: "Áreas", group_project: "Projetos",
     // ── Vorlagen ──
     nav_templates: "Modelos",
+    tpl_name_taken: "Já existe um projeto com este nome. Escolha outro nome ou “Projeto existente”.",
     tpl_edit: "Editar modelo",
     tpl_target: "Destino",
     tpl_schedule: "Cronograma",
@@ -1390,6 +1394,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Boîte de réception", group_area: "Domaines", group_project: "Projets",
     // ── Vorlagen ──
     nav_templates: "Modèles",
+    tpl_name_taken: "Un projet portant ce nom existe déjà. Choisissez un autre nom ou « Projet existant ».",
     tpl_edit: "Modifier le modèle",
     tpl_target: "Destination",
     tpl_schedule: "Planification",
@@ -1723,6 +1728,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Gelen kutusu", group_area: "Alanlar", group_project: "Projeler",
     // ── Vorlagen ──
     nav_templates: "Şablonlar",
+    tpl_name_taken: "Bu ada sahip bir proje zaten var. Başka bir ad ya da „Mevcut proje“ seçin.",
     tpl_edit: "Şablonu düzenle",
     tpl_target: "Hedef",
     tpl_schedule: "Zamanlama",
@@ -2056,6 +2062,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "收件箱", group_area: "领域", group_project: "项目",
     // ── Vorlagen ──
     nav_templates: "模板",
+    tpl_name_taken: "已存在同名项目。请换一个名称，或选择“现有项目”。",
     tpl_edit: "编辑模板",
     tpl_target: "目标",
     tpl_schedule: "时间安排",
@@ -2389,6 +2396,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Входящие", group_area: "Области", group_project: "Проекты",
     // ── Vorlagen ──
     nav_templates: "Шаблоны",
+    tpl_name_taken: "Проект с таким именем уже существует. Выберите другое имя или «Существующий проект».",
     tpl_edit: "Изменить шаблон",
     tpl_target: "Куда",
     tpl_schedule: "Сроки",
@@ -2722,6 +2730,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "インボックス", group_area: "エリア", group_project: "プロジェクト",
     // ── Vorlagen ──
     nav_templates: "テンプレート",
+    tpl_name_taken: "同じ名前のプロジェクトが既にあります。別の名前か「既存のプロジェクト」を選んでください。",
     tpl_edit: "テンプレートを編集",
     tpl_target: "適用先",
     tpl_schedule: "日程",
@@ -3055,6 +3064,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Posta in arrivo", group_area: "Aree", group_project: "Progetti",
     // ── Vorlagen ──
     nav_templates: "Modelli",
+    tpl_name_taken: "Esiste già un progetto con questo nome. Scegli un altro nome o «Progetto esistente».",
     tpl_edit: "Modifica modello",
     tpl_target: "Destinazione",
     tpl_schedule: "Pianificazione",

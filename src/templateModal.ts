@@ -56,6 +56,8 @@ export class ApplyTemplateModal extends Modal {
   private newBtn?: HTMLButtonElement;
   private oldBtn?: HTMLButtonElement;
   private nameInput?: HTMLInputElement;
+  private nameNote?: HTMLElement;
+  private applyBtn?: HTMLButtonElement;
   private projektBtn!: HTMLButtonElement;
   private dateBtn!: HTMLButtonElement;
   private startBtn!: HTMLButtonElement;
@@ -120,8 +122,9 @@ export class ApplyTemplateModal extends Modal {
       this.oldBtn.onclick = () => this.setTargetMode(false);
       this.nameInput = projField.createEl("input", { cls: "bt-new-input", attr: { type: "text", placeholder: t("placeholder_project_name") } });
       this.nameInput.value = this.tpl.name;   // Vorbelegung: der Name der Vorlage
-      this.nameInput.oninput = () => { this.newProject = this.nameInput!.value; };
+      this.nameInput.oninput = () => { this.newProject = this.nameInput!.value; this.syncName(); };
       this.newProject = this.tpl.name;
+      this.nameNote = projField.createEl("p", { cls: "bt-tpl-warn bt-hidden", text: t("tpl_name_taken") });
     }
     this.projektBtn = projField.createEl("button", { cls: "bt-projekt" });
     this.projektBtn.onclick = (e) => this.openProject(e.currentTarget as HTMLElement);
@@ -152,14 +155,39 @@ export class ApplyTemplateModal extends Modal {
     foot.createDiv();   // Platzhalter links, damit die Knöpfe rechts stehen
     const actions = foot.createDiv({ cls: "bt-actions" });
     actions.createEl("button", { text: t("btn_cancel") }).onclick = () => this.close();
-    actions.createEl("button", { cls: "mod-cta", text: t("menu_apply_template") }).onclick = () => void this.submit();
+    this.applyBtn = actions.createEl("button", { cls: "mod-cta", text: t("menu_apply_template") });
+    this.applyBtn.onclick = () => void this.submit();
+    this.syncName();   // erst hier steht der Knopf, den syncName sperren kann
   }
 
   onClose(): void { this.contentEl.empty(); }
 
   private setMode(m: AnchorMode): void { this.mode = m; this.renderMode(); }
 
-  private setTargetMode(makeNew: boolean): void { this.makeNew = makeNew; this.renderTargetMode(); }
+  private setTargetMode(makeNew: boolean): void { this.makeNew = makeNew; this.renderTargetMode(); this.syncName(); }
+
+  /**
+   * Ist der eingetippte Name schon vergeben? Nur bei einer PROJEKTvorlage im Modus „Neues
+   * Projekt" – sonst entsteht gar kein Projekt und es gibt nichts zu prüfen.
+   *
+   * Gegen Projekte UND Bereiche, ohne Rücksicht auf Gross-/Kleinschreibung: `createProjectNote`
+   * weicht bei belegtem DATEINAMEN aus, und der unterscheidet sie ebenfalls nicht.
+   */
+  private nameTaken(): boolean {
+    if (this.tpl.kind !== "project" || !this.makeNew) return false;
+    const wunsch = (this.newProject ?? "").trim().toLowerCase();
+    if (!wunsch) return false;
+    const { bereiche, projekte } = listProjectsAndAreas(this.app);
+    return [...bereiche, ...projekte].some((p) => p.name.toLowerCase() === wunsch);
+  }
+
+  /** Warnung zeigen und „Anwenden" sperren, solange der Name vergeben ist. Ohne die Sperre
+   *  entstuende wortlos ein zweites „Wunschliste 2" (s. createProjectNote). */
+  private syncName(): void {
+    const belegt = this.nameTaken();
+    this.nameNote?.toggleClass("bt-hidden", !belegt);
+    if (this.applyBtn) this.applyBtn.disabled = belegt;
+  }
 
   /** Entweder das Namensfeld ODER die Projektauswahl – nie beides. Zwei sichtbare Ziele, von
    *  denen nur eines zählt, wären eine Einladung, das falsche auszufüllen. */
@@ -215,6 +243,9 @@ export class ApplyTemplateModal extends Modal {
     // die Aufgaben landeten im Eingang, und niemand wüsste, warum.
     const neu = this.tpl.kind === "project" && this.makeNew ? (this.newProject ?? "").trim() : null;
     if (this.tpl.kind === "project" && this.makeNew && !neu) { new Notice(t("new_need_name")); return; }
+    // Zweite Schranke hinter dem gesperrten Knopf: Enter oder ein Klick im Moment des Tippens
+    // sollen nicht doch noch ein gleichnamiges Projekt anlegen.
+    if (this.nameTaken()) { new Notice(t("tpl_name_taken")); return; }
     const n = await applyTemplate(this.plugin, this.tpl.root.path, {
       project: this.project,
       newProject: neu,
