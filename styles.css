@@ -761,16 +761,22 @@ body {
   left: calc(-1 * var(--size-4-4) - 4px); right: calc(-1 * var(--size-4-4) - 4px);
   border-top: 1px solid var(--bt-line);
 }
-.bt-task-modal .bt-projekt {
+.bt-task-modal .bt-projekt,
+.bt-tpl-modal .bt-projekt {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
   border: 1px solid var(--background-modifier-border); border-radius: 6px;
   background: transparent; color: var(--text-normal); font-size: 0.88em; font-weight: 600; cursor: pointer; box-shadow: none;
 }
-.bt-task-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
-.bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car { display: inline-flex; }
-.bt-task-modal .bt-projekt-ic svg { width: 15px; height: 15px; }
-.bt-task-modal .bt-projekt-car { opacity: 0.6; }
-.bt-task-modal .bt-projekt-car svg { width: 14px; height: 14px; }
+.bt-task-modal .bt-projekt:hover,
+.bt-tpl-modal .bt-projekt:hover { background: var(--background-modifier-hover); }
+.bt-task-modal .bt-projekt-ic, .bt-task-modal .bt-projekt-car,
+.bt-tpl-modal .bt-projekt-ic, .bt-tpl-modal .bt-projekt-car { display: inline-flex; }
+.bt-task-modal .bt-projekt-ic svg,
+.bt-tpl-modal .bt-projekt-ic svg { width: 15px; height: 15px; }
+.bt-task-modal .bt-projekt-car,
+.bt-tpl-modal .bt-projekt-car { opacity: 0.6; }
+.bt-task-modal .bt-projekt-car svg,
+.bt-tpl-modal .bt-projekt-car svg { width: 14px; height: 14px; }
 .bt-task-modal .bt-actions { display: inline-flex; gap: 8px; }
 .bt-task-modal .bt-actions button { font-weight: 600; }   /* Abbrechen / Speichern fett */
 
@@ -2801,7 +2807,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    bekommt und die Art der Vorlage nicht nur am Icon hängt. Der Abstand nach unten trennt ihn
    vom ersten Eingabefeld – vorher lag hier `.bt-new-preview`, das im Bestand ganz UNTEN sitzt
    und deshalb keinen braucht. */
-.bt-tpl-head { display: flex; align-items: center; gap: 10px; margin: 0; }
+.bt-tpl-head { display: flex; align-items: center; gap: 8px; margin: 0; }
 
 /* Anwenden-Dialog: Die drei Blöcke – Vorlagenname · Ziel · Zeitplan – sind gleich gebaut
    (Überschrift mit Trennlinie, darunter der Inhalt) und stehen deshalb im GLEICHEN Abstand
@@ -2810,7 +2816,9 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
 .bt-tpl-modal .bt-tpl-head,
 .bt-tpl-modal .bt-new-field { margin-bottom: 24px; }
 .bt-tpl-head-ic { display: inline-flex; flex: 0 0 auto; color: var(--text-muted); }
-.bt-tpl-head-ic svg { width: 20px; height: 20px; }
+/* Dasselbe Mass wie die Icons in den Knöpfen darunter (.bt-projekt-ic) – im selben
+   Dialog soll kein Icon aus der Reihe fallen. */
+.bt-tpl-head-ic svg { width: 15px; height: 15px; }
 .bt-tpl-head-txt { min-width: 0; }
 .bt-tpl-head-nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bt-tpl-head-sub { color: var(--text-muted); font-size: 0.85em; }

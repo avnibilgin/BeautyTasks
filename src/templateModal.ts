@@ -76,7 +76,7 @@ export class ApplyTemplateModal extends Modal {
     // Kopf: WAS wird hier angewendet. Zweizeilig – Name gross, darunter Art und Umfang. Der
     // Dialog wird auch aus der Kommandopalette erreicht, wo der Name sonst nirgends mehr stünde,
     // und ohne die zweite Zeile bliebe „10" eine Zahl ohne Einheit.
-    contentEl.createEl("h4", { cls: "bt-modal-h", text: t("tpl_name_head") });
+    contentEl.createEl("h4", { cls: "bt-modal-h", text: t("filter_name") });
     const head = contentEl.createDiv({ cls: "bt-tpl-head" });
     setIcon(head.createSpan({ cls: "bt-tpl-head-ic" }), this.tpl.kind === "project" ? "folder-plus" : "clipboard-list");
     const headText = head.createDiv({ cls: "bt-tpl-head-txt" });
