@@ -2,6 +2,7 @@ import { App, TFile, normalizePath } from "obsidian";
 import { BeautyTasksSettings } from "./types";
 import { buildFrontmatter, ensureFolder, newId, todayIso, slugify, retitleHeading } from "./taskService";
 import { fieldKey } from "./fieldNames";
+import { ScanCache } from "./scanCache";
 import { FilterCriteria, ViewOptions } from "./filterEngine";
 import { readViewOptions, writeViewOptions, readCriteria, writeCriteria } from "./pageOptions";
 
@@ -27,13 +28,21 @@ function toItem(f: TFile, fm: Record<string, unknown>): FilterItem {
   };
 }
 
-/** Alle gespeicherten Filter (alphabetisch). Leichtgewichtiger Scan über den metadataCache
- *  (wie listProjects) – Filter ändern sich selten, daher NICHT im TaskIndex geführt. */
-export function listFilters(app: App): FilterItem[] {
-  return app.vault.getMarkdownFiles().flatMap((f) => {
+/** Scan über den metadataCache (wie bei den Projekten) – Filter ändern sich selten, daher NICHT
+ *  im TaskIndex geführt. Gemerkt (s. ScanCache), weil die Seitenleiste ihn bei jeder
+ *  Index-Meldung braucht und je Filter zusätzlich die Kriterien parst. */
+const filterScan = new ScanCache<FilterItem>((ty) => ty === "filter", (app) =>
+  app.vault.getMarkdownFiles().flatMap((f) => {
     const fm = app.metadataCache.getFileCache(f)?.frontmatter;
     return fm?.[fieldKey("type")] === "filter" ? [toItem(f, fm)] : [];
-  }).sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }).sort((a, b) => a.name.localeCompare(b.name, "de")));
+
+/** Alle gespeicherten Filter (alphabetisch). Bewusst eine KOPIE der gemerkten Liste: Die
+ *  Aufrufer geben sie weiter an sortFilters, in Menüs und in den Export – eine davon irgendwann
+ *  an Ort und Stelle zu sortieren, würde sonst die gemerkte Reihenfolge für alle anderen
+ *  umstellen (dieselbe Falle wie bei den per Verweis herausgegebenen Standard-Sammlungen). */
+export function listFilters(app: App): FilterItem[] {
+  return [...filterScan.get(app)];
 }
 
 /** Einen Filter per Pfad lesen (null, wenn keine Filter-Notiz mehr). */

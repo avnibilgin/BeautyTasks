@@ -8,7 +8,7 @@ import { takeFromBudget, repaintCount, rowsForScroll, columnFirstPaint, placehol
 import { Task, NavSection, Priority } from "./types";
 import { todayStr, combineDT, dateOf, groupLabel } from "./format";
 import { openDatePicker } from "./datePicker";
-import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY } from "./taskService";
+import { listProjectsAndAreas, listManaged, isAreaPath, isInboxLink, baseName, openTaskNote, INBOX_KEY, ProjLists } from "./taskService";
 import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
@@ -2189,14 +2189,14 @@ function filterBadgeCount(plugin: BeautyTasksPlugin, fl: FilterItem, today: stri
   return applyFilter(plugin.index, fl.criteria, { ...fl.options, showDone: false }, today).length;
 }
 
-function navCounts(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): Map<string, number> {
+function navCounts(plugin: BeautyTasksPlugin, tpls: TemplateInfo[], pa: ProjLists, flts: FilterItem[]): Map<string, number> {
   const m = new Map<string, number>();
-  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+  const { bereiche, projekte } = pa;
   m.set("p:" + INBOX_KEY, plugin.index.inboxOpen().length);   // eingebauter Eingang
   for (const id of VIEW_IDS) m.set("v:" + id, navCount(plugin, id));
   for (const p of [...bereiche, ...projekte]) m.set("p:" + p.path, plugin.index.byProject(p.path).length);
   const today = todayStr();
-  for (const fl of listFilters(plugin.app)) m.set("f:" + fl.path, filterBadgeCount(plugin, fl, today));
+  for (const fl of flts) m.set("f:" + fl.path, filterBadgeCount(plugin, fl, today));
   for (const name of plugin.getVisibleLabels()) m.set("l:" + name, plugin.index.byLabel(name).length);
   // Ohne diese Zeile stünde für jede Vorlage KEIN Eintrag in der Karte, und tryPatchNav setzte
   // ihren Zähler beim nächsten Nachziehen auf leer (`counts.get(key) ?? 0`).
@@ -2205,14 +2205,14 @@ function navCounts(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): Map<string,
 }
 
 /** Struktur-Signatur OHNE Zahlen: gleich = dieselben Einträge in derselben Form. */
-function navSignature(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): string {
-  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
+function navSignature(plugin: BeautyTasksPlugin, tpls: TemplateInfo[], pa: ProjLists, flts: FilterItem[]): string {
+  const { bereiche, projekte } = pa;
   const proj = (p: { path: string; name: string; icon: string; color: string | null; hidden: boolean }): string =>
     [p.path, p.name, p.icon, p.color, p.hidden].join("~");
   return JSON.stringify({
     areas: plugin.sortProjItems("areas", bereiche).map(proj),
     projects: plugin.sortProjItems("projects", projekte).map(proj),
-    filters: plugin.sortFilters(listFilters(plugin.app)).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
+    filters: plugin.sortFilters(flts).map((f) => [f.path, f.name, f.icon, f.color, f.hidden].join("~")),
     labels: plugin.getVisibleLabels().map((n) => n + "~" + plugin.getLabelColor(n)),
     // Nicht die ANZAHL der Labels, sondern OB die Hinweiszeile steht. Die Zahl springt beim Start
     // von 0 auf N und erzwang damit einen vollständigen Neuaufbau der Seitenleiste, der am Bild
@@ -2233,6 +2233,11 @@ function navSignature(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): string {
     // Die Liste kommt von aussen und wird NICHT hier berechnet: Signatur und Zähler laufen beide
     // bei jedem Nachziehen, und `listTemplates` kostet je Wurzel einen Cache-Zugriff, einen
     // Baum-Durchlauf und am Ende ein `localeCompare`-Sortieren. Einmal je Zeichnung genügt.
+    //
+    // Dasselbe gilt für `pa` und `flts` weiter oben: Beide waren bis dahin je zweimal berechnet –
+    // hier und in navCounts –, und beide gehen dafür über JEDE Notiz des Vaults. Vier volle
+    // Durchläufe pro Nachziehen, bei jedem Häkchen. Jetzt einer je Zeichnung, und der ist
+    // seinerseits gemerkt (s. scanCache).
     templates: tpls.map((x) => [x.root.path, x.name, x.kind, x.hidden].join("~")),
     tplReady: plugin.templates.ready,
     active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
@@ -2247,9 +2252,12 @@ function navSignature(plugin: BeautyTasksPlugin, tpls: TemplateInfo[]): string {
 export function tryPatchNav(c: HTMLElement, plugin: BeautyTasksPlugin): boolean {
   const m = navMounts.get(c);
   if (!m) return false;   // nichts montiert -> gar nicht erst rechnen
+  // Die drei Listen EINMAL – Signatur und Zähler bekommen dieselben (s. navSignature).
   const tpls = plugin.sortTemplates(listTemplates(plugin));
-  if (m.sig !== navSignature(plugin, tpls)) return false;
-  const counts = navCounts(plugin, tpls);
+  const pa = listProjectsAndAreas(plugin.app);
+  const flts = listFilters(plugin.app);
+  if (m.sig !== navSignature(plugin, tpls, pa, flts)) return false;
+  const counts = navCounts(plugin, tpls, pa, flts);
   for (const [key, el] of m.badges) {
     const n = counts.get(key) ?? 0;
     el.setText(n ? String(n) : "");
@@ -2278,10 +2286,13 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   const isActive = (kind: PageRef["kind"], key: string): boolean => !!act && act.kind === kind && act.key === key;
   const badges = new Map<string, HTMLElement>();
   navBadges = badges;   // navItem trägt seine Zähler-Spans hier ein
-  const { bereiche, projekte } = listProjectsAndAreas(plugin.app);
-  // EINMAL je Zeichnung berechnet: unten für die Zeilen der Vorlagen-Sektion, ganz zum Schluss
+  // EINMAL je Zeichnung berechnet: unten für die Zeilen der jeweiligen Sektion, ganz zum Schluss
   // für die Signatur. `listTemplates` kostet je Wurzel einen Cache-Zugriff, einen Baum-Durchlauf
-  // und am Ende ein `localeCompare`-Sortieren – das gehört nicht mehrfach in eine Zeichnung.
+  // und am Ende ein `localeCompare`-Sortieren, `listProjectsAndAreas`/`listFilters` je einen
+  // Durchlauf über alle Notizen des Vaults – das gehört nicht mehrfach in eine Zeichnung.
+  const pa = listProjectsAndAreas(plugin.app);
+  const { bereiche, projekte } = pa;
+  const flts = listFilters(plugin.app);
   const tpls = plugin.sortTemplates(listTemplates(plugin));
   // Live-Vorschau der Icon-Farbe (Farb-Picker): überschreibt für EINEN Eintrag die gespeicherte Farbe.
   const navColor = (path: string, stored: string | null): string | null =>
@@ -2365,7 +2376,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
 
   // Filter-Sektion (ÜBER den Labels): „+" öffnet den Filter-Editor. Rechtsklick = bearbeiten.
   const today = todayStr();
-  const filters = plugin.sortFilters(listFilters(plugin.app));
+  const filters = plugin.sortFilters(flts);
   if (filters.length) {
     const filtersCollapsed = navHead(c, plugin, "filters", t("nav_filters"), t("filter_add"), "", redraw,
       async () => undefined, () => new FilterModal(plugin).open());
@@ -2453,7 +2464,7 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   }
 
   navBadges = null;
-  navMounts.set(c, { sig: navSignature(plugin, tpls), badges });
+  navMounts.set(c, { sig: navSignature(plugin, tpls, pa, flts), badges });
 }
 
 function navCount(plugin: BeautyTasksPlugin, id: ViewId): number {

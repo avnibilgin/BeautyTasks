@@ -5,6 +5,7 @@ import { combineDT, localStamp } from "./format";
 import { firstOpenStatus, isDone, isTrashed } from "./statuses";
 import { titleKey, fmTitle, findH1Line, replaceHeadingLine, renameHeadingLine, newTaskBody } from "./taskTitle";
 import { fieldKey } from "./fieldNames";
+import { ScanCache } from "./scanCache";
 import { t } from "./i18n";
 
 export const slugify = (s: string): string =>
@@ -382,9 +383,13 @@ export function resolveProjectPath(linkText: unknown, projectPaths: Map<string, 
 export const isInboxLink = (project: string | null | undefined): boolean =>
   !project || isInboxName(project.split("/").pop()!.replace(/\.md$/, ""));
 
-/** Alle Projekt-/Bereich-Notizen mit Meta (Typ, Icon, Farbe, Sichtbarkeit, Archiv). */
-function allProjItems(app: App): ProjItem[] {
-  return app.vault.getMarkdownFiles().flatMap((f) => {
+/** Alle Projekt-/Bereich-Notizen mit Meta (Typ, Icon, Farbe, Sichtbarkeit, Archiv).
+ *
+ *  Der Durchlauf ist gemerkt (s. ScanCache): Er geht über JEDE Notiz des Vaults, liefert aber
+ *  solange dasselbe, bis sich eine Projekt-/Bereichsnotiz ändert. Die Seitenleiste fragt ihn
+ *  bei jeder Index-Meldung – bei jedem Häkchen also, wo sich hier nichts geändert haben kann. */
+const projScan = new ScanCache<ProjItem>(isProjectType, (app) =>
+  app.vault.getMarkdownFiles().flatMap((f) => {
     const fm = app.metadataCache.getFileCache(f)?.frontmatter;
     const ty: unknown = fm?.[fieldKey("type")];
     const type: "project" | "area" | null = ty === "area" ? "area" : ty === "project" ? "project" : null;
@@ -398,8 +403,9 @@ function allProjItems(app: App): ProjItem[] {
       description: typeof fm?.description === "string" ? fm.description : "",
       hidden: !!fm?.nav_hidden, archived: fm?.status === "archived",
     }];
-  });
-}
+  }));
+
+function allProjItems(app: App): ProjItem[] { return projScan.get(app); }
 
 /** Eingang + Bereiche + Projekte (ohne Archivierte) für Picker/Nav. „hidden" bleibt drin;
  *  die Nav filtert es selbst, der Aufgaben-Picker zeigt es weiterhin. */
@@ -409,7 +415,11 @@ export function archivedProjectNames(app: App): Set<string> {
   return new Set(allProjItems(app).filter((p) => p.archived).map((p) => p.name.toLowerCase()));
 }
 
-export function listProjectsAndAreas(app: App): { bereiche: ProjItem[]; projekte: ProjItem[] } {
+/** Ergebnis von listProjectsAndAreas – benannt, weil es als Ganzes durchgereicht wird
+ *  (Signatur und Zähler der Seitenleiste teilen sich EINEN Durchlauf, s. tryPatchNav). */
+export interface ProjLists { bereiche: ProjItem[]; projekte: ProjItem[] }
+
+export function listProjectsAndAreas(app: App): ProjLists {
   const all = allProjItems(app).filter((p) => !p.archived);
   const bereiche = all.filter((p) => p.type === "area").sort(byName);
   // Eine evtl. noch vorhandene (alte) Inbox-Notiz NIE als Projekt anbieten – der Eingang ist
