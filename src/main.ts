@@ -6,7 +6,7 @@ import { applyDefaults, toDelta } from "./settingsDelta";
 import { forcedStartPage, newTabPage, fromLegacyStartView } from "./startPage";
 import { resolveReminders } from "./reminders";
 import { TaskIndex, TASK_SCOPE, TEMPLATE_SCOPE } from "./taskIndex";
-import { saveAsTemplate, saveProjectAsTemplate } from "./templateService";
+import { listTemplates, saveAsTemplate, saveProjectAsTemplate, setTemplateHidden, TemplateInfo } from "./templateService";
 import { PickTemplateModal } from "./templateModal";
 import { runMigration } from "./migrate";
 import {
@@ -924,7 +924,7 @@ export default class BeautyTasksPlugin extends Plugin {
   async activateProject(path: string): Promise<void> { await this.openPage({ kind: "project", key: path }); }
   async activateLabel(label: string): Promise<void> { await this.openPage({ kind: "label", key: label }); }
   async activateFilter(path: string): Promise<void> { await this.openPage({ kind: "filter", key: path }); }
-  async activateManage(section: "projects" | "areas" | "labels" | "filters" = "projects", tab: "active" | "archive" = "active"): Promise<void> {
+  async activateManage(section: NavSection = "projects", tab: "active" | "archive" = "active"): Promise<void> {
     await this.openPage({ kind: "manage", key: section });
     // Default „Aktiv": Der Aktiv/Archiv-Umschalter ist eine Sicht INNERHALB der Übersicht, kein Zustand
     // der Anwendung – wer sie neu aufruft, will die aktiven Projekte sehen. Ausnahme: von der Seite
@@ -1447,7 +1447,7 @@ export default class BeautyTasksPlugin extends Plugin {
   // ── Seitenleisten-Sortierung (Projekte/Bereiche/Labels) ──
   navSortMode(sec: NavSection): NavSortMode { return this.settings.navSort?.[sec] ?? "name"; }
   async setNavSort(sec: NavSection, mode: NavSortMode): Promise<void> {
-    const cur = this.settings.navSort ?? { projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode, filters: "name" as NavSortMode };
+    const cur = this.settings.navSort ?? { templates: "name" as NavSortMode, projects: "name" as NavSortMode, areas: "name" as NavSortMode, labels: "name" as NavSortMode, filters: "name" as NavSortMode };
     cur[sec] = mode;
     this.settings.navSort = cur;
     await this.saveSettings();
@@ -1483,6 +1483,15 @@ export default class BeautyTasksPlugin extends Plugin {
   sortFilters(items: FilterItem[]): FilterItem[] {
     return this.orderNav("filters", items, (f) => f.path, (f) => f.name);
   }
+  sortTemplates(items: TemplateInfo[]): TemplateInfo[] {
+    return this.orderNav("templates", items, (x) => x.root.path, (x) => x.name);
+  }
+
+  /** Vorlage in der Seitenleiste ein-/ausblenden. Das Schreiben ins Frontmatter meldet über den
+   *  Vorlagen-Index von selbst; ein eigenes renderAll() wäre eine zweite Zeichnung. */
+  async setTemplateVisible(path: string, visible: boolean): Promise<void> {
+    await setTemplateHidden(this.app, path, !visible);
+  }
   /** Aktuelle Reihenfolge der Schlüssel (materialisiert die manuelle Liste beim ersten Verschieben). */
   private currentNavKeys(sec: NavSection): string[] {
     if (sec === "labels") {
@@ -1490,6 +1499,7 @@ export default class BeautyTasksPlugin extends Plugin {
       return this.orderNav("labels", items, (x) => x.name, (x) => x.name).map((x) => x.name);
     }
     if (sec === "filters") return this.sortFilters(listFilters(this.app)).map((f) => f.path);
+    if (sec === "templates") return this.sortTemplates(listTemplates(this)).map((x) => x.root.path);
     const wantType = sec === "areas" ? "area" : "project";
     const items = listManaged(this.app).active.filter((p) => p.type === wantType);
     return this.sortProjItems(sec, items).map((p) => p.path);
@@ -1497,7 +1507,7 @@ export default class BeautyTasksPlugin extends Plugin {
   /** Manuelle Reihenfolge einer Sektion setzen (materialisiert navOrder). Gemeinsame Persistenz
    *  für ↑/↓-Verschieben UND Drag-Sortiermodus – schreibt genau ein Feld: navOrder[sec]. */
   async setNavOrder(sec: NavSection, keys: string[]): Promise<void> {
-    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [] };
+    const order = this.settings.navOrder ?? { projects: [], areas: [], labels: [], filters: [], templates: [] };
     order[sec] = keys;
     this.settings.navOrder = order;
     await this.saveSettings();
@@ -1518,6 +1528,7 @@ export default class BeautyTasksPlugin extends Plugin {
   private visibleNavKeys(sec: NavSection): string[] {
     if (sec === "labels") return this.getVisibleLabels();
     if (sec === "filters") return this.sortFilters(listFilters(this.app)).filter((f) => !f.hidden).map((f) => f.path);
+    if (sec === "templates") return this.sortTemplates(listTemplates(this)).filter((x) => !x.hidden).map((x) => x.root.path);
     const want = sec === "areas" ? "area" : "project";
     const items = listManaged(this.app).active.filter((p) => p.type === want && !p.hidden);
     return this.sortProjItems(sec, items).map((p) => p.path);

@@ -2794,3 +2794,9 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Gruppierung stünden alle drei Knöpfe gleich weit auseinander und man
    sähe nicht mehr, dass „Start am" und „Fertig bis" eine Wahl sind. */
 .bt-tpl-anchor { display: flex; align-items: center; gap: 6px; }
+
+/* Vorlagen-Zeile in der Übersicht: an der Stelle des Farbpunkts steht das Typ-Icon
+   (Aufgaben- oder Projektvorlage). Eine Vorlage hat keine eigene Farbe – das Icon
+   sagt schon alles, was die Zeile auf einen Blick verraten muss. */
+.bt-view .bt-mrow-ic { display: inline-flex; flex: 0 0 auto; color: var(--text-muted); }
+.bt-view .bt-mrow-ic svg { width: 14px; height: 14px; }

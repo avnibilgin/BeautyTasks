@@ -13,19 +13,19 @@ import { listFilters, readFilter, FilterItem } from "./filterService";
 import { applyFilter, filterTasks, hasCriteria, sortTasks, groupTasks, dateColumnKeys, visibleRows, planDiff, agendaOwnRow, effectiveSubtasks, sortSubtasks, DEFAULT_CRITERIA, FilterGroup, FilterSort, PageLayout, LAYOUTS, SortDir, SubtaskDisplay, ViewOptions } from "./filterEngine";
 import { FilterModal } from "./filterModal";
 import { NewItemModal } from "./newItemModal";
-import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, buildCreateSubmenu, NavMenuItem } from "./navMenu";
+import { buildItemMenu, showHiddenSubmenu, addGcalSyncItem, addOpenItems, openEdit, buildCreateSubmenu, buildTemplateMenu, NavMenuItem } from "./navMenu";
 import { anzeigeButton } from "./viewPanel";
 import { renderManageInto, iconBtn, confirmInline, attachRowDrag } from "./manageView";
-import { listTemplates, renameTemplate, deleteTemplate, refreshTemplates, templateEditScope, TemplateInfo } from "./templateService";
+import { listTemplates } from "./templateService";
 import { ApplyTemplateModal, promptNewTemplate } from "./templateModal";
-import { ConfirmModal, PromptModal } from "./confirmModal";
+import { ConfirmModal } from "./confirmModal";
 import { parseRecurrence } from "./recurrence";
 import { describeRecurrence } from "./recurrenceText";
 import { renderCalendar, calendarDayAnchor, tryPatchCalendar, activateEventOpen, dropCalendarAnchors } from "./calendarView";
 import { DayEvent, bucketEvents, addDays, addMonths } from "./calendarModel";
 import { renderCheck, installCheckDelegation } from "./taskCheck";
 import { installTaskMenuDelegation, menuHoldPath } from "./taskMenu";
-import { PRIOS, TaskModal } from "./taskModal";
+import { PRIOS } from "./taskModal";
 import { isOpen, isDone, isTrashed, boardStatuses, statusLabel, statusTint, firstOpenStatus, StatusKind } from "./statuses";
 import { t, getLocale, projectDisplayName } from "./i18n";
 import { tip, tipWhenClipped } from "./tooltip";
@@ -2070,35 +2070,6 @@ function attachTaskDrop(el: HTMLElement, plugin: BeautyTasksPlugin, onDrop: (tas
   });
 }
 
-/** Rechtsklick auf eine Vorlage. Anwenden steht zusätzlich hier, obwohl der Klick es schon tut –
- *  wer das Menü öffnet, soll nicht raten müssen, welche Handlung die Zeile ausführt. */
-function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
-  const m = new Menu();
-  m.addItem((i) => i.setTitle(t("menu_apply_template")).setIcon("wand-sparkles")
-    .onClick(() => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open()));
-  // Bearbeiten öffnet den NORMALEN Aufgaben-Editor, nur auf den Vorlagen-Bestand gestellt
-  // (s. templateEditScope). Unteraufgaben, die man darin anlegt, landen im Vorlagen-Ordner.
-  m.addItem((i) => i.setTitle(t("edit_task")).setIcon("pencil")
-    // Ohne Projekt-Chip: Eine Vorlage gehört keinem Projekt – wohin sie geht, entscheidet der
-    // Anwenden-Dialog. Ein Projekt hier zu setzen sähe nach einer Wirkung aus, die es nicht hat.
-    .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open()));
-  m.addItem((i) => i.setTitle(t("menu_open_task_note")).setIcon("file-text")
-    .onClick(() => openTaskNote(plugin.app, tpl.root.path)));
-  m.addSeparator();
-  m.addItem((i) => i.setTitle(t("btn_rename")).setIcon("text-cursor-input")
-    .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: tpl.name }, (name) => {
-      void renameTemplate(plugin, tpl.root.path, name).then(() => refreshTemplates(plugin));
-    }).open()));
-  buildCreateSubmenu(m, plugin);
-  m.addSeparator();
-  m.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true)
-    .onClick(() => new ConfirmModal(plugin.app, {
-      title: t("confirm_delete_title", tpl.name),
-      message: t("confirm_delete_body"),
-    }, () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin))).open()));
-  return m;
-}
-
 /** Ein-/ausklappbare Abschnittsüberschrift: Chevron-Toggle (Zustand persistent) + „+",
  *  das nur beim Hover/Fokus der Zeile erscheint. Gibt zurück, ob der Abschnitt eingeklappt ist. */
 function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: string,
@@ -2109,7 +2080,7 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
 
   // Label links (füllt die Zeile): Klick/Enter führt in die jeweilige ListManager-Übersicht.
   // (Das Auf-/Zuklappen liegt jetzt beim Chevron rechts.)
-  const manageSec = (id === "projects" || id === "areas" || id === "labels" || id === "filters") ? id : null;
+  const manageSec = (id === "projects" || id === "areas" || id === "labels" || id === "filters" || id === "templates") ? id : null;
   const toggle = head.createDiv({ cls: "bt-nav-head-toggle", attr: { role: "button", tabindex: "0" } });
   toggle.createSpan({ cls: "bt-nav-head-lbl", text: title });
   activate(toggle, () => manageSec ? void plugin.activateManage(manageSec) : void plugin.toggleNavSection(id));
@@ -2152,7 +2123,7 @@ function navHead(c: HTMLElement, plugin: BeautyTasksPlugin, id: string, title: s
   head.oncontextmenu = (e) => {
     const menu = new Menu();
     if (id === "projects" || id === "areas" || id === "labels" || id === "filters" || id === "templates") {
-      showHiddenSubmenu(menu, plugin, id as NavSection);
+      showHiddenSubmenu(menu, plugin, id);
     }
     buildCreateSubmenu(menu, plugin);
     e.preventDefault();
@@ -2257,7 +2228,7 @@ function navSignature(plugin: BeautyTasksPlugin): string {
     // Zähler-Badge und wird von tryPatchNav nachgezogen – stünde sie hier, erzwänge jede neue
     // Unteraufgabe einer Vorlage einen vollständigen Neuaufbau der Seitenleiste. Sie kostet
     // ausserdem einen Baum-Durchlauf, und diese Signatur läuft bei JEDEM Nachziehen.
-    templates: plugin.templates.all().filter((x) => !x.parent).map((x) => x.path + "~" + x.title).sort(),
+    templates: listTemplates(plugin).map((x) => [x.root.path, x.name, x.kind, x.hidden].join("~")).sort(),
     tplReady: plugin.templates.ready,
     active: JSON.stringify(plugin.activePage()),   // markiert wird die Seite des AKTIVEN Tabs
     collapsed: ["filters", "labels", "areas", "projects", "templates"].map((id) => plugin.isNavCollapsed(id)),
@@ -2452,12 +2423,15 @@ export function renderNavInto(c: HTMLElement, plugin: BeautyTasksPlugin): void {
   //
   // Der Abschnitt hängt am ZWEITEN Index (plugin.templates) – der Aufgaben-Index kennt Vorlagen
   // nicht und soll sie auch nie kennen (s. IndexScope in taskIndex.ts).
-  const tpls = listTemplates(plugin);
+  const tpls = plugin.sortTemplates(listTemplates(plugin));
   if (tpls.length) {
     const tplCollapsed = navHead(c, plugin, "templates", t("nav_templates"), t("create_template"), "", redraw,
       async () => undefined, () => promptNewTemplate(plugin));
-    if (!tplCollapsed) {
+    if (plugin.reorderSec === "templates") {
+      renderReorderList(c, plugin, "templates", tpls.filter((x) => !x.hidden).map((x) => ({ key: x.root.path, name: x.name, icon: x.kind === "project" ? "folder-plus" : "clipboard-list", color: null })));
+    } else if (!tplCollapsed) {
       for (const tpl of tpls) {
+        if (tpl.hidden) continue;   // in der Übersicht ausgeblendete Vorlagen nicht in der Nav zeigen
         navItem(c, plugin, {
           cls: "bt-nav-template", icon: tpl.kind === "project" ? "folder-plus" : "clipboard-list", label: tpl.name,
           count: tpl.size, countKey: "t:" + tpl.root.path,

@@ -24,7 +24,7 @@ export const CHIP_IDS: ChipId[] = ["status", "due", "priority", "label", "recurr
 export type StatusKind = "open" | "done" | "cancelled";
 
 /** Seitenleisten-Sektionen mit sortierbarer Reihenfolge. */
-export type NavSection = "projects" | "areas" | "labels" | "filters";
+export type NavSection = "projects" | "areas" | "labels" | "filters" | "templates";
 /** Sortiermodus einer Sektion: manuelle Reihenfolge · alphabetisch · nach Aufgabenzahl. */
 export type NavSortMode = "manual" | "name" | "count";
 

@@ -33,6 +33,8 @@ export interface TemplateInfo {
   kind: TemplateKind;
   /** Wie viele Aufgaben beim Anwenden entstehen (Wurzel eingeschlossen). */
   size: number;
+  /** In der Seitenleiste ausgeblendet (`nav_hidden` an der Wurzel) – wie bei Projekten. */
+  hidden: boolean;
 }
 
 /** Ordner einer Vorlage: `<templatesFolder>/<Name>`. Je Vorlage einer – siehe templates-plan.md,
@@ -67,7 +69,7 @@ export function listTemplates(plugin: BeautyTasksPlugin): TemplateInfo[] {
       // Zahl = wie viele AUFGABEN entstehen. Bei einer Projektvorlage wird die Wurzel zum
       // Projekt und zählt deshalb nicht mit.
       const size = plugin.templates.descendants(root.path).length + (kind === "project" ? 0 : 1);
-      return { root, name: root.title, kind, size };
+      return { root, name: root.title, kind, size, hidden: templateHidden(plugin.app, root.path) };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
@@ -78,6 +80,24 @@ export function templateKind(app: App, path: string): TemplateKind {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof TFile)) return "task";
   return app.metadataCache.getFileCache(f)?.frontmatter?.[TEMPLATE_OF] === "project" ? "project" : "task";
+}
+
+/** In der Seitenleiste ausgeblendet? Liegt als `nav_hidden` an der Wurzel – derselbe Schlüssel wie
+ *  bei Projekten und Bereichen (s. setNavHidden in taskService), damit „ausgeblendet" im ganzen
+ *  Vault dasselbe Feld bedeutet. Kein Teil von `Task`, deshalb direkt aus dem Frontmatter. */
+export function templateHidden(app: App, path: string): boolean {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof TFile)) return false;
+  return !!app.metadataCache.getFileCache(f)?.frontmatter?.nav_hidden;
+}
+
+/** Vorlage in der Seitenleiste ein-/ausblenden. */
+export async function setTemplateHidden(app: App, path: string, hidden: boolean): Promise<void> {
+  const f = app.vault.getAbstractFileByPath(path);
+  if (!(f instanceof TFile)) return;
+  await app.fileManager.processFrontMatter(f, (fm: Record<string, unknown>) => {
+    if (hidden) fm.nav_hidden = true; else delete fm.nav_hidden;
+  });
 }
 
 /**

@@ -10,7 +10,10 @@ import { FilterModal } from "./filterModal";
 import { ConfirmModal, PromptModal } from "./confirmModal";
 import { listManaged } from "./taskService";
 import { listFilters } from "./filterService";
-import { promptNewTemplate } from "./templateModal";
+import { ApplyTemplateModal, promptNewTemplate } from "./templateModal";
+import { TaskModal } from "./taskModal";
+import { openTaskNote } from "./taskService";
+import { deleteTemplate, listTemplates, refreshTemplates, renameTemplate, templateEditScope, TemplateInfo } from "./templateService";
 import { t } from "./i18n";
 
 // setSubmenu() ist seit App 1.7 verfügbar, fehlt aber in den mitgelieferten Typings (1.13.1).
@@ -98,12 +101,14 @@ export function openEdit(plugin: BeautyTasksPlugin, item: NavMenuItem): void {
 function setVisible(plugin: BeautyTasksPlugin, sec: NavSection, key: string, visible: boolean): Promise<void> {
   if (sec === "filters") return plugin.setFilterVisible(key, visible);
   if (sec === "labels") return plugin.setLabelVisible(key, visible);
+  if (sec === "templates") return plugin.setTemplateVisible(key, visible);
   return plugin.setProjectVisible(key, visible);
 }
 
 function deleteItem(plugin: BeautyTasksPlugin, item: NavMenuItem): Promise<void> {
   if (item.sec === "filters") return plugin.deleteFilter(item.key);
   if (item.sec === "labels") return plugin.deleteLabel(item.key);
+  if (item.sec === "templates") return deleteTemplate(plugin, item.key);
   return plugin.deleteProject(item.key);
 }
 
@@ -111,11 +116,15 @@ function deleteItem(plugin: BeautyTasksPlugin, item: NavMenuItem): Promise<void>
 function renameItem(plugin: BeautyTasksPlugin, item: NavMenuItem, v: string): void {
   if (item.sec === "filters") { void plugin.renameFilter(item.key, v); return; }
   if (item.sec === "labels") { void plugin.renameLabel(item.key, v); return; }
+  if (item.sec === "templates") { void renameTemplate(plugin, item.key, v); return; }
   void plugin.renameProject(item.key, v);   // projects + areas (Pfad)
 }
 
-/** Übersetzungs-Schlüssel für „Zur …übersicht" je Sektion (Board-Kebab). */
-const GOTO_KEY: Record<NavSection, string> = {
+/** Übersetzungs-Schlüssel für „Zur …übersicht" je Sektion (Board-Kebab).
+ *  Vorlagen fehlen bewusst: Der Eintrag erscheint nur auf einer Einzel-SEITE (`onBoard`), und eine
+ *  Vorlage hat keine – sie wird angewendet oder im Editor bearbeitet. Deshalb Partial mit Guard
+ *  statt eines Textes, den nie jemand zu sehen bekäme. */
+const GOTO_KEY: Partial<Record<NavSection, string>> = {
   projects: "menu_goto_projects", areas: "menu_goto_areas", labels: "menu_goto_labels", filters: "menu_goto_filters",
 };
 
@@ -157,8 +166,9 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
   }
 
   // — Zur Übersicht — (nur auf der Einzelseite; ersetzt den früheren „list-plus"-Kopf-Button)
-  if (onBoard) {
-    menu.addItem((m) => m.setSection("bt-goto").setTitle(t(GOTO_KEY[item.sec])).setIcon("list-plus")
+  const gotoKey = GOTO_KEY[item.sec];
+  if (onBoard && gotoKey) {
+    menu.addItem((m) => m.setSection("bt-goto").setTitle(t(gotoKey)).setIcon("list-plus")
       .onClick(() => void plugin.activateManage(item.sec)));
   }
 
@@ -230,6 +240,7 @@ export function buildItemMenu(menu: Menu, plugin: BeautyTasksPlugin, item: NavMe
 /** Ausgeblendete Einträge einer Sektion (Schlüssel + Anzeigename). */
 function hiddenOf(plugin: BeautyTasksPlugin, sec: NavSection): { key: string; name: string }[] {
   if (sec === "filters") return listFilters(plugin.app).filter((f) => f.hidden).map((f) => ({ key: f.path, name: f.name }));
+  if (sec === "templates") return listTemplates(plugin).filter((x) => x.hidden).map((x) => ({ key: x.root.path, name: x.name }));
   if (sec === "labels") return plugin.getLabels().filter((l) => !plugin.isLabelVisible(l.name)).map((l) => ({ key: l.name, name: l.name }));
   const want = sec === "areas" ? "area" : "project";
   return listManaged(plugin.app).active.filter((p) => p.type === want && p.hidden).map((p) => ({ key: p.path, name: p.name }));
@@ -281,3 +292,35 @@ export function showHiddenSubmenu(menu: Menu, plugin: BeautyTasksPlugin, sec: Na
   });
   return true;
 }
+
+/** Rechtsklick auf eine Vorlage. Anwenden steht zusätzlich hier, obwohl der Klick es schon tut –
+ *  wer das Menü öffnet, soll nicht raten müssen, welche Handlung die Zeile ausführt. */
+export function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
+  const m = new Menu();
+  m.addItem((i) => i.setTitle(t("menu_apply_template")).setIcon("wand-sparkles")
+    .onClick(() => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open()));
+  // Bearbeiten öffnet den NORMALEN Aufgaben-Editor, nur auf den Vorlagen-Bestand gestellt
+  // (s. templateEditScope). Unteraufgaben, die man darin anlegt, landen im Vorlagen-Ordner.
+  m.addItem((i) => i.setTitle(t("edit_task")).setIcon("pencil")
+    // Ohne Projekt-Chip: Eine Vorlage gehört keinem Projekt – wohin sie geht, entscheidet der
+    // Anwenden-Dialog. Ein Projekt hier zu setzen sähe nach einer Wirkung aus, die es nicht hat.
+    .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open()));
+  m.addItem((i) => i.setTitle(t("menu_open_task_note")).setIcon("file-text")
+    .onClick(() => openTaskNote(plugin.app, tpl.root.path)));
+  m.addSeparator();
+  m.addItem((i) => i.setTitle(tpl.hidden ? t("tip_show_sidebar") : t("tip_hide_sidebar")).setIcon(tpl.hidden ? "eye" : "eye-off")
+    .onClick(() => void plugin.setTemplateVisible(tpl.root.path, tpl.hidden)));
+  m.addItem((i) => i.setTitle(t("btn_rename")).setIcon("text-cursor-input")
+    .onClick(() => new PromptModal(plugin.app, { title: t("btn_rename"), value: tpl.name }, (name) => {
+      void renameTemplate(plugin, tpl.root.path, name).then(() => refreshTemplates(plugin));
+    }).open()));
+  buildCreateSubmenu(m, plugin);
+  m.addSeparator();
+  m.addItem((i) => i.setTitle(t("btn_delete")).setIcon("trash-2").setWarning(true)
+    .onClick(() => new ConfirmModal(plugin.app, {
+      title: t("confirm_delete_title", tpl.name),
+      message: t("confirm_delete_body"),
+    }, () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin))).open()));
+  return m;
+}
+
