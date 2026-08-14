@@ -2818,7 +2818,16 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    bekommt und die Art der Vorlage nicht nur am Icon hängt. Der Abstand nach unten trennt ihn
    vom ersten Eingabefeld – vorher lag hier `.bt-new-preview`, das im Bestand ganz UNTEN sitzt
    und deshalb keinen braucht. */
-.bt-tpl-head { margin: 0; min-width: 0; }
+/* Der Name-Block ist gerahmt wie die Farbbox im Neu-Modal (.bt-color-box): gleicher Rahmen,
+   gleicher Radius, gleicher gedämpfter Untergrund. Er zeigt etwas AN, statt etwas entgegen-
+   zunehmen – die Umrandung macht denselben Unterschied sichtbar wie dort. Die Werte stehen
+   hier noch einmal und nicht als gemeinsame Klasse: `.bt-color-box` beschreibt eine Reihe
+   Farbfelder und richtet sie mittig aus; das gilt hier gerade nicht. */
+.bt-tpl-head {
+  margin: 0; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--background-modifier-border); border-radius: 10px;
+  background: var(--background-secondary);
+}
 
 /* Anwenden-Dialog: Die drei Blöcke – Vorlagenname · Ziel · Zeitplan – sind gleich gebaut
    (Überschrift mit Trennlinie, darunter der Inhalt) und stehen deshalb im GLEICHEN Abstand
