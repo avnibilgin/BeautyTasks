@@ -314,8 +314,8 @@ function templateRow(list: HTMLElement, ctx: PageCtx, tpl: TemplateInfo, redraw:
   // Eine Vorlage hat keine; ihr Inhalt lebt im Aufgaben-Editor (s. templateEditScope).
   name.onclick = () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open();
   const actions = row.createDiv({ cls: "bt-manage-actions bt-hover-acts" });
-  iconBtn(actions, "wand-sparkles", t("menu_apply_template"), () => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open());
-  iconBtn(actions, "pencil", t("edit_task"), () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open());
+  iconBtn(actions, "wand-sparkles", t("tpl_apply_title"), () => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open());
+  iconBtn(actions, "pencil", t("tpl_edit"), () => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open());
   iconBtn(actions, "trash-2", t("btn_delete"), () => confirmInline(actions, t("confirm_delete_q"), () => void deleteTemplate(plugin, tpl.root.path).then(() => refreshTemplates(plugin)), redraw));
   row.createSpan({ cls: "bt-manage-count", text: String(tpl.size) });
   visSwitch(row, !tpl.hidden, () => void plugin.setTemplateVisible(tpl.root.path, tpl.hidden));

@@ -58,6 +58,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Inbox", group_area: "Areas", group_project: "Projects",
     // ── Vorlagen ──
     nav_templates: "Templates",
+    tpl_edit: "Edit template",
     tpl_target: "Target",
     tpl_schedule: "Schedule",
     tpl_kind_task: "Task template",
@@ -390,6 +391,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Eingang", group_area: "Bereiche", group_project: "Projekte",
     // ── Vorlagen ──
     nav_templates: "Vorlagen",
+    tpl_edit: "Vorlage bearbeiten",
     tpl_target: "Ziel",
     tpl_schedule: "Zeitplan",
     tpl_kind_task: "Aufgabenvorlage",
@@ -722,6 +724,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Bandeja de entrada", group_area: "Áreas", group_project: "Proyectos",
     // ── Vorlagen ──
     nav_templates: "Plantillas",
+    tpl_edit: "Editar plantilla",
     tpl_target: "Destino",
     tpl_schedule: "Planificación",
     tpl_kind_task: "Plantilla de tarea",
@@ -1054,6 +1057,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Entrada", group_area: "Áreas", group_project: "Projetos",
     // ── Vorlagen ──
     nav_templates: "Modelos",
+    tpl_edit: "Editar modelo",
     tpl_target: "Destino",
     tpl_schedule: "Cronograma",
     tpl_kind_task: "Modelo de tarefa",
@@ -1386,6 +1390,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Boîte de réception", group_area: "Domaines", group_project: "Projets",
     // ── Vorlagen ──
     nav_templates: "Modèles",
+    tpl_edit: "Modifier le modèle",
     tpl_target: "Destination",
     tpl_schedule: "Planification",
     tpl_kind_task: "Modèle de tâche",
@@ -1718,6 +1723,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Gelen kutusu", group_area: "Alanlar", group_project: "Projeler",
     // ── Vorlagen ──
     nav_templates: "Şablonlar",
+    tpl_edit: "Şablonu düzenle",
     tpl_target: "Hedef",
     tpl_schedule: "Zamanlama",
     tpl_kind_task: "Görev şablonu",
@@ -2050,6 +2056,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "收件箱", group_area: "领域", group_project: "项目",
     // ── Vorlagen ──
     nav_templates: "模板",
+    tpl_edit: "编辑模板",
     tpl_target: "目标",
     tpl_schedule: "时间安排",
     tpl_kind_task: "任务模板",
@@ -2382,6 +2389,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Входящие", group_area: "Области", group_project: "Проекты",
     // ── Vorlagen ──
     nav_templates: "Шаблоны",
+    tpl_edit: "Изменить шаблон",
     tpl_target: "Куда",
     tpl_schedule: "Сроки",
     tpl_kind_task: "Шаблон задачи",
@@ -2714,6 +2722,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "インボックス", group_area: "エリア", group_project: "プロジェクト",
     // ── Vorlagen ──
     nav_templates: "テンプレート",
+    tpl_edit: "テンプレートを編集",
     tpl_target: "適用先",
     tpl_schedule: "日程",
     tpl_kind_task: "タスクテンプレート",
@@ -3046,6 +3055,7 @@ const STRINGS: Record<string, Dict> = {
     nav_inbox: "Posta in arrivo", group_area: "Aree", group_project: "Progetti",
     // ── Vorlagen ──
     nav_templates: "Modelli",
+    tpl_edit: "Modifica modello",
     tpl_target: "Destinazione",
     tpl_schedule: "Pianificazione",
     tpl_kind_task: "Modello attività",

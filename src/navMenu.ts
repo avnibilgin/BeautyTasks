@@ -297,11 +297,11 @@ export function showHiddenSubmenu(menu: Menu, plugin: BeautyTasksPlugin, sec: Na
  *  wer das Menü öffnet, soll nicht raten müssen, welche Handlung die Zeile ausführt. */
 export function buildTemplateMenu(plugin: BeautyTasksPlugin, tpl: TemplateInfo): Menu {
   const m = new Menu();
-  m.addItem((i) => i.setTitle(t("menu_apply_template")).setIcon("wand-sparkles")
+  m.addItem((i) => i.setTitle(t("tpl_apply_title")).setIcon("wand-sparkles")
     .onClick(() => new ApplyTemplateModal(plugin, tpl, plugin.addContext().project ?? null).open()));
   // Bearbeiten öffnet den NORMALEN Aufgaben-Editor, nur auf den Vorlagen-Bestand gestellt
   // (s. templateEditScope). Unteraufgaben, die man darin anlegt, landen im Vorlagen-Ordner.
-  m.addItem((i) => i.setTitle(t("edit_task")).setIcon("pencil")
+  m.addItem((i) => i.setTitle(t("tpl_edit")).setIcon("pencil")
     // Ohne Projekt-Chip: Eine Vorlage gehört keinem Projekt – wohin sie geht, entscheidet der
     // Anwenden-Dialog. Ein Projekt hier zu setzen sähe nach einer Wirkung aus, die es nicht hat.
     .onClick(() => new TaskModal(plugin, tpl.root, undefined, { hideProjekt: true, scope: templateEditScope(plugin, tpl.root.path) }).open()));
