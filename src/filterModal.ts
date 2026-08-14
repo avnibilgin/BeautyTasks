@@ -88,7 +88,7 @@ export class FilterModal extends Modal {
     // dieselben, die der Filter-Abschnitt des Anzeige-Panels zeichnet. Der Editor zeigt ALLE
     // Facetten und die volle Status-Liste (statusScope „all"): „zeig mir alles Abgebrochene" ist
     // hier eine sinnvolle Frage, im Panel dagegen kollidierte sie mit „Erledigte anzeigen".
-    contentEl.createEl("h4", { cls: "bt-filter-h", text: t("filter_facets") });
+    contentEl.createEl("h4", { cls: "bt-modal-h", text: t("filter_facets") });
     for (const f of buildFacets(this.plugin, ALL_FACETS, () => this.c, (patch) => { this.c = { ...this.c, ...patch }; })) {
       renderFacet(contentEl, f, MODAL_STYLE, () => this.refresh());
     }

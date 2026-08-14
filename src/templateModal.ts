@@ -84,8 +84,8 @@ export class ApplyTemplateModal extends Modal {
     // Ziel. Eine Aufgabenvorlage braucht ein Projekt, in das die Aufgabe geht. Eine
     // Projektvorlage hat die Wahl: ein NEUES Projekt anlegen oder in ein bestehendes giessen –
     // Letzteres ist der Fall „ich will nur die Aufgaben hier drin haben, ohne neues Dach".
+    contentEl.createEl("h4", { cls: "bt-modal-h", text: t("tpl_target") });
     const projField = contentEl.createDiv({ cls: "bt-new-field" });
-    projField.createEl("label", { text: t("tpl_target") });
     if (this.tpl.kind === "project") {
       const pick = projField.createDiv({ cls: "bt-tpl-anchor" });
       this.newBtn = pick.createEl("button", { text: t("tpl_new_project") });
@@ -104,8 +104,8 @@ export class ApplyTemplateModal extends Modal {
 
     // Anker: Richtung + Datum. Die Richtung sind zwei Knöpfe statt eines Umschalters – beide
     // Beschriftungen bleiben lesbar, und man sieht ohne Klick, dass es die zweite Möglichkeit gibt.
+    contentEl.createEl("h4", { cls: "bt-modal-h", text: t("tpl_schedule") });
     const ankField = contentEl.createDiv({ cls: "bt-new-field" });
-    ankField.createEl("label", { text: t("tpl_schedule") });
     const row = ankField.createDiv({ cls: "bt-new-row bt-tpl-when" });
     const dir = row.createDiv({ cls: "bt-tpl-anchor" });
     this.startBtn = dir.createEl("button", { text: t("tpl_anchor_start") });

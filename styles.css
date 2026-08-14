@@ -1808,7 +1808,12 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    Linie – genau so viel, wie unten zwischen der letzten Zeile und der Linie über dem Zähler
    steht (dort 14px margin-top + 3px padding-bottom). Die Facetten sitzen damit symmetrisch
    zwischen ihren beiden Trennlinien. */
-.bt-filter-modal .bt-filter-h {
+/* Abschnittsüberschrift IN einem Modal: gedämpfte Versalien mit Trennlinie darunter.
+   Hiess bis 2026-08-14 `bt-filter-h` und hing am Filter-Dialog – der Anwenden-Dialog der
+   Vorlagen braucht dieselbe Gestalt, und zwei Regeln mit demselben Aussehen liefen frueher
+   oder spaeter auseinander. Bewusst ohne Modal-Praefix im Selektor: der Klassenname ist
+   eindeutig genug, und so gilt er in jedem Dialog, der ihn benutzt. */
+.bt-modal-h {
   margin: 6px 0 14px; padding-bottom: 3px; font-size: 0.72em; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
   border-bottom: 1px solid var(--background-modifier-border);
@@ -2793,7 +2798,7 @@ body.bt-task-modal-open .popover.hover-popover { z-index: calc(var(--layer-modal
    bekommt und die Art der Vorlage nicht nur am Icon hängt. Der Abstand nach unten trennt ihn
    vom ersten Eingabefeld – vorher lag hier `.bt-new-preview`, das im Bestand ganz UNTEN sitzt
    und deshalb keinen braucht. */
-.bt-tpl-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 22px; }
+.bt-tpl-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 18px; }
 .bt-tpl-head-ic { display: inline-flex; flex: 0 0 auto; color: var(--text-muted); }
 .bt-tpl-head-ic svg { width: 20px; height: 20px; }
 .bt-tpl-head-txt { min-width: 0; }
