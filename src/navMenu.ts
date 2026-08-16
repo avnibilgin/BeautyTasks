@@ -270,11 +270,14 @@ export function buildCreateSubmenu(menu: Menu, plugin: BeautyTasksPlugin, sectio
     const row = (key: string, icon: string, open: () => void): void => {
       sub.addItem((m) => m.setTitle(t(key)).setIcon(icon).onClick(open));
     };
-    // Icons wie in der Seitenleiste: Projekt = folder, Bereich = circle, Label = hash.
+    // Icons wie in der Seitenleiste: Projekt = folder, Bereich = circle, Label = hash,
+    // Filter = tag (fest vergeben in filterService.toItem – NICHT der Trichter „filter", so
+    // naheliegend der auch wäre; der Eintrag muss dasselbe Zeichen tragen wie die Zeile, die
+    // er erzeugt).
     row("create_project", "folder", () => new NewItemModal(plugin, "project").open());
     row("create_area", "circle", () => new NewItemModal(plugin, "area").open());
     row("create_label", "hash", () => new NewItemModal(plugin, "label").open());
-    row("create_filter", "filter", () => new FilterModal(plugin).open());
+    row("create_filter", "tag", () => new FilterModal(plugin).open());
     row("create_template", "clipboard-list", () => promptNewTemplate(plugin));
   });
 }
